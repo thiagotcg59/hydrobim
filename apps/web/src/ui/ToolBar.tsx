@@ -8,11 +8,15 @@ import {
   Fan,
   Grid3x3,
   Maximize,
+  MessageSquare,
   MousePointer2,
+  MoveHorizontal,
   Ruler,
   Slash,
   Split,
   SquareArrowUp,
+  Tag,
+  Type,
   type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore, type ToolId, type ViewPreset } from '../state/editorStore';
@@ -30,15 +34,23 @@ const TOOLS: { id: ToolId; icon: LucideIcon; shortcut: string }[] = [
   { id: 'measure', icon: Ruler, shortcut: 'M' },
 ];
 
+/** Documentação: atuam na planta baixa (a vista é aberta ao escolher a ferramenta). */
+const ANNOTATE: { id: ToolId; icon: LucideIcon; shortcut: string }[] = [
+  { id: 'dimension', icon: MoveHorizontal, shortcut: 'C' },
+  { id: 'text', icon: Type, shortcut: 'X' },
+  { id: 'leader', icon: MessageSquare, shortcut: 'L' },
+  { id: 'tag', icon: Tag, shortcut: 'I' },
+];
+
 const VIEWS: { preset: ViewPreset; label: string; icon: LucideIcon }[] = [
   { preset: 'fit', label: 'Enquadrar', icon: Maximize },
   { preset: 'iso', label: 'Perspectiva', icon: Box },
-  { preset: 'top', label: 'Planta', icon: SquareArrowUp },
+  { preset: 'top', label: 'Topo', icon: SquareArrowUp },
   { preset: 'front', label: 'Elevação', icon: Eye },
 ];
 
 export const TOOL_SHORTCUTS: Record<string, ToolId> = Object.fromEntries(
-  TOOLS.map((tool) => [tool.shortcut.toLowerCase(), tool.id]),
+  [...TOOLS, ...ANNOTATE].map((tool) => [tool.shortcut.toLowerCase(), tool.id]),
 );
 
 export function ToolBar() {
@@ -57,6 +69,22 @@ export function ToolBar() {
           className={tool === id ? 'tool is-active' : 'tool'}
           aria-pressed={tool === id}
           title={`${TOOL_LABELS[id]} (${shortcut})`}
+          onClick={() => setTool(id)}
+        >
+          <Icon size={18} />
+          <span>{TOOL_LABELS[id]}</span>
+        </button>
+      ))}
+
+      <span className="toolbar__heading">Documentar</span>
+      {ANNOTATE.map(({ id, icon: Icon, shortcut }) => (
+        <button
+          key={id}
+          type="button"
+          data-testid={`tool-${id}`}
+          className={tool === id ? 'tool is-active' : 'tool'}
+          aria-pressed={tool === id}
+          title={`${TOOL_LABELS[id]} na planta baixa (${shortcut})`}
           onClick={() => setTool(id)}
         >
           <Icon size={18} />

@@ -6,6 +6,7 @@ import {
   resolvePipeSpec,
 } from '@hydrobim/catalog';
 import {
+  addAnnotation,
   addLevel,
   addSystem,
   applyFamilyToInstances,
@@ -15,6 +16,7 @@ import {
   createFamilyCatalog,
   createProject,
   degToRad,
+  deleteAnnotations,
   deleteElements,
   disconnect,
   distance,
@@ -36,17 +38,22 @@ import {
   resolvePort,
   rollFitting,
   setElementProperty,
+  setDrawingScale,
   setElementsSystem,
   setGeoreference,
   setPipeEndpoint,
   setPipeLength,
   setTerrain,
   translateElements,
+  updateAnnotation,
   updateFitting,
   updateLevel,
   updateProjectInfo,
   updateSystem,
   upsertFamily,
+  type AnnotationInput,
+  type AnnotationPatch,
+  type DimensionMode,
   type Discipline,
   type FamilyKind,
   type FittingCatalog,
@@ -57,6 +64,7 @@ import {
   type Georeference,
   type HydraulicSystem,
   type PipeSpec,
+  type Point2,
   type Port,
   type PortRef,
   type Project,
@@ -70,8 +78,24 @@ import {
 import { create } from 'zustand';
 import { distanceAlongPipe, type SnapKind } from '../editor/picking';
 
-export type ToolId =
+/** Ferramentas de documentação, disponíveis na planta baixa. */
+export const ANNOTATION_TOOLS = ['dimension', 'text', 'leader', 'tag'] as const;
+export type AnnotationToolId = (typeof ANNOTATION_TOOLS)[number];
+export type ModelToolId =
   'select' | 'pipe' | 'elbow' | 'tee' | 'reducer' | 'valve' | 'pump' | 'tank' | 'measure';
+export type ToolId = ModelToolId | AnnotationToolId;
+export const isAnnotationTool = (tool: ToolId): tool is AnnotationToolId =>
+  (ANNOTATION_TOOLS as readonly string[]).includes(tool);
+/** Área de trabalho: modelo 3D ou planta baixa (documentação técnica). */
+export type ViewMode = '3d' | 'plan';
+
+/** Pontos já informados da anotação em criação na planta. */
+export interface PlanDraft {
+  readonly points: readonly Point2[];
+  /** Elemento escolhido para a etiqueta. */
+  readonly elementId: string | null;
+}
+const EMPTY_DRAFT: PlanDraft = { points: [], elementId: null };
 export type ViewPreset = 'fit' | 'top' | 'front' | 'iso';
 export type MessageLevel = 'info' | 'success' | 'error';
 /** Como aplicar uma troca de diâmetro. */
@@ -134,6 +158,12 @@ interface EditorState {
   future: Project[];
   /** Elementos selecionados; o primeiro é o principal (painel de propriedades). */
   selection: string[];
+  viewMode: ViewMode;
+  /** Anotação selecionada na planta. */
+  annotationSelection: string | null;
+  planDraft: PlanDraft;
+  /** Tipo das novas cotas. */
+  dimensionMode: DimensionMode;
   tool: ToolId;
   activeSpec: PipeSpec;
   toolOptions: ToolOptions;
@@ -154,6 +184,13 @@ interface EditorState {
   setProjectName: (name: string) => void;
   setDiscipline: (discipline: Discipline) => void;
   setTool: (tool: ToolId) => void;
+  setViewMode: (mode: ViewMode) => void;
+  selectAnnotation: (id: string | null) => void;
+  setPlanDraft: (draft: PlanDraft) => void;
+  setDimensionMode: (mode: DimensionMode) => void;
+  createAnnotation: (input: AnnotationInput) => string | null;
+  changeAnnotation: (id: string, patch: AnnotationPatch) => boolean;
+  changeDrawingScale: (scale: number) => void;
   select: (id: string | null, additive?: boolean) => void;
   selectMany: (ids: string[]) => void;
   setActiveSpec: (specificationId: string, dn: number) => void;
@@ -323,6 +360,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     past: [],
     future: [],
     selection: [],
+    viewMode: '3d',
+    annotationSelection: null,
+    planDraft: EMPTY_DRAFT,
+    dimensionMode: 'aligned',
     tool: 'select',
     activeSpec: defaultPipeSpec('mep'),
     toolOptions: {
@@ -354,6 +395,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         past: [],
         future: [],
         selection: [],
+        annotationSelection: null,
+        planDraft: EMPTY_DRAFT,
         anchor: null,
         measure: { a: null, b: null },
         tool: 'select',
@@ -392,13 +435,67 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       });
     },
 
-    setTool: (tool) => set({ tool, anchor: null, measure: { a: null, b: null } }),
+    // As ferramentas de documentação só existem na planta; as de modelagem, no modelo 3D.
+    setTool: (tool) =>
+      set((state) => {
+        const viewMode: ViewMode = isAnnotationTool(tool)
+          ? 'plan'
+          : tool === 'select'
+            ? state.viewMode
+            : '3d';
+        return {
+          tool,
+          anchor: null,
+          measure: { a: null, b: null },
+          planDraft: EMPTY_DRAFT,
+          viewMode,
+          ...(viewMode === state.viewMode
+            ? {}
+            : { viewRequest: { preset: 'fit', nonce: (state.viewRequest?.nonce ?? 0) + 1 } }),
+        };
+      }),
+
+    setViewMode: (mode) =>
+      set((state) => ({
+        viewMode: mode,
+        tool: 'select',
+        anchor: null,
+        measure: { a: null, b: null },
+        planDraft: EMPTY_DRAFT,
+        cursor: null,
+        viewRequest: { preset: 'fit', nonce: (state.viewRequest?.nonce ?? 0) + 1 },
+      })),
+
+    selectAnnotation: (id) =>
+      set((state) => ({ annotationSelection: id, selection: id ? [] : state.selection })),
+    setPlanDraft: (draft) => set({ planDraft: draft }),
+    setDimensionMode: (mode) => set({ dimensionMode: mode }),
+
+    createAnnotation: (input) => {
+      const result = addAnnotation(get().project, input);
+      if (!result.ok) {
+        get().notify('error', result.error.message);
+        return null;
+      }
+      commit(success(result.value.project));
+      set({
+        annotationSelection: result.value.annotationId,
+        selection: [],
+        planDraft: EMPTY_DRAFT,
+      });
+      return result.value.annotationId;
+    },
+    changeAnnotation: (id, patch) => commit(updateAnnotation(get().project, id, patch)),
+    changeDrawingScale: (scale) => {
+      commit(setDrawingScale(get().project, scale));
+    },
 
     select: (id, additive = false) =>
       set((state) => {
-        if (id === null) return { selection: additive ? state.selection : [] };
-        if (!additive) return { selection: [id] };
+        if (id === null) return additive ? {} : { selection: [], annotationSelection: null };
+        if (!additive) return { selection: [id], annotationSelection: null };
         return {
+          annotationSelection: null,
           selection: state.selection.includes(id)
             ? state.selection.filter((s) => s !== id)
             : [...state.selection, id],
@@ -442,10 +539,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       set((state) => ({ viewRequest: { preset, nonce: (state.viewRequest?.nonce ?? 0) + 1 } })),
 
     cancelInteraction: () => {
-      const { anchor, measure, tool } = get();
-      if (anchor || measure.a) set({ anchor: null, measure: { a: null, b: null } });
+      const { anchor, measure, tool, planDraft } = get();
+      if (planDraft.points.length > 0 || planDraft.elementId) set({ planDraft: EMPTY_DRAFT });
+      else if (anchor || measure.a) set({ anchor: null, measure: { a: null, b: null } });
       else if (tool !== 'select') set({ tool: 'select' });
-      else set({ selection: [] });
+      else set({ selection: [], annotationSelection: null });
     },
 
     handleViewportClick: (click) => {
@@ -453,6 +551,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const { tool, project } = state;
       const port = click.port ? resolvePort(project, click.port) : undefined;
 
+      // Ferramentas de documentação são tratadas pela planta baixa.
+      if (isAnnotationTool(tool)) return;
       if (tool === 'select') {
         state.select(click.hit?.elementId ?? null, click.additive);
         return;
@@ -683,7 +783,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     },
 
     deleteSelected: () => {
-      const { project, selection } = get();
+      const { project, selection, annotationSelection } = get();
+      if (annotationSelection) {
+        commit(success(deleteAnnotations(project, [annotationSelection])), 'Anotação excluída.');
+        set({ annotationSelection: null });
+        return;
+      }
       const existing = selection.filter((id) => getElement(project, id));
       if (existing.length === 0) return;
       const first = getElement(project, existing[0] ?? '');
@@ -795,6 +900,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         past: past.slice(0, -1),
         future: [project, ...future],
         anchor: null,
+        annotationSelection: null,
+        planDraft: EMPTY_DRAFT,
       });
     },
 
@@ -802,7 +909,14 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const { past, future, project } = get();
       const next = future[0];
       if (!next) return;
-      set({ project: next, past: [...past, project], future: future.slice(1), anchor: null });
+      set({
+        project: next,
+        past: [...past, project],
+        future: future.slice(1),
+        anchor: null,
+        annotationSelection: null,
+        planDraft: EMPTY_DRAFT,
+      });
     },
   };
 });

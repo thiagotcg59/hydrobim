@@ -38,6 +38,10 @@ export const TOOL_LABELS: Record<ToolId, string> = {
   pump: 'Bomba',
   tank: 'Reservatório',
   measure: 'Medir',
+  dimension: 'Cota',
+  text: 'Texto',
+  leader: 'Chamada',
+  tag: 'Etiqueta',
 };
 
 export const TOOL_HINTS: Record<ToolId, string> = {
@@ -50,4 +54,8 @@ export const TOOL_HINTS: Record<ToolId, string> = {
   pump: 'Clique um ponto do plano de trabalho (ou informe as coordenadas) para posicionar a bomba; ou clique em uma extremidade livre para acoplar a sucção.',
   tank: 'Clique um ponto do plano de trabalho (ou informe as coordenadas) para posicionar o reservatório.',
   measure: 'Clique dois pontos para medir a distância.',
+  dimension: 'Clique os dois pontos a cotar e, em seguida, a posição da linha de cota.',
+  text: 'Clique na planta para posicionar o texto e digite o conteúdo.',
+  leader: 'Clique o ponto indicado e, em seguida, a posição do texto da chamada.',
+  tag: 'Clique em um elemento e, em seguida, a posição da etiqueta.',
 };

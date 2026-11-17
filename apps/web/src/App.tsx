@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { selectIsDirty, useEditorStore } from './state/editorStore';
 import { restoreSession, saveCurrentProject } from './state/projectActions';
 import { ErrorBoundary } from './ui/ErrorBoundary';
+import { PlanView } from './plan/PlanView';
 import { FamiliesDialog } from './ui/FamiliesDialog';
 import { OpenProjectDialog } from './ui/OpenProjectDialog';
 import { ProjectDialog } from './ui/ProjectDialog';
@@ -73,6 +74,7 @@ export function App() {
   const [familiesDialog, setFamiliesDialog] = useState(false);
   const [projectDialog, setProjectDialog] = useState(false);
   const tool = useEditorStore((s) => s.tool);
+  const viewMode = useEditorStore((s) => s.viewMode);
   useKeyboardShortcuts();
   useUnsavedChangesGuard();
 
@@ -104,8 +106,33 @@ export function App() {
         />
         <ToolBar />
         <main className="workspace">
-          {ready ? <Viewport /> : <div className="viewport-fallback">Carregando projeto…</div>}
-          {tool !== 'select' && <ToolOptions />}
+          {!ready ? (
+            <div className="viewport-fallback">Carregando projeto…</div>
+          ) : viewMode === 'plan' ? (
+            <PlanView />
+          ) : (
+            <Viewport />
+          )}
+          {viewMode === '3d' && tool !== 'select' && <ToolOptions />}
+          <div className="segmented viewmode" role="group" aria-label="Área de trabalho">
+            {(['3d', 'plan'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                data-testid={`view-mode-${mode}`}
+                className={viewMode === mode ? 'segmented__item is-active' : 'segmented__item'}
+                aria-pressed={viewMode === mode}
+                onClick={() => useEditorStore.getState().setViewMode(mode)}
+                title={
+                  mode === '3d'
+                    ? 'Modelo 3D: modelagem da rede'
+                    : 'Planta baixa: documentação técnica com cotas, textos e etiquetas'
+                }
+              >
+                {mode === '3d' ? 'Modelo 3D' : 'Planta baixa'}
+              </button>
+            ))}
+          </div>
         </main>
         <PropertiesPanel />
         <StatusBar />

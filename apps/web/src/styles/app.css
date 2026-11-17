@@ -965,6 +965,64 @@ code {
   border-radius: var(--radius);
 }
 
+.dialog--families {
+  width: min(1440px, calc(100vw - 32px));
+}
+
+.families__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 34%);
+  gap: 10px;
+}
+
+.families__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  margin: 0;
+}
+
+.families__preview-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #10161f;
+  overflow: hidden;
+}
+
+.families__preview-view p {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+}
+
+.families__preview figcaption strong {
+  color: var(--text);
+}
+
+.families__table tr.is-preview td {
+  background: rgba(62, 166, 255, 0.14);
+}
+
+.families__table tr.is-preview td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+}
+
+@media (max-width: 1000px) {
+  .families__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 220px;
+  }
+}
+
 .families__table table {
   width: 100%;
   border-collapse: collapse;
@@ -1130,4 +1188,103 @@ code {
   .topbar .btn:not(.btn--compact):not(.btn--icon) svg {
     font-size: 13px;
   }
+}
+
+/* Planta baixa (documentação técnica) */
+.viewmode {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 6;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.plan {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.plan svg {
+  display: block;
+  touch-action: none;
+  user-select: none;
+}
+
+.plan__bar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 260px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: rgba(18, 26, 37, 0.94);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+.plan__hint {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.plan__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+}
+
+.plan__field--block {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.plan__field select,
+.plan__field input,
+.plan__field textarea {
+  padding: 4px 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+}
+
+.plan__field input {
+  width: 70px;
+}
+
+.plan__field textarea {
+  resize: vertical;
+}
+
+.plan__inspector {
+  position: absolute;
+  top: 52px;
+  right: 10px;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(18, 26, 37, 0.96);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+.plan__inspector header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plan__inspector p {
+  margin: 0;
 }
