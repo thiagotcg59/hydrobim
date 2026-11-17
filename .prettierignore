@@ -5,6 +5,6 @@ playwright-report
 test-results
 package-lock.json
 examples/*.json
-services/api/.venv
+services
 .venv
 *.md
