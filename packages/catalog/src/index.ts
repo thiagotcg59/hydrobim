@@ -7,6 +7,7 @@ import {
 } from '@hydrobim/core';
 import { SPECIFICATIONS, type CatalogSize, type PipeSpecification } from './specifications';
 
+export { BUILTIN_FAMILIES } from './families';
 export { SPECIFICATIONS, type CatalogSize, type PipeSpecification } from './specifications';
 
 export const MATERIAL_LABELS: Record<Material, string> = {
@@ -77,7 +78,10 @@ export function resolveNearestPipeSpec(specificationId: string, dn: number): Pip
 
 /** Especificação padrão de um ambiente (primeira especificação, diâmetro intermediário). */
 export function defaultPipeSpec(discipline: Discipline): PipeSpec {
-  const specification = listSpecifications(discipline)[0] ?? SPECIFICATIONS[0];
+  // Infra: ferro fundido dúctil é o padrão de adutoras e redes principais.
+  const preferred =
+    discipline === 'infra' ? getSpecification('ferro-ductil-nbr7675-k9') : undefined;
+  const specification = preferred ?? listSpecifications(discipline)[0] ?? SPECIFICATIONS[0];
   if (!specification) throw new Error('Catálogo de especificações vazio.');
   const preferredDn = discipline === 'infra' ? 150 : 25;
   const spec = resolveNearestPipeSpec(specification.id, preferredDn);

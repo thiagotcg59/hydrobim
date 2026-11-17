@@ -8,6 +8,7 @@ export const VALVE_TYPE_LABELS: Record<ValveType, string> = {
   ball: 'Esfera',
   butterfly: 'Borboleta',
   check: 'Retenção',
+  airRelease: 'Ventosa',
 };
 
 export const SYSTEM_KIND_LABELS: Record<SystemKind, string> = {
@@ -33,6 +34,8 @@ export const TOOL_LABELS: Record<ToolId, string> = {
   tee: 'Tê',
   reducer: 'Redução',
   valve: 'Válvula',
+  pump: 'Bomba',
+  tank: 'Reservatório',
   measure: 'Medir',
 };
 
@@ -43,5 +46,7 @@ export const TOOL_HINTS: Record<ToolId, string> = {
   tee: 'Clique sobre um tubo para inserir em linha, ou em uma extremidade livre.',
   reducer: 'Clique em uma extremidade livre para acoplar a redução.',
   valve: 'Clique sobre um tubo para inserir em linha, ou em uma extremidade livre.',
+  pump: 'Clique um ponto do plano de trabalho (ou informe as coordenadas) para posicionar a bomba; ou clique em uma extremidade livre para acoplar a sucção.',
+  tank: 'Clique um ponto do plano de trabalho (ou informe as coordenadas) para posicionar o reservatório.',
   measure: 'Clique dois pontos para medir a distância.',
 };

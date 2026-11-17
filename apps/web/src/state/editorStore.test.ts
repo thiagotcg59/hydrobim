@@ -1,13 +1,14 @@
 import { createProject, getFreePorts, validateProject, vec3 } from '@hydrobim/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createDemoProject } from '../demo/demoProject';
-import { selectIsDirty, useEditorStore } from './editorStore';
+import { familiesOf, selectIsDirty, useEditorStore } from './editorStore';
 
 const state = () => useEditorStore.getState();
 const kinds = () => state().project.elements.map((e) => e.kind);
 
 beforeEach(() => {
   state().loadProject(createProject('Teste', 'mep'));
+  state().setToolOptions({ sizeMode: 'reducers', families: {} });
 });
 
 describe('store do editor', () => {
@@ -79,11 +80,78 @@ describe('store do editor', () => {
     state().commitPoint(vec3(3, 0, 0));
     state().commitPoint(vec3(3, 3, 0));
     const first = state().project.elements[0]!;
+    state().setToolOptions({ sizeMode: 'propagate' });
     state().changeSpec(first.id, first.spec.specificationId, 50);
     expect(state().project.elements.every((e) => e.spec.dn === 50)).toBe(true);
     state().changeSpec(first.id, 'pead-pe100-sdr11', 50);
     expect(state().project.elements.every((e) => e.spec.material === 'hdpe')).toBe(true);
     expect(validateProject(state().project)).toEqual([]);
+  });
+
+  it('por padrão altera só a peça e insere reduções de catálogo', () => {
+    state().setTool('pipe');
+    state().commitPoint(vec3(0, 0, 0));
+    state().commitPoint(vec3(3, 0, 0));
+    state().commitPoint(vec3(3, 3, 0));
+    const [first, elbow, second] = state().project.elements;
+    // Joelho automático de 90° vem da família de catálogo (PVC soldável).
+    expect(elbow?.familyId).toBe('krona-joelho-90-soldavel');
+    expect(state().toolOptions.sizeMode).toBe('reducers');
+
+    state().changeSpec(second!.id, second!.spec.specificationId, 20);
+    const project = state().project;
+    expect(project.elements.find((e) => e.id === second!.id)?.spec.dn).toBe(20);
+    expect(project.elements.find((e) => e.id === first!.id)?.spec.dn).toBe(25);
+    expect(project.elements.find((e) => e.id === elbow!.id)?.spec.dn).toBe(25);
+    const reducers = project.elements.filter((e) => e.kind === 'reducer');
+    expect(reducers).toHaveLength(1);
+    expect(reducers[0]?.familyId).toBe('krona-luva-reducao-soldavel');
+    expect(validateProject(project)).toEqual([]);
+    expect(state().message?.text).toContain('1 redução(ões) inserida(s)');
+
+    // Voltar ao diâmetro original remove a redução.
+    state().changeSpec(second!.id, second!.spec.specificationId, 25);
+    expect(state().project.elements.filter((e) => e.kind === 'reducer')).toHaveLength(0);
+    expect(validateProject(state().project)).toEqual([]);
+  });
+
+  it('seleção múltipla, cópia e exclusão', () => {
+    state().setTool('pipe');
+    state().commitPoint(vec3(0, 0, 0));
+    state().commitPoint(vec3(3, 0, 0));
+    state().commitPoint(vec3(3, 3, 0));
+    const ids = state().project.elements.map((e) => e.id);
+    state().select(ids[0]!);
+    state().select(ids[1]!, true);
+    state().select(ids[2]!, true);
+    expect(state().selection).toHaveLength(3);
+    state().select(ids[1]!, true);
+    expect(state().selection).toEqual([ids[0], ids[2]]);
+    state().selectMany(ids);
+    state().copySelection(vec3(0, 0, 2));
+    expect(state().project.elements).toHaveLength(6);
+    expect(state().selection).toHaveLength(3);
+    state().deleteSelected();
+    expect(state().project.elements).toHaveLength(3);
+  });
+
+  it('posiciona bomba e reservatório e personaliza uma família', () => {
+    state().setTool('pump');
+    state().commitPoint(vec3(1, 1, 0.3));
+    state().setTool('tank');
+    state().commitPoint(vec3(6, 1, 0));
+    expect(state().project.elements.map((e) => e.kind)).toEqual(['pump', 'tank']);
+
+    const family = familiesOf(state().project).find((f) => f.id === 'krona-joelho-90-soldavel')!;
+    const edited = {
+      ...family,
+      sizes: family.sizes.map((s) => (s.dn === 25 ? { ...s, centerToEnd: 0.03 } : s)),
+    };
+    expect(state().saveFamily(edited, true)).toBe(true);
+    expect(state().project.families).toHaveLength(1);
+    expect(familiesOf(state().project).find((f) => f.id === family.id)?.origin).toBe('custom');
+    state().resetFamily(family.id);
+    expect(familiesOf(state().project).find((f) => f.id === family.id)?.origin).toBe('builtin');
   });
 
   it('desfaz, refaz e controla alterações pendentes', () => {

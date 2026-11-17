@@ -13,6 +13,7 @@ import {
   radToDeg,
   VALVE_TYPES,
   vec3,
+  type FittingPatch,
   type HydroElement,
   type Pipe,
   type PipeSpec,
@@ -20,9 +21,9 @@ import {
   type Project,
   type Vec3,
 } from '@hydrobim/core';
-import { Trash2, Unlink } from 'lucide-react';
+import { Copy, Move, Trash2, Unlink } from 'lucide-react';
 import { useState } from 'react';
-import { useEditorStore } from '../state/editorStore';
+import { familiesOf, selectPrimaryId, useEditorStore, type SizeMode } from '../state/editorStore';
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
 import { SYSTEM_KIND_LABELS, VALVE_TYPE_LABELS } from './labels';
 import { SpecSelector } from './SpecSelector';
@@ -52,48 +53,104 @@ function SpecDetails({ spec }: { spec: PipeSpec }) {
   );
 }
 
+const SIZE_MODES: { value: SizeMode; label: string; hint: string }[] = [
+  {
+    value: 'reducers',
+    label: 'Somente esta peça (insere reduções)',
+    hint: 'Altera apenas este elemento. Reduções são inseridas, ajustadas ou removidas junto aos vizinhos; os tubos adjacentes cedem o comprimento necessário.',
+  },
+  {
+    value: 'propagate',
+    label: 'Todo o trecho conectado',
+    hint: 'Altera todos os elementos conectados, até encontrar uma mudança de diâmetro.',
+  },
+];
+
 function SpecificationSection({ element, project }: { element: HydroElement; project: Project }) {
-  const propagate = useEditorStore((s) => s.toolOptions.propagateSpec);
+  const sizeMode = useEditorStore((s) => s.toolOptions.sizeMode);
+  const family = element.familyId
+    ? familiesOf(project).find((f) => f.id === element.familyId)
+    : undefined;
+  const change = (portId?: string) => (id: string, dn: number) =>
+    actions().changeSpec(element.id, id, dn, portId);
+  const secondary =
+    element.kind === 'reducer'
+      ? { spec: element.outletSpec, portId: 'b', label: 'Diâmetro — porta B' }
+      : element.kind === 'pump'
+        ? { spec: element.dischargeSpec, portId: 'b', label: 'Diâmetro — recalque' }
+        : element.kind === 'tee'
+          ? {
+              spec: element.branchSpec ?? element.spec,
+              portId: 'branch',
+              label: 'Diâmetro — derivação',
+            }
+          : null;
+
   return (
     <Section title="Especificação" testId="section-spec">
-      {element.kind === 'reducer' ? (
-        <>
-          <SpecSelector
-            spec={element.spec}
-            discipline={project.discipline}
-            sizeLabel="Diâmetro — porta A"
-            testIdPrefix="prop-a"
-            onChange={(id, dn) => actions().changeSpec(element.id, id, dn, 'a')}
-          />
-          <SpecSelector
-            spec={element.outletSpec}
-            discipline={project.discipline}
-            sizeOnly
-            sizeLabel="Diâmetro — porta B"
-            testIdPrefix="prop-b"
-            onChange={(id, dn) => actions().changeSpec(element.id, id, dn, 'b')}
-          />
-        </>
-      ) : (
+      <SpecSelector
+        spec={element.spec}
+        discipline={project.discipline}
+        sizeLabel={
+          element.kind === 'reducer'
+            ? 'Diâmetro — porta A'
+            : element.kind === 'pump'
+              ? 'Diâmetro — sucção'
+              : element.kind === 'tee'
+                ? 'Diâmetro — passagem'
+                : 'Diâmetro'
+        }
+        testIdPrefix="prop"
+        onChange={change(secondary ? 'a' : undefined)}
+      />
+      {secondary && (
         <SpecSelector
-          spec={element.spec}
+          spec={secondary.spec}
           discipline={project.discipline}
-          testIdPrefix="prop"
-          onChange={(id, dn) => actions().changeSpec(element.id, id, dn)}
+          sizeOnly
+          sizeLabel={secondary.label}
+          testIdPrefix="prop-b"
+          onChange={change(secondary.portId)}
         />
       )}
-      <label
-        className="check"
-        title="Reduções delimitam o trecho e têm apenas uma extremidade alterada."
-      >
-        <input
-          type="checkbox"
-          data-testid="prop-propagate"
-          checked={propagate}
-          onChange={(event) => actions().setToolOptions({ propagateSpec: event.target.checked })}
+
+      {element.kind !== 'reducer' && (
+        <fieldset className="radio-group" data-testid="size-mode">
+          <legend>Ao alterar o diâmetro</legend>
+          {SIZE_MODES.map((mode) => (
+            <label key={mode.value} className="check" title={mode.hint}>
+              <input
+                type="radio"
+                name="size-mode"
+                data-testid={`size-mode-${mode.value}`}
+                checked={sizeMode === mode.value}
+                onChange={() => actions().setToolOptions({ sizeMode: mode.value })}
+              />
+              {mode.label}
+            </label>
+          ))}
+        </fieldset>
+      )}
+      {element.kind === 'reducer' && (
+        <span className="muted">
+          Na redução, a alteração de um lado é aplicada ao trecho conectado a ele.
+        </span>
+      )}
+
+      {element.kind !== 'pipe' && element.kind !== 'pump' && element.kind !== 'tank' && (
+        <ReadOnlyRow
+          label="Família"
+          value={
+            <span data-testid="prop-family" data-family-id={element.familyId ?? ''}>
+              {family ? (
+                `${family.name}${family.manufacturer ? ` — ${family.manufacturer}` : ''}`
+              ) : (
+                <span className="warn">Dimensões genéricas (fora de catálogo)</span>
+              )}
+            </span>
+          }
         />
-        Aplicar ao trecho conectado
-      </label>
+      )}
       <SpecDetails spec={element.spec} />
     </Section>
   );
@@ -201,6 +258,36 @@ function PipeGeometry({ pipe, project }: { pipe: Pipe; project: Project }) {
   );
 }
 
+/** Campo de dimensão em milímetros ligado a um parâmetro da conexão. */
+function Dimension({
+  element,
+  field,
+  label,
+  testId,
+  unit = 'mm',
+}: {
+  element: HydroElement;
+  field: keyof FittingPatch;
+  label: string;
+  testId: string;
+  unit?: 'mm' | 'm';
+}) {
+  const raw = (element as unknown as Record<string, number | undefined>)[field];
+  if (raw === undefined) return null;
+  const toDisplay = unit === 'mm' ? mToMm : (v: number) => v;
+  const fromDisplay = unit === 'mm' ? mmToM : (v: number) => v;
+  return (
+    <NumberField
+      label={label}
+      unit={unit}
+      digits={unit === 'mm' ? 1 : 3}
+      value={toDisplay(raw)}
+      onCommit={(v) => actions().changeFitting(element.id, { [field]: fromDisplay(v) })}
+      testId={testId}
+    />
+  );
+}
+
 function FittingGeometry({ element }: { element: Exclude<HydroElement, Pipe> }) {
   const ports = getPorts(element);
   const [axisPort, setAxisPort] = useState(ports[0]?.ref.portId ?? 'a');
@@ -222,32 +309,26 @@ function FittingGeometry({ element }: { element: Exclude<HydroElement, Pipe> }) 
             onCommit={(v) => change(element.id, { angle: degToRad(v) })}
             testId="prop-angle"
           />
-          <NumberField
+          <Dimension
+            element={element}
+            field="bendRadius"
             label="Raio de curvatura"
-            unit="mm"
-            digits={1}
-            value={mToMm(element.bendRadius)}
-            onCommit={(v) => change(element.id, { bendRadius: mmToM(v) })}
             testId="prop-bend-radius"
           />
         </>
       )}
       {element.kind === 'tee' && (
         <>
-          <NumberField
+          <Dimension
+            element={element}
+            field="runLength"
             label="Comprimento da passagem"
-            unit="mm"
-            digits={1}
-            value={mToMm(element.runLength)}
-            onCommit={(v) => change(element.id, { runLength: mmToM(v) })}
             testId="prop-run-length"
           />
-          <NumberField
+          <Dimension
+            element={element}
+            field="branchLength"
             label="Centro à derivação"
-            unit="mm"
-            digits={1}
-            value={mToMm(element.branchLength)}
-            onCommit={(v) => change(element.id, { branchLength: mmToM(v) })}
             testId="prop-branch-length"
           />
         </>
@@ -261,25 +342,120 @@ function FittingGeometry({ element }: { element: Exclude<HydroElement, Pipe> }) 
             options={VALVE_TYPES.map((t) => ({ value: t, label: VALVE_TYPE_LABELS[t] }))}
             onChange={(valveType) => change(element.id, { valveType })}
           />
-          <NumberField
-            label="Comprimento face a face"
-            unit="mm"
-            digits={1}
-            value={mToMm(element.length)}
-            onCommit={(v) => change(element.id, { length: mmToM(v) })}
+          <Dimension
+            element={element}
+            field="length"
+            label={
+              element.valveType === 'airRelease'
+                ? 'Altura acima da porta'
+                : 'Comprimento face a face'
+            }
             testId="prop-valve-length"
+          />
+          <Dimension
+            element={element}
+            field="height"
+            label="Altura do eixo ao topo"
+            testId="prop-valve-height"
+          />
+          <Dimension
+            element={element}
+            field="handwheelDiameter"
+            label="Volante / alavanca"
+            testId="prop-valve-wheel"
           />
         </>
       )}
       {element.kind === 'reducer' && (
-        <NumberField
+        <Dimension
+          element={element}
+          field="length"
           label="Comprimento"
-          unit="mm"
-          digits={1}
-          value={mToMm(element.length)}
-          onCommit={(v) => change(element.id, { length: mmToM(v) })}
           testId="prop-reducer-length"
         />
+      )}
+      {element.kind === 'pump' && (
+        <>
+          <Dimension
+            element={element}
+            field="length"
+            label="Comprimento do conjunto"
+            testId="prop-pump-length"
+          />
+          <Dimension
+            element={element}
+            field="dischargeOffset"
+            label="Sucção ao eixo do recalque"
+            testId="prop-pump-offset"
+          />
+          <Dimension
+            element={element}
+            field="dischargeHeight"
+            label="Altura do recalque"
+            testId="prop-pump-height"
+          />
+          <NumberField
+            label="Vazão nominal"
+            unit="L/s"
+            digits={2}
+            value={(element.ratedFlow ?? 0) * 1000}
+            onCommit={(v) => change(element.id, { ratedFlow: v / 1000 })}
+            testId="prop-pump-flow"
+          />
+          <NumberField
+            label="Altura manométrica"
+            unit="m"
+            digits={2}
+            value={element.ratedHead ?? 0}
+            onCommit={(v) => change(element.id, { ratedHead: v })}
+            testId="prop-pump-head"
+          />
+          <span className="muted">
+            Representação genérica de conjunto motobomba; não corresponde a um modelo comercial.
+          </span>
+        </>
+      )}
+      {element.kind === 'tank' && (
+        <>
+          <Dimension
+            element={element}
+            field="diameter"
+            label="Diâmetro"
+            unit="m"
+            testId="prop-tank-diameter"
+          />
+          <Dimension
+            element={element}
+            field="height"
+            label="Altura"
+            unit="m"
+            testId="prop-tank-height"
+          />
+          <Dimension
+            element={element}
+            field="outletHeight"
+            label="Altura da saída"
+            unit="m"
+            testId="prop-tank-outlet"
+          />
+          <Dimension
+            element={element}
+            field="inletHeight"
+            label="Altura da entrada"
+            unit="m"
+            testId="prop-tank-inlet"
+          />
+          <Dimension
+            element={element}
+            field="nozzleLength"
+            label="Comprimento dos bocais"
+            testId="prop-tank-nozzle"
+          />
+          <ReadOnlyRow
+            label="Volume geométrico"
+            value={`${((Math.PI * element.diameter ** 2 * element.height) / 4).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m³`}
+          />
+        </>
       )}
       <ReadOnlyRow label="Origem" value={formatPoint(element.placement.position)} />
 
@@ -320,13 +496,12 @@ function FittingGeometry({ element }: { element: Exclude<HydroElement, Pipe> }) 
             + {String(step).replace('.', ',')}°
           </button>
         </div>
-        <span className="muted">
-          Representação simplificada e genérica; não corresponde a um produto comercial.
-        </span>
       </div>
     </Section>
   );
 }
+
+const END_LABELS = { socket: 'bolsa', flange: 'flange', plain: 'ponta lisa' } as const;
 
 function PortRow({ port, project }: { port: Port; project: Project }) {
   const other = connectedPortRef(project, port.ref);
@@ -340,7 +515,11 @@ function PortRow({ port, project }: { port: Port; project: Project }) {
         </span>
       </div>
       <span className="muted">
-        {port.spec.sizeLabel} · {formatPoint(port.position)}
+        {port.spec.sizeLabel}
+        {port.end
+          ? ` · ${END_LABELS[port.end.type]} Ø ${formatMillimeters(port.end.outerDiameter)}`
+          : ''}{' '}
+        · {formatPoint(port.position)}
       </span>
       {other ? (
         <div className="port__actions">
@@ -434,7 +613,7 @@ function BimProperties({ element }: { element: HydroElement }) {
         <div className="row" key={name}>
           <span className="row__label">{name}</span>
           <span className="row__value">
-            {String(current)}
+            {String(current)}{' '}
             <button
               type="button"
               className="link"
@@ -474,8 +653,64 @@ function BimProperties({ element }: { element: HydroElement }) {
   );
 }
 
+/** Mover e copiar a seleção por deslocamento numérico. */
+function MoveCopy() {
+  const [dx, setDx] = useState(0);
+  const [dy, setDy] = useState(0);
+  const [dz, setDz] = useState(0);
+  const delta = vec3(dx, dy, dz);
+  const empty = dx === 0 && dy === 0 && dz === 0;
+  return (
+    <Section title="Mover / copiar" testId="section-move">
+      <div className="point__fields">
+        <NumberField label="ΔX" unit="m" value={dx} onCommit={setDx} testId="move-dx" />
+        <NumberField label="ΔY" unit="m" value={dy} onCommit={setDy} testId="move-dy" />
+        <NumberField label="ΔZ" unit="m" value={dz} onCommit={setDz} testId="move-dz" />
+      </div>
+      <div className="chips">
+        <button
+          type="button"
+          className="chip"
+          data-testid="move-apply"
+          disabled={empty}
+          onClick={() => actions().moveSelection(delta)}
+        >
+          <Move size={13} /> Mover
+        </button>
+        <button
+          type="button"
+          className="chip"
+          data-testid="copy-apply"
+          disabled={empty}
+          onClick={() => actions().copySelection(delta)}
+        >
+          <Copy size={13} /> Copiar
+        </button>
+      </div>
+      <span className="muted">
+        Ao mover, tubos conectados se ajustam quando o deslocamento segue o eixo; caso contrário a
+        operação é recusada.
+      </span>
+    </Section>
+  );
+}
+
+function SystemField({ project, systemId }: { project: Project; systemId: string }) {
+  return (
+    <SelectField
+      label="Sistema"
+      testId="prop-system"
+      value={systemId}
+      options={project.systems.map((s) => ({
+        value: s.id,
+        label: `${s.name} (${SYSTEM_KIND_LABELS[s.kind]})`,
+      }))}
+      onChange={(id) => actions().assignSystem(id)}
+    />
+  );
+}
+
 function ElementProperties({ element, project }: { element: HydroElement; project: Project }) {
-  const system = project.systems.find((s) => s.id === element.systemId);
   return (
     <div
       className="panel__scroll"
@@ -494,10 +729,7 @@ function ElementProperties({ element, project }: { element: HydroElement; projec
           label="Identificador"
           value={<code data-testid="prop-id">{element.id}</code>}
         />
-        <ReadOnlyRow
-          label="Sistema"
-          value={system ? `${system.name} (${SYSTEM_KIND_LABELS[system.kind]})` : '—'}
-        />
+        <SystemField project={project} systemId={element.systemId} />
       </Section>
 
       <SpecificationSection element={element} project={project} />
@@ -516,6 +748,7 @@ function ElementProperties({ element, project }: { element: HydroElement; projec
       </Section>
 
       {element.kind === 'pipe' && <InlineInsert key={element.id} pipe={element} />}
+      <MoveCopy />
       <BimProperties key={`bim-${element.id}`} element={element} />
 
       <Section title="Histórico" testId="section-history">
@@ -545,12 +778,58 @@ function ElementProperties({ element, project }: { element: HydroElement; projec
   );
 }
 
+function MultiSelection({ elements, project }: { elements: HydroElement[]; project: Project }) {
+  const counts = new Map<string, number>();
+  for (const e of elements) counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
+  const systems = new Set(elements.map((e) => e.systemId));
+  const first = elements[0];
+  return (
+    <div className="panel__scroll" data-testid="multi-properties" data-count={elements.length}>
+      <Section title={`${elements.length} elementos selecionados`} testId="section-multi">
+        {[...counts.entries()].map(([kind, count]) => (
+          <ReadOnlyRow
+            key={kind}
+            label={elementKindLabel(kind as HydroElement['kind'])}
+            value={count}
+          />
+        ))}
+        {first && (
+          <>
+            <SystemField
+              project={project}
+              systemId={systems.size === 1 ? first.systemId : first.systemId}
+            />
+            {systems.size > 1 && (
+              <span className="muted">A seleção contém elementos de sistemas diferentes.</span>
+            )}
+          </>
+        )}
+      </Section>
+      <MoveCopy />
+      <button
+        type="button"
+        className="btn btn--danger"
+        data-testid="action-delete"
+        onClick={() => actions().deleteSelected()}
+      >
+        <Trash2 size={15} /> Excluir selecionados
+      </button>
+    </div>
+  );
+}
+
 /** Resumo do projeto e quantitativo básico, exibidos quando não há seleção. */
 function ProjectSummary({ project }: { project: Project }) {
-  const selectedId = useEditorStore((s) => s.selectedId);
+  const selection = useEditorStore((s) => s.selection);
   const lengths = new Map<string, { label: string; length: number; count: number }>();
+  let generic = 0;
   for (const element of project.elements) {
-    if (element.kind !== 'pipe') continue;
+    if (element.kind !== 'pipe') {
+      const cataloged =
+        element.kind === 'pump' || element.kind === 'tank' || element.familyId !== null;
+      if (!cataloged) generic += 1;
+      continue;
+    }
     const key = `${element.spec.specificationId}#${element.spec.dn}`;
     const entry = lengths.get(key) ?? {
       label: `${MATERIAL_LABELS[element.spec.material]} ${element.spec.sizeLabel}`,
@@ -574,6 +853,14 @@ function ProjectSummary({ project }: { project: Project }) {
         <ReadOnlyRow
           label="Conexões"
           value={<span data-testid="connection-count">{project.connections.length}</span>}
+        />
+        <ReadOnlyRow
+          label="Peças fora de catálogo"
+          value={
+            <span data-testid="generic-count" className={generic > 0 ? 'warn' : undefined}>
+              {generic}
+            </span>
+          }
         />
       </Section>
       <Section title="Tubos por diâmetro" testId="section-quantities">
@@ -599,9 +886,14 @@ function ProjectSummary({ project }: { project: Project }) {
                 data-element-id={element.id}
                 data-element-kind={element.kind}
                 className={
-                  element.id === selectedId ? 'element-list__item is-active' : 'element-list__item'
+                  selection.includes(element.id)
+                    ? 'element-list__item is-active'
+                    : 'element-list__item'
                 }
-                onClick={() => actions().select(element.id)}
+                title="Ctrl+clique para selecionar vários"
+                onClick={(event) =>
+                  actions().select(element.id, event.ctrlKey || event.metaKey || event.shiftKey)
+                }
               >
                 <span>{element.name}</span>
                 <span className="muted">{element.spec.sizeLabel}</span>
@@ -616,19 +908,23 @@ function ProjectSummary({ project }: { project: Project }) {
 
 export function PropertiesPanel() {
   const project = useEditorStore((s) => s.project);
-  const selectedId = useEditorStore((s) => s.selectedId);
-  const element = selectedId ? getElement(project, selectedId) : undefined;
+  const selection = useEditorStore((s) => s.selection);
+  const primaryId = useEditorStore(selectPrimaryId);
+  const elements = selection
+    .map((id) => getElement(project, id))
+    .filter((e): e is HydroElement => e !== undefined);
+  const element = elements.length === 1 && primaryId ? elements[0] : undefined;
 
   return (
     <aside className="panel" aria-label="Propriedades">
       <header className="panel__header">
-        <h2>{element ? 'Propriedades' : 'Projeto'}</h2>
-        {element && (
+        <h2>{elements.length > 0 ? 'Propriedades' : 'Projeto'}</h2>
+        {elements.length > 0 && (
           <button
             type="button"
             className="link"
             data-testid="back-to-project"
-            onClick={() => actions().select(null)}
+            onClick={() => actions().selectMany([])}
           >
             ver projeto
           </button>
@@ -636,6 +932,8 @@ export function PropertiesPanel() {
       </header>
       {element ? (
         <ElementProperties element={element} project={project} />
+      ) : elements.length > 1 ? (
+        <MultiSelection elements={elements} project={project} />
       ) : (
         <ProjectSummary project={project} />
       )}

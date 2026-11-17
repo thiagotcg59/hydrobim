@@ -60,6 +60,56 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     ],
   },
   {
+    id: 'pvc-pba-nbr5647-cl15',
+    name: 'PVC PBA junta elástica — classe 15',
+    material: 'pvc',
+    standard: 'ABNT NBR 5647',
+    jointType: 'socketSpigot',
+    pressureClass: 'Classe 15 (0,75 MPa)',
+    disciplines: ['infra'],
+    // Fonte: Tigre (Catálogo Infraestrutura 07/2025) e Amanco Wavin (FT Linha PBA, jan/2025).
+    sizes: [
+      size(50, 'DN 50 (DE 60)', 60, 3.3),
+      size(75, 'DN 75 (DE 85)', 85, 4.7),
+      size(100, 'DN 100 (DE 110)', 110, 6.1),
+    ],
+  },
+  {
+    id: 'pvc-pba-nbr5647-cl20',
+    name: 'PVC PBA junta elástica — classe 20',
+    material: 'pvc',
+    standard: 'ABNT NBR 5647',
+    jointType: 'socketSpigot',
+    pressureClass: 'Classe 20 (1,0 MPa)',
+    disciplines: ['infra'],
+    sizes: [
+      size(50, 'DN 50 (DE 60)', 60, 4.3),
+      size(75, 'DN 75 (DE 85)', 85, 6.1),
+      size(100, 'DN 100 (DE 110)', 110, 7.8),
+    ],
+  },
+  {
+    id: 'pvc-defofo-nbr7665',
+    name: 'PVC DEFoFo junta elástica — 1 MPa',
+    material: 'pvc',
+    standard: 'ABNT NBR 7665',
+    jointType: 'socketSpigot',
+    pressureClass: 'PN 1 MPa',
+    disciplines: ['infra'],
+    // Fonte: Tigre MPVC DEFoFo (Catálogo Infraestrutura 07/2025, p. 15). Diâmetros externos
+    // iguais aos do ferro fundido dúctil.
+    sizes: [
+      size(100, 'DN 100', 118, 4.8),
+      size(150, 'DN 150', 170, 6.8),
+      size(200, 'DN 200', 222, 8.9),
+      size(250, 'DN 250', 274, 11.0),
+      size(300, 'DN 300', 326, 13.1),
+      size(350, 'DN 350', 378, 15.2),
+      size(400, 'DN 400', 429, 17.2),
+      size(500, 'DN 500', 532, 21.3),
+    ],
+  },
+  {
     id: 'aco-carbono-b3610-sch40',
     name: 'Aço-carbono — Schedule 40',
     material: 'carbonSteel',

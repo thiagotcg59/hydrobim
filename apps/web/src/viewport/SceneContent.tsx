@@ -19,14 +19,14 @@ const tuple = (v: Vec3): [number, number, number] => [v.x, v.y, v.z];
 
 function Elements({ hoveredId }: { hoveredId: string | null }) {
   const elements = useEditorStore((s) => s.project.elements);
-  const selectedId = useEditorStore((s) => s.selectedId);
+  const selection = useEditorStore((s) => s.selection);
   return (
     <>
       {elements.map((element) => (
         <ElementMesh
           key={element.id}
           element={element}
-          selected={element.id === selectedId}
+          selected={selection.includes(element.id)}
           hovered={element.id === hoveredId}
         />
       ))}
