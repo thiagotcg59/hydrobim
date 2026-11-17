@@ -41,7 +41,8 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Renderização | `apps/web/src/viewport` |
 | Interface | `apps/web/src/ui` |
 | Persistência | `apps/web/src/persistence`, `packages/core/src/serialization.ts` |
-| Exportação IFC / integrações | `services/api` (Fase 3 em diante) |
+| Exportação IFC | `packages/ifc` (cliente); verificação em `services/api/tests` |
+| Quantitativo, EPANET, interferências, terreno, perfil | `packages/core/src/quantities.ts`, `epanet.ts`, `analysis.ts` |
 
 ## Fluxo de uma edição
 
@@ -69,7 +70,7 @@ Quando uma conexão muda de dimensão ou posição, `reconcile` restabelece o ac
 
 ## Backend
 
-`services/api` espelha o esquema com Pydantic (chaves camelCase idênticas) e repete as validações estruturais. Um teste do backend carrega todos os arquivos de `examples/`, garantindo que os dois lados do contrato permaneçam compatíveis. A exportação IFC será um serviço dentro de `hydrobim_api/services/ifc`, consumindo o documento do projeto.
+`services/api` espelha o esquema com Pydantic (chaves camelCase idênticas) e repete as validações estruturais. Os testes do backend carregam todos os arquivos de `examples/`, garantindo que os dois lados do contrato permaneçam compatíveis, e verificam com IfcOpenShell os arquivos IFC gerados pelo cliente. A exportação IFC em si é feita no navegador por `packages/ifc` (ver ADR-017).
 
 ## Limites conhecidos da arquitetura atual
 

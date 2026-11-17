@@ -11,10 +11,11 @@ Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md
 | Caminho | Conteúdo | Pode depender de |
 | --- | --- | --- |
 | `packages/core` | Esquema, matemática, portas, conectividade, operações, validação, serialização | apenas `zod` |
-| `packages/catalog` | Especificações dimensionais de tubos | `core` |
+| `packages/catalog` | Especificações de tubos e famílias de conexões (com fontes) | `core` |
+| `packages/ifc` | Exportação IFC 4.3 (escritor IFC-SPF puro) | `core`, `geometry` |
 | `packages/geometry` | Malhas paramétricas (sem motor gráfico) | `core` |
 | `apps/web` | Editor React/Three.js: `ui/`, `viewport/`, `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
-| `services/api` | API FastAPI (validação; exportação IFC na Fase 3) | contrato JSON do projeto |
+| `services/api` | API FastAPI (validação; verificação do IFC com IfcOpenShell nos testes) | contrato JSON do projeto |
 | `tests/integration`, `tests/e2e` | Integração entre pacotes e testes no navegador | — |
 | `examples/` | Projetos de exemplo, gerados por `npm run examples:generate` | — |
 | `docs/` | Arquitetura, domínio, IFC, decisões, roadmap | — |
@@ -67,10 +68,12 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 9. **Nenhum EPSG ou coordenada geográfica arbitrária.**
 10. **IFC**: não confundir classe interna, entidade IFC e tipo predefinido; verificar no esquema antes de mapear (`docs/IFC_MAPPING.md`).
 11. Recursos não implementados aparecem desabilitados e identificados (com a fase), nunca com ações simuladas.
+12. **Dados de catálogo só de fontes identificadas**: todo valor de família vem de um documento citado em `source` (fabricante, edição, página, URL); valores derivados são declarados; nada é inventado ou interpolado. Ver `docs/CATALOGS.md`.
+13. **A porta fica no fundo da bolsa ou na face do flange**; a bolsa é geometria sobre o tubo.
 
 ## Alterações no esquema do projeto
 
-Mudou `packages/core/src/schema.ts`? Então: incremente `SCHEMA_VERSION`, registre a migração em `serialization.ts`, atualize `services/api/hydrobim_api/models/project.py`, rode `npm run examples:generate`, atualize `docs/DOMAIN_MODEL.md` e rode os testes dos dois lados.
+Mudou `packages/core/src/schema.ts`? Então: incremente `SCHEMA_VERSION`, registre a migração em `serialization.ts`, atualize `services/api/hydrobim_api/models/project.py` (inclusive a migração), ajuste `packages/ifc` se a mudança afetar a exportação, rode `npm run examples:generate` (gera o JSON e o IFC de exemplo juntos), atualize `docs/DOMAIN_MODEL.md` e rode os testes dos dois lados.
 
 ## Estratégia de testes
 

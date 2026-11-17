@@ -18,12 +18,16 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 1
+  schemaVersion: 2
   id, name
   discipline: 'mep' | 'infra'
   units: { length: 'm', angle: 'rad' }
   createdAt, updatedAt
-  systems: HydraulicSystem[]      // ao menos um
+  systems: HydraulicSystem[]      // ao menos um; cor e visibilidade opcionais
+  levels: Level[]                 // níveis/pavimentos
+  families: FittingFamily[]       // famílias personalizadas (sobrepõem o catálogo)
+  georeference: Georeference | null   // informada pelo usuário; nunca presumida
+  terrain: Terrain | null         // TIN em coordenadas locais
   elements: HydroElement[]
   connections: Connection[]       // grafo de conectividade
 }
@@ -36,7 +40,8 @@ Campos comuns:
 | Campo | Significado |
 | --- | --- |
 | `id` | UUID persistente; nunca muda. Base do futuro GlobalId IFC |
-| `kind` | `pipe`, `elbow`, `tee`, `reducer`, `valve` |
+| `kind` | `pipe`, `elbow`, `tee`, `reducer`, `valve`, `pump`, `tank` |
+| `familyId` | Família de catálogo que originou as dimensões; `null` = genéricas ou editadas à mão |
 | `name` | Nome editável (ex.: "Tubo 3") |
 | `systemId` | Sistema hidráulico ao qual pertence |
 | `spec` | Especificação dimensional (`PipeSpec`) |
@@ -50,9 +55,11 @@ Parâmetros específicos:
 | --- | --- | --- |
 | Tubo (`pipe`) | `start`, `end` (o comprimento é calculado) | `start`, `end` |
 | Joelho (`elbow`) | `placement`, `angle` (deflexão), `bendRadius` | `a`, `b` |
-| Tê (`tee`) | `placement`, `runLength`, `branchLength` | `a`, `b` (passagem), `branch` |
+| Tê (`tee`) | `placement`, `runLength`, `branchLength`, `branchSpec` (tê de redução) | `a`, `b` (passagem), `branch` |
 | Redução (`reducer`) | `placement`, `outletSpec`, `length` | `a` (`spec`), `b` (`outletSpec`) |
-| Válvula (`valve`) | `placement`, `valveType`, `length` | `a`, `b` |
+| Válvula (`valve`) | `placement`, `valveType`, `length`, `height`, `handwheelDiameter` | `a`, `b` (ventosa: só `a`) |
+| Bomba (`pump`) | `placement`, `dischargeSpec`, `length`, `dischargeOffset`, `dischargeHeight`, ponto nominal | `a` (sucção), `b` (recalque) |
+| Reservatório (`tank`) | `placement`, `diameter`, `height`, alturas dos bocais | `a` (saída), `b` (entrada) |
 
 `placement = { position, rotation }` define o referencial local da conexão (quaternion unitário).
 
@@ -64,6 +71,14 @@ Todas as conexões seguem a mesma convenção: a porta `a` fica em −X e o eixo
 - **Joelho**: origem no **vértice teórico** (interseção das linhas de centro). Porta `a` em `(−L, 0, 0)`, porta `b` em `L·(cos θ, sin θ, 0)`, com `L = R·tan(θ/2)`.
 - **Tê**: origem no centro; passagem ao longo de X; derivação em +Y.
 - **Redução e válvula**: origem no centro; haste da válvula em +Z.
+
+### Extremidades (`ends`)
+
+Cada conexão guarda, por porta, o acabamento da extremidade: `{ type: 'plain' | 'socket' | 'flange', length, outerDiameter }`. Em bolsas, `length` é a profundidade além da porta (sobre o tubo); em flanges, a espessura da face para dentro. A porta fica no fundo da bolsa ou na face do flange.
+
+## Famílias
+
+`FittingFamily` descreve uma linha de produto: tipo (`elbow`, `tee`, `reducer`, `valve`), especificação de tubo, tipo de extremidade, ângulo (joelhos) ou tipo (válvulas), fabricante, norma, **fonte** e a tabela de tamanhos. As operações recebem um `FittingCatalog` (`createFamilyCatalog(famílias, preferências)`), que devolve as dimensões da família ou, na falta dela, proporções genéricas com `familyId: null`. Ver [catálogos](CATALOGS.md).
 
 ## O que é derivado (nunca persistido)
 
@@ -101,7 +116,11 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 | `drawPipe` | Desenha a partir de uma porta: continuação reta, joelho automático (apara o tubo) ou recusa fora do eixo de conexões |
 | `attachFitting` | Acopla joelho, tê, redução ou válvula a uma porta livre |
 | `insertInline` | Divide um tubo e insere tê ou válvula; o tubo original mantém o id |
+| `resizeWithReducers` | Altera o diâmetro só do elemento, inserindo/ajustando/removendo reduções |
 | `applySpec` | Altera material/diâmetro, opcionalmente propagando pelo trecho até as reduções |
+| `placeEquipment`, `copyElements` | Posiciona bomba/reservatório; copia conjuntos preservando conexões internas |
+| `upsertFamily`, `applyFamilyToInstances` | Personaliza famílias no projeto e reaplica às peças |
+| `addLevel`, `addSystem`, `setGeoreference`, `setTerrain` | Dados de projeto |
 | `updateFitting`, `rollFitting`, `translateElements` | Edição de conexões com reconciliação |
 | `setPipeEndpoint`, `setPipeLength` | Edição de extremidades livres |
 | `deleteElements`, `disconnect`, `renameElement`, `setElementProperty` | Edição geral |
@@ -115,3 +134,14 @@ As dimensões padrão das conexões (`dimensions.ts`) são proporções genéric
 ## Evolução do esquema
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
+
+## Análises e exportações (derivadas do modelo)
+
+| Função | Resultado |
+| --- | --- |
+| `computeQuantities`, `quantitiesToCsv` | Quantitativo por sistema, especificação, diâmetro e família |
+| `exportEpanet` | Rede em formato INP, com a lista de pendências a revisar |
+| `detectClashes` | Tubos cujas paredes externas se interpenetram |
+| `parseTerrainPoints`, `createTerrain`, `terrainElevationAt` | Terreno triangulado (TIN) |
+| `buildProfile` | Perfil longitudinal com cota do terreno e recobrimento |
+| `exportIfc` (`@hydrobim/ifc`) | Arquivo IFC 4.3 |

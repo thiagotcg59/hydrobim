@@ -4,69 +4,68 @@ Legenda: ✅ concluído e testado · 🟡 parcial · ⬜ não iniciado
 
 ## Fase 0 — Fundação ✅ (CI pendente de primeira execução)
 
-- ✅ Monorepo (npm workspaces), TypeScript estrito, ESLint, Prettier, Vitest, Playwright.
-- ✅ Frontend React + Vite + Three.js (React Three Fiber) + Zustand.
-- ✅ Backend FastAPI + Pydantic (uv, ruff, pytest).
-- 🟡 CI (GitHub Actions): workflow configurado (lint, formatação, tipos, testes, build, E2E e backend); **ainda não executado no GitHub**, pois a branch não foi enviada.
-- ✅ Documentação técnica e `AGENTS.md`.
+- ✅ Monorepo, TypeScript estrito, ESLint, Prettier, Vitest, Playwright.
+- ✅ Frontend React + Vite + Three.js; backend FastAPI + Pydantic.
+- 🟡 CI (GitHub Actions) configurado; executa quando houver pull request ou push para `develop`/`main`.
 
 ## Fase 1 — MVP funcional ✅
 
-- ✅ Viewport 3D com órbita, zoom, deslocamento, grade, eixos e vistas.
-- ✅ Tubos por dois pontos em qualquer orientação (mouse ou coordenadas).
-- ✅ Seleção, realce e painel de propriedades com dados reais.
-- ✅ Alteração de diâmetro e material com atualização da geometria.
-- ✅ Joelho, tê, redução e válvula paramétricos (extremidade livre e em linha).
-- ✅ Identificadores persistentes, portas e grafo de conexões.
-- ✅ Salvar/abrir (navegador e arquivo JSON), desfazer/refazer.
-- ✅ Projeto de demonstração, tratamento de erros, validação do modelo.
-- ✅ Ferramenta de medição.
+Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmetro e material, joelho, tê, redução e válvula, portas e conexões, salvar/abrir, desfazer/refazer, validação.
 
-Antecipado da Fase 2 por ser necessário à usabilidade: snap em extremidades livres, joelho automático, propagação de diâmetro pelo trecho e reconciliação topológica básica.
+## Fase 2 — Conectividade avançada 🟡
 
-## Fase 2 — Conectividade avançada ⬜
+- ✅ Catálogo dimensional de conexões por fabricante/norma, com fontes (`docs/CATALOGS.md`).
+- ✅ Famílias editáveis por projeto, com reaplicação às peças existentes.
+- ✅ Troca de diâmetro que altera só a peça e insere, ajusta ou remove reduções.
+- ✅ Tê de redução; extremidades com bolsa, flange ou ponta lisa.
+- ✅ Seleção múltipla, mover e copiar por deslocamento; sistemas com cor e visibilidade.
+- ⬜ Peças de transição entre especificações (adaptadores, tocos com flange, luvas de correr).
+- ⬜ Verificação de compatibilidade do tipo de extremidade (flange × ponta, bolsa × bolsa).
+- ⬜ Snapping avançado (ponto médio, perpendicular, projeção) e manipuladores no viewport.
+- ⬜ Seleção por janela; fechamento automático entre duas extremidades.
+- ⬜ Catálogo de conexões de PEAD e curvas PBA; catálogos brasileiros de ferro dúctil e válvulas.
 
-- ⬜ Catálogo dimensional de conexões por norma/fabricante (substitui as proporções genéricas).
-- ⬜ Peças de transição entre especificações e tês de redução.
-- ⬜ Snapping avançado (ponto médio, perpendicular, projeção sobre tubos, planos auxiliares).
-- ⬜ Mover/copiar/girar elementos e conjuntos com manipuladores no viewport.
-- ⬜ Seleção múltipla e por janela.
-- ⬜ Fechamento automático entre duas extremidades (roteamento com joelhos).
-- ⬜ Detecção de inconsistências topológicas (trechos isolados, sobreposições).
-- ⬜ Camadas de sistemas (vários sistemas por projeto, cores e visibilidade).
+## Fase 3 — IFC 🟡
 
-## Fase 3 — IFC ⬜
+- ✅ Exportação IFC 4.3 (`IFC4X3_ADD2`) no navegador (`@hydrobim/ifc`).
+- ✅ Estrutura espacial, portas, `IfcRelConnectsPorts`, sistemas, materiais, propriedades.
+- ✅ Georreferência (`IfcProjectedCRS` + `IfcMapConversion`) somente quando informada.
+- ✅ Verificação automática: IfcOpenShell abre o arquivo, `validate` sem erros, geometria tesselada.
+- ⬜ Testes em visualizadores e ferramentas de autoria de terceiros.
+- ⬜ `IfcTypeObject`, conjuntos de propriedades padrão (`Pset_*`), sentido de escoamento.
+- ⬜ Sólidos paramétricos para conexões (hoje malhas trianguladas); compatibilidade IFC 4.
+- ⬜ Importação IFC.
 
-- ⬜ Exportação IFC 4.3 no backend (IfcOpenShell), conforme `IFC_MAPPING.md`.
-- ⬜ Geometria válida, propriedades, sistemas, portas e relações.
-- ⬜ Testes que reabrem o IFC exportado e conferem entidades e conectividade.
-- ⬜ Testes de interoperabilidade em visualizadores e compatibilidade IFC 4.
-- ⬜ Integração do botão "Exportar IFC" do editor com a API.
+## Fase 4 — MEP avançado 🟡
 
-## Fase 4 — MEP avançado ⬜
-
-- ⬜ Níveis e pavimentos; planos de trabalho por nível.
-- ⬜ Bombas, reservatórios, coletores, flanges e equipamentos.
-- ⬜ Vistas ortográficas (planta, cortes, elevações) com câmera ortográfica.
-- ⬜ Quantitativos e listas de materiais exportáveis.
+- ✅ Níveis/pavimentos e plano de trabalho por nível.
+- ✅ Bomba e reservatório (representações genéricas) e ventosa.
+- ✅ Projeção ortográfica (planta e elevação em verdadeira grandeza).
+- ✅ Quantitativo exportável em CSV.
+- ⬜ Catálogo de bombas e reservatórios; flanges avulsos, coletores.
+- ⬜ Cortes, vistas salvas e pranchas.
 - ⬜ Persistência em servidor (API + PostgreSQL).
 
-## Fase 5 — Infraestrutura ⬜
+## Fase 5 — Infraestrutura 🟡
 
-- ⬜ Coordenadas georreferenciadas e origem de cena deslocada.
-- ⬜ Importação de terrenos e superfícies.
-- ⬜ Traçado de adutoras por vértices de alinhamento.
-- ⬜ Perfil longitudinal, cobrimentos e profundidades de assentamento.
-- ⬜ Cadastro de nós e trechos; ventosas, descargas e acessórios de rede.
-- ⬜ Transição Infra ↔ MEP (estação elevatória detalhada dentro da adutora).
+- ✅ Georreferência informada pelo usuário.
+- ✅ Importação de terreno por pontos XYZ, triangulado (TIN), até 4.000 pontos.
+- ✅ Perfil longitudinal com cota do terreno e recobrimento.
+- ⬜ Origem de cena deslocada para coordenadas grandes (hoje use coordenadas locais).
+- ⬜ Traçado por alinhamento (vértices, deflexões por junta), assentamento por recobrimento.
+- ⬜ Cadastro de nós e trechos; descargas, hidrantes, caixas.
+- ⬜ Terrenos grandes (LandXML, GeoTIFF) e curvas de nível.
 
-## Fase 6 — Engenharia e integrações ⬜
+## Fase 6 — Engenharia e integrações 🟡
 
-- ⬜ Integração com EPANET (exportação/importação de rede).
-- ⬜ Relatórios técnicos.
-- ⬜ Análise de interferências (avaliar kernel BRep).
-- ⬜ Federação com outros modelos BIM (importação IFC).
+- ✅ Exportação da rede para o EPANET (INP).
+- ✅ Detecção de interferências entre tubos.
+- ⬜ Demandas, padrões e perdas localizadas no EPANET; importação de resultados.
+- ⬜ Interferências envolvendo conexões e equipamentos; relatórios técnicos.
+- ⬜ Federação com outros modelos BIM.
 
 ## Próxima etapa recomendada
 
-Iniciar a Fase 2 pelo **catálogo dimensional de conexões** e pelas **operações de mover/copiar**, que são os maiores limitadores do uso em projetos reais. Em paralelo, a Fase 3 pode começar pelo exportador de tubos (`IfcPipeSegment`) com teste de reabertura no IfcOpenShell, pois o contrato de dados já está estável.
+1. Conferir as famílias com os catálogos vigentes dos fornecedores do projeto e completar o que ficou genérico (PEAD, curvas PBA, ferro dúctil e válvulas de fabricantes brasileiros).
+2. Peças de transição e verificação do tipo de extremidade, para que flange e ponta não se conectem sem a peça adequada.
+3. Abrir o IFC exportado em visualizadores de terceiros e ajustar o que for necessário.

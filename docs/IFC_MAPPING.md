@@ -1,6 +1,6 @@
 # Mapeamento IFC
 
-> **Estado: planejamento.** A exportação IFC pertence à Fase 3 e **não está implementada**. Este documento registra o mapeamento pretendido e o que já foi verificado, para orientar a implementação.
+> **Estado: exportação implementada** em `packages/ifc` (escritor IFC-SPF em TypeScript, executado no navegador) e verificada com IfcOpenShell nos testes do backend (`services/api/tests/test_ifc_export.py`). A importação IFC não está implementada. Detalhes do que é emitido: `packages/ifc/README.md`. Este documento registra o mapeamento adotado e o que foi conferido no esquema.
 
 ## Esquema alvo
 
@@ -46,7 +46,7 @@ Enumerações (valores idênticos nos dois esquemas, salvo indicação):
 
 Um joelho **não** é uma entidade `IfcElbow` (inexistente): é um `IfcPipeFitting` com `PredefinedType = BEND`.
 
-## Mapeamento pretendido dos elementos
+## Mapeamento dos elementos
 
 | HydroBIM | Entidade IFC | PredefinedType | Observações |
 | --- | --- | --- | --- |
@@ -57,7 +57,9 @@ Um joelho **não** é uma entidade `IfcElbow` (inexistente): é um `IfcPipeFitti
 | `valve` (`gate`, `ball`, `butterfly`) | `IfcValve` | `ISOLATING` | O mecanismo não tem valor na enumeração: registrar em propriedade/`ObjectType` |
 | `valve` (`globe`) | `IfcValve` | `REGULATING` | A confirmar com a prática de projeto |
 | `valve` (`check`) | `IfcValve` | `CHECK` | — |
-| Bomba (Fase 4) | `IfcPump` | conforme `IfcPumpTypeEnum` | — |
+| `valve` (`airRelease`) | `IfcValve` | `AIRRELEASE` | Porta única |
+| `pump` | `IfcPump` | `ENDSUCTION` | Representação genérica |
+| `tank` | `IfcTank` | `STORAGE` | — |
 
 Sistemas:
 
@@ -94,6 +96,13 @@ Os elementos serão associados ao sistema por `IfcRelAssignsToGroup`.
 
 `IfcMapConversion` + `IfcProjectedCRS` só serão emitidos quando o usuário informar explicitamente o sistema de referência. **Nenhum código EPSG ou coordenada geográfica será atribuído por padrão.**
 
-## Verificação automática (Fase 3)
+## Verificação automática
 
-Testes do backend deverão exportar os projetos de `examples/`, reabrir o resultado com IfcOpenShell e conferir: contagem de entidades por classe e tipo predefinido, portas e `IfcRelConnectsPorts` equivalentes ao grafo, sistema e unidades, e validade do arquivo (`ifcopenshell.validate`).
+Os testes do backend abrem os arquivos IFC de `examples/` (gerados por `npm run examples:generate`) com IfcOpenShell e conferem: contagem de entidades por classe e tipo predefinido, portas e `IfcRelConnectsPorts` equivalentes ao grafo, sistema e unidades, e validade do arquivo (`ifcopenshell.validate`).
+
+## Limitações conhecidas da exportação atual
+
+- Conexões, válvulas e equipamentos são exportados como malhas trianguladas (`IfcTriangulatedFaceSet`); apenas os tubos são sólidos paramétricos.
+- Não há `IfcTypeObject` nem conjuntos de propriedades padrão (`Pset_*`); as propriedades estão em `HydroBIM_Especificacao` e `HydroBIM_Propriedades`.
+- `FlowDirection` das portas é `NOTDEFINED`.
+- O arquivo foi validado com `ifcopenshell.validate` e tesselado com `ifcopenshell.geom`; ainda não foi testado em visualizadores e ferramentas de autoria de terceiros.

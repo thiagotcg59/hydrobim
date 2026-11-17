@@ -99,3 +99,33 @@ FastAPI + Pydantic, com `uv` para ambiente e lockfile. O IfcOpenShell será adic
 **Estado:** aceita
 
 Os critérios de aceite são verificados em navegador real (Chromium, WebGL por software), além dos testes unitários. Para isso, toda ação relevante possui um caminho determinístico na interface (entrada por coordenadas, lista de elementos, ações nas portas), o que também serve à precisão exigida em engenharia.
+
+## ADR-017 — Exportador IFC em TypeScript, verificado com IfcOpenShell
+
+**Data:** 2026-11-16 · **Estado:** aceita (revê o plano inicial de exportar no backend)
+
+O exportador IFC 4.3 (`packages/ifc`) é uma função pura em TypeScript que escreve o arquivo IFC-SPF. Motivos: funciona no navegador sem servidor implantado; usa a mesma geometria do viewport (uma única fonte); é testável junto com o domínio. O IfcOpenShell continua sendo a referência: os testes do backend abrem os arquivos de `examples/`, rodam `ifcopenshell.validate` e tesselam a geometria. Custo: o escritor STEP é mantido à mão; mitigado pela validação automática.
+
+## ADR-018 — Famílias de conexões como dados do projeto
+
+**Estado:** aceita
+
+As famílias (tabelas dimensionais) vivem em `packages/catalog` e podem ser sobrepostas por projeto (`Project.families`). As operações de domínio recebem um `FittingCatalog` e não conhecem o catálogo. O elemento guarda as dimensões resolvidas e o `familyId` de origem; editar uma dimensão à mão desvincula a peça da família. Assim o projeto permanece legível mesmo que o catálogo embutido mude.
+
+## ADR-019 — Porta no fundo da bolsa e na face do flange
+
+**Estado:** aceita
+
+A porta de uma conexão fica onde termina o tubo vizinho: no fundo da bolsa ou na face do flange. A bolsa é geometria que avança sobre o tubo; o comprimento do tubo modelado é o comprimento de corte. Consequência: as dimensões de catálogo usadas são "centro ao fundo da bolsa" e "centro à face do flange".
+
+## ADR-020 — Troca de diâmetro local com reduções automáticas
+
+**Estado:** aceita
+
+O comportamento padrão ao mudar o diâmetro de uma peça é alterar só ela (`resizeWithReducers`): insere redução junto a cada vizinho de outro diâmetro, ajusta reduções existentes e remove as que ficam com os dois lados iguais. O tubo adjacente cede o comprimento; as demais peças não se movem. Sem tubo adjacente para ceder espaço, ou em troca de material, a operação é recusada com explicação. A propagação pelo trecho continua disponível como alternativa.
+
+## ADR-021 — Dados de catálogo: somente valores de fontes abertas e identificadas
+
+**Estado:** aceita
+
+Só entram no catálogo embutido valores lidos de um documento identificado (fabricante, edição, página, URL). Valores derivados são declarados na fonte da família. Tabelas com significado de colunas ambíguo não são usadas (a peça fica com dimensões genéricas, sinalizadas ao usuário). As normas pagas não foram consultadas, e isso é dito na documentação.
