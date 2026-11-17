@@ -1,12 +1,15 @@
 import {
   addPipe,
   attachFitting,
+  createFamilyCatalog,
   createProject,
+  placeEquipment,
   getPorts,
   insertInline,
   rotate,
   add,
   vec3,
+  type FittingFamily,
   type HydroElement,
   type PipeSpec,
   type Vec3,
@@ -90,6 +93,144 @@ function build(): HydroElement[] {
   if (!reducer.ok) throw new Error(reducer.error.message);
   return reducer.value.project.elements;
 }
+
+describe('extremidades de catálogo', () => {
+  const family: FittingFamily = {
+    id: 'fam',
+    name: 'Joelho 90 com bolsas',
+    kind: 'elbow',
+    specificationId: 'test',
+    endType: 'socket',
+    angle: Math.PI / 2,
+    manufacturer: null,
+    standard: 'Teste',
+    source: 'teste',
+    origin: 'builtin',
+    sizes: [{ dn: 50, centerToEnd: 0.045, end: { length: 0.04, outerDiameter: 0.075 } }],
+  };
+
+  function extent(
+    element: HydroElement,
+    withinRadius = Infinity,
+  ): { maxRadiusFromPortAxis: number; reach: number } {
+    const port = getPorts(element)[0]!;
+    const { parts } = buildElementGeometry(element);
+    let reach = -Infinity;
+    let maxRadius = 0;
+    for (const part of parts) {
+      const p = part.mesh.positions;
+      for (let i = 0; i < p.length; i += 3) {
+        const rel = vec3(
+          p[i]! - port.localPosition.x,
+          p[i + 1]! - port.localPosition.y,
+          p[i + 2]! - port.localPosition.z,
+        );
+        const along =
+          rel.x * port.localDirection.x +
+          rel.y * port.localDirection.y +
+          rel.z * port.localDirection.z;
+        const radius = Math.hypot(
+          rel.x - along * port.localDirection.x,
+          rel.y - along * port.localDirection.y,
+          rel.z - along * port.localDirection.z,
+        );
+        // Considera apenas a região em torno do eixo da porta (ignora volantes etc.).
+        if (radius > withinRadius) continue;
+        reach = Math.max(reach, along);
+        if (along > 1e-6) maxRadius = Math.max(maxRadius, radius);
+      }
+    }
+    return { maxRadiusFromPortAxis: maxRadius, reach };
+  }
+
+  it('a bolsa avança além da porta com profundidade e diâmetro do catálogo', () => {
+    const a = addPipe(createProject('g'), { start: vec3(0, 0, 0), end: vec3(2, 0, 0), spec });
+    if (!a.ok) throw new Error(a.error.message);
+    const elbow = attachFitting(a.value.project, {
+      target: { elementId: a.value.elementId, portId: 'end' },
+      fitting: { kind: 'elbow' },
+      catalog: createFamilyCatalog([family]),
+    });
+    if (!elbow.ok) throw new Error(elbow.error.message);
+    const element = elbow.value.project.elements.find((e) => e.kind === 'elbow')!;
+    expect(element.familyId).toBe('fam');
+    const { reach, maxRadiusFromPortAxis } = extent(element);
+    expect(reach).toBeCloseTo(0.04, 6);
+    expect(maxRadiusFromPortAxis).toBeCloseTo(0.0375, 6);
+    for (const part of buildElementGeometry(element).parts) expectValidMesh(part.mesh);
+  });
+
+  it('o flange fica atrás da face da porta, com o diâmetro do catálogo', () => {
+    const flanged: FittingFamily = {
+      ...family,
+      id: 'fam-valve',
+      kind: 'valve',
+      endType: 'flange',
+      valveType: 'gate',
+      angle: undefined,
+      sizes: [
+        {
+          dn: 50,
+          length: 0.15,
+          height: 0.3,
+          handwheelDiameter: 0.2,
+          end: { length: 0.019, outerDiameter: 0.165 },
+        },
+      ],
+    };
+    const a = addPipe(createProject('g'), { start: vec3(0, 0, 0), end: vec3(2, 0, 0), spec });
+    if (!a.ok) throw new Error(a.error.message);
+    const valve = attachFitting(a.value.project, {
+      target: { elementId: a.value.elementId, portId: 'end' },
+      fitting: { kind: 'valve', valveType: 'gate' },
+      catalog: createFamilyCatalog([flanged]),
+    });
+    if (!valve.ok) throw new Error(valve.error.message);
+    const element = valve.value.project.elements.find((e) => e.kind === 'valve')!;
+    expect(element.kind === 'valve' && element.length).toBeCloseTo(0.15);
+    const { reach } = extent(element, 0.0826);
+    expect(reach).toBeCloseTo(0, 6); // nada além da face do flange
+    let maxRadius = 0;
+    let maxZ = 0;
+    for (const part of buildElementGeometry(element).parts) {
+      expectValidMesh(part.mesh);
+      const p = part.mesh.positions;
+      for (let i = 0; i < p.length; i += 3) {
+        maxZ = Math.max(maxZ, p[i + 2]!);
+        if (Math.abs(Math.abs(p[i]!) - 0.075) < 1e-6) {
+          maxRadius = Math.max(maxRadius, Math.hypot(p[i + 1]!, p[i + 2]!));
+        }
+      }
+    }
+    expect(maxRadius).toBeCloseTo(0.0825, 6);
+    expect(maxZ).toBeCloseTo(0.3, 6);
+  });
+
+  it('gera bomba, reservatório e ventosa', () => {
+    const pump = placeEquipment(createProject('g'), {
+      fitting: { kind: 'pump' },
+      spec,
+      position: vec3(0, 0, 0),
+    });
+    if (!pump.ok) throw new Error(pump.error.message);
+    const tank = placeEquipment(pump.value.project, {
+      fitting: { kind: 'tank' },
+      spec,
+      position: vec3(5, 0, 0),
+    });
+    if (!tank.ok) throw new Error(tank.error.message);
+    const air = attachFitting(tank.value.project, {
+      target: { elementId: tank.value.elementId, portId: 'a' },
+      fitting: { kind: 'valve', valveType: 'airRelease' },
+    });
+    if (!air.ok) throw new Error(air.error.message);
+    for (const element of air.value.project.elements) {
+      const geometry = buildElementGeometry(element);
+      expect(geometry.parts.length).toBeGreaterThan(0);
+      for (const part of geometry.parts) expectValidMesh(part.mesh);
+    }
+  });
+});
 
 describe('geometria paramétrica', () => {
   const elements = build();
