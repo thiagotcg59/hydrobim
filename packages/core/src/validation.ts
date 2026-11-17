@@ -139,6 +139,17 @@ export function validateProject(project: Project): ValidationIssue[] {
     }
   }
 
+  for (const annotation of project.annotations) {
+    if (annotation.kind === 'tag' && !names.has(annotation.elementId)) {
+      issues.push({
+        severity: 'error',
+        code: 'DANGLING_ANNOTATION',
+        message: 'Há uma etiqueta na planta que referencia um elemento inexistente.',
+        elementIds: [],
+      });
+    }
+  }
+
   // Terminais livres coincidentes: provável conexão esquecida ou incompatível.
   const free = getFreePorts(project);
   for (let i = 0; i < free.length; i += 1) {

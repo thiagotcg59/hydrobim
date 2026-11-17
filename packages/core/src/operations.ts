@@ -99,6 +99,8 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     terrain: null,
     elements: [],
     connections: [],
+    annotations: [],
+    drawingScale: discipline === 'infra' ? 500 : 50,
   };
 }
 
@@ -848,5 +850,7 @@ export function deleteElements(project: Project, ids: readonly string[]): Projec
     connections: project.connections.filter(
       (c) => !remove.has(c.a.elementId) && !remove.has(c.b.elementId),
     ),
+    // Etiquetas não sobrevivem ao elemento que descrevem.
+    annotations: project.annotations.filter((a) => a.kind !== 'tag' || !remove.has(a.elementId)),
   };
 }

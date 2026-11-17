@@ -28,6 +28,8 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   // v2 → v3: novo tipo de válvula (`pressureReducing`) e largura opcional de válvulas.
   // Documentos v2 já são válidos no esquema v3.
   2: (doc) => ({ ...doc, schemaVersion: 3 }),
+  // v3 → v4: anotações da planta baixa e escala do desenho.
+  3: (doc) => ({ ...doc, schemaVersion: 4, annotations: [], drawingScale: 50 }),
 };
 
 export function serializeProject(project: Project): string {

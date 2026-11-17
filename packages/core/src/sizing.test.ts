@@ -327,7 +327,15 @@ describe('migração de esquema', () => {
   it('abre projetos da versão 1 completando os novos campos', () => {
     const n = network();
     const v2 = JSON.parse(serializeProject(n.project)) as Record<string, unknown>;
-    const { levels: _l, families: _f, georeference: _g, terrain: _t, ...rest } = v2;
+    const {
+      levels: _l,
+      families: _f,
+      georeference: _g,
+      terrain: _t,
+      annotations: _a,
+      drawingScale: _s,
+      ...rest
+    } = v2;
     const v1 = {
       ...rest,
       schemaVersion: 1,
@@ -338,7 +346,8 @@ describe('migração de esquema', () => {
     const migrated = parseProjectDocument(v1);
     expect(migrated.ok ? '' : migrated.error.message).toBe('');
     if (!migrated.ok) return;
-    expect(migrated.value.schemaVersion).toBe(3);
+    expect(migrated.value.schemaVersion).toBe(4);
+    expect(migrated.value.annotations).toEqual([]);
     expect(migrated.value.levels).toHaveLength(1);
     expect(migrated.value.elements.map((e) => e.id)).toEqual(n.project.elements.map((e) => e.id));
     expectCoupled(migrated.value);
@@ -347,7 +356,8 @@ describe('migração de esquema', () => {
   it('abre projetos da versão 2 sem alterar o conteúdo', () => {
     const n = network();
     const current = JSON.parse(serializeProject(n.project)) as Record<string, unknown>;
-    const migrated = parseProjectDocument({ ...current, schemaVersion: 2 });
+    const { annotations: _a, drawingScale: _s, ...v2 } = current;
+    const migrated = parseProjectDocument({ ...v2, schemaVersion: 2 });
     expect(migrated.ok ? '' : migrated.error.message).toBe('');
     if (!migrated.ok) return;
     expect(migrated.value).toEqual(n.project);

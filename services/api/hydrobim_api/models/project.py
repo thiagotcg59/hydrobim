@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _json_number(value: Any) -> int | float:
@@ -42,6 +42,7 @@ SystemKind = Literal[
     "domesticColdWater", "domesticHotWater", "fireProtection", "waterSupply", "other"
 ]
 Discipline = Literal["mep", "infra"]
+DimensionMode = Literal["aligned", "horizontal", "vertical"]
 PropertyValue = str | FiniteNumber | bool
 
 
@@ -270,6 +271,43 @@ class Terrain(CamelModel):
     triangles: list[NonNegativeInteger]
 
 
+class Point2(CamelModel):
+    """Ponto da planta (plano XY), em metros."""
+
+    x: FiniteNumber
+    y: FiniteNumber
+
+
+class DimensionAnnotation(CamelModel):
+    id: NonEmptyString
+    kind: Literal["dimension"]
+    a: Point2
+    b: Point2
+    offset: FiniteNumber
+    mode: DimensionMode
+
+
+class TextAnnotation(CamelModel):
+    id: NonEmptyString
+    kind: Literal["text"]
+    position: Point2
+    text: NonEmptyString
+    rotation: FiniteNumber
+    leader: Point2 = Field(default=None, validate_default=False)
+
+
+class TagAnnotation(CamelModel):
+    id: NonEmptyString
+    kind: Literal["tag"]
+    element_id: NonEmptyString
+    position: Point2
+
+
+Annotation = Annotated[
+    DimensionAnnotation | TextAnnotation | TagAnnotation, Field(discriminator="kind")
+]
+
+
 class Units(CamelModel):
     length: Literal["m"]
     angle: Literal["rad"]
@@ -277,7 +315,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[3], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[4], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -291,23 +329,26 @@ class Project(CamelModel):
     terrain: Terrain | None
     elements: list[HydroElement]
     connections: list[Connection]
+    annotations: list[Annotation]
+    drawing_scale: PositiveNumber
 
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → v2 → v3), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v4), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in (1, 2):
+        if isinstance(version, bool) or version not in (1, 2, 3):
             return document
-        if version == 2:
-            # v2 → v3: novo tipo de válvula e largura opcional; o documento já é válido.
-            return {**document, "schemaVersion": 3}
+        # v3 → v4: anotações da planta baixa e escala do desenho.
+        document = {**document, "schemaVersion": 4, "annotations": [], "drawingScale": 50}
+        if version != 1:
+            # v2 → v3: novo tipo de válvula e largura opcional; o documento já era válido.
+            return document
         elements = document.get("elements")
         return {
             **document,
-            "schemaVersion": 3,
             "levels": [{"id": "nivel-0", "name": "Térreo", "elevation": 0}],
             "families": [],
             "georeference": None,

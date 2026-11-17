@@ -119,4 +119,12 @@ def validate_project(project: Project) -> list[ValidationIssue]:
                     [key[0]],
                 )
             used_ports.add(key)
+
+    for annotation in project.annotations:
+        if annotation.kind == "tag" and annotation.element_id not in elements:
+            add(
+                "DANGLING_ANNOTATION",
+                "Há uma etiqueta na planta que referencia um elemento inexistente.",
+                [],
+            )
     return issues

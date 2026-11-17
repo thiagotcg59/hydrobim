@@ -1,4 +1,5 @@
 export * from './analysis';
+export * from './annotations';
 export * from './bounds';
 export * from './connectivity';
 export * from './dimensions';

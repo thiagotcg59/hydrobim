@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 3 as const;
+export const SCHEMA_VERSION = 4 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -352,6 +352,61 @@ export const TerrainSchema = z.object({
 });
 export type Terrain = z.infer<typeof TerrainSchema>;
 
+// ---------------------------------------------------------------------------
+// Documentação: anotações da planta baixa
+// ---------------------------------------------------------------------------
+
+/** Ponto da planta (projeção horizontal, plano XY), em metros. */
+export const Point2Schema = z.object({ x: finite, y: finite });
+export type Point2 = z.infer<typeof Point2Schema>;
+
+export const DIMENSION_MODES = ['aligned', 'horizontal', 'vertical'] as const;
+export const DimensionModeSchema = z.enum(DIMENSION_MODES);
+export type DimensionMode = z.infer<typeof DimensionModeSchema>;
+
+/**
+ * Cota linear entre dois pontos da planta. O valor cotado é DERIVADO dos pontos
+ * (nunca persistido): distância em planta (`aligned`), ΔX (`horizontal`) ou ΔY (`vertical`).
+ */
+export const DimensionAnnotationSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('dimension'),
+  a: Point2Schema,
+  b: Point2Schema,
+  /** Afastamento da linha de cota em relação ao ponto `a`, na normal à direção cotada (m). */
+  offset: finite,
+  mode: DimensionModeSchema,
+});
+export type DimensionAnnotation = z.infer<typeof DimensionAnnotationSchema>;
+
+/** Texto livre; com `leader`, é uma chamada (linha com seta até o ponto indicado). */
+export const TextAnnotationSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('text'),
+  position: Point2Schema,
+  text: z.string().min(1),
+  /** Rotação do texto, anti-horária (rad). */
+  rotation: finite,
+  leader: Point2Schema.optional(),
+});
+export type TextAnnotation = z.infer<typeof TextAnnotationSchema>;
+
+/** Etiqueta de elemento: o conteúdo é DERIVADO do elemento (designação e comprimento). */
+export const TagAnnotationSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('tag'),
+  elementId: z.string().min(1),
+  position: Point2Schema,
+});
+export type TagAnnotation = z.infer<typeof TagAnnotationSchema>;
+
+export const AnnotationSchema = z.discriminatedUnion('kind', [
+  DimensionAnnotationSchema,
+  TextAnnotationSchema,
+  TagAnnotationSchema,
+]);
+export type Annotation = z.infer<typeof AnnotationSchema>;
+
 export const DisciplineSchema = z.enum(['mep', 'infra']);
 export type Discipline = z.infer<typeof DisciplineSchema>;
 
@@ -372,5 +427,9 @@ export const ProjectSchema = z.object({
   terrain: TerrainSchema.nullable(),
   elements: z.array(ElementSchema),
   connections: z.array(ConnectionSchema),
+  /** Anotações da planta baixa (cotas, textos, chamadas e etiquetas). */
+  annotations: z.array(AnnotationSchema),
+  /** Denominador da escala do desenho (50 = 1:50); define o tamanho de textos e cotas. */
+  drawingScale: positive,
 });
 export type Project = z.infer<typeof ProjectSchema>;
