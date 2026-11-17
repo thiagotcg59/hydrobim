@@ -1,0 +1,117 @@
+# Modelo de domínio
+
+Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/schema.ts) (Zod). Os tipos TypeScript são inferidos do esquema; o backend o espelha em Pydantic.
+
+## Unidades e convenções
+
+| Grandeza | Unidade interna | Apresentação |
+| --- | --- | --- |
+| Comprimento, coordenadas | metro (m) | m ou mm, convertidos em `units.ts` |
+| Ângulo | radiano | graus |
+| Diâmetro nominal (DN) | adimensional (designação da norma) | rótulo comercial (`sizeLabel`) |
+
+- Sistema destro com **Z para cima**. A elevação de um ponto é a sua coordenada Z (eixo da tubulação).
+- **DN não é diâmetro físico.** `PipeSpec` guarda separadamente `dn`, `outerDiameter`, `innerDiameter` e `wallThickness`, todos resolvidos a partir do catálogo.
+
+## Projeto
+
+```ts
+Project {
+  format: 'hydrobim-project'
+  schemaVersion: 1
+  id, name
+  discipline: 'mep' | 'infra'
+  units: { length: 'm', angle: 'rad' }
+  createdAt, updatedAt
+  systems: HydraulicSystem[]      // ao menos um
+  elements: HydroElement[]
+  connections: Connection[]       // grafo de conectividade
+}
+```
+
+## Elementos
+
+Campos comuns:
+
+| Campo | Significado |
+| --- | --- |
+| `id` | UUID persistente; nunca muda. Base do futuro GlobalId IFC |
+| `kind` | `pipe`, `elbow`, `tee`, `reducer`, `valve` |
+| `name` | Nome editável (ex.: "Tubo 3") |
+| `systemId` | Sistema hidráulico ao qual pertence |
+| `spec` | Especificação dimensional (`PipeSpec`) |
+| `properties` | Propriedades BIM livres (texto, número, booleano) |
+| `manufacturing` | Fabricante, modelo e código (opcionais) |
+| `meta` | `createdAt`, `updatedAt`, `revision` (histórico básico) |
+
+Parâmetros específicos:
+
+| Tipo | Parâmetros | Portas |
+| --- | --- | --- |
+| Tubo (`pipe`) | `start`, `end` (o comprimento é calculado) | `start`, `end` |
+| Joelho (`elbow`) | `placement`, `angle` (deflexão), `bendRadius` | `a`, `b` |
+| Tê (`tee`) | `placement`, `runLength`, `branchLength` | `a`, `b` (passagem), `branch` |
+| Redução (`reducer`) | `placement`, `outletSpec`, `length` | `a` (`spec`), `b` (`outletSpec`) |
+| Válvula (`valve`) | `placement`, `valveType`, `length` | `a`, `b` |
+
+`placement = { position, rotation }` define o referencial local da conexão (quaternion unitário).
+
+### Referenciais locais
+
+Todas as conexões seguem a mesma convenção: a porta `a` fica em −X e o eixo X local segue o sentido de quem entra pela porta `a`.
+
+- **Tubo**: origem em `start`, X ao longo do eixo.
+- **Joelho**: origem no **vértice teórico** (interseção das linhas de centro). Porta `a` em `(−L, 0, 0)`, porta `b` em `L·(cos θ, sin θ, 0)`, com `L = R·tan(θ/2)`.
+- **Tê**: origem no centro; passagem ao longo de X; derivação em +Y.
+- **Redução e válvula**: origem no centro; haste da válvula em +Z.
+
+## O que é derivado (nunca persistido)
+
+| Derivado | Função | Motivo |
+| --- | --- | --- |
+| Portas (posição, direção, especificação) | `getPorts(element)` | Não podem divergir da geometria |
+| Estado de conexão de uma porta | `findConnection`, `getFreePorts` | Vive apenas no grafo |
+| Comprimento do tubo | `pipeLength` | É geométrico |
+| Geometria 3D | `buildElementGeometry` | É função dos parâmetros |
+| Estado de validação | `validateProject` | Não pode ficar desatualizado |
+
+## Conectividade
+
+```ts
+Connection { id, a: PortRef, b: PortRef }
+PortRef    { elementId, portId }
+```
+
+Regras impostas por `connectPorts`:
+
+- portas de elementos distintos, existentes e livres (uma porta participa de no máximo uma conexão);
+- mesma especificação (`specificationId`) — especificações diferentes exigem peça de transição;
+- mesmo DN — diâmetros diferentes exigem redução;
+- posições coincidentes (tolerância de 0,5 mm) e direções opostas (tolerância de 0,5°).
+
+Conexões são sempre explícitas e exatas. `autoConnectElement` só conecta portas que já satisfazem todas as regras.
+
+## Operações (`operations.ts`)
+
+Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
+
+| Operação | Efeito |
+| --- | --- |
+| `addPipe` | Cria um tubo e conecta extremidades exatamente acopladas |
+| `drawPipe` | Desenha a partir de uma porta: continuação reta, joelho automático (apara o tubo) ou recusa fora do eixo de conexões |
+| `attachFitting` | Acopla joelho, tê, redução ou válvula a uma porta livre |
+| `insertInline` | Divide um tubo e insere tê ou válvula; o tubo original mantém o id |
+| `applySpec` | Altera material/diâmetro, opcionalmente propagando pelo trecho até as reduções |
+| `updateFitting`, `rollFitting`, `translateElements` | Edição de conexões com reconciliação |
+| `setPipeEndpoint`, `setPipeLength` | Edição de extremidades livres |
+| `deleteElements`, `disconnect`, `renameElement`, `setElementProperty` | Edição geral |
+
+## Catálogo (`packages/catalog`)
+
+`PipeSpecification` descreve material, norma, tipo de junta, classe de pressão e a tabela de diâmetros (`dn`, rótulo, diâmetro externo e espessura em mm). `resolvePipeSpec(id, dn)` converte para `PipeSpec` em SI.
+
+As dimensões padrão das conexões (`dimensions.ts`) são proporções genéricas do diâmetro externo, usadas até existir um catálogo dimensional de conexões por norma/fabricante (Fase 2).
+
+## Evolução do esquema
+
+Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
