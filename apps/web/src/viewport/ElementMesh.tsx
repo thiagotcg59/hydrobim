@@ -10,6 +10,9 @@ const MATERIAL_COLORS: Record<Material, string> = {
   carbonSteel: '#9aa7b4',
 };
 const ACCENT_COLOR = '#d9534a';
+/** Acessórios metálicos (inox) e revestimento epóxi azul de válvulas de controle. */
+const TRIM_COLOR = '#c5ccd4';
+const COATED_COLOR = '#1f5fc4';
 const SELECTED_EMISSIVE = '#1f6fe0';
 const HOVER_EMISSIVE = '#16406f';
 
@@ -73,12 +76,19 @@ export const ElementMesh = memo(function ElementMesh({
             color={
               part.role === 'accent'
                 ? ACCENT_COLOR
-                : (colorOverride ?? MATERIAL_COLORS[element.spec.material])
+                : part.role === 'trim'
+                  ? TRIM_COLOR
+                  : (colorOverride ??
+                    (part.role === 'coated'
+                      ? COATED_COLOR
+                      : MATERIAL_COLORS[element.spec.material]))
             }
             emissive={emissive}
             emissiveIntensity={selected ? 0.9 : hovered ? 0.7 : 0}
-            roughness={0.55}
-            metalness={element.spec.material === 'carbonSteel' ? 0.5 : 0.15}
+            roughness={part.role === 'trim' ? 0.35 : 0.55}
+            metalness={
+              part.role === 'trim' ? 0.75 : element.spec.material === 'carbonSteel' ? 0.5 : 0.15
+            }
           />
         </mesh>
       ))}

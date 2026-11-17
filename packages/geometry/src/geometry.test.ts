@@ -240,7 +240,7 @@ describe('extremidades de catálogo', () => {
     expect(maxZ).toBeCloseTo(0.3, 6);
   });
 
-  it('redutora de pressão: topo do atuador na altura e tampa na largura do catálogo', () => {
+  it('redutora de pressão: topo e largura de catálogo, dentro das faces dos flanges', () => {
     const prv: FittingFamily = {
       ...family,
       id: 'fam-prv',
@@ -253,7 +253,7 @@ describe('extremidades de catálogo', () => {
           dn: 50,
           length: 0.23,
           height: 0.154,
-          width: 0.165,
+          width: 0.2,
           end: { length: 0.019, outerDiameter: 0.165 },
         },
       ],
@@ -267,34 +267,32 @@ describe('extremidades de catálogo', () => {
     });
     if (!valve.ok) throw new Error(valve.error.message);
     const element = valve.value.project.elements.find((e) => e.kind === 'valve')!;
-    expect(element.kind === 'valve' && element.width).toBeCloseTo(0.165);
+    expect(element.kind === 'valve' && element.width).toBeCloseTo(0.2);
+    const geometry = buildElementGeometry(element);
+    const roles = new Set(geometry.parts.map((part) => part.role));
+    // Válvula básica com o revestimento do fabricante; circuito de controle em inox.
+    expect(roles.has('coated')).toBe(true);
+    expect(roles.has('trim')).toBe(true);
+    expect(roles.has('body')).toBe(false);
     let maxZ = 0;
+    let maxY = 0;
     let minX = Infinity;
     let maxX = -Infinity;
-    let cover = 0;
-    // Eixo do atuador: inclinado 30° para jusante (porta B, em +X).
-    const axis = vec3(0.5, 0, Math.sqrt(3) / 2);
-    const geometry = buildElementGeometry(element);
     for (const part of geometry.parts) {
       expectValidMesh(part.mesh);
       const p = part.mesh.positions;
       for (let i = 0; i < p.length; i += 3) {
-        maxZ = Math.max(maxZ, p[i + 2]!);
         minX = Math.min(minX, p[i]!);
         maxX = Math.max(maxX, p[i]!);
-        // Atuador: parte seguinte ao corpo e aos dois flanges.
-        if (part !== geometry.parts[3]) continue;
-        const along = p[i]! * axis.x + p[i + 2]! * axis.z;
-        if (along < 0.05) continue;
-        cover = Math.max(
-          cover,
-          Math.hypot(p[i]! - along * axis.x, p[i + 1]!, p[i + 2]! - along * axis.z),
-        );
+        // As cotas de catálogo referem-se à válvula básica (sem o circuito de controle).
+        if (part.role !== 'coated') continue;
+        maxZ = Math.max(maxZ, p[i + 2]!);
+        maxY = Math.max(maxY, Math.abs(p[i + 1]!));
       }
     }
     expect(maxZ).toBeCloseTo(0.154, 5);
-    expect(cover).toBeCloseTo(0.0825, 5);
-    // Nada ultrapassa as faces dos flanges.
+    expect(maxY).toBeCloseTo(0.1, 5);
+    // Nada ultrapassa as faces dos flanges, nem o circuito de controle.
     expect(minX).toBeCloseTo(-0.115, 6);
     expect(maxX).toBeCloseTo(0.115, 6);
   });

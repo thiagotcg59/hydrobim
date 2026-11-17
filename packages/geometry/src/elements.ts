@@ -14,7 +14,9 @@ import {
   type Vec3,
 } from '@hydrobim/core';
 import { box, loft, type ProfilePoint } from './loft';
-import { sweepTube, type MeshData, type Station } from './sweep';
+import { pilotValveParts } from './pilotValve';
+import { accent, body, coated, cylinder, ORIGIN, torus, turned, upFor, X, Z } from './primitives';
+import type { MeshData } from './sweep';
 
 /**
  * Geometria paramétrica dos elementos, gerada no referencial LOCAL de cada elemento
@@ -32,7 +34,11 @@ import { sweepTube, type MeshData, type Station } from './sweep';
  * de vedação e nervuras não são modelados.
  */
 
-export type PartRole = 'body' | 'accent';
+/**
+ * Papel da parte, usado para a cor: `body` = material do tubo; `accent` = acionamento;
+ * `coated` = corpo com revestimento do fabricante; `trim` = acessórios metálicos (inox).
+ */
+export type PartRole = 'body' | 'accent' | 'coated' | 'trim';
 
 export interface MeshPart {
   readonly role: PartRole;
@@ -42,33 +48,6 @@ export interface MeshPart {
 export interface ElementGeometry {
   readonly transform: Placement;
   readonly parts: readonly MeshPart[];
-}
-
-const X = vec3(1, 0, 0);
-const Z = vec3(0, 0, 1);
-const ORIGIN = vec3(0, 0, 0);
-
-const station = (center: Vec3, tangent: Vec3, outer: number, inner: number): Station => ({
-  center,
-  tangent,
-  outerRadius: outer,
-  innerRadius: inner,
-});
-
-/** Vetor de referência não paralelo a `direction`, para orientar as seções. */
-const upFor = (direction: Vec3): Vec3 =>
-  Math.abs(direction.z) > 0.9 * Math.hypot(direction.x, direction.y, direction.z) ? X : Z;
-
-const body = (mesh: MeshData): MeshPart => ({ role: 'body', mesh });
-const accent = (mesh: MeshData): MeshPart => ({ role: 'accent', mesh });
-
-/** Cilindro (oco ou maciço) entre dois pontos. */
-function cylinder(from: Vec3, to: Vec3, outer: number, inner = 0, segments = 32): MeshData {
-  const direction = sub(to, from);
-  return sweepTube([station(from, direction, outer, inner), station(to, direction, outer, inner)], {
-    up: upFor(direction),
-    radialSegments: segments,
-  });
 }
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
@@ -272,28 +251,6 @@ function conduit(options: ConduitOptions): MeshData {
   return loft(points, { up: path.up });
 }
 
-/** Sólido de revolução com arestas vivas: lista de [distância ao longo do eixo, raio]. */
-function turned(
-  origin: Vec3,
-  axis: Vec3,
-  profile: readonly (readonly [number, number])[],
-  segments = 32,
-): MeshData {
-  const first = profile[0];
-  const last = profile[profile.length - 1];
-  if (!first || !last) throw new Error('Perfil vazio.');
-  const point = (h: number, radius: number): ProfilePoint => ({
-    center: add(origin, scale(axis, h)),
-    tangent: axis,
-    radius,
-    crease: true,
-  });
-  return loft([point(first[0], 0), ...profile.map(([h, r]) => point(h, r)), point(last[0], 0)], {
-    up: upFor(axis),
-    radialSegments: segments,
-  });
-}
-
 /** Disco do flange, da face (porta) para dentro da peça. */
 function flangeParts(port: Port): MeshPart[] {
   const end = port.end;
@@ -324,21 +281,6 @@ function stub(from: Vec3, port: Port): MeshPart[] {
     ),
     ...flangeParts(port),
   ];
-}
-
-/** Toro horizontal (aro do volante). */
-function torus(center: Vec3, majorRadius: number, tubeRadius: number): MeshData {
-  const steps = 40;
-  const points: ProfilePoint[] = [];
-  for (let i = 0; i <= steps; i += 1) {
-    const phi = (i / steps) * Math.PI * 2;
-    points.push({
-      center: add(center, vec3(majorRadius * Math.cos(phi), majorRadius * Math.sin(phi), 0)),
-      tangent: vec3(-Math.sin(phi), Math.cos(phi), 0),
-      radius: tubeRadius,
-    });
-  }
-  return loft(points, { up: Z, radialSegments: 12 });
 }
 
 /** Volante: aro, dois raios cruzados e cubo, com o topo exatamente na cota `top`. */
@@ -447,87 +389,18 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
       );
       return parts;
     }
-    case 'pressureReducing': {
-      // Redutora pilotada, corpo em "Y": atuador de diafragma inclinado 30° para jusante
-      // (porta B), como no desenho do fabricante. Do catálogo: altura do eixo ao topo e largura máxima, adotada como
-      // diâmetro da tampa. Pescoço, tampa abaulada e circuito de controle são representação.
-      const tilt = Math.PI / 6;
-      const axis = vec3(Math.sin(tilt), 0, Math.cos(tilt));
-      const cover = (element.width ?? d * 2.1) / 2;
-      const plug = cover * 0.22;
-      // O ponto mais alto (bujão da tampa) fica exatamente na cota de catálogo.
-      const reach = (top - plug * Math.sin(tilt)) / Math.cos(tilt);
-      // A tampa fica abaixo do topo e não ultrapassa a face do flange de jusante.
-      const rim = Math.max(
-        Math.min(
-          reach * 0.62,
-          (top - cover * Math.sin(tilt)) / Math.cos(tilt),
-          (length / 2 - cover * Math.cos(tilt)) / Math.sin(tilt),
-        ),
-        reach * 0.3,
-      );
-      const plate = Math.min(reach * 0.05, cover * 0.16);
-      parts.push(
-        body(
-          turned(
-            ORIGIN,
-            axis,
-            [
-              [0, d * 0.55],
-              [rim - 2 * plate, d * 0.55],
-              [rim - 2 * plate, cover],
-              [rim, cover],
-              [rim, cover * 0.86],
-              [rim + (reach - rim) * 0.55, cover * 0.5],
-              [reach - plate, cover * 0.3],
-              [reach - plate, plug],
-              [reach, plug],
-            ],
-            48,
-          ),
-        ),
-      );
-      // Circuito de controle: tomadas a montante e a jusante, piloto e tubos.
-      const side = -Math.max(cover * 0.8, d * 0.7);
-      const tube = Math.max(d * 0.035, 0.003);
-      const tapA = -length * 0.32;
-      const tapB = length * 0.32;
-      const level = top * 0.42;
-      const pilotX = length * 0.12;
-      const route: Vec3[] = [
-        vec3(tapA, 0, 0),
-        vec3(tapA, side, 0),
-        vec3(tapA, side, level),
-        vec3(pilotX, side, level),
+    case 'pressureReducing':
+      // Corpo e flanges recebem o revestimento epóxi azul do fabricante.
+      return [
+        ...parts.map((part) => (part.role === 'body' ? coated(part.mesh) : part)),
+        ...pilotValveParts({
+          pipeDiameter: d,
+          length,
+          top,
+          cover: (element.width ?? d * 2.1) / 2,
+          flangeThickness: a.end?.type === 'flange' ? a.end.length : 0,
+        }),
       ];
-      const back: Vec3[] = [
-        vec3(pilotX, side, level),
-        vec3(tapB, side, level),
-        vec3(tapB, side, 0),
-        vec3(tapB, 0, 0),
-      ];
-      for (const line of [route, back]) {
-        for (let i = 0; i < line.length - 1; i += 1) {
-          parts.push(accent(cylinder(line[i] as Vec3, line[i + 1] as Vec3, tube, 0, 10)));
-        }
-      }
-      parts.push(
-        accent(
-          turned(
-            vec3(pilotX, side, level - tube * 3),
-            Z,
-            [
-              [0, tube * 3],
-              [tube * 6, tube * 3],
-              [tube * 6, tube * 2],
-              [Math.min(top * 0.9 - level, tube * 22), tube * 2],
-            ],
-            16,
-          ),
-        ),
-      );
-      return parts;
-    }
     case 'gate':
     case 'globe': {
       // Castelo: pescoço, flange do castelo, tampa cônica, preme-gaxeta e haste.
