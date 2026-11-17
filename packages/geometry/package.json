@@ -1,0 +1,16 @@
+{
+  "name": "@hydrobim/geometry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Geração de malhas paramétricas dos elementos hidráulicos, independente de motor gráfico",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hydrobim/core": "*"
+  }
+}
