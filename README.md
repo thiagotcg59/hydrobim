@@ -17,7 +17,7 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 **Catálogo e famílias**
 - Famílias de conexões com dimensões de catálogos (Krona, Tigre, Amanco Wavin, Saint-Gobain PAM, AVK, ASME B16.9), cada uma com a fonte registrada — ver [catálogos](docs/CATALOGS.md).
 - Seção **Famílias**: consultar e editar as tabelas dimensionais por projeto e reaplicar às peças já inseridas.
-- Geometria com bolsas, flanges e dimensões principais das famílias.
+- Geometria com bolsas (furo e batente), flanges, corpo curvo e dimensões principais das famílias.
 
 **Troca de diâmetro inteligente**
 - Por padrão, alterar o diâmetro muda **apenas a peça selecionada**: reduções de catálogo são inseridas junto aos vizinhos, ajustadas se já existirem e removidas quando deixam de ser necessárias. A alternativa é aplicar a todo o trecho conectado.

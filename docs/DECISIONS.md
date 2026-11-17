@@ -129,3 +129,9 @@ O comportamento padrão ao mudar o diâmetro de uma peça é alterar só ela (`r
 **Estado:** aceita
 
 Só entram no catálogo embutido valores lidos de um documento identificado (fabricante, edição, página, URL). Valores derivados são declarados na fonte da família. Tabelas com significado de colunas ambíguo não são usadas (a peça fica com dimensões genéricas, sinalizadas ao usuário). As normas pagas não foram consultadas, e isso é dito na documentação.
+
+## ADR-022 — Geometria das peças por perfis de revolução sobre a linha de centro
+
+**Data:** 2026-11-17 · **Estado:** aceita (complementa a ADR-009)
+
+Conexões e válvulas são geradas por `loft`: uma sequência de anéis (centro, tangente, raio) percorrida em circuito fechado — parede externa, face da extremidade, furo de volta — com grupos de suavização separados por arestas vivas. Substitui a composição de cilindros e esfera, que não representava o corpo curvo dos joelhos de bolsa nem o batente das bolsas. O que é dimensão de catálogo e o que é representação está descrito em `CATALOGS.md`. As malhas de peças diferentes podem se interpenetrar (derivação do tê, haste da válvula); não há união booleana.

@@ -70,7 +70,13 @@ Conexões de PEAD, curvas de PVC PBA, joelhos de ângulo não padronizado, válv
 
 ## Geometria
 
-A geometria 3D usa as dimensões principais da família: posição das portas, profundidade e diâmetro externo das bolsas, diâmetro e espessura dos flanges, face a face, altura e volante das válvulas. O contorno do corpo entre essas dimensões é simplificado (cilindros, cones e arcos); raios de concordância, nervuras, furação de flanges e detalhes de fundição não são modelados.
+A geometria 3D (`packages/geometry`) é gerada por perfis de revolução ao longo da linha de centro da peça (`loft.ts`).
+
+**Vem do catálogo:** posição das portas (centro ao fundo da bolsa ou à face do flange), raio de curvatura da linha de centro, profundidade e diâmetro externo das bolsas, diâmetro e espessura dos flanges, face a face, altura e volante/alavanca das válvulas, diâmetros externo e interno do tubo. As bolsas têm o furo com o diâmetro externo do tubo e o batente no fundo; o furo do corpo tem o diâmetro interno do tubo.
+
+**É representação (não tabulado nas fontes usadas):** a parede do corpo das conexões (adota-se o diâmetro externo do tubo), a concordância entre corpo e bolsa, o cubo dos flanges, o bojo, o castelo e o acionamento das válvulas. Furação de flanges, anéis de vedação, nervuras e detalhes de fundição não são modelados.
+
+**Dúvida registrada:** no registro de esfera VS (Tigre) a altura do eixo ao topo foi derivada como `B − E1/2`; o resultado fica abaixo do raio das porcas (`E1/2`), o que sugere que a cota `B` do catálogo tem outra referência. A alavanca aparece embutida entre as porcas até a cota ser conferida no desenho do fabricante.
 
 ## Editar famílias
 

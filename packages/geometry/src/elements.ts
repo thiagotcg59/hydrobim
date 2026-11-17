@@ -5,14 +5,15 @@ import {
   getPorts,
   pipeLength,
   scale,
+  sub,
   vec3,
   type EndTreatment,
   type HydroElement,
-  type PipeSpec,
   type Placement,
   type Port,
   type Vec3,
 } from '@hydrobim/core';
+import { box, loft, type ProfilePoint } from './loft';
 import { sweepTube, type MeshData, type Station } from './sweep';
 
 /**
@@ -20,10 +21,15 @@ import { sweepTube, type MeshData, type Station } from './sweep';
  * (o mesmo referencial das portas). A transformação para o referencial global é
  * devolvida separadamente, preservando a precisão em coordenadas grandes.
  *
- * As dimensões principais (centro a face, comprimento, profundidade e diâmetro de
- * bolsas, diâmetro e espessura de flanges, altura de válvulas) vêm dos parâmetros do
- * elemento — preenchidos a partir das famílias de catálogo. O contorno externo do corpo
- * entre essas dimensões é uma representação simplificada.
+ * O que vem do catálogo (parâmetros do elemento): posição das portas (centro ao fundo da
+ * bolsa / à face do flange), raio de curvatura, profundidade e diâmetro externo das
+ * bolsas, diâmetro e espessura dos flanges, comprimento, altura e volante das válvulas,
+ * diâmetros externo e interno do tubo.
+ *
+ * O que é REPRESENTAÇÃO (não tabulado nos catálogos usados): espessura de parede do corpo
+ * das conexões (adota-se o diâmetro externo do tubo), concordância entre corpo e bolsa,
+ * cubo dos flanges, bojo, castelo e acionamento das válvulas. Furação de flanges, anéis
+ * de vedação e nervuras não são modelados.
  */
 
 export type PartRole = 'body' | 'accent';
@@ -58,120 +64,294 @@ const accent = (mesh: MeshData): MeshPart => ({ role: 'accent', mesh });
 
 /** Cilindro (oco ou maciço) entre dois pontos. */
 function cylinder(from: Vec3, to: Vec3, outer: number, inner = 0, segments = 32): MeshData {
-  const direction = vec3(to.x - from.x, to.y - from.y, to.z - from.z);
+  const direction = sub(to, from);
   return sweepTube([station(from, direction, outer, inner), station(to, direction, outer, inner)], {
     up: upFor(direction),
     radialSegments: segments,
   });
 }
 
-/** Raio externo do corpo junto a uma porta: a bolsa envolve o tubo. */
-function bodyRadius(spec: PipeSpec, end: EndTreatment | null): number {
-  return end?.type === 'socket' ? end.outerDiameter / 2 : spec.outerDiameter / 2;
+const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
+const smooth = (x: number): number => {
+  const t = clamp01(x);
+  return t * t * (3 - 2 * t);
+};
+const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+
+/** Linha de centro de um trecho da peça, parametrizada pelo comprimento `s`. */
+interface Path {
+  readonly length: number;
+  readonly up: Vec3;
+  /** Valores de `s` em que a trajetória precisa de anéis intermediários (curvas). */
+  readonly samples: readonly number[];
+  at(s: number): { center: Vec3; tangent: Vec3 };
+}
+
+function linePath(from: Vec3, to: Vec3): Path {
+  const delta = sub(to, from);
+  const length = Math.hypot(delta.x, delta.y, delta.z);
+  const tangent = scale(delta, 1 / length);
+  return {
+    length,
+    up: upFor(tangent),
+    samples: [],
+    at: (s) => ({ center: add(from, scale(tangent, s)), tangent }),
+  };
 }
 
 /**
- * Estações que prolongam o corpo além da porta para formar a bolsa (o furo passa a ter
- * o diâmetro externo do tubo). Devolvidas na ordem porta → extremidade da bolsa.
+ * Linha de centro do joelho: arco de raio `bendRadius` tangente às duas portas, com
+ * prolongamentos retos além delas (onde ficam as bolsas).
  */
-function socketStations(
-  port: Pick<Port, 'localPosition' | 'localDirection' | 'spec' | 'end'>,
-): Station[] {
-  const end = port.end;
-  if (end?.type !== 'socket' || end.length <= 0) return [];
-  const outer = end.outerDiameter / 2;
-  const bore = port.spec.outerDiameter / 2;
-  const tip = add(port.localPosition, scale(port.localDirection, end.length));
-  return [
-    station(port.localPosition, port.localDirection, outer, bore),
-    station(tip, port.localDirection, outer, bore),
-  ];
+function elbowPath(angle: number, bendRadius: number): Path {
+  const leg = elbowLegLength(angle, bendRadius);
+  const length = bendRadius * angle;
+  const steps = Math.max(8, Math.ceil((angle / (Math.PI / 2)) * 24));
+  const out = vec3(Math.cos(angle), Math.sin(angle), 0);
+  const portB = scale(out, leg);
+  return {
+    length,
+    up: Z,
+    samples: Array.from({ length: steps + 1 }, (_, i) => (length * i) / steps),
+    at: (s) => {
+      if (s <= 0) return { center: vec3(-leg + s, 0, 0), tangent: X };
+      if (s >= length) return { center: add(portB, scale(out, s - length)), tangent: out };
+      const phi = s / bendRadius;
+      return {
+        center: vec3(-leg + bendRadius * Math.sin(phi), bendRadius - bendRadius * Math.cos(phi), 0),
+        tangent: vec3(Math.cos(phi), Math.sin(phi), 0),
+      };
+    },
+  };
+}
+
+/** Extremidade de um conduto: acabamento de catálogo e raio externo do tubo que chega. */
+interface ConduitEnd {
+  readonly treatment: EndTreatment | null;
+  readonly pipeRadius: number;
+}
+
+const endOf = (port: Port): ConduitEnd => ({
+  treatment: port.end ?? null,
+  pipeRadius: port.spec.outerDiameter / 2,
+});
+
+interface ConduitOptions {
+  readonly path: Path;
+  /** `null`: início aberto (o trecho nasce dentro de outro corpo, como uma derivação). */
+  readonly start: ConduitEnd | null;
+  readonly end: ConduitEnd;
+  /** Raio externo do corpo e raio do furo, no início e no fim (variação linear). */
+  readonly bodyStart: number;
+  readonly bodyEnd: number;
+  readonly boreStart: number;
+  readonly boreEnd: number;
+  /** Bojo (corpo de válvula): alargamento suave em torno de `center`. */
+  readonly bulge?: { center: number; half: number; radius: number };
+}
+
+/** Geometria de uma das extremidades, já resolvida em relação ao corpo. */
+interface ResolvedEnd {
+  readonly socket: { depth: number; radius: number; bore: number } | null;
+  /** Raio externo junto à porta (bolsa ou cubo do flange) e comprimento da concordância. */
+  readonly radius: number;
+  readonly taper: number;
+  /** Trecho junto à porta em que o raio é mantido (espessura do flange). */
+  readonly hold: number;
+}
+
+function resolveEnd(end: ConduitEnd | null, bodyRadius: number, available: number): ResolvedEnd {
+  const treatment = end?.treatment;
+  if (!end || !treatment || treatment.length <= 0) {
+    return { socket: null, radius: bodyRadius, taper: 0, hold: 0 };
+  }
+  if (treatment.type === 'socket') {
+    const radius = Math.max(treatment.outerDiameter / 2, bodyRadius);
+    return {
+      socket: { depth: treatment.length, radius, bore: end.pipeRadius },
+      radius,
+      // Concordância a ~35° entre a bolsa e o corpo, limitada à metade do trecho.
+      taper: Math.min((radius - bodyRadius) * 1.5, available),
+      hold: 0,
+    };
+  }
+  if (treatment.type === 'flange') {
+    // Cubo do flange: reforço cônico atrás do disco (proporção genérica).
+    const hub = Math.min(bodyRadius + treatment.length * 0.5, treatment.outerDiameter / 2);
+    const hold = Math.min(treatment.length, available);
+    return {
+      socket: null,
+      radius: hub,
+      taper: Math.min(treatment.length, available - hold),
+      hold,
+    };
+  }
+  return { socket: null, radius: bodyRadius, taper: 0, hold: 0 };
+}
+
+/**
+ * Corpo oco ao longo de uma trajetória: parede externa (com bolsas, concordâncias e
+ * bojo), faces das extremidades e furo interno com batente no fundo das bolsas.
+ */
+function conduit(options: ConduitOptions): MeshData {
+  const { path, bodyStart, bodyEnd, boreStart, boreEnd, bulge } = options;
+  const total = path.length;
+  const startEnd = resolveEnd(options.start, bodyStart, total / 2);
+  const finishEnd = resolveEnd(options.end, bodyEnd, total / 2);
+
+  const bodyAt = (s: number): number => lerp(bodyStart, bodyEnd, clamp01(s / total));
+  const boreAt = (s: number): number => lerp(boreStart, boreEnd, clamp01(s / total));
+  const blend = (end: ResolvedEnd, base: number, distance: number): number => {
+    if (end.radius <= base) return 0;
+    if (distance <= end.hold) return end.radius - base;
+    if (end.taper <= 0) return 0;
+    return (end.radius - base) * smooth(1 - (distance - end.hold) / end.taper);
+  };
+  const outerAt = (s: number): number => {
+    const base = bodyAt(s);
+    let extra = Math.max(
+      options.start ? blend(startEnd, bodyStart, s) : 0,
+      blend(finishEnd, bodyEnd, total - s),
+    );
+    if (bulge && bulge.radius > base) {
+      extra = Math.max(
+        extra,
+        (bulge.radius - base) * smooth(1 - Math.abs(s - bulge.center) / bulge.half),
+      );
+    }
+    return base + extra;
+  };
+
+  const raw: number[] = [0, total, ...path.samples];
+  const STEPS = 8;
+  for (let k = 0; k <= STEPS; k += 1) {
+    const t = k / STEPS;
+    raw.push(startEnd.hold + startEnd.taper * t, total - finishEnd.hold - finishEnd.taper * t);
+    if (bulge) raw.push(bulge.center - bulge.half * t, bulge.center + bulge.half * t);
+  }
+  const tolerance = total * 1e-6;
+  const samples = raw
+    .filter((s) => s >= 0 && s <= total)
+    .sort((a, b) => a - b)
+    .filter((s, i, all) => i === 0 || s - (all[i - 1] as number) > tolerance);
+
+  const points: ProfilePoint[] = [];
+  const push = (s: number, radius: number, crease = false): void => {
+    points.push({ ...path.at(s), radius, crease });
+  };
+
+  // Parede externa, do início para o fim.
+  if (startEnd.socket) push(-startEnd.socket.depth, startEnd.socket.radius);
+  samples.forEach((s, i) => {
+    const last = i === samples.length - 1;
+    push(s, outerAt(s), last && !finishEnd.socket);
+  });
+  // Extremidade final: borda da bolsa, furo da bolsa e batente.
+  if (finishEnd.socket) {
+    const { depth, radius, bore } = finishEnd.socket;
+    push(total + depth, radius, true);
+    push(total + depth, bore, true);
+    push(total, bore, true);
+  }
+  // Furo, de volta ao início.
+  for (let i = samples.length - 1; i >= 0; i -= 1) {
+    const s = samples[i] as number;
+    push(s, boreAt(s), i === samples.length - 1 || i === 0);
+  }
+  // Extremidade inicial (omitida quando o início é aberto).
+  if (options.start) {
+    if (startEnd.socket) {
+      const { depth, radius, bore } = startEnd.socket;
+      push(0, bore, true);
+      push(-depth, bore, true);
+      push(-depth, radius);
+    } else {
+      push(0, outerAt(0));
+    }
+  }
+  return loft(points, { up: path.up });
+}
+
+/** Sólido de revolução com arestas vivas: lista de [distância ao longo do eixo, raio]. */
+function turned(
+  origin: Vec3,
+  axis: Vec3,
+  profile: readonly (readonly [number, number])[],
+  segments = 32,
+): MeshData {
+  const first = profile[0];
+  const last = profile[profile.length - 1];
+  if (!first || !last) throw new Error('Perfil vazio.');
+  const point = (h: number, radius: number): ProfilePoint => ({
+    center: add(origin, scale(axis, h)),
+    tangent: axis,
+    radius,
+    crease: true,
+  });
+  return loft([point(first[0], 0), ...profile.map(([h, r]) => point(h, r)), point(last[0], 0)], {
+    up: upFor(axis),
+    radialSegments: segments,
+  });
 }
 
 /** Disco do flange, da face (porta) para dentro da peça. */
-function flangeParts(
-  port: Pick<Port, 'localPosition' | 'localDirection' | 'spec' | 'end'>,
-): MeshPart[] {
+function flangeParts(port: Port): MeshPart[] {
   const end = port.end;
   if (end?.type !== 'flange' || end.length <= 0) return [];
   const back = add(port.localPosition, scale(port.localDirection, -end.length));
   return [
     body(
-      cylinder(back, port.localPosition, end.outerDiameter / 2, port.spec.innerDiameter / 2, 40),
+      cylinder(back, port.localPosition, end.outerDiameter / 2, port.spec.innerDiameter / 2, 48),
     ),
   ];
 }
 
-/**
- * Trecho reto do corpo, de um ponto interno até a porta, incluindo bolsa ou flange.
- * Com `capStart = false` o início fica aberto (uso em derivações que nascem no eixo).
- */
-function leg(from: Vec3, port: Port, capStart = true): MeshPart[] {
-  const outer = bodyRadius(port.spec, port.end);
+/** Bocal reto que nasce dentro de outro corpo e termina na porta. */
+function stub(from: Vec3, port: Port): MeshPart[] {
+  const outer = port.spec.outerDiameter / 2;
   const inner = port.spec.innerDiameter / 2;
-  const stations = [
-    station(from, port.localDirection, outer, inner),
-    station(port.localPosition, port.localDirection, outer, inner),
-    ...socketStations(port),
-  ];
   return [
-    body(sweepTube(stations, { up: upFor(port.localDirection), capStart })),
+    body(
+      conduit({
+        path: linePath(from, port.localPosition),
+        start: null,
+        end: endOf(port),
+        bodyStart: outer,
+        bodyEnd: outer,
+        boreStart: inner,
+        boreEnd: inner,
+      }),
+    ),
     ...flangeParts(port),
   ];
 }
 
-/** Esfera (fecha o canto de joelhos compactos). */
-function sphere(center: Vec3, radius: number): MeshData {
-  const rings = 12;
-  const stations: Station[] = [];
-  for (let i = 0; i <= rings; i += 1) {
-    const phi = (Math.PI * i) / rings;
-    stations.push(
-      station(
-        vec3(center.x, center.y, center.z - radius * Math.cos(phi)),
-        Z,
-        Math.max(radius * Math.sin(phi), radius * 1e-3),
-        0,
-      ),
-    );
-  }
-  return sweepTube(stations, { up: X, radialSegments: 24, capStart: false, capEnd: false });
-}
-
-function reversed(stations: Station[]): Station[] {
-  return stations.map((s) => ({ ...s, tangent: scale(s.tangent, -1) })).reverse();
-}
-
-function elbowParts(element: Extract<HydroElement, { kind: 'elbow' }>, ports: Port[]): MeshPart[] {
-  const [a, b] = ports;
-  if (!a || !b) return [];
-  const outer = Math.max(bodyRadius(a.spec, a.end), bodyRadius(b.spec, b.end));
-  const inner = element.spec.innerDiameter / 2;
-  const { angle, bendRadius } = element;
-  const flanges = [...flangeParts(a), ...flangeParts(b)];
-
-  // Raio de curvatura menor que o raio do corpo: joelho compacto (pernas retas + canto).
-  if (bendRadius < outer * 1.05) {
-    return [...leg(ORIGIN, a, false), ...leg(ORIGIN, b, false), body(sphere(ORIGIN, outer))];
-  }
-
-  const legLength = elbowLegLength(angle, bendRadius);
-  const steps = Math.max(6, Math.ceil((angle / (Math.PI / 2)) * 16));
-  const arc: Station[] = [];
+/** Toro horizontal (aro do volante). */
+function torus(center: Vec3, majorRadius: number, tubeRadius: number): MeshData {
+  const steps = 40;
+  const points: ProfilePoint[] = [];
   for (let i = 0; i <= steps; i += 1) {
-    const phi = (angle * i) / steps;
-    arc.push(
-      station(
-        vec3(-legLength + bendRadius * Math.sin(phi), bendRadius - bendRadius * Math.cos(phi), 0),
-        vec3(Math.cos(phi), Math.sin(phi), 0),
-        outer,
-        inner,
-      ),
-    );
+    const phi = (i / steps) * Math.PI * 2;
+    points.push({
+      center: add(center, vec3(majorRadius * Math.cos(phi), majorRadius * Math.sin(phi), 0)),
+      tangent: vec3(-Math.sin(phi), Math.cos(phi), 0),
+      radius: tubeRadius,
+    });
   }
-  // Bolsa da porta A antes do arco (percorrida de fora para dentro) e da porta B depois.
-  const stations = [...reversed(socketStations(a)), ...arc, ...socketStations(b)];
-  return [body(sweepTube(stations, { up: Z })), ...flanges];
+  return loft(points, { up: Z, radialSegments: 12 });
+}
+
+/** Volante: aro, dois raios cruzados e cubo, com o topo exatamente na cota `top`. */
+function handwheel(top: number, radius: number, d: number): MeshPart[] {
+  const tube = Math.max(radius * 0.07, d * 0.03);
+  const z = top - tube;
+  const reach = radius - tube;
+  return [
+    accent(torus(vec3(0, 0, z), reach, tube)),
+    accent(cylinder(vec3(-reach, 0, z), vec3(reach, 0, z), tube * 0.7, 0, 12)),
+    accent(cylinder(vec3(0, -reach, z), vec3(0, reach, z), tube * 0.7, 0, 12)),
+    accent(cylinder(vec3(0, 0, top - tube * 2.4), vec3(0, 0, top), tube * 2, 0, 20)),
+  ];
 }
 
 function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Port[]): MeshPart[] {
@@ -180,45 +360,140 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
   if (!a) return [];
 
   if (element.valveType === 'airRelease') {
-    // Ventosa: corpo cilíndrico sobre o flange de entrada, com tampa mais estreita.
+    // Ventosa: pescoço sobre o flange de entrada, corpo cilíndrico e tampa.
     const length = element.length;
     const radius = Math.max(d * 0.9, (a.end?.outerDiameter ?? 0) * 0.42);
     return [
       ...flangeParts(a),
       body(cylinder(ORIGIN, vec3(length * 0.2, 0, 0), d / 2, element.spec.innerDiameter / 2)),
-      body(cylinder(vec3(length * 0.2, 0, 0), vec3(length * 0.8, 0, 0), radius)),
-      accent(cylinder(vec3(length * 0.8, 0, 0), vec3(length, 0, 0), radius * 0.6)),
+      body(
+        turned(ORIGIN, X, [
+          [length * 0.2, radius * 0.8],
+          [length * 0.26, radius],
+          [length * 0.8, radius],
+          [length * 0.8, radius * 1.08],
+          [length * 0.86, radius * 1.08],
+        ]),
+      ),
+      accent(
+        turned(ORIGIN, X, [
+          [length * 0.86, radius * 0.6],
+          [length * 0.96, radius * 0.6],
+          [length, radius * 0.35],
+        ]),
+      ),
     ];
   }
   if (!b) return [];
 
-  const half = element.length / 2;
+  const length = element.length;
+  const outer = d / 2;
+  const inner = element.spec.innerDiameter / 2;
   const top = element.height ?? d * 2.25;
   const wheel = (element.handwheelDiameter ?? d * 1.8) / 2;
-  const core = Math.min(half * 0.55, d * 1.2);
+  const socketRadius = a.end?.type === 'socket' ? a.end.outerDiameter / 2 : 0;
+
+  const leverThickness = Math.max(d * 0.1, top * 0.06);
+
+  // Bojo do corpo: proporção genérica. No registro soldável o diâmetro de bolsa tabulado
+  // é o das porcas das extremidades; o corpo central fica abaixo da alavanca.
+  const bulge = ((): ConduitOptions['bulge'] => {
+    switch (element.valveType) {
+      case 'ball':
+        return socketRadius > 0
+          ? {
+              center: length / 2,
+              half: length / 2,
+              radius: Math.min(socketRadius, Math.max(inner * 1.3, top - leverThickness * 1.6)),
+            }
+          : { center: length / 2, half: Math.min(length * 0.45, d * 1.1), radius: d * 0.8 };
+      case 'butterfly':
+        return { center: length / 2, half: length / 2, radius: d * 0.62 };
+      default:
+        return { center: length / 2, half: Math.min(length * 0.4, d * 1.2), radius: d * 0.75 };
+    }
+  })();
+
   const parts: MeshPart[] = [
-    ...leg(ORIGIN, a, false),
-    ...leg(ORIGIN, b, false),
-    // Corpo central maciço, mais largo que o tubo.
-    body(cylinder(vec3(-core, 0, 0), vec3(core, 0, 0), d * 0.8)),
+    body(
+      conduit({
+        path: linePath(a.localPosition, b.localPosition),
+        start: endOf(a),
+        end: endOf(b),
+        bodyStart: outer,
+        bodyEnd: outer,
+        boreStart: inner,
+        boreEnd: inner,
+        bulge,
+      }),
+    ),
+    ...flangeParts(a),
+    ...flangeParts(b),
   ];
-  if (element.valveType === 'check') {
-    // Retenção: apenas a tampa de inspeção, sem acionamento.
-    parts.push(body(cylinder(ORIGIN, vec3(0, 0, Math.min(top * 0.5, d * 1.2)), d * 0.5, 0, 24)));
-    return parts;
+
+  switch (element.valveType) {
+    case 'check': {
+      // Retenção: tampa de inspeção aparafusada, sem acionamento.
+      const cover = Math.min(top * 0.5, d * 1.2);
+      parts.push(
+        body(
+          turned(ORIGIN, Z, [
+            [0, d * 0.5],
+            [cover - d * 0.1, d * 0.5],
+            [cover - d * 0.1, d * 0.62],
+            [cover, d * 0.62],
+          ]),
+        ),
+      );
+      return parts;
+    }
+    case 'gate':
+    case 'globe': {
+      // Castelo: pescoço, flange do castelo, tampa cônica, preme-gaxeta e haste.
+      const neck = top * 0.38;
+      const plate = Math.min(top * 0.05, d * 0.25);
+      parts.push(
+        body(
+          turned(ORIGIN, Z, [
+            [0, d * 0.5],
+            [neck, d * 0.5],
+            [neck, d * 0.72],
+            [neck + plate, d * 0.72],
+            [neck + plate, d * 0.44],
+            [top * 0.68, d * 0.22],
+            [top * 0.76, d * 0.22],
+          ]),
+        ),
+        accent(cylinder(vec3(0, 0, top * 0.76), vec3(0, 0, top), d * 0.08, 0, 16)),
+        ...handwheel(top, wheel, d),
+      );
+      return parts;
+    }
+    case 'butterfly': {
+      const plate = top * 0.74;
+      parts.push(
+        body(
+          turned(ORIGIN, Z, [
+            [0, d * 0.2],
+            [plate, d * 0.2],
+            [plate, d * 0.34],
+            [plate + top * 0.06, d * 0.34],
+          ]),
+        ),
+      );
+      break;
+    }
+    default:
+      parts.push(body(cylinder(ORIGIN, vec3(0, 0, top * 0.8), d * 0.2, 0, 24)));
   }
-  parts.push(body(cylinder(ORIGIN, vec3(0, 0, top * 0.66), d * 0.35, 0, 24)));
-  parts.push(accent(cylinder(vec3(0, 0, top * 0.66), vec3(0, 0, top), d * 0.12, 0, 16)));
-  if (element.valveType === 'gate' || element.valveType === 'globe') {
-    parts.push(accent(cylinder(vec3(0, 0, top - d * 0.12), vec3(0, 0, top), wheel, 0, 32)));
-  } else {
-    // Esfera/borboleta: alavanca.
-    parts.push(
-      accent(
-        cylinder(vec3(-d * 0.2, 0, top), vec3(Math.max(wheel * 2, d * 2), 0, top), d * 0.14, 0, 16),
-      ),
-    );
-  }
+
+  // Esfera/borboleta: haste e alavanca de 1/4 de volta (posição aberta, ao longo do
+  // eixo), com o topo na altura de catálogo e o comprimento total de catálogo.
+  const reach = Math.max(wheel, d);
+  parts.push(
+    accent(cylinder(vec3(0, 0, top * 0.5), vec3(0, 0, top - leverThickness), d * 0.12, 0, 16)),
+    accent(box(vec3(-reach, -d * 0.16, top - leverThickness), vec3(reach, d * 0.16, top))),
+  );
   return parts;
 }
 
@@ -232,42 +507,65 @@ function localParts(element: HydroElement): MeshPart[] {
     case 'pipe':
       return [body(cylinder(ORIGIN, vec3(pipeLength(element), 0, 0), outer, inner))];
 
-    case 'elbow':
-      return elbowParts(element, ports);
+    case 'elbow': {
+      const [a, b] = ports;
+      if (!a || !b) return [];
+      return [
+        body(
+          conduit({
+            path: elbowPath(element.angle, element.bendRadius),
+            start: endOf(a),
+            end: endOf(b),
+            bodyStart: outer,
+            bodyEnd: outer,
+            boreStart: inner,
+            boreEnd: inner,
+          }),
+        ),
+        ...flangeParts(a),
+        ...flangeParts(b),
+      ];
+    }
 
     case 'tee': {
       const [a, b, branch] = ports;
       if (!a || !b || !branch) return [];
-      const runOuter = bodyRadius(a.spec, a.end);
-      const run = sweepTube(
-        [
-          ...reversed(socketStations(a)),
-          station(a.localPosition, X, runOuter, inner),
-          station(b.localPosition, X, runOuter, inner),
-          ...socketStations(b),
-        ],
-        { up: Z },
-      );
-      return [body(run), ...flangeParts(a), ...flangeParts(b), ...leg(ORIGIN, branch, false)];
+      return [
+        body(
+          conduit({
+            path: linePath(a.localPosition, b.localPosition),
+            start: endOf(a),
+            end: endOf(b),
+            bodyStart: outer,
+            bodyEnd: outer,
+            boreStart: inner,
+            boreEnd: inner,
+          }),
+        ),
+        ...flangeParts(a),
+        ...flangeParts(b),
+        ...stub(ORIGIN, branch),
+      ];
     }
 
     case 'reducer': {
       const [a, b] = ports;
       if (!a || !b) return [];
-      const half = element.length / 2;
-      const neck = element.length * 0.15;
-      const outerA = bodyRadius(a.spec, a.end);
-      const outerB = bodyRadius(b.spec, b.end);
-      const innerB = b.spec.innerDiameter / 2;
-      const stations = [
-        ...reversed(socketStations(a)),
-        station(vec3(-half, 0, 0), X, outerA, inner),
-        station(vec3(-half + neck, 0, 0), X, outerA, inner),
-        station(vec3(half - neck, 0, 0), X, outerB, innerB),
-        station(vec3(half, 0, 0), X, outerB, innerB),
-        ...socketStations(b),
+      return [
+        body(
+          conduit({
+            path: linePath(a.localPosition, b.localPosition),
+            start: endOf(a),
+            end: endOf(b),
+            bodyStart: outer,
+            bodyEnd: b.spec.outerDiameter / 2,
+            boreStart: inner,
+            boreEnd: b.spec.innerDiameter / 2,
+          }),
+        ),
+        ...flangeParts(a),
+        ...flangeParts(b),
       ];
-      return [body(sweepTube(stations, { up: Z })), ...flangeParts(a), ...flangeParts(b)];
     }
 
     case 'valve':
@@ -307,7 +605,7 @@ function localParts(element: HydroElement): MeshPart[] {
         if (!nozzle) continue;
         const sign = nozzle.localDirection.x >= 0 ? 1 : -1;
         const from = vec3(sign * radius * 0.98, 0, nozzle.localPosition.z);
-        parts.push(...leg(from, nozzle));
+        parts.push(...stub(from, nozzle));
       }
       return parts;
     }
@@ -316,5 +614,6 @@ function localParts(element: HydroElement): MeshPart[] {
 
 /** Geometria completa do elemento: partes no referencial local + transformação global. */
 export function buildElementGeometry(element: HydroElement): ElementGeometry {
-  return { transform: getElementFrame(element), parts: localParts(element) };
+  const geometry = { transform: getElementFrame(element), parts: localParts(element) };
+  return geometry;
 }

@@ -160,6 +160,40 @@ describe('extremidades de catálogo', () => {
     for (const part of buildElementGeometry(element).parts) expectValidMesh(part.mesh);
   });
 
+  it('joelho com bolsas: corpo com o diâmetro do tubo, batente e furo no fundo da bolsa', () => {
+    const a = addPipe(createProject('g'), { start: vec3(0, 0, 0), end: vec3(2, 0, 0), spec });
+    if (!a.ok) throw new Error(a.error.message);
+    const elbow = attachFitting(a.value.project, {
+      target: { elementId: a.value.elementId, portId: 'end' },
+      fitting: { kind: 'elbow' },
+      catalog: createFamilyCatalog([family]),
+    });
+    if (!elbow.ok) throw new Error(elbow.error.message);
+    const element = elbow.value.project.elements.find((e) => e.kind === 'elbow')!;
+    const [portA, portB] = getPorts(element);
+    const mesh = buildElementGeometry(element).parts[0]!.mesh;
+    // Raios dos vértices contidos no plano da porta A (fundo da bolsa).
+    const atPort = new Set<number>();
+    // Raio máximo no plano bissetor da curva (x + y = 0 no referencial local do joelho).
+    let middle = 0;
+    const bendCenter = vec3(portA!.localPosition.x, portB!.localPosition.y, 0);
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      const [x, y, z] = [mesh.positions[i]!, mesh.positions[i + 1]!, mesh.positions[i + 2]!];
+      if (Math.abs(x - portA!.localPosition.x) < 1e-7 && y < 0.04) {
+        atPort.add(Math.round(Math.hypot(y, z) * 1e5) / 1e5);
+      }
+      const dx = x - bendCenter.x;
+      const dy = y - bendCenter.y;
+      if (Math.abs(dx + dy) < 1e-7 && dx > 0) {
+        middle = Math.max(middle, Math.abs(Math.hypot(dx, dy) - 0.045));
+      }
+    }
+    // Bolsa (Ø 75), furo da bolsa = Ø externo do tubo (60) e furo do corpo = Ø interno (54).
+    expect([...atPort].sort()).toEqual([0.027, 0.03, 0.0375]);
+    // No meio da curva o corpo tem o raio externo do tubo em torno da linha de centro.
+    expect(middle).toBeCloseTo(0.03, 6);
+  });
+
   it('o flange fica atrás da face da porta, com o diâmetro do catálogo', () => {
     const flanged: FittingFamily = {
       ...family,
