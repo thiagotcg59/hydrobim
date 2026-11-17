@@ -103,6 +103,7 @@ Os testes do backend abrem os arquivos IFC de `examples/` (gerados por `npm run 
 
 ## Limitações conhecidas da exportação atual
 
+- As anotações da planta baixa (cotas, textos, chamadas e etiquetas) não são exportadas; o mapeamento para `IfcAnnotation` não foi verificado no esquema e fica para uma fase posterior.
 - Conexões, válvulas e equipamentos são exportados como malhas trianguladas (`IfcTriangulatedFaceSet`); apenas os tubos são sólidos paramétricos.
 - Não há `IfcTypeObject` nem conjuntos de propriedades padrão (`Pset_*`); as propriedades estão em `HydroBIM_Especificacao` e `HydroBIM_Propriedades`.
 - `FlowDirection` das portas é `NOTDEFINED`.

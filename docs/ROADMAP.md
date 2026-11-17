@@ -43,7 +43,9 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ✅ Projeção ortográfica (planta e elevação em verdadeira grandeza).
 - ✅ Quantitativo exportável em CSV.
 - ⬜ Catálogo de bombas e reservatórios; flanges avulsos, coletores.
-- ⬜ Cortes, vistas salvas e pranchas.
+- ✅ Planta baixa em traço técnico (projeção do modelo com linhas ocultas removidas), com cotas lineares (alinhada, horizontal, vertical), textos, chamadas e etiquetas de elementos; escala do desenho; exportação em SVG no tamanho físico da escala.
+- ⬜ Planta: balões de item ligados ao quantitativo, cotas de nível, angulares e em cadeia, setas de fluxo, hachuras, seta de norte, linhas de centro e simbologia convencional.
+- ⬜ Planta por nível/faixa de corte, cortes e elevações documentados, vistas salvas, pranchas com carimbo e exportação em PDF/DXF.
 - ⬜ Persistência em servidor (API + PostgreSQL).
 
 ## Fase 5 — Infraestrutura 🟡

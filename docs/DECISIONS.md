@@ -135,3 +135,11 @@ Só entram no catálogo embutido valores lidos de um documento identificado (fab
 **Data:** 2026-11-17 · **Estado:** aceita (complementa a ADR-009)
 
 Conexões e válvulas são geradas por `loft`: uma sequência de anéis (centro, tangente, raio) percorrida em circuito fechado — parede externa, face da extremidade, furo de volta — com grupos de suavização separados por arestas vivas. Substitui a composição de cilindros e esfera, que não representava o corpo curvo dos joelhos de bolsa nem o batente das bolsas. O que é dimensão de catálogo e o que é representação está descrito em `CATALOGS.md`. As malhas de peças diferentes podem se interpenetrar (derivação do tê, haste da válvula); não há união booleana.
+
+## ADR-023 — Planta baixa em SVG derivada do modelo; anotações no projeto
+
+**Data:** 2026-11-17 · **Estado:** aceita
+
+A planta baixa é um desenho vetorial (SVG) gerado da malha paramétrica de cada elemento: as faces voltadas para cima formam a máscara opaca (algoritmo do pintor entre elementos, por cota) e desenham-se o contorno aparente, as bordas e as quinas vivas, sem os trechos escondidos por partes mais altas do próprio elemento (`planOutline`). Não há símbolos desenhados à mão: a planta é sempre coerente com o modelo. Limitação aceita: a ocultação entre elementos é por elemento inteiro (o mais alto cobre o mais baixo), não por trecho.
+
+Cotas, textos, chamadas e etiquetas são dados do projeto (esquema v4), no plano XY em metros; o que exibem é derivado. Espessuras e alturas de texto são definidas em milímetros de papel e convertidas pela escala do desenho (`drawingScale`), de modo que a exportação em SVG sai no tamanho físico da prancha. Sem dependências novas. As anotações ainda não são exportadas para o IFC (`IfcAnnotation`).

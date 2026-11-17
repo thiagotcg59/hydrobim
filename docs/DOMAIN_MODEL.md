@@ -18,7 +18,7 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 3
+  schemaVersion: 4
   id, name
   discipline: 'mep' | 'infra'
   units: { length: 'm', angle: 'rad' }
@@ -30,8 +30,26 @@ Project {
   terrain: Terrain | null         // TIN em coordenadas locais
   elements: HydroElement[]
   connections: Connection[]       // grafo de conectividade
+  annotations: Annotation[]       // anotações da planta baixa
+  drawingScale: number            // denominador da escala do desenho (50 = 1:50)
 }
 ```
+
+## Anotações da planta baixa
+
+Vivem no plano XY do projeto, em metros (`Point2 { x, y }`), e fazem parte do documento do projeto (salvas, exportadas, desfeitas/refeitas com ele).
+
+| Tipo (`kind`) | Campos | O que é derivado |
+| --- | --- | --- |
+| `dimension` | `a`, `b`, `offset`, `mode` (`aligned`, `horizontal`, `vertical`) | Valor cotado (distância em planta, ΔX ou ΔY), linhas de chamada e posição do texto |
+| `text` | `position`, `text`, `rotation`, `leader?` | Com `leader`, é uma chamada: linha com seta até o ponto indicado |
+| `tag` | `elementId`, `position` | Conteúdo: designação comercial e comprimento (tubos) ou nome e designação (demais) |
+
+- `offset` é o afastamento da linha de cota em relação ao ponto `a`, na normal à direção cotada.
+- A etiqueta é removida junto com o elemento; etiqueta órfã é erro de validação (`DANGLING_ANNOTATION`).
+- `drawingScale` define o tamanho de textos, traços e cotas (2,5 mm de papel para o texto), tanto na tela quanto no SVG exportado.
+- Operações: `addAnnotation`, `updateAnnotation`, `deleteAnnotations`, `setDrawingScale`; derivados: `dimensionGeometry`, `tagText`, `planSnapPoints` (`annotations.ts`).
+- A projeção em planta dos elementos é derivada da malha paramétrica (`planOutline`, em `packages/geometry`).
 
 ## Elementos
 

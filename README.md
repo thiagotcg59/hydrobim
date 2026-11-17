@@ -10,6 +10,7 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 
 **Modelagem**
 - Viewport 3D (Z para cima) com órbita, grade, eixos, vistas e projeção ortográfica.
+- Planta baixa em traço técnico gerada do modelo, com cotas, textos, chamadas e etiquetas de elementos, escala do desenho e exportação em SVG.
 - Tubos por dois pontos (mouse ou coordenadas), com joelho automático ao mudar de direção.
 - Joelho, tê (inclusive de redução), redução, válvulas (gaveta, globo, esfera, borboleta, retenção, ventosa, redutora de pressão), bomba e reservatório.
 - Seleção múltipla, mover, copiar, desfazer/refazer, níveis e sistemas hidráulicos.
@@ -71,6 +72,7 @@ Documentação interativa em <http://localhost:8000/docs>. O editor ainda não d
 7. **Famílias**: abre as tabelas dimensionais das conexões para consulta e edição.
 8. **Projeto**: níveis, sistemas, georreferência, terreno, perfil e interferências.
 9. **Salvar** (`Ctrl+S`) grava no navegador; os botões **JSON**, **IFC**, **Quantitativo** e **EPANET** exportam arquivos; **Abrir** lista os projetos salvos e importa arquivos. `Ctrl+clique` seleciona vários elementos.
+10. **Planta baixa** (alternador no alto da área de trabalho, ou qualquer ferramenta de **Documentar**): **Cota** (`C`) — dois pontos e a posição da linha; **Texto** (`X`); **Chamada** (`L`) — ponto indicado e posição do texto; **Etiqueta** (`I`) — elemento e posição. Com **Selecionar**, arraste uma anotação para reposicioná-la e edite-a no quadro à direita; `Delete` exclui. Escolha a **Escala** e use **Exportar SVG** para gerar o desenho.
 
 A barra inferior mostra coordenadas, modo da ferramenta, mensagens e o resultado da validação (clique para ver as pendências).
 
