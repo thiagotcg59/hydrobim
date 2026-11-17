@@ -1,0 +1,16 @@
+{
+  "name": "@hydrobim/catalog",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Catálogo de especificações dimensionais de tubos do HydroBIM",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hydrobim/core": "*"
+  }
+}
