@@ -36,6 +36,7 @@ VALVES = {
     "globe": "REGULATING",
     "check": "CHECK",
     "airRelease": "AIRRELEASE",
+    "pressureReducing": "PRESSUREREDUCING",
 }
 
 

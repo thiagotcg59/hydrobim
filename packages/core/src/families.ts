@@ -43,6 +43,7 @@ export interface ValveDimensions extends ResolvedBase {
   length: number;
   height?: number;
   handwheelDiameter?: number;
+  width?: number;
 }
 
 export interface FittingCatalog {
@@ -191,6 +192,7 @@ export function createFamilyCatalog(
         length: hit.size.length,
         height: hit.size.height,
         handwheelDiameter: hit.size.handwheelDiameter,
+        width: hit.size.width,
         ends: buildEnds(
           valveType === 'airRelease'
             ? [['a', end]]

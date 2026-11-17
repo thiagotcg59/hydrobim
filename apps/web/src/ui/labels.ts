@@ -9,6 +9,7 @@ export const VALVE_TYPE_LABELS: Record<ValveType, string> = {
   butterfly: 'Borboleta',
   check: 'Retenção',
   airRelease: 'Ventosa',
+  pressureReducing: 'Redutora de pressão',
 };
 
 export const SYSTEM_KIND_LABELS: Record<SystemKind, string> = {

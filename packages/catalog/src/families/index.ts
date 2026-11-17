@@ -1,4 +1,5 @@
 import type { FittingFamily } from '@hydrobim/core';
+import { BERMAD_FAMILIES } from './bermad';
 import { DUCTILE_IRON_FAMILIES } from './ductileIron';
 import { PVC_FAMILIES } from './pvc';
 import { STEEL_FAMILIES } from './steel';
@@ -15,5 +16,6 @@ export const BUILTIN_FAMILIES: readonly FittingFamily[] = [
   ...PVC_FAMILIES,
   ...DUCTILE_IRON_FAMILIES,
   ...VALVE_FAMILIES,
+  ...BERMAD_FAMILIES,
   ...STEEL_FAMILIES,
 ];

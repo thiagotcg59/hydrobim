@@ -146,7 +146,9 @@ test('famílias: consultar, editar dimensões e aplicar às peças do projeto', 
   await page.getByTestId('action-families').click();
   await dialog.getByTestId('families-specification').selectOption('ferro-ductil-nbr7675-k9');
   await dialog.getByTestId('families-kind').selectOption('valve');
-  await expect(dialog.getByTestId('family-item')).toHaveCount(5);
+  // 5 famílias AVK + 2 da redutora de pressão BERMAD 720 (SIGMA EN e ES).
+  await expect(dialog.getByTestId('family-item')).toHaveCount(7);
+  await expect(dialog.getByTestId('family-item').filter({ hasText: 'BERMAD 720' })).toHaveCount(2);
   await dialog.getByTestId('families-close').click();
   expect(errors).toEqual([]);
 });

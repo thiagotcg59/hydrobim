@@ -173,7 +173,7 @@ test('fluxo completo de modelagem, edição, salvamento e reabertura', async ({ 
     elements: unknown[];
   };
   expect(exported.format).toBe('hydrobim-project');
-  expect(exported.schemaVersion).toBe(2);
+  expect(exported.schemaVersion).toBe(3);
   expect(exported.elements).toHaveLength(11);
 
   await page.getByTestId('action-new').click();

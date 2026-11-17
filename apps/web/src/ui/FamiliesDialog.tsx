@@ -124,6 +124,11 @@ function columnsFor(family: FittingFamily): Column[] {
           label: 'Volante',
           title: 'Diâmetro do volante ou comprimento da alavanca (mm)',
         },
+        {
+          path: 'width',
+          label: 'Largura',
+          title: 'Largura máxima / diâmetro da tampa do atuador (mm)',
+        },
         ...end,
       ];
   }

@@ -18,7 +18,7 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 2
+  schemaVersion: 3
   id, name
   discipline: 'mep' | 'infra'
   units: { length: 'm', angle: 'rad' }
@@ -57,7 +57,7 @@ Parâmetros específicos:
 | Joelho (`elbow`) | `placement`, `angle` (deflexão), `bendRadius` | `a`, `b` |
 | Tê (`tee`) | `placement`, `runLength`, `branchLength`, `branchSpec` (tê de redução) | `a`, `b` (passagem), `branch` |
 | Redução (`reducer`) | `placement`, `outletSpec`, `length` | `a` (`spec`), `b` (`outletSpec`) |
-| Válvula (`valve`) | `placement`, `valveType`, `length`, `height`, `handwheelDiameter` | `a`, `b` (ventosa: só `a`) |
+| Válvula (`valve`) | `placement`, `valveType`, `length`, `height`, `handwheelDiameter`, `width` | `a`, `b` (ventosa: só `a`; redutora de pressão: `a` = montante) |
 | Bomba (`pump`) | `placement`, `dischargeSpec`, `length`, `dischargeOffset`, `dischargeHeight`, ponto nominal | `a` (sucção), `b` (recalque) |
 | Reservatório (`tank`) | `placement`, `diameter`, `height`, alturas dos bocais | `a` (saída), `b` (entrada) |
 
@@ -132,6 +132,8 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 As dimensões padrão das conexões (`dimensions.ts`) são proporções genéricas do diâmetro externo, usadas até existir um catálogo dimensional de conexões por norma/fabricante (Fase 2).
 
 ## Evolução do esquema
+
+Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. Documentos v1 e v2 são migrados ao abrir.
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
 

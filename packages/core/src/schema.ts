@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 2 as const;
+export const SCHEMA_VERSION = 3 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -151,7 +151,16 @@ export const ReducerSchema = z.object({
 });
 export type Reducer = z.infer<typeof ReducerSchema>;
 
-export const VALVE_TYPES = ['gate', 'globe', 'ball', 'butterfly', 'check', 'airRelease'] as const;
+export const VALVE_TYPES = [
+  'gate',
+  'globe',
+  'ball',
+  'butterfly',
+  'check',
+  'airRelease',
+  // Redutora de pressão pilotada (corpo em Y). A porta `a` é a de montante.
+  'pressureReducing',
+] as const;
 export const ValveTypeSchema = z.enum(VALVE_TYPES);
 export type ValveType = z.infer<typeof ValveTypeSchema>;
 
@@ -165,6 +174,8 @@ export const ValveSchema = z.object({
   height: positive.optional(),
   /** Diâmetro do volante (m), quando informado pelo catálogo. */
   handwheelDiameter: positive.optional(),
+  /** Largura máxima / diâmetro da tampa do atuador (m), quando informada pelo catálogo. */
+  width: positive.optional(),
 });
 export type Valve = z.infer<typeof ValveSchema>;
 
@@ -281,6 +292,7 @@ export const FamilySizeSchema = z.object({
   length: positive.optional(),
   height: positive.optional(),
   handwheelDiameter: positive.optional(),
+  width: positive.optional(),
   end: FamilyEndSchema.optional(),
   end2: FamilyEndSchema.optional(),
 });

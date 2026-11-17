@@ -240,6 +240,65 @@ describe('extremidades de catálogo', () => {
     expect(maxZ).toBeCloseTo(0.3, 6);
   });
 
+  it('redutora de pressão: topo do atuador na altura e tampa na largura do catálogo', () => {
+    const prv: FittingFamily = {
+      ...family,
+      id: 'fam-prv',
+      kind: 'valve',
+      endType: 'flange',
+      valveType: 'pressureReducing',
+      angle: undefined,
+      sizes: [
+        {
+          dn: 50,
+          length: 0.23,
+          height: 0.154,
+          width: 0.165,
+          end: { length: 0.019, outerDiameter: 0.165 },
+        },
+      ],
+    };
+    const a = addPipe(createProject('g'), { start: vec3(0, 0, 0), end: vec3(2, 0, 0), spec });
+    if (!a.ok) throw new Error(a.error.message);
+    const valve = attachFitting(a.value.project, {
+      target: { elementId: a.value.elementId, portId: 'end' },
+      fitting: { kind: 'valve', valveType: 'pressureReducing' },
+      catalog: createFamilyCatalog([prv]),
+    });
+    if (!valve.ok) throw new Error(valve.error.message);
+    const element = valve.value.project.elements.find((e) => e.kind === 'valve')!;
+    expect(element.kind === 'valve' && element.width).toBeCloseTo(0.165);
+    let maxZ = 0;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let cover = 0;
+    // Eixo do atuador: inclinado 30° para jusante (porta B, em +X).
+    const axis = vec3(0.5, 0, Math.sqrt(3) / 2);
+    const geometry = buildElementGeometry(element);
+    for (const part of geometry.parts) {
+      expectValidMesh(part.mesh);
+      const p = part.mesh.positions;
+      for (let i = 0; i < p.length; i += 3) {
+        maxZ = Math.max(maxZ, p[i + 2]!);
+        minX = Math.min(minX, p[i]!);
+        maxX = Math.max(maxX, p[i]!);
+        // Atuador: parte seguinte ao corpo e aos dois flanges.
+        if (part !== geometry.parts[3]) continue;
+        const along = p[i]! * axis.x + p[i + 2]! * axis.z;
+        if (along < 0.05) continue;
+        cover = Math.max(
+          cover,
+          Math.hypot(p[i]! - along * axis.x, p[i + 1]!, p[i + 2]! - along * axis.z),
+        );
+      }
+    }
+    expect(maxZ).toBeCloseTo(0.154, 5);
+    expect(cover).toBeCloseTo(0.0825, 5);
+    // Nada ultrapassa as faces dos flanges.
+    expect(minX).toBeCloseTo(-0.115, 6);
+    expect(maxX).toBeCloseTo(0.115, 6);
+  });
+
   it('gera bomba, reservatório e ventosa', () => {
     const pump = placeEquipment(createProject('g'), {
       fitting: { kind: 'pump' },

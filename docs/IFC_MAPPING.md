@@ -58,6 +58,7 @@ Um joelho **não** é uma entidade `IfcElbow` (inexistente): é um `IfcPipeFitti
 | `valve` (`globe`) | `IfcValve` | `REGULATING` | A confirmar com a prática de projeto |
 | `valve` (`check`) | `IfcValve` | `CHECK` | — |
 | `valve` (`airRelease`) | `IfcValve` | `AIRRELEASE` | Porta única |
+| `valve` (`pressureReducing`) | `IfcValve` | `PRESSUREREDUCING` | Porta `a` = montante; `FlowDirection` ainda `NOTDEFINED` |
 | `pump` | `IfcPump` | `ENDSUCTION` | Representação genérica |
 | `tank` | `IfcTank` | `STORAGE` | — |
 

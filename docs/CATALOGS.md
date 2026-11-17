@@ -57,6 +57,7 @@ Tubos: Tigre MPVC DEFoFo (Catálogo Infraestrutura 07/2025, p. 15). Usa as conex
 | Borboleta wafer (EN 558 série 20) | AVK, série 820 |
 | Retenção portinhola (EN 558 série 48) | AVK, série 41/60 |
 | Ventosa flangeada | AVK, série 701/70 |
+| Redutora de pressão pilotada, corpo em Y — Modelo 720, série 700 SIGMA EN (DN 40–400) e ES (DN 65–600) | BERMAD, *700 Series Engineering Data*, p. 10 e 12 |
 
 A altura é do eixo ao topo da haste (o volante é acessório). Não foi possível obter tabelas de fabricantes brasileiros de válvulas.
 
@@ -75,6 +76,8 @@ A geometria 3D (`packages/geometry`) é gerada por perfis de revolução ao long
 **Vem do catálogo:** posição das portas (centro ao fundo da bolsa ou à face do flange), raio de curvatura da linha de centro, profundidade e diâmetro externo das bolsas, diâmetro e espessura dos flanges, face a face, altura e volante/alavanca das válvulas, diâmetros externo e interno do tubo. As bolsas têm o furo com o diâmetro externo do tubo e o batente no fundo; o furo do corpo tem o diâmetro interno do tubo.
 
 **É representação (não tabulado nas fontes usadas):** a parede do corpo das conexões (adota-se o diâmetro externo do tubo), a concordância entre corpo e bolsa, o cubo dos flanges, o bojo, o castelo e o acionamento das válvulas. Furação de flanges, anéis de vedação, nervuras e detalhes de fundição não são modelados.
+
+**Redutora de pressão BERMAD 720:** a tabela dá L (face a face), W (largura máxima), h (eixo ao ponto mais baixo) e H (altura total), as três últimas como valores máximos. A altura do eixo ao topo é derivada (H − h) e W é adotada como diâmetro da tampa do atuador. O flange não é tabulado pela BERMAD ("all standards"): usa-se o flange PN 10 da tabela Saint-Gobain PAM onde há dado; DN 40, 50, 65, 125 e 450 ficam sem o disco do flange. A inclinação do atuador (30°), a forma da tampa e o circuito de controle (piloto e tubos) são representação. O catálogo embutido só tem tubos de ferro dúctil a partir de DN 80, de modo que os DN 40 a 65 e 125/450 constam da tabela da família, mas ainda não têm tubo correspondente para inserção.
 
 **Dúvida registrada:** no registro de esfera VS (Tigre) a altura do eixo ao topo foi derivada como `B − E1/2`; o resultado fica abaixo do raio das porcas (`E1/2`), o que sugere que a cota `B` do catálogo tem outra referência. A alavanca aparece embutida entre as porcas até a cota ser conferida no desenho do fabricante.
 

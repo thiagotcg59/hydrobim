@@ -364,6 +364,12 @@ function FittingGeometry({ element }: { element: Exclude<HydroElement, Pipe> }) 
             label="Volante / alavanca"
             testId="prop-valve-wheel"
           />
+          <Dimension
+            element={element}
+            field="width"
+            label="Largura / tampa do atuador"
+            testId="prop-valve-width"
+          />
         </>
       )}
       {element.kind === 'reducer' && (

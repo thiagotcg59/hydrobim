@@ -338,9 +338,18 @@ describe('migração de esquema', () => {
     const migrated = parseProjectDocument(v1);
     expect(migrated.ok ? '' : migrated.error.message).toBe('');
     if (!migrated.ok) return;
-    expect(migrated.value.schemaVersion).toBe(2);
+    expect(migrated.value.schemaVersion).toBe(3);
     expect(migrated.value.levels).toHaveLength(1);
     expect(migrated.value.elements.map((e) => e.id)).toEqual(n.project.elements.map((e) => e.id));
     expectCoupled(migrated.value);
+  });
+
+  it('abre projetos da versão 2 sem alterar o conteúdo', () => {
+    const n = network();
+    const current = JSON.parse(serializeProject(n.project)) as Record<string, unknown>;
+    const migrated = parseProjectDocument({ ...current, schemaVersion: 2 });
+    expect(migrated.ok ? '' : migrated.error.message).toBe('');
+    if (!migrated.ok) return;
+    expect(migrated.value).toEqual(n.project);
   });
 });

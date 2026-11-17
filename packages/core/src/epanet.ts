@@ -106,6 +106,11 @@ export function exportEpanet(project: Project): EpanetExport {
           nodeOf(element.id, 'a');
           warnings.push(`"${element.name}" (ventosa) não é representada no EPANET.`);
         } else {
+          if (element.valveType === 'pressureReducing') {
+            warnings.push(
+              `"${element.name}" (redutora de pressão) foi exportada como trecho aberto; defina a válvula PRV e a pressão de ajuste no EPANET.`,
+            );
+          }
           pipes.push(
             `${pad(link())}${pad(nodeOf(element.id, 'a'))}${pad(nodeOf(element.id, 'b'))}${pad(num(element.length))}${pad(diameter)}${pad(c)}${pad(0)}${element.valveType === 'check' ? 'CV  ' : 'Open'}    ; ${element.name} (válvula)`,
           );

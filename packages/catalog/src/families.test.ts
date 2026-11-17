@@ -121,4 +121,41 @@ describe('famílias embutidas', () => {
     expect(catalog.valve(di150, 'check').length).toBeCloseTo(0.4);
     expect(Object.keys(catalog.valve(di150, 'airRelease').ends)).toEqual(['a']);
   });
+
+  it('redutora de pressão BERMAD 720: todos os diâmetros das tabelas SIGMA EN e ES', () => {
+    const en = byId('bermad-720-sigma-en@ferro-ductil-nbr7675-k9');
+    const es = byId('bermad-720-sigma-es@ferro-ductil-nbr7675-k9');
+    expect(en.valveType).toBe('pressureReducing');
+    expect(en.sizes.map((s) => s.dn)).toEqual([40, 50, 65, 80, 100, 150, 200, 250, 300, 400]);
+    expect(es.sizes.map((s) => s.dn)).toEqual([
+      65, 80, 100, 125, 150, 200, 250, 300, 350, 400, 450, 500, 600,
+    ]);
+
+    // SIGMA EN DN 100: L 350, W 255, h 131, H 400 → eixo ao topo = 400 − 131 = 269.
+    const en100 = en.sizes.find((s) => s.dn === 100)!;
+    expect(en100.length).toBeCloseTo(0.35);
+    expect(en100.width).toBeCloseTo(0.255);
+    expect(en100.height).toBeCloseTo(0.269);
+    expect(en100.end?.outerDiameter).toBeCloseTo(0.22);
+    // SIGMA ES DN 600: L 1450, W 920, h 465, H 1260.
+    const es600 = es.sizes.find((s) => s.dn === 600)!;
+    expect(es600.length).toBeCloseTo(1.45);
+    expect(es600.width).toBeCloseTo(0.92);
+    expect(es600.height).toBeCloseTo(0.795);
+    // DN sem dado de flange não recebem flange inventado.
+    expect(en.sizes.find((s) => s.dn === 50)!.end).toBeUndefined();
+
+    // A preferência do usuário escolhe entre as séries EN e ES.
+    const di150 = resolvePipeSpec('ferro-ductil-nbr7675-k9', 150)!;
+    const dims = createFamilyCatalog(BUILTIN_FAMILIES).valve(di150, 'pressureReducing');
+    expect(dims.familyId).toBe('bermad-720-sigma-en@ferro-ductil-nbr7675-k9');
+    expect(dims.length).toBeCloseTo(0.48);
+    expect(dims.height).toBeCloseTo(0.362);
+    expect(dims.width).toBeCloseTo(0.32);
+    expect(Object.keys(dims.ends)).toEqual(['a', 'b']);
+    const reduced = createFamilyCatalog(BUILTIN_FAMILIES, {
+      valve: 'bermad-720-sigma-es@ferro-ductil-nbr7675-k9',
+    }).valve(di150, 'pressureReducing');
+    expect(reduced.height).toBeCloseTo(0.282);
+  });
 });

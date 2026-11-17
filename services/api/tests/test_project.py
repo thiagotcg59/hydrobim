@@ -20,7 +20,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 2
+    assert project.schema_version == 3
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -28,7 +28,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 3),
+        (("schemaVersion",), 4),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -90,7 +90,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 2.0
+    project_document["schemaVersion"] = 3.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -115,6 +115,22 @@ def test_migrates_v1_without_changing_input(project_document):
     before = deepcopy(legacy)
     assert Project.model_validate(legacy).model_dump() == project_document
     assert legacy == before
+
+
+def test_migrates_v2_without_changing_input(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 2
+    before = deepcopy(legacy)
+    assert Project.model_validate(legacy).model_dump() == project_document
+    assert legacy == before
+
+
+def test_pressure_reducing_valve_with_width(project_document):
+    valve = next(e for e in project_document["elements"] if e["kind"] == "valve")
+    valve["valveType"] = "pressureReducing"
+    valve["width"] = 0.255
+    project = Project.model_validate(project_document)
+    assert project.model_dump(by_alias=True) == project_document
 
 
 @pytest.mark.parametrize("kind", ["pump", "tank", "valve"])

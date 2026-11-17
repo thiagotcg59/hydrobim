@@ -391,6 +391,7 @@ export function buildFitting(
         ...(dims.handwheelDiameter !== undefined
           ? { handwheelDiameter: dims.handwheelDiameter }
           : {}),
+        ...(dims.width !== undefined ? { width: dims.width } : {}),
       };
       return ok(valve);
     }
@@ -632,7 +633,7 @@ const EDITABLE: Record<FittingKind, readonly string[]> = {
   elbow: ['angle', 'bendRadius'],
   tee: ['runLength', 'branchLength'],
   reducer: ['length'],
-  valve: ['length', 'height', 'handwheelDiameter'],
+  valve: ['length', 'height', 'handwheelDiameter', 'width'],
   pump: ['length', 'dischargeOffset', 'dischargeHeight', 'ratedFlow', 'ratedHead'],
   tank: ['diameter', 'height', 'outletHeight', 'inletHeight', 'nozzleLength'],
 };
@@ -649,6 +650,7 @@ export type FittingPatch = {
   length?: number;
   height?: number;
   handwheelDiameter?: number;
+  width?: number;
   dischargeOffset?: number;
   dischargeHeight?: number;
   ratedFlow?: number;

@@ -25,6 +25,7 @@ export interface SizeMm {
   length?: number;
   height?: number;
   handwheelDiameter?: number;
+  width?: number;
   end?: EndMm;
   end2?: EndMm;
 }
@@ -37,6 +38,7 @@ function size(row: SizeMm): FamilySize {
   if (row.length !== undefined) out.length = mmToM(row.length);
   if (row.height !== undefined) out.height = mmToM(row.height);
   if (row.handwheelDiameter !== undefined) out.handwheelDiameter = mmToM(row.handwheelDiameter);
+  if (row.width !== undefined) out.width = mmToM(row.width);
   const e1 = end(row.end);
   const e2 = end(row.end2);
   if (e1) out.end = e1;

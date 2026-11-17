@@ -11,7 +11,7 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 **Modelagem**
 - Viewport 3D (Z para cima) com órbita, grade, eixos, vistas e projeção ortográfica.
 - Tubos por dois pontos (mouse ou coordenadas), com joelho automático ao mudar de direção.
-- Joelho, tê (inclusive de redução), redução, válvulas (gaveta, globo, esfera, borboleta, retenção, ventosa), bomba e reservatório.
+- Joelho, tê (inclusive de redução), redução, válvulas (gaveta, globo, esfera, borboleta, retenção, ventosa, redutora de pressão), bomba e reservatório.
 - Seleção múltipla, mover, copiar, desfazer/refazer, níveis e sistemas hidráulicos.
 
 **Catálogo e famílias**

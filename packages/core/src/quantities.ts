@@ -29,6 +29,7 @@ const VALVE: Record<string, string> = {
   butterfly: 'borboleta',
   check: 'retenção',
   airRelease: 'ventosa',
+  pressureReducing: 'redutora de pressão',
 };
 
 function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'description' | 'size'> {

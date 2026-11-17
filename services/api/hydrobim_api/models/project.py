@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _json_number(value: Any) -> int | float:
@@ -36,7 +36,7 @@ NonEmptyString = Annotated[str, Field(min_length=1)]
 NonNegativeInteger = Annotated[int, Field(ge=0, strict=False), BeforeValidator(_json_number)]
 Material = Literal["pvc", "hdpe", "ductileIron", "carbonSteel"]
 JointType = Literal["solventWeld", "socketSpigot", "buttFusion", "buttWeld", "flanged", "threaded"]
-ValveType = Literal["gate", "globe", "ball", "butterfly", "check", "airRelease"]
+ValveType = Literal["gate", "globe", "ball", "butterfly", "check", "airRelease", "pressureReducing"]
 EndType = Literal["plain", "socket", "flange"]
 SystemKind = Literal[
     "domesticColdWater", "domesticHotWater", "fireProtection", "waterSupply", "other"
@@ -168,6 +168,7 @@ class Valve(FittingBase):
     length: PositiveNumber
     height: PositiveNumber = Field(default=None, validate_default=False)
     handwheel_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    width: PositiveNumber = Field(default=None, validate_default=False)
 
 
 class Pump(FittingBase):
@@ -228,6 +229,7 @@ class FamilySize(CamelModel):
     length: PositiveNumber = Field(default=None, validate_default=False)
     height: PositiveNumber = Field(default=None, validate_default=False)
     handwheel_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    width: PositiveNumber = Field(default=None, validate_default=False)
     end: FamilyEnd = Field(default=None, validate_default=False)
     end2: FamilyEnd = Field(default=None, validate_default=False)
 
@@ -275,7 +277,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[2], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[3], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -292,17 +294,20 @@ class Project(CamelModel):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_v1(cls, document: Any) -> Any:
-        """Mesma migração v1 → v2 de core/serialization.ts, sem mutar o documento."""
+    def migrate(cls, document: Any) -> Any:
+        """Mesmas migrações de core/serialization.ts (v1 → v2 → v3), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version != 1:
+        if isinstance(version, bool) or version not in (1, 2):
             return document
+        if version == 2:
+            # v2 → v3: novo tipo de válvula e largura opcional; o documento já é válido.
+            return {**document, "schemaVersion": 3}
         elements = document.get("elements")
         return {
             **document,
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "levels": [{"id": "nivel-0", "name": "Térreo", "elevation": 0}],
             "families": [],
             "georeference": None,

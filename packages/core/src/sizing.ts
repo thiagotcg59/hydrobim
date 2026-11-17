@@ -80,7 +80,7 @@ function withSpec(
     }
     case 'valve': {
       const dims = catalog.valve(spec, element.valveType, element.familyId);
-      const { height: _h, handwheelDiameter: _d, ...rest } = element;
+      const { height: _h, handwheelDiameter: _d, width: _w, ...rest } = element;
       return {
         ...rest,
         spec,
@@ -91,6 +91,7 @@ function withSpec(
         ...(dims.handwheelDiameter !== undefined
           ? { handwheelDiameter: dims.handwheelDiameter }
           : {}),
+        ...(dims.width !== undefined ? { width: dims.width } : {}),
       };
     }
     case 'reducer': {

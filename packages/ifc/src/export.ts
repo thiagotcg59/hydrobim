@@ -67,6 +67,7 @@ function elementType(element: HydroElement): [string, string] {
           globe: 'REGULATING',
           check: 'CHECK',
           airRelease: 'AIRRELEASE',
+          pressureReducing: 'PRESSUREREDUCING',
         }[element.valveType],
       ];
   }

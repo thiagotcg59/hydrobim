@@ -447,6 +447,87 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
       );
       return parts;
     }
+    case 'pressureReducing': {
+      // Redutora pilotada, corpo em "Y": atuador de diafragma inclinado 30° para jusante
+      // (porta B), como no desenho do fabricante. Do catálogo: altura do eixo ao topo e largura máxima, adotada como
+      // diâmetro da tampa. Pescoço, tampa abaulada e circuito de controle são representação.
+      const tilt = Math.PI / 6;
+      const axis = vec3(Math.sin(tilt), 0, Math.cos(tilt));
+      const cover = (element.width ?? d * 2.1) / 2;
+      const plug = cover * 0.22;
+      // O ponto mais alto (bujão da tampa) fica exatamente na cota de catálogo.
+      const reach = (top - plug * Math.sin(tilt)) / Math.cos(tilt);
+      // A tampa fica abaixo do topo e não ultrapassa a face do flange de jusante.
+      const rim = Math.max(
+        Math.min(
+          reach * 0.62,
+          (top - cover * Math.sin(tilt)) / Math.cos(tilt),
+          (length / 2 - cover * Math.cos(tilt)) / Math.sin(tilt),
+        ),
+        reach * 0.3,
+      );
+      const plate = Math.min(reach * 0.05, cover * 0.16);
+      parts.push(
+        body(
+          turned(
+            ORIGIN,
+            axis,
+            [
+              [0, d * 0.55],
+              [rim - 2 * plate, d * 0.55],
+              [rim - 2 * plate, cover],
+              [rim, cover],
+              [rim, cover * 0.86],
+              [rim + (reach - rim) * 0.55, cover * 0.5],
+              [reach - plate, cover * 0.3],
+              [reach - plate, plug],
+              [reach, plug],
+            ],
+            48,
+          ),
+        ),
+      );
+      // Circuito de controle: tomadas a montante e a jusante, piloto e tubos.
+      const side = -Math.max(cover * 0.8, d * 0.7);
+      const tube = Math.max(d * 0.035, 0.003);
+      const tapA = -length * 0.32;
+      const tapB = length * 0.32;
+      const level = top * 0.42;
+      const pilotX = length * 0.12;
+      const route: Vec3[] = [
+        vec3(tapA, 0, 0),
+        vec3(tapA, side, 0),
+        vec3(tapA, side, level),
+        vec3(pilotX, side, level),
+      ];
+      const back: Vec3[] = [
+        vec3(pilotX, side, level),
+        vec3(tapB, side, level),
+        vec3(tapB, side, 0),
+        vec3(tapB, 0, 0),
+      ];
+      for (const line of [route, back]) {
+        for (let i = 0; i < line.length - 1; i += 1) {
+          parts.push(accent(cylinder(line[i] as Vec3, line[i + 1] as Vec3, tube, 0, 10)));
+        }
+      }
+      parts.push(
+        accent(
+          turned(
+            vec3(pilotX, side, level - tube * 3),
+            Z,
+            [
+              [0, tube * 3],
+              [tube * 6, tube * 3],
+              [tube * 6, tube * 2],
+              [Math.min(top * 0.9 - level, tube * 22), tube * 2],
+            ],
+            16,
+          ),
+        ),
+      );
+      return parts;
+    }
     case 'gate':
     case 'globe': {
       // Castelo: pescoço, flange do castelo, tampa cônica, preme-gaxeta e haste.
