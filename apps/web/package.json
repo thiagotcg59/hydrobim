@@ -1,0 +1,25 @@
+{
+  "name": "@hydrobim/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Editor BIM hidráulico web do HydroBIM",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hydrobim/catalog": "*",
+    "@hydrobim/core": "*",
+    "@hydrobim/geometry": "*",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "lucide-react": "^1.73.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "three": "^0.187.0",
+    "zustand": "^5.1.0"
+  }
+}
