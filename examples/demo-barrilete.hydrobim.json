@@ -1,0 +1,698 @@
+{
+  "format": "hydrobim-project",
+  "schemaVersion": 1,
+  "id": "6c327b28-bdf4-4987-8165-11b5b93fabf0",
+  "name": "Barrilete de água fria — demonstração",
+  "discipline": "mep",
+  "units": {
+    "length": "m",
+    "angle": "rad"
+  },
+  "createdAt": "2026-11-17T02:44:39.470Z",
+  "updatedAt": "2026-11-17T02:44:39.483Z",
+  "systems": [
+    {
+      "id": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "name": "Água fria",
+      "kind": "domesticColdWater"
+    }
+  ],
+  "elements": [
+    {
+      "id": "8f5c3b03-0a87-448c-ad6c-df822f12ff18",
+      "name": "Tubo 1",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.474Z",
+        "updatedAt": "2026-11-17T02:44:39.482Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      },
+      "end": {
+        "x": 1.41,
+        "y": 0,
+        "z": 1
+      }
+    },
+    {
+      "id": "24089cb5-f042-415f-bd63-851d09c22883",
+      "name": "Joelho 1",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.481Z",
+        "updatedAt": "2026-11-17T02:44:39.481Z",
+        "revision": 0
+      },
+      "kind": "elbow",
+      "placement": {
+        "position": {
+          "x": 4,
+          "y": 0,
+          "z": 1
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "angle": 1.5707963267948966,
+      "bendRadius": 0.09
+    },
+    {
+      "id": "16f1d074-676a-496f-a7f8-bd9df6d65dd4",
+      "name": "Tubo 2",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.481Z",
+        "updatedAt": "2026-11-17T02:44:39.481Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 4,
+        "y": 0.08999999999999998,
+        "z": 1
+      },
+      "end": {
+        "x": 4.000000000000001,
+        "y": 2.9099999999999997,
+        "z": 1
+      }
+    },
+    {
+      "id": "67ba1354-4781-47fe-b15b-c26c6f5c387f",
+      "name": "Joelho 2",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.481Z",
+        "updatedAt": "2026-11-17T02:44:39.481Z",
+        "revision": 0
+      },
+      "kind": "elbow",
+      "placement": {
+        "position": {
+          "x": 4.000000000000001,
+          "y": 2.9999999999999996,
+          "z": 1
+        },
+        "rotation": {
+          "x": 0.5,
+          "y": 0.4999999999999999,
+          "z": 0.5000000000000001,
+          "w": 0.5000000000000001
+        }
+      },
+      "angle": 1.5707963267948963,
+      "bendRadius": 0.09
+    },
+    {
+      "id": "8b44b203-9b57-41f0-923d-e1c1bf1eeb11",
+      "name": "Tubo 3",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.481Z",
+        "updatedAt": "2026-11-17T02:44:39.481Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 4.000000000000001,
+        "y": 2.9999999999999996,
+        "z": 1.0899999999999999
+      },
+      "end": {
+        "x": 4,
+        "y": 3,
+        "z": 3.5
+      }
+    },
+    {
+      "id": "2c4b31eb-fea2-4f7a-9a5e-aaccb5329e19",
+      "name": "Tê 1",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.482Z",
+        "updatedAt": "2026-11-17T02:44:39.482Z",
+        "revision": 0
+      },
+      "kind": "tee",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 1.5,
+          "y": 0,
+          "z": 1
+        }
+      },
+      "runLength": 0.18,
+      "branchLength": 0.09
+    },
+    {
+      "id": "1ff21ee0-2c81-4763-a3f8-8022f16d1c0a",
+      "name": "Tubo 4",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.482Z",
+        "updatedAt": "2026-11-17T02:44:39.483Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 1.59,
+        "y": 0,
+        "z": 1
+      },
+      "end": {
+        "x": 2.5,
+        "y": 0,
+        "z": 1
+      }
+    },
+    {
+      "id": "d9a19a8a-fc3b-4d5c-84e6-306f07d2789f",
+      "name": "Tubo 5",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.482Z",
+        "updatedAt": "2026-11-17T02:44:39.483Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 1.5,
+        "y": 0.09,
+        "z": 1
+      },
+      "end": {
+        "x": 1.5,
+        "y": 0.8,
+        "z": 1
+      }
+    },
+    {
+      "id": "0116df84-a432-4fbd-aaa2-4a0ddfdedc38",
+      "name": "Válvula 1",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.482Z",
+        "updatedAt": "2026-11-17T02:44:39.482Z",
+        "revision": 0
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0.7071067811865475,
+          "w": 0.7071067811865476
+        },
+        "position": {
+          "x": 1.5,
+          "y": 0.89,
+          "z": 1
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18
+    },
+    {
+      "id": "e2355981-fff3-451c-9516-936f7f3a05f9",
+      "name": "Tubo 6",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.483Z",
+        "updatedAt": "2026-11-17T02:44:39.483Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 1.5,
+        "y": 0.98,
+        "z": 1
+      },
+      "end": {
+        "x": 1.5,
+        "y": 2.5,
+        "z": 1
+      }
+    },
+    {
+      "id": "9f0e59e2-e5cb-42f5-b1cf-0411b98535b6",
+      "name": "Redução 1",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.483Z",
+        "updatedAt": "2026-11-17T02:44:39.483Z",
+        "revision": 0
+      },
+      "kind": "reducer",
+      "placement": {
+        "position": {
+          "x": 1.5000000000000002,
+          "y": 2.56,
+          "z": 1
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0.7071067811865475,
+          "w": 0.7071067811865476
+        }
+      },
+      "outletSpec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 25,
+        "sizeLabel": "DE 32 (DN 25)",
+        "outerDiameter": 0.032,
+        "wallThickness": 0.0021000000000000003,
+        "innerDiameter": 0.0278
+      },
+      "length": 0.12
+    },
+    {
+      "id": "e4b46ad1-4e4d-4c1a-b85a-965d61b8e1da",
+      "name": "Tubo 7",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 25,
+        "sizeLabel": "DE 32 (DN 25)",
+        "outerDiameter": 0.032,
+        "wallThickness": 0.0021000000000000003,
+        "innerDiameter": 0.0278
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.483Z",
+        "updatedAt": "2026-11-17T02:44:39.483Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 1.5000000000000002,
+        "y": 2.62,
+        "z": 1
+      },
+      "end": {
+        "x": 1.5,
+        "y": 4,
+        "z": 1
+      }
+    },
+    {
+      "id": "669fa498-6967-4308-b42a-686a374f0e5a",
+      "name": "Válvula 2",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.483Z",
+        "updatedAt": "2026-11-17T02:44:39.483Z",
+        "revision": 0
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 2.59,
+          "y": 0,
+          "z": 1
+        }
+      },
+      "valveType": "ball",
+      "length": 0.18
+    },
+    {
+      "id": "47ed0d25-7f45-4131-9153-665149624e1b",
+      "name": "Tubo 8",
+      "systemId": "681074b1-a872-4057-a83e-1d1d3d3d2970",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 50,
+        "sizeLabel": "DE 60 (DN 50)",
+        "outerDiameter": 0.06,
+        "wallThickness": 0.0033,
+        "innerDiameter": 0.053399999999999996
+      },
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-17T02:44:39.483Z",
+        "updatedAt": "2026-11-17T02:44:39.483Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 2.6799999999999997,
+        "y": 0,
+        "z": 1
+      },
+      "end": {
+        "x": 3.91,
+        "y": 0,
+        "z": 1
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "e6731331-1f73-4afc-94b6-941eefc254bb",
+      "a": {
+        "elementId": "47ed0d25-7f45-4131-9153-665149624e1b",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "24089cb5-f042-415f-bd63-851d09c22883",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "bc8e05e0-7234-4346-b45b-93fdf539055d",
+      "a": {
+        "elementId": "24089cb5-f042-415f-bd63-851d09c22883",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "16f1d074-676a-496f-a7f8-bd9df6d65dd4",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "5c7c91bb-a611-47dd-a994-7d794bb73c8b",
+      "a": {
+        "elementId": "16f1d074-676a-496f-a7f8-bd9df6d65dd4",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "67ba1354-4781-47fe-b15b-c26c6f5c387f",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "9def9a24-474e-431a-866f-bfbd0a74e1d7",
+      "a": {
+        "elementId": "67ba1354-4781-47fe-b15b-c26c6f5c387f",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "8b44b203-9b57-41f0-923d-e1c1bf1eeb11",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "62e75ad9-329d-4d7f-8fa2-e8ebfec562a0",
+      "a": {
+        "elementId": "8f5c3b03-0a87-448c-ad6c-df822f12ff18",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "2c4b31eb-fea2-4f7a-9a5e-aaccb5329e19",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "9aa8f634-fae6-473f-9381-652a09046476",
+      "a": {
+        "elementId": "2c4b31eb-fea2-4f7a-9a5e-aaccb5329e19",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "1ff21ee0-2c81-4763-a3f8-8022f16d1c0a",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "34077950-93ad-4309-afae-1c58bc6b0a94",
+      "a": {
+        "elementId": "d9a19a8a-fc3b-4d5c-84e6-306f07d2789f",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "2c4b31eb-fea2-4f7a-9a5e-aaccb5329e19",
+        "portId": "branch"
+      }
+    },
+    {
+      "id": "8ed642b0-68bb-4241-82f6-1d187018225b",
+      "a": {
+        "elementId": "d9a19a8a-fc3b-4d5c-84e6-306f07d2789f",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "0116df84-a432-4fbd-aaa2-4a0ddfdedc38",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "5403f4b6-fa25-4728-bdff-84acdc4eb117",
+      "a": {
+        "elementId": "0116df84-a432-4fbd-aaa2-4a0ddfdedc38",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "e2355981-fff3-451c-9516-936f7f3a05f9",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "7bb5a6b8-0fcd-456d-ad91-6ee59a4f0e48",
+      "a": {
+        "elementId": "e2355981-fff3-451c-9516-936f7f3a05f9",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "9f0e59e2-e5cb-42f5-b1cf-0411b98535b6",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "f1c9783f-217b-4916-8ce7-157ee6851bb2",
+      "a": {
+        "elementId": "e4b46ad1-4e4d-4c1a-b85a-965d61b8e1da",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "9f0e59e2-e5cb-42f5-b1cf-0411b98535b6",
+        "portId": "b"
+      }
+    },
+    {
+      "id": "2924ce21-1a9c-4dc5-a6b1-bc219c9c12c3",
+      "a": {
+        "elementId": "1ff21ee0-2c81-4763-a3f8-8022f16d1c0a",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "669fa498-6967-4308-b42a-686a374f0e5a",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "20af9965-7e54-4121-b8e4-598436a3b44b",
+      "a": {
+        "elementId": "669fa498-6967-4308-b42a-686a374f0e5a",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "47ed0d25-7f45-4131-9153-665149624e1b",
+        "portId": "start"
+      }
+    }
+  ]
+}
