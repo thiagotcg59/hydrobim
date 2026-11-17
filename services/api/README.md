@@ -1,11 +1,18 @@
-# HydroBIM API — Fases 0/1
+# HydroBIM API — validação de projetos e verificação IFC
 
 Serviço FastAPI para validar documentos HydroBIM, sem banco de dados ou persistência.
 O contrato segue `packages/core/src/schema.ts`; as regras referenciais e estruturais
 seguem `serialization.ts` e `validation.ts` do mesmo pacote.
 
-**A exportação IFC não está implementada.** IFC 4.3 está prevista somente para a
-Fase 3. Este serviço não depende de `ifcopenshell` nem oferece uma rota de exportação.
+**O IFC 4.3 é exportado pelo cliente web, no pacote `@hydrobim/ifc`.** A API não
+oferece uma rota de exportação: `ifcExport` permanece `false`. A capacidade
+`ifcVerification: true` indica a verificação de arquivos nos testes com IfcOpenShell,
+não uma rota HTTP de upload/validação IFC. Essa dependência está somente no grupo
+`dev`; instalações de produção podem usar `uv sync --no-dev`.
+
+O contrato Python acompanha o esquema 2 do core (famílias, níveis, georreferência,
+terreno, bombas, reservatórios e ventosas). Documentos da versão 1 são migrados
+em memória com os mesmos defaults de `core/serialization.ts`.
 
 ## Instalação e execução
 
@@ -13,7 +20,7 @@ Pré-requisitos: `uv` e Python 3.11 instalado. Execute os comandos nesta pasta
 (`services/api/`):
 
 ```powershell
-uv sync
+uv sync --python 3.11
 uv run uvicorn hydrobim_api.main:app --reload --port 8000
 ```
 
@@ -33,6 +40,18 @@ uv run ruff format --check .
 Os testes incluem todos os arquivos `*.json` diretamente em `<raiz>/examples/`.
 Se a pasta não existir ou estiver sem JSONs, esse teste será marcado como ignorado
 (`skipped`). Nenhum arquivo de exemplo é modificado.
+
+Antes dos testes IFC, execute `npm run examples:generate` na raiz. O gerador
+`tests/tools/generate-ifc.gen.ts` lê os documentos `.hydrobim.json` e grava os
+arquivos `.ifc` correspondentes, com timestamp fixo. Os testes reabrem esses arquivos,
+verificam o esquema `IFC4X3_ADD2` (inclusive regras EXPRESS), GUIDs, classes, portas,
+conexões, unidades e geometria. Na ausência do módulo `ifcopenshell.geom`, somente
+o teste de tesselação é ignorado, com motivo explícito. Sem exemplos IFC, os testes
+de arquivos são ignorados; isso não equivale a uma exportação verificada.
+
+`ifcopenshell` foi acrescentado ao grupo de desenvolvimento para uma verificação
+independente do STEP produzido em TypeScript, sem duplicar o exportador no servidor.
+Não há dependência de Blender ou de serviços externos.
 
 ## Configuração
 
@@ -60,7 +79,7 @@ HTTP 500 com `{"detail":"Erro interno do servidor."}`; o traceback fica no servi
 | Método | Caminho | Resposta |
 | --- | --- | --- |
 | `GET` | `/health` | `status`, `service` e versão do pacote instalado |
-| `GET` | `/api/v1/capabilities` | `{"projectSchemaVersion":1,"validation":true,"ifcExport":false}` |
+| `GET` | `/api/v1/capabilities` | `{"projectSchemaVersion":2,"validation":true,"ifcExport":false,"ifcVerification":true}` |
 | `POST` | `/api/v1/projects/validate` | Recebe o documento JSON completo e retorna o resultado abaixo |
 | `GET` | `/docs` | Documentação OpenAPI interativa |
 

@@ -15,4 +15,9 @@ def health() -> dict[str, str]:
 
 @router.get("/api/v1/capabilities")
 def capabilities() -> dict[str, int | bool]:
-    return {"projectSchemaVersion": SCHEMA_VERSION, "validation": True, "ifcExport": False}
+    return {
+        "projectSchemaVersion": SCHEMA_VERSION,
+        "validation": True,
+        "ifcExport": False,
+        "ifcVerification": True,
+    }

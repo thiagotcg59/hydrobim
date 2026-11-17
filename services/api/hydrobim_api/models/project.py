@@ -13,11 +13,12 @@ from pydantic import (
     Field,
     SerializerFunctionWrapHandler,
     model_serializer,
+    model_validator,
 )
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _json_number(value: Any) -> int | float:
@@ -29,12 +30,14 @@ def _json_number(value: Any) -> int | float:
 
 FiniteNumber = Annotated[float, Field(allow_inf_nan=False)]
 PositiveNumber = Annotated[FiniteNumber, Field(gt=0)]
+NonNegativeNumber = Annotated[FiniteNumber, Field(ge=0)]
 NonEmptyString = Annotated[str, Field(min_length=1)]
 # JSON/JavaScript não distingue 1 de 1.0; strict=False só após conferir o tipo.
 NonNegativeInteger = Annotated[int, Field(ge=0, strict=False), BeforeValidator(_json_number)]
 Material = Literal["pvc", "hdpe", "ductileIron", "carbonSteel"]
 JointType = Literal["solventWeld", "socketSpigot", "buttFusion", "buttWeld", "flanged", "threaded"]
-ValveType = Literal["gate", "globe", "ball", "butterfly", "check"]
+ValveType = Literal["gate", "globe", "ball", "butterfly", "check", "airRelease"]
+EndType = Literal["plain", "socket", "flange"]
 SystemKind = Literal[
     "domesticColdWater", "domesticHotWater", "fireProtection", "waterSupply", "other"
 ]
@@ -51,6 +54,16 @@ class CamelModel(BaseModel):
         allow_inf_nan=False,
         extra="ignore",
     )
+
+    @model_serializer(mode="wrap", when_used="unless-none")
+    def serialize_optional_fields(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Omite somente defaults ausentes; preserva null dos campos nullable obrigatórios."""
+        result = handler(self)
+        for name, field in type(self).model_fields.items():
+            if not field.is_required() and field.default is None and getattr(self, name) is None:
+                result.pop(name, None)
+                result.pop(field.alias, None)
+        return result
 
 
 class Vec3(CamelModel):
@@ -102,11 +115,18 @@ class Placement(CamelModel):
     rotation: Quat
 
 
+class EndTreatment(CamelModel):
+    type: EndType
+    length: NonNegativeNumber
+    outer_diameter: PositiveNumber
+
+
 class ElementBase(CamelModel):
     id: NonEmptyString
     name: str
     system_id: NonEmptyString
     spec: PipeSpec
+    family_id: str | None
     properties: dict[str, PropertyValue]
     manufacturing: Manufacturing
     meta: ElementMeta
@@ -118,35 +138,60 @@ class Pipe(ElementBase):
     end: Vec3
 
 
-class Elbow(ElementBase):
-    kind: Literal["elbow"]
+class FittingBase(ElementBase):
     placement: Placement
+    ends: dict[str, EndTreatment]
+
+
+class Elbow(FittingBase):
+    kind: Literal["elbow"]
     angle: PositiveNumber
     bend_radius: PositiveNumber
 
 
-class Tee(ElementBase):
+class Tee(FittingBase):
     kind: Literal["tee"]
-    placement: Placement
     run_length: PositiveNumber
     branch_length: PositiveNumber
+    branch_spec: PipeSpec = Field(default=None, validate_default=False)
 
 
-class Reducer(ElementBase):
+class Reducer(FittingBase):
     kind: Literal["reducer"]
-    placement: Placement
     outlet_spec: PipeSpec
     length: PositiveNumber
 
 
-class Valve(ElementBase):
+class Valve(FittingBase):
     kind: Literal["valve"]
-    placement: Placement
     valve_type: ValveType
     length: PositiveNumber
+    height: PositiveNumber = Field(default=None, validate_default=False)
+    handwheel_diameter: PositiveNumber = Field(default=None, validate_default=False)
 
 
-HydroElement = Annotated[Pipe | Elbow | Tee | Reducer | Valve, Field(discriminator="kind")]
+class Pump(FittingBase):
+    kind: Literal["pump"]
+    discharge_spec: PipeSpec
+    length: PositiveNumber
+    discharge_offset: PositiveNumber
+    discharge_height: PositiveNumber
+    rated_flow: PositiveNumber = Field(default=None, validate_default=False)
+    rated_head: PositiveNumber = Field(default=None, validate_default=False)
+
+
+class Tank(FittingBase):
+    kind: Literal["tank"]
+    diameter: PositiveNumber
+    height: PositiveNumber
+    outlet_height: NonNegativeNumber
+    inlet_height: NonNegativeNumber
+    nozzle_length: PositiveNumber
+
+
+HydroElement = Annotated[
+    Pipe | Elbow | Tee | Reducer | Valve | Pump | Tank, Field(discriminator="kind")
+]
 
 
 class PortRef(CamelModel):
@@ -164,6 +209,63 @@ class HydraulicSystem(CamelModel):
     id: NonEmptyString
     name: str
     kind: SystemKind
+    color: Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")] = Field(
+        default=None, validate_default=False
+    )
+    visible: bool = Field(default=None, validate_default=False)
+
+
+class FamilyEnd(CamelModel):
+    length: NonNegativeNumber
+    outer_diameter: PositiveNumber
+
+
+class FamilySize(CamelModel):
+    dn: PositiveNumber
+    dn2: PositiveNumber = Field(default=None, validate_default=False)
+    center_to_end: PositiveNumber = Field(default=None, validate_default=False)
+    center_to_branch: PositiveNumber = Field(default=None, validate_default=False)
+    length: PositiveNumber = Field(default=None, validate_default=False)
+    height: PositiveNumber = Field(default=None, validate_default=False)
+    handwheel_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    end: FamilyEnd = Field(default=None, validate_default=False)
+    end2: FamilyEnd = Field(default=None, validate_default=False)
+
+
+class FittingFamily(CamelModel):
+    id: NonEmptyString
+    name: str
+    kind: Literal["elbow", "tee", "reducer", "valve"]
+    specification_id: NonEmptyString
+    end_type: EndType
+    angle: PositiveNumber = Field(default=None, validate_default=False)
+    valve_type: ValveType = Field(default=None, validate_default=False)
+    manufacturer: str | None
+    standard: str
+    source: str
+    origin: Literal["builtin", "custom"]
+    sizes: list[FamilySize]
+
+
+class Level(CamelModel):
+    id: NonEmptyString
+    name: str
+    elevation: FiniteNumber
+
+
+class Georeference(CamelModel):
+    crs_name: NonEmptyString
+    epsg: Annotated[int, Field(gt=0, strict=False), BeforeValidator(_json_number)] | None
+    eastings: FiniteNumber
+    northings: FiniteNumber
+    orthogonal_height: FiniteNumber
+    rotation: FiniteNumber
+
+
+class Terrain(CamelModel):
+    name: str
+    points: list[Vec3]
+    triangles: list[NonNegativeInteger]
 
 
 class Units(CamelModel):
@@ -173,7 +275,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[1], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[2], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -181,5 +283,36 @@ class Project(CamelModel):
     created_at: str
     updated_at: str
     systems: Annotated[list[HydraulicSystem], Field(min_length=1)]
+    levels: list[Level]
+    families: list[FittingFamily]
+    georeference: Georeference | None
+    terrain: Terrain | None
     elements: list[HydroElement]
     connections: list[Connection]
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_v1(cls, document: Any) -> Any:
+        """Mesma migração v1 → v2 de core/serialization.ts, sem mutar o documento."""
+        if not isinstance(document, dict):
+            return document
+        version = document.get("schemaVersion", document.get("schema_version"))
+        if isinstance(version, bool) or version != 1:
+            return document
+        elements = document.get("elements")
+        return {
+            **document,
+            "schemaVersion": 2,
+            "levels": [{"id": "nivel-0", "name": "Térreo", "elevation": 0}],
+            "families": [],
+            "georeference": None,
+            "terrain": None,
+            "elements": [
+                {"familyId": None, **({"ends": {}} if e.get("kind") != "pipe" else {}), **e}
+                if isinstance(e, dict)
+                else e
+                for e in elements
+            ]
+            if isinstance(elements, list)
+            else elements,
+        }

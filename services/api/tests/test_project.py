@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 
 import pytest
 from pydantic import ValidationError
@@ -19,7 +20,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 1
+    assert project.schema_version == 2
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -27,13 +28,18 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 2),
+        (("schemaVersion",), 3),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
         (("units", "angle"), "deg"),
         (("systems",), []),
         (("systems", 0, "kind"), "unknown"),
+        (("systems", 0, "color"), "red"),
+        (("systems", 0, "visible"), None),
+        (("elements", 2, "branchSpec"), None),
+        (("elements", 3, "height"), 0),
+        (("elements", 3, "handwheelDiameter"), None),
         (("discipline",), "unknown"),
         (("id",), ""),
         (("elements", 0, "spec", "material"), "copper"),
@@ -84,7 +90,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 1.0
+    project_document["schemaVersion"] = 2.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -96,3 +102,33 @@ def test_unknown_fields_are_stripped_like_zod(project_document):
     output = Project.model_validate(project_document).model_dump(by_alias=True)
     assert "unknown" not in output
     assert "unknown" not in output["elements"][0]["spec"]
+
+
+def test_migrates_v1_without_changing_input(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 1
+    for key in ("levels", "families", "georeference", "terrain"):
+        del legacy[key]
+    for element in legacy["elements"]:
+        del element["familyId"]
+        element.pop("ends", None)
+    before = deepcopy(legacy)
+    assert Project.model_validate(legacy).model_dump() == project_document
+    assert legacy == before
+
+
+@pytest.mark.parametrize("kind", ["pump", "tank", "valve"])
+def test_equipment_and_single_port_air_release(client, project_document, kind):
+    element = project_document["elements"][3]
+    element["kind"] = kind
+    if kind == "pump":
+        element.update(dischargeSpec=element["spec"], dischargeOffset=0.2, dischargeHeight=0.3)
+    elif kind == "tank":
+        element.update(diameter=2, height=3, outletHeight=0, inletHeight=2, nozzleLength=0.15)
+    else:
+        element["valveType"] = "airRelease"
+    response = client.post("/api/v1/projects/validate", json=project_document)
+    assert response.status_code == 200
+    assert response.json()["valid"] is (kind != "valve")
+    if kind == "valve":
+        assert {issue["code"] for issue in response.json()["issues"]} == {"DANGLING_CONNECTION"}

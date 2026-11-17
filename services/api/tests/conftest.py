@@ -49,6 +49,8 @@ def project_document():
             "name": element_id,
             "systemId": "cold-water",
             "spec": deepcopy(spec),
+            "familyId": None,
+            **({"ends": {}} if kind != "pipe" else {}),
             "properties": {"observacao": "Teste", "coeficiente": 1.5, "ativo": True},
             "manufacturing": {},
             "meta": {"createdAt": timestamp, "updatedAt": timestamp, "revision": 0},
@@ -65,7 +67,7 @@ def project_document():
 
     return {
         "format": "hydrobim-project",
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "id": "project-test",
         "name": "Projeto de teste",
         "discipline": "mep",
@@ -73,6 +75,10 @@ def project_document():
         "createdAt": timestamp,
         "updatedAt": timestamp,
         "systems": [{"id": "cold-water", "name": "Água fria", "kind": "domesticColdWater"}],
+        "levels": [{"id": "nivel-0", "name": "Térreo", "elevation": 0}],
+        "families": [],
+        "georeference": None,
+        "terrain": None,
         "elements": [
             element(
                 "pipe-1",

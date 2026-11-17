@@ -3,7 +3,7 @@
 from math import dist
 from typing import Literal
 
-from hydrobim_api.models.project import CamelModel, PipeSpec, Project
+from hydrobim_api.models.project import CamelModel, HydroElement, PipeSpec, Project
 
 MIN_PIPE_LENGTH = 1e-3
 SPEC_TOLERANCE = 1e-6
@@ -13,7 +13,15 @@ VALID_PORTS = {
     "tee": frozenset({"a", "b", "branch"}),
     "reducer": frozenset({"a", "b"}),
     "valve": frozenset({"a", "b"}),
+    "pump": frozenset({"a", "b"}),
+    "tank": frozenset({"a", "b"}),
 }
+
+
+def valid_ports(element: HydroElement) -> frozenset[str]:
+    if element.kind == "valve" and element.valve_type == "airRelease":
+        return frozenset({"a"})
+    return VALID_PORTS[element.kind]
 
 
 class ValidationIssue(CamelModel):
@@ -83,7 +91,7 @@ def validate_project(project: Project) -> list[ValidationIssue]:
         ids = [ref.element_id for ref in refs]
         if any(
             ref.element_id not in elements
-            or ref.port_id not in VALID_PORTS[elements[ref.element_id].kind]
+            or ref.port_id not in valid_ports(elements[ref.element_id])
             for ref in refs
         ):
             add(

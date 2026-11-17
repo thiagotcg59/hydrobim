@@ -24,7 +24,12 @@ def test_health(client):
 def test_capabilities(client):
     response = client.get("/api/v1/capabilities")
     assert response.status_code == 200
-    assert response.json() == {"projectSchemaVersion": 1, "validation": True, "ifcExport": False}
+    assert response.json() == {
+        "projectSchemaVersion": 2,
+        "validation": True,
+        "ifcExport": False,
+        "ifcVerification": True,
+    }
     assert response.json()["ifcExport"] is False
 
 
