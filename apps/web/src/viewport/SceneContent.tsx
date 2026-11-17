@@ -6,11 +6,19 @@ import {
   lerp,
   type Vec3,
 } from '@hydrobim/core';
-import { Grid, Html, Line, OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
+import {
+  GizmoHelper,
+  GizmoViewport,
+  Grid,
+  Html,
+  Line,
+  OrbitControls,
+  OrthographicCamera,
+} from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Group, PerspectiveCamera } from 'three';
-import { Vector3 } from 'three';
+import type { Group, OrthographicCamera as OrthoImpl, PerspectiveCamera } from 'three';
+import { BufferAttribute, BufferGeometry, DoubleSide, Vector3 } from 'three';
 import { useEditorStore, type ViewPreset } from '../state/editorStore';
 import { ElementMesh } from './ElementMesh';
 import { InteractionController } from './InteractionController';
@@ -19,17 +27,55 @@ const tuple = (v: Vec3): [number, number, number] => [v.x, v.y, v.z];
 
 function Elements({ hoveredId }: { hoveredId: string | null }) {
   const elements = useEditorStore((s) => s.project.elements);
+  const systems = useEditorStore((s) => s.project.systems);
+  const bySystem = useMemo(() => new Map(systems.map((s) => [s.id, s])), [systems]);
   const selection = useEditorStore((s) => s.selection);
   return (
     <>
-      {elements.map((element) => (
-        <ElementMesh
-          key={element.id}
-          element={element}
-          selected={selection.includes(element.id)}
-          hovered={element.id === hoveredId}
+      {elements
+        .filter((element) => bySystem.get(element.systemId)?.visible !== false)
+        .map((element) => (
+          <ElementMesh
+            key={element.id}
+            element={element}
+            colorOverride={bySystem.get(element.systemId)?.color}
+            selected={selection.includes(element.id)}
+            hovered={element.id === hoveredId}
+          />
+        ))}
+    </>
+  );
+}
+
+/** Superfície do terreno (TIN) importado. */
+function TerrainMesh() {
+  const terrain = useEditorStore((s) => s.project.terrain);
+  const geometry = useMemo(() => {
+    if (!terrain) return null;
+    const positions = new Float32Array(terrain.points.length * 3);
+    terrain.points.forEach((p, i) => positions.set([p.x, p.y, p.z], i * 3));
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(positions, 3));
+    g.setIndex(terrain.triangles);
+    g.computeVertexNormals();
+    return g;
+  }, [terrain]);
+  useEffect(() => () => geometry?.dispose(), [geometry]);
+  if (!geometry) return null;
+  return (
+    <>
+      <mesh geometry={geometry}>
+        <meshStandardMaterial
+          color="#6f8f5a"
+          transparent
+          opacity={0.45}
+          side={DoubleSide}
+          depthWrite={false}
         />
-      ))}
+      </mesh>
+      <mesh geometry={geometry}>
+        <meshBasicMaterial color="#9fbf86" wireframe transparent opacity={0.35} />
+      </mesh>
     </>
   );
 }
@@ -133,7 +179,8 @@ interface OrbitLike {
 /** Enquadra o modelo e aplica as vistas predefinidas. */
 function CameraRig() {
   const viewRequest = useEditorStore((s) => s.viewRequest);
-  const camera = useThree((s) => s.camera) as PerspectiveCamera;
+  const camera = useThree((s) => s.camera) as PerspectiveCamera | OrthoImpl;
+  const viewport = useThree((s) => s.size);
   const controls = useThree((s) => s.controls) as OrbitLike | null;
 
   useEffect(() => {
@@ -149,8 +196,10 @@ function CameraRig() {
       : new Vector3(0, 0, 0);
     const size = bounds ? distance(bounds.min, bounds.max) : 10;
     const radius = Math.max(size / 2, 0.5);
-    const fov = (camera.fov * Math.PI) / 180;
-    const range = (radius / Math.sin(fov / 2)) * 1.15;
+    const ortho = 'isOrthographicCamera' in camera;
+    const range = ortho
+      ? Math.max(radius * 4, 50)
+      : (radius / Math.sin(((camera as PerspectiveCamera).fov * Math.PI) / 360)) * 1.15;
 
     const direction =
       viewRequest.preset === 'fit'
@@ -161,11 +210,17 @@ function CameraRig() {
 
     controls.target.copy(center);
     camera.position.copy(center).addScaledVector(direction, range);
-    camera.near = Math.max(range / 1000, 0.005);
-    camera.far = Math.max(range * 100, 2000);
+    if (ortho) {
+      camera.zoom = Math.min(viewport.width, viewport.height) / (2 * radius * 1.2);
+      camera.near = 0.01;
+      camera.far = range * 20;
+    } else {
+      camera.near = Math.max(range / 1000, 0.005);
+      camera.far = Math.max(range * 100, 2000);
+    }
     camera.updateProjectionMatrix();
     controls.update();
-  }, [viewRequest, camera, controls]);
+  }, [viewRequest, camera, controls, viewport]);
 
   return null;
 }
@@ -175,6 +230,7 @@ export function SceneContent() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const gridStep = useEditorStore((s) => s.gridStep);
   const workPlaneZ = useEditorStore((s) => s.workPlaneZ);
+  const orthographic = useEditorStore((s) => s.orthographic);
 
   return (
     <>
@@ -199,6 +255,18 @@ export function SceneContent() {
         side={2}
       />
       <axesHelper args={[1]} position={[0, 0, workPlaneZ]} />
+
+      {orthographic && (
+        <OrthographicCamera
+          makeDefault
+          up={[0, 0, 1]}
+          position={[70, -90, 70]}
+          zoom={60}
+          near={0.01}
+          far={5000}
+        />
+      )}
+      <TerrainMesh />
 
       <group ref={elementsRef}>
         <Elements hoveredId={hoveredId} />

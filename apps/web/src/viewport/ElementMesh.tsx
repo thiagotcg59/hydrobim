@@ -26,6 +26,8 @@ interface ElementMeshProps {
   element: HydroElement;
   selected: boolean;
   hovered: boolean;
+  /** Cor do sistema hidráulico; ausente = cor do material. */
+  colorOverride?: string;
 }
 
 /**
@@ -36,6 +38,7 @@ export const ElementMesh = memo(function ElementMesh({
   element,
   selected,
   hovered,
+  colorOverride,
 }: ElementMeshProps) {
   const { transform, parts } = useMemo(() => {
     const geometry = buildElementGeometry(element);
@@ -67,7 +70,11 @@ export const ElementMesh = memo(function ElementMesh({
       {parts.map((part, index) => (
         <mesh key={index} geometry={part.geometry}>
           <meshStandardMaterial
-            color={part.role === 'accent' ? ACCENT_COLOR : MATERIAL_COLORS[element.spec.material]}
+            color={
+              part.role === 'accent'
+                ? ACCENT_COLOR
+                : (colorOverride ?? MATERIAL_COLORS[element.spec.material])
+            }
             emissive={emissive}
             emissiveIntensity={selected ? 0.9 : hovered ? 0.7 : 0}
             roughness={0.55}

@@ -107,6 +107,7 @@ test('fluxo completo de modelagem, edição, salvamento e reabertura', async ({ 
   await page.getByTestId('view-iso').click();
   const canvas = page.locator('canvas');
   const before = await canvas.screenshot();
+  await page.getByTestId('size-mode-propagate').check();
   await page.getByTestId('prop-dn').selectOption('100');
   await expect(page.getByTestId('prop-outer-diameter')).toHaveText('110 mm');
   await expectNoError(page);
@@ -172,7 +173,7 @@ test('fluxo completo de modelagem, edição, salvamento e reabertura', async ({ 
     elements: unknown[];
   };
   expect(exported.format).toBe('hydrobim-project');
-  expect(exported.schemaVersion).toBe(1);
+  expect(exported.schemaVersion).toBe(2);
   expect(exported.elements).toHaveLength(11);
 
   await page.getByTestId('action-new').click();

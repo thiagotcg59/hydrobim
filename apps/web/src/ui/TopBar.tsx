@@ -1,13 +1,31 @@
-import { Download, FilePlus2, FolderOpen, Redo2, Save, Undo2 } from 'lucide-react';
+import {
+  Download,
+  FilePlus2,
+  FolderOpen,
+  Library,
+  Redo2,
+  Save,
+  Settings2,
+  Undo2,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { selectIsDirty, useEditorStore } from '../state/editorStore';
-import { confirmDiscard, exportCurrentProject, saveCurrentProject } from '../state/projectActions';
+import {
+  confirmDiscard,
+  exportCurrentProject,
+  exportEpanetFile,
+  exportIfcFile,
+  exportQuantitiesFile,
+  saveCurrentProject,
+} from '../state/projectActions';
 
 interface Props {
   onOpen: () => void;
+  onFamilies: () => void;
+  onProject: () => void;
 }
 
-export function TopBar({ onOpen }: Props) {
+export function TopBar({ onOpen, onFamilies, onProject }: Props) {
   const name = useEditorStore((s) => s.project.name);
   const discipline = useEditorStore((s) => s.project.discipline);
   const dirty = useEditorStore(selectIsDirty);
@@ -79,19 +97,60 @@ export function TopBar({ onOpen }: Props) {
         <button
           type="button"
           className="btn"
-          data-testid="action-export"
-          onClick={exportCurrentProject}
-          title="Baixar o projeto como arquivo JSON"
+          data-testid="action-families"
+          onClick={onFamilies}
+          title="Famílias de conexões: consultar e editar as tabelas dimensionais"
         >
-          <Download size={16} /> Exportar JSON
+          <Library size={16} /> Famílias
         </button>
         <button
           type="button"
           className="btn"
-          disabled
-          title="Exportação IFC 4.3: planejada para a Fase 3 (ainda não implementada)"
+          data-testid="action-project"
+          onClick={onProject}
+          title="Níveis, sistemas, georreferência, terreno, perfil e interferências"
         >
-          Exportar IFC <span className="badge">Fase 3</span>
+          <Settings2 size={16} /> Projeto
+        </button>
+      </div>
+
+      <div className="topbar__group" role="group" aria-label="Exportar">
+        <Download size={15} aria-hidden />
+        <button
+          type="button"
+          className="btn btn--compact"
+          data-testid="action-export"
+          onClick={exportCurrentProject}
+          title="Baixar o projeto como arquivo JSON (.hydrobim.json)"
+        >
+          JSON
+        </button>
+        <button
+          type="button"
+          className="btn btn--compact"
+          data-testid="action-export-ifc"
+          onClick={exportIfcFile}
+          title="Exportar o modelo em IFC 4.3"
+        >
+          IFC
+        </button>
+        <button
+          type="button"
+          className="btn btn--compact"
+          data-testid="action-export-csv"
+          onClick={exportQuantitiesFile}
+          title="Exportar o quantitativo (lista de materiais) em CSV"
+        >
+          Quantitativo
+        </button>
+        <button
+          type="button"
+          className="btn btn--compact"
+          data-testid="action-export-epanet"
+          onClick={exportEpanetFile}
+          title="Exportar a rede no formato INP do EPANET"
+        >
+          EPANET
         </button>
       </div>
 

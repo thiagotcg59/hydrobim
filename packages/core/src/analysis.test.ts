@@ -205,7 +205,7 @@ describe('quantitativo e EPANET', () => {
     expect(rows.find((r) => r.description === 'Conjunto motobomba')?.quantity).toBe(1);
     expect(rows.find((r) => r.category === 'Válvula')?.family).toContain('genéricas');
     const csv = quantitiesToCsv(rows);
-    expect(csv.startsWith('﻿"Sistema";"Categoria"')).toBe(true);
+    expect(csv.startsWith(`${String.fromCharCode(0xfeff)}"Sistema";"Categoria"`)).toBe(true);
     expect(csv.split('\r\n').length).toBe(rows.length + 2);
     expect(csv).toMatch(/"m";\d+,\d{2}/);
   });

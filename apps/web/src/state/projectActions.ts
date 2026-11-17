@@ -1,9 +1,22 @@
-import { parseProject } from '@hydrobim/core';
+import {
+  computeQuantities,
+  createTerrain,
+  exportEpanet,
+  parseProject,
+  parseTerrainPoints,
+  quantitiesToCsv,
+} from '@hydrobim/core';
+import { exportIfc } from '@hydrobim/ifc';
 import { createDemoProject } from '../demo/demoProject';
-import { downloadProject, readFileAsText } from '../persistence/fileIO';
+import {
+  downloadProject,
+  downloadText,
+  projectFileBase,
+  readFileAsText,
+} from '../persistence/fileIO';
 import { createDefaultRepository } from '../persistence/LocalStorageProjectRepository';
 import type { ProjectRepository } from '../persistence/ProjectRepository';
-import { selectIsDirty, useEditorStore } from './editorStore';
+import { familiesOf, selectIsDirty, useEditorStore } from './editorStore';
 
 /**
  * Casos de uso de projeto (novo, abrir, salvar, exportar), ligando a store do editor
@@ -74,6 +87,71 @@ export function exportCurrentProject(): void {
     console.error('[HydroBIM] Falha ao exportar.', error);
     store().notify('error', 'Não foi possível exportar o projeto.');
   }
+}
+
+/** Exporta o modelo em IFC 4.3 (gerado no navegador, sem servidor). */
+export function exportIfcFile(): void {
+  const { project } = store();
+  if (project.elements.length === 0) {
+    store().notify('error', 'O projeto não tem elementos para exportar.');
+    return;
+  }
+  try {
+    const text = exportIfc(project, { timestamp: new Date(), application: 'HydroBIM' });
+    downloadText(`${projectFileBase(project)}.ifc`, text, 'application/x-step');
+    store().notify('success', `IFC 4.3 exportado (${project.elements.length} elementos).`);
+  } catch (error) {
+    console.error('[HydroBIM] Falha na exportação IFC.', error);
+    store().notify('error', 'Não foi possível exportar o IFC.');
+  }
+}
+
+/** Exporta o quantitativo (lista de materiais) em CSV. */
+export function exportQuantitiesFile(): void {
+  const { project } = store();
+  const rows = computeQuantities(project, familiesOf(project));
+  if (rows.length === 0) {
+    store().notify('error', 'O projeto não tem elementos para quantificar.');
+    return;
+  }
+  downloadText(`${projectFileBase(project)}-quantitativo.csv`, quantitiesToCsv(rows), 'text/csv');
+  store().notify('success', `Quantitativo exportado (${rows.length} linhas).`);
+}
+
+/** Exporta a rede no formato INP do EPANET. */
+export function exportEpanetFile(): void {
+  const { project } = store();
+  if (project.elements.length === 0) {
+    store().notify('error', 'O projeto não tem elementos para exportar.');
+    return;
+  }
+  const { inp, warnings } = exportEpanet(project);
+  downloadText(`${projectFileBase(project)}.inp`, inp, 'text/plain');
+  store().notify('info', `EPANET exportado. Atenção: ${warnings.join(' ')}`);
+}
+
+/** Importa um terreno a partir de um arquivo de pontos "X Y Z". */
+export async function importTerrainFile(file: File): Promise<boolean> {
+  let text: string;
+  try {
+    text = await readFileAsText(file);
+  } catch (error) {
+    console.error('[HydroBIM] Falha ao ler o arquivo de terreno.', error);
+    store().notify('error', 'Não foi possível ler o arquivo selecionado.');
+    return false;
+  }
+  const points = parseTerrainPoints(text);
+  if (!points.ok) {
+    store().notify('error', `${file.name}: ${points.error.message}`);
+    return false;
+  }
+  const terrain = createTerrain(file.name.replace(/\.[^.]+$/, ''), points.value);
+  if (!terrain.ok) {
+    store().notify('error', `${file.name}: ${terrain.error.message}`);
+    return false;
+  }
+  store().setTerrain(terrain.value);
+  return true;
 }
 
 export function openDemoProject(): void {

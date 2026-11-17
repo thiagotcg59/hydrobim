@@ -112,6 +112,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
         point: pick?.point ?? null,
         port: pick?.port?.ref ?? null,
         hit,
+        additive: event.ctrlKey || event.metaKey || event.shiftKey,
       });
     };
 

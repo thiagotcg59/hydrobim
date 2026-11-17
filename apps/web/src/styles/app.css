@@ -863,3 +863,271 @@ code {
     padding: 5px 7px;
   }
 }
+
+/* ---------- Fase 2+: famílias, projeto, análises ---------- */
+
+.warn {
+  color: var(--warning);
+}
+
+.btn--compact {
+  padding: 5px 8px;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.radio-group legend {
+  padding: 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dialog--wide {
+  width: min(1180px, calc(100vw - 32px));
+}
+
+.dialog__body--tall {
+  max-height: 68vh;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stack select,
+.stack input,
+.cell {
+  min-width: 0;
+  padding: 4px 6px;
+  background: var(--bg-0);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.families {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  min-height: 0;
+  height: min(72vh, 720px);
+}
+
+.families__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.families__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.families__meta {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.6fr);
+  gap: 10px;
+}
+
+.families__source {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.families__table {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.families__table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.families__table th {
+  position: sticky;
+  top: 0;
+  padding: 6px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line-strong);
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.families__table th small {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.families__table td {
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cell {
+  width: 100%;
+  min-width: 62px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+.cell--invalid {
+  border-color: var(--error);
+}
+
+.families__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.families__actions .btn--primary {
+  margin-left: auto;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs__item {
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.tabs__item.is-active {
+  background: var(--bg-2);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rows__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.profile {
+  width: 100%;
+  height: auto;
+  background: var(--bg-0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.profile__grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.profile__label {
+  fill: var(--text-dim);
+  font-size: 10px;
+  font-family: var(--mono);
+}
+
+.profile__ground,
+.profile__crown,
+.profile__axis {
+  fill: none;
+  stroke-width: 2;
+}
+
+.profile__ground {
+  stroke: #8fbf6a;
+}
+
+.profile__crown {
+  stroke: var(--accent);
+}
+
+.profile__axis {
+  stroke: #f5b84c;
+  stroke-dasharray: 5 4;
+  stroke-width: 1.2;
+}
+
+.legend {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.legend__item::before {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--accent);
+}
+
+.legend__item--ground::before {
+  background: #8fbf6a;
+}
+
+.legend__item--axis::before {
+  background: #f5b84c;
+}
+
+@media (max-width: 1500px) {
+  .topbar .btn:not(.btn--compact):not(.btn--icon) {
+    font-size: 0;
+    gap: 0;
+  }
+  .topbar .btn:not(.btn--compact):not(.btn--icon) svg {
+    font-size: 13px;
+  }
+}

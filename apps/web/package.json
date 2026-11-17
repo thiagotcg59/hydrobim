@@ -14,6 +14,7 @@
     "@hydrobim/catalog": "*",
     "@hydrobim/core": "*",
     "@hydrobim/geometry": "*",
+    "@hydrobim/ifc": "*",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "lucide-react": "^1.73.0",

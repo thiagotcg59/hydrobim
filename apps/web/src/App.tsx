@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { selectIsDirty, useEditorStore } from './state/editorStore';
 import { restoreSession, saveCurrentProject } from './state/projectActions';
 import { ErrorBoundary } from './ui/ErrorBoundary';
+import { FamiliesDialog } from './ui/FamiliesDialog';
 import { OpenProjectDialog } from './ui/OpenProjectDialog';
+import { ProjectDialog } from './ui/ProjectDialog';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { StatusBar } from './ui/StatusBar';
 import { ToolBar, TOOL_SHORTCUTS } from './ui/ToolBar';
@@ -68,6 +70,8 @@ function useUnsavedChangesGuard(): void {
 export function App() {
   const [ready, setReady] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [familiesDialog, setFamiliesDialog] = useState(false);
+  const [projectDialog, setProjectDialog] = useState(false);
   const tool = useEditorStore((s) => s.tool);
   useKeyboardShortcuts();
   useUnsavedChangesGuard();
@@ -93,7 +97,11 @@ export function App() {
       hint="Tente novamente. Se o problema persistir, recarregue a página."
     >
       <div className="app" data-ready={ready} data-testid="app">
-        <TopBar onOpen={() => setOpenDialog(true)} />
+        <TopBar
+          onOpen={() => setOpenDialog(true)}
+          onFamilies={() => setFamiliesDialog(true)}
+          onProject={() => setProjectDialog(true)}
+        />
         <ToolBar />
         <main className="workspace">
           {ready ? <Viewport /> : <div className="viewport-fallback">Carregando projeto…</div>}
@@ -102,6 +110,8 @@ export function App() {
         <PropertiesPanel />
         <StatusBar />
         <OpenProjectDialog open={openDialog} onClose={() => setOpenDialog(false)} />
+        <FamiliesDialog open={familiesDialog} onClose={() => setFamiliesDialog(false)} />
+        <ProjectDialog open={projectDialog} onClose={() => setProjectDialog(false)} />
       </div>
     </ErrorBoundary>
   );

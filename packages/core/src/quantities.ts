@@ -161,5 +161,5 @@ export function quantitiesToCsv(rows: readonly QuantityRow[]): string {
     ),
   ];
   // BOM UTF-8 para o Excel reconhecer a acentuação.
-  return `﻿${lines.join('\r\n')}\r\n`;
+  return `${String.fromCharCode(0xfeff)}${lines.join('\r\n')}\r\n`;
 }

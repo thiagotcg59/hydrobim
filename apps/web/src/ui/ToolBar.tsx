@@ -6,6 +6,7 @@ import {
   Cylinder,
   Eye,
   Fan,
+  Grid3x3,
   Maximize,
   MousePointer2,
   Ruler,
@@ -24,6 +25,8 @@ const TOOLS: { id: ToolId; icon: LucideIcon; shortcut: string }[] = [
   { id: 'tee', icon: Split, shortcut: 'E' },
   { id: 'reducer', icon: ChevronsRight, shortcut: 'R' },
   { id: 'valve', icon: CircleDot, shortcut: 'V' },
+  { id: 'pump', icon: Fan, shortcut: 'B' },
+  { id: 'tank', icon: Cylinder, shortcut: 'Q' },
   { id: 'measure', icon: Ruler, shortcut: 'M' },
 ];
 
@@ -34,19 +37,14 @@ const VIEWS: { preset: ViewPreset; label: string; icon: LucideIcon }[] = [
   { preset: 'front', label: 'Elevação', icon: Eye },
 ];
 
-/** Recursos planejados: exibidos como indisponíveis, sem ação associada. */
-const FUTURE: { label: string; phase: string; icon: LucideIcon }[] = [
-  { label: 'Bomba', phase: 'Fase 4', icon: Fan },
-  { label: 'Reservatório', phase: 'Fase 4', icon: Cylinder },
-];
-
 export const TOOL_SHORTCUTS: Record<string, ToolId> = Object.fromEntries(
   TOOLS.map((tool) => [tool.shortcut.toLowerCase(), tool.id]),
 );
 
 export function ToolBar() {
   const tool = useEditorStore((s) => s.tool);
-  const { setTool, requestView } = useEditorStore.getState();
+  const orthographic = useEditorStore((s) => s.orthographic);
+  const { setTool, requestView, setOrthographic } = useEditorStore.getState();
 
   return (
     <nav className="toolbar" aria-label="Ferramentas">
@@ -81,20 +79,17 @@ export function ToolBar() {
         </button>
       ))}
 
-      <span className="toolbar__heading">Em breve</span>
-      {FUTURE.map(({ label, phase, icon: Icon }) => (
-        <button
-          key={label}
-          type="button"
-          className="tool"
-          disabled
-          title={`${label}: planejado para a ${phase} (ainda não implementado)`}
-        >
-          <Icon size={18} />
-          <span>{label}</span>
-          <span className="badge">{phase}</span>
-        </button>
-      ))}
+      <button
+        type="button"
+        data-testid="view-ortho"
+        className={orthographic ? 'tool is-active' : 'tool'}
+        aria-pressed={orthographic}
+        title="Projeção ortográfica (plantas e elevações em verdadeira grandeza)"
+        onClick={() => setOrthographic(!orthographic)}
+      >
+        <Grid3x3 size={18} />
+        <span>Ortográfica</span>
+      </button>
     </nav>
   );
 }
