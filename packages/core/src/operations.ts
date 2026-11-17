@@ -1,36 +1,33 @@
 import {
-  arePortsAligned,
   autoConnectElement,
   connectPorts,
-  connectionsOfElement,
-  findConnection,
   getElement,
   isPortFree,
-  oppositeRef,
   resolvePort,
 } from './connectivity';
 import {
   ANGLE_TOLERANCE,
-  defaultBendRadius,
-  defaultReducerLength,
-  defaultTeeDimensions,
-  defaultValveLength,
   elbowLegLength,
   MAX_ELBOW_ANGLE,
   MIN_ELBOW_ANGLE,
   MIN_PIPE_LENGTH,
 } from './dimensions';
+import { GENERIC_CATALOG, type FittingCatalog } from './families';
 import { newId } from './ids';
+import { baseFields, elementKindLabel, nextName, now, putElement, touch } from './internal';
 import {
   add,
   angleBetween,
+  AXIS_Z,
   cross,
   distance,
   dot,
   frameFromDirection,
   isFiniteVec,
+  negate,
   normalize,
   QUAT_IDENTITY,
+  quatConjugate,
   quatFromAxisAngle,
   quatFromBasis,
   quatMultiply,
@@ -42,15 +39,16 @@ import {
   ZERO,
   type Vec3,
 } from './math';
-import { getPort, getPorts, pipeLength } from './ports';
+import { getPort, pipeLength } from './ports';
+import { reconcile, setPipeEnd, translateFitting, verifyCoupling } from './reconcile';
 import { fail, ok, type Result } from './result';
 import {
   PROJECT_FORMAT,
   SCHEMA_VERSION,
   type Discipline,
   type Elbow,
-  type ElementKind,
   type Fitting,
+  type FittingKind,
   type HydraulicSystem,
   type HydroElement,
   type Pipe,
@@ -58,72 +56,22 @@ import {
   type PortRef,
   type Project,
   type PropertyValue,
+  type Pump,
   type Reducer,
+  type Tank,
   type Tee,
   type Valve,
   type ValveType,
 } from './schema';
 import { degToRad } from './units';
 
+export { elementKindLabel };
+
 /**
  * Operações paramétricas sobre o projeto. Todas são funções puras: recebem um projeto
  * imutável e retornam um novo projeto (ou um erro de domínio), o que torna desfazer/
  * refazer e testes triviais.
  */
-
-const now = (): string => new Date().toISOString();
-
-const KIND_LABEL: Record<ElementKind, string> = {
-  pipe: 'Tubo',
-  elbow: 'Joelho',
-  tee: 'Tê',
-  reducer: 'Redução',
-  valve: 'Válvula',
-};
-
-export const elementKindLabel = (kind: ElementKind): string => KIND_LABEL[kind];
-
-function nextName(project: Project, kind: ElementKind): string {
-  const prefix = `${KIND_LABEL[kind]} `;
-  let max = 0;
-  for (const e of project.elements) {
-    if (e.kind !== kind || !e.name.startsWith(prefix)) continue;
-    const n = Number.parseInt(e.name.slice(prefix.length), 10);
-    if (Number.isFinite(n) && n > max) max = n;
-  }
-  return `${prefix}${max + 1}`;
-}
-
-function touch<T extends HydroElement>(element: T): T {
-  return {
-    ...element,
-    meta: { ...element.meta, updatedAt: now(), revision: element.meta.revision + 1 },
-  };
-}
-
-function putElement(project: Project, element: HydroElement): Project {
-  const exists = project.elements.some((e) => e.id === element.id);
-  return {
-    ...project,
-    updatedAt: now(),
-    elements: exists
-      ? project.elements.map((e) => (e.id === element.id ? element : e))
-      : [...project.elements, element],
-  };
-}
-
-function baseFields(project: Project, kind: ElementKind, spec: PipeSpec, systemId: string) {
-  const timestamp = now();
-  return {
-    id: newId(),
-    name: nextName(project, kind),
-    systemId,
-    spec,
-    properties: {},
-    manufacturing: {},
-    meta: { createdAt: timestamp, updatedAt: timestamp, revision: 0 },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Projeto
@@ -145,6 +93,10 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     createdAt: timestamp,
     updatedAt: timestamp,
     systems: [system],
+    levels: [{ id: newId(), name: discipline === 'infra' ? 'Referência' : 'Térreo', elevation: 0 }],
+    families: [],
+    georeference: null,
+    terrain: null,
     elements: [],
     connections: [],
   };
@@ -155,116 +107,6 @@ export function updateProjectInfo(
   patch: { name?: string; discipline?: Discipline },
 ): Project {
   return { ...project, ...patch, updatedAt: now() };
-}
-
-// ---------------------------------------------------------------------------
-// Reconciliação topológica
-// ---------------------------------------------------------------------------
-
-function translateFitting<T extends Fitting>(fitting: T, delta: Vec3): T {
-  return {
-    ...fitting,
-    placement: { ...fitting.placement, position: add(fitting.placement.position, delta) },
-  };
-}
-
-function setPipeEnd(pipe: Pipe, portId: string, point: Vec3): Pipe {
-  return portId === 'start' ? { ...pipe, start: point } : { ...pipe, end: point };
-}
-
-/**
- * Restabelece o acoplamento geométrico das conexões após a alteração dos elementos
- * `rootIds` (mudança de dimensões, translação etc.):
- *  - tubos vizinhos absorvem a diferença, ajustando a extremidade conectada;
- *  - conexões vizinhas são transladadas rigidamente, propagando o ajuste.
- * Falha (sem alterar nada) quando o acoplamento não puder ser preservado.
- */
-export function reconcile(project: Project, rootIds: readonly string[]): Result<Project> {
-  let current = project;
-  const affected = new Set<string>(rootIds);
-  const processed = new Set<string>();
-  const fixedFittings = new Set<string>();
-  // Conexões primeiro: elas definem as posições; os tubos se ajustam a elas.
-  const queue = [...rootIds].sort((a, b) => {
-    const ka = getElement(project, a)?.kind === 'pipe' ? 1 : 0;
-    const kb = getElement(project, b)?.kind === 'pipe' ? 1 : 0;
-    return ka - kb;
-  });
-
-  while (queue.length > 0) {
-    const id = queue.shift();
-    if (id === undefined || processed.has(id)) continue;
-    processed.add(id);
-    const element = getElement(current, id);
-    if (!element) continue;
-    if (element.kind !== 'pipe') fixedFittings.add(id);
-
-    for (const port of getPorts(element)) {
-      const connection = findConnection(current, port.ref);
-      if (!connection) continue;
-      const otherRef = oppositeRef(connection, port.ref);
-      const other = getElement(current, otherRef.elementId);
-      const otherPort = other ? getPort(other, otherRef.portId) : undefined;
-      if (!other || !otherPort) continue;
-      if (arePortsAligned(port, otherPort)) continue;
-      affected.add(other.id);
-
-      if (other.kind === 'pipe') {
-        current = putElement(current, touch(setPipeEnd(other, otherRef.portId, port.position)));
-      } else if (element.kind === 'pipe') {
-        // O tubo sempre se ajusta à conexão, nunca o contrário.
-        const live = getElement(current, id);
-        if (live?.kind === 'pipe') {
-          current = putElement(
-            current,
-            touch(setPipeEnd(live, port.ref.portId, otherPort.position)),
-          );
-        }
-      } else {
-        if (fixedFittings.has(other.id)) {
-          return fail(
-            'OVERCONSTRAINED',
-            `Não foi possível ajustar "${other.name}": o conjunto de conexões está rigidamente restringido.`,
-          );
-        }
-        const delta = sub(port.position, otherPort.position);
-        current = putElement(current, touch(translateFitting(other, delta)));
-        queue.push(other.id);
-      }
-    }
-  }
-
-  return verifyCoupling(current, [...affected]);
-}
-
-/** Confere que todas as conexões dos elementos indicados permanecem acopladas. */
-function verifyCoupling(project: Project, elementIds: readonly string[]): Result<Project> {
-  for (const id of elementIds) {
-    const element = getElement(project, id);
-    if (!element) continue;
-    if (element.kind === 'pipe' && pipeLength(element) < MIN_PIPE_LENGTH) {
-      return fail(
-        'PIPE_TOO_SHORT',
-        `A alteração deixaria "${element.name}" sem comprimento suficiente.`,
-      );
-    }
-    for (const connection of connectionsOfElement(project, id)) {
-      const pa = resolvePort(project, connection.a);
-      const pb = resolvePort(project, connection.b);
-      if (!pa || !pb) continue;
-      if (!arePortsAligned(pa, pb)) {
-        const other = getElement(
-          project,
-          connection.a.elementId === id ? connection.b.elementId : connection.a.elementId,
-        );
-        return fail(
-          'COUPLING_BROKEN',
-          `A alteração romperia o alinhamento entre "${element.name}" e "${other?.name ?? '?'}". Desconecte os elementos antes de alterar.`,
-        );
-      }
-    }
-  }
-  return ok(project);
 }
 
 // ---------------------------------------------------------------------------
@@ -327,6 +169,8 @@ export function addPipe(project: Project, input: AddPipeInput): Result<Created> 
 export interface DrawPipeInput extends AddPipeInput {
   /** Porta livre a partir da qual o tubo é desenhado (o `start` é ignorado). */
   fromPort?: PortRef;
+  /** Catálogo de conexões usado para o joelho automático. */
+  catalog?: FittingCatalog;
 }
 
 /**
@@ -370,8 +214,8 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
     );
   }
 
-  const bendRadius = defaultBendRadius(spec);
-  const leg = elbowLegLength(deflection, bendRadius);
+  const dims = (input.catalog ?? GENERIC_CATALOG).elbow(spec, deflection);
+  const leg = elbowLegLength(deflection, dims.bendRadius);
   if (pipeLength(host) < leg + MIN_PIPE_LENGTH) {
     return fail('PIPE_TOO_SHORT', `"${host.name}" é curto demais para receber o joelho.`);
   }
@@ -387,9 +231,11 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
   const elbow: Elbow = {
     ...baseFields(project, 'elbow', spec, systemId),
     kind: 'elbow',
+    familyId: dims.familyId,
+    ends: dims.ends,
     placement: { position: corner, rotation: quatFromBasis(bx, by, bz) },
     angle: deflection,
-    bendRadius,
+    bendRadius: dims.bendRadius,
   };
   let next = putElement(putElement(project, trimmed), elbow);
   const pipe = buildPipe(
@@ -456,53 +302,95 @@ export function setPipeLength(project: Project, pipeId: string, length: number):
 }
 
 // ---------------------------------------------------------------------------
-// Conexões (joelho, tê, redução, válvula)
+// Conexões e equipamentos
 // ---------------------------------------------------------------------------
 
 export type FittingInput =
-  | { kind: 'elbow'; angle?: number; bendRadius?: number }
-  | { kind: 'tee' }
-  | { kind: 'valve'; valveType?: ValveType }
-  | { kind: 'reducer'; outletSpec: PipeSpec };
+  | { kind: 'elbow'; angle?: number; bendRadius?: number; familyId?: string | null }
+  | { kind: 'tee'; branchSpec?: PipeSpec; familyId?: string | null }
+  | { kind: 'valve'; valveType?: ValveType; familyId?: string | null }
+  | { kind: 'reducer'; outletSpec: PipeSpec; familyId?: string | null }
+  | { kind: 'pump'; dischargeSpec?: PipeSpec }
+  | { kind: 'tank'; diameter?: number; height?: number };
 
-function buildFitting(
+function validateElbow(angle: number, bendRadius: number): Result<true> {
+  if (!Number.isFinite(angle) || angle < MIN_ELBOW_ANGLE || angle > MAX_ELBOW_ANGLE) {
+    return fail('INVALID_ANGLE', 'O ângulo do joelho deve estar entre 1° e 135°.');
+  }
+  if (!Number.isFinite(bendRadius) || bendRadius <= 0) {
+    return fail('INVALID_RADIUS', 'Raio de curvatura inválido.');
+  }
+  return ok(true);
+}
+
+/** Constrói a conexão na origem, com dimensões do catálogo (ou genéricas). */
+export function buildFitting(
   project: Project,
   input: FittingInput,
   spec: PipeSpec,
   systemId: string,
+  catalog: FittingCatalog = GENERIC_CATALOG,
 ): Result<Fitting> {
   const placement = { position: ZERO, rotation: QUAT_IDENTITY };
+  const base = baseFields(project, input.kind, spec, systemId);
   switch (input.kind) {
     case 'elbow': {
       const angle = input.angle ?? degToRad(90);
-      const bendRadius = input.bendRadius ?? defaultBendRadius(spec);
+      const dims = catalog.elbow(spec, angle, input.familyId);
+      const custom = input.bendRadius !== undefined;
+      const bendRadius = input.bendRadius ?? dims.bendRadius;
       const check = validateElbow(angle, bendRadius);
       if (!check.ok) return check;
       const elbow: Elbow = {
-        ...baseFields(project, 'elbow', spec, systemId),
+        ...base,
         kind: 'elbow',
         placement,
+        familyId: custom ? null : dims.familyId,
+        ends: dims.ends,
         angle,
         bendRadius,
       };
       return ok(elbow);
     }
     case 'tee': {
+      const branchSpec = input.branchSpec ?? spec;
+      if (branchSpec.specificationId !== spec.specificationId) {
+        return fail(
+          'SPEC_MISMATCH',
+          'A derivação do tê deve ter a mesma especificação da passagem.',
+        );
+      }
+      if (branchSpec.dn > spec.dn) {
+        return fail('INVALID_BRANCH', 'A derivação do tê não pode ser maior que a passagem.');
+      }
+      const dims = catalog.tee(spec, branchSpec, input.familyId);
       const tee: Tee = {
-        ...baseFields(project, 'tee', spec, systemId),
+        ...base,
         kind: 'tee',
         placement,
-        ...defaultTeeDimensions(spec),
+        familyId: dims.familyId,
+        ends: dims.ends,
+        runLength: dims.runLength,
+        branchLength: dims.branchLength,
+        ...(branchSpec.dn !== spec.dn ? { branchSpec } : {}),
       };
       return ok(tee);
     }
     case 'valve': {
+      const valveType = input.valveType ?? 'gate';
+      const dims = catalog.valve(spec, valveType, input.familyId);
       const valve: Valve = {
-        ...baseFields(project, 'valve', spec, systemId),
+        ...base,
         kind: 'valve',
         placement,
-        valveType: input.valveType ?? 'gate',
-        length: defaultValveLength(spec),
+        familyId: dims.familyId,
+        ends: dims.ends,
+        valveType,
+        length: dims.length,
+        ...(dims.height !== undefined ? { height: dims.height } : {}),
+        ...(dims.handwheelDiameter !== undefined
+          ? { handwheelDiameter: dims.handwheelDiameter }
+          : {}),
       };
       return ok(valve);
     }
@@ -516,36 +404,81 @@ function buildFitting(
       if (input.outletSpec.dn === spec.dn) {
         return fail('REDUCER_SAME_DN', 'A redução deve ter dois diâmetros nominais diferentes.');
       }
+      const dims = catalog.reducer(spec, input.outletSpec, input.familyId);
       const reducer: Reducer = {
-        ...baseFields(project, 'reducer', spec, systemId),
+        ...base,
         kind: 'reducer',
         placement,
+        familyId: dims.familyId,
+        ends: dims.ends,
         outletSpec: input.outletSpec,
-        length: defaultReducerLength(spec, input.outletSpec),
+        length: dims.length,
       };
       return ok(reducer);
+    }
+    case 'pump': {
+      const dischargeSpec = input.dischargeSpec ?? spec;
+      const length = Math.max(8 * spec.outerDiameter, 0.6);
+      const pump: Pump = {
+        ...base,
+        kind: 'pump',
+        placement,
+        ends: {},
+        dischargeSpec,
+        length,
+        dischargeOffset: length * 0.22,
+        dischargeHeight: Math.max(3.5 * dischargeSpec.outerDiameter, 0.25),
+      };
+      return ok(pump);
+    }
+    case 'tank': {
+      const diameter = input.diameter ?? 2;
+      const height = input.height ?? 2.5;
+      if (!(diameter > 0) || !(height > 0)) {
+        return fail('INVALID_VALUE', 'Dimensões do reservatório inválidas.');
+      }
+      const tank: Tank = {
+        ...base,
+        kind: 'tank',
+        placement,
+        ends: {},
+        diameter,
+        height,
+        outletHeight: Math.min(0.2, height / 2),
+        inletHeight: Math.max(height - 0.3, height / 2),
+        nozzleLength: 0.15,
+      };
+      return ok(tank);
     }
   }
 }
 
-function validateElbow(angle: number, bendRadius: number): Result<true> {
-  if (!Number.isFinite(angle) || angle < MIN_ELBOW_ANGLE || angle > MAX_ELBOW_ANGLE) {
-    return fail('INVALID_ANGLE', 'O ângulo do joelho deve estar entre 1° e 135°.');
-  }
-  if (!Number.isFinite(bendRadius) || bendRadius <= 0) {
-    return fail('INVALID_RADIUS', 'Raio de curvatura inválido.');
-  }
-  return ok(true);
-}
-
-/** Posiciona a conexão de modo que sua porta `a` acople em (`position`, `direction`). */
-function placeAtPort<T extends Fitting>(fitting: T, position: Vec3, flow: Vec3, roll: number): T {
-  let rotation = frameFromDirection(flow);
-  if (roll !== 0) rotation = quatNormalize(quatMultiply(quatFromAxisAngle(flow, roll), rotation));
-  const oriented = { ...fitting, placement: { position: ZERO, rotation } };
-  const portA = getPort(oriented, 'a');
-  if (!portA) return oriented;
-  return { ...oriented, placement: { position: sub(position, portA.position), rotation } };
+/**
+ * Posiciona a conexão de modo que sua porta `a` acople em `position`, com a direção da
+ * porta oposta a `flow` (sentido de quem entra na conexão). O eixo Z local permanece o
+ * mais próximo possível do Z global; `roll` gira em torno do eixo da porta.
+ */
+export function placeAtPort<T extends Fitting>(
+  fitting: T,
+  position: Vec3,
+  flow: Vec3,
+  roll = 0,
+): T {
+  const local = getPort(
+    { ...fitting, placement: { position: ZERO, rotation: QUAT_IDENTITY } },
+    'a',
+  );
+  if (!local) return fitting;
+  let rotation = quatMultiply(
+    frameFromDirection(negate(flow)),
+    quatConjugate(frameFromDirection(local.localDirection)),
+  );
+  if (roll !== 0) rotation = quatMultiply(quatFromAxisAngle(flow, roll), rotation);
+  rotation = quatNormalize(rotation);
+  return {
+    ...fitting,
+    placement: { position: sub(position, rotate(rotation, local.localPosition)), rotation },
+  };
 }
 
 export interface AttachFittingInput {
@@ -554,6 +487,7 @@ export interface AttachFittingInput {
   fitting: FittingInput;
   /** Giro (rad) em torno do eixo da porta, a partir da orientação padrão. */
   roll?: number;
+  catalog?: FittingCatalog;
 }
 
 /** Insere uma conexão acoplada a uma porta livre (extremidade de tubo ou de outra conexão). */
@@ -563,7 +497,7 @@ export function attachFitting(project: Project, input: AttachFittingInput): Resu
   if (!port || !host) return fail('PORT_NOT_FOUND', 'Porta de conexão inexistente.');
   if (!isPortFree(project, port.ref)) return fail('PORT_OCCUPIED', 'A porta já está conectada.');
 
-  const built = buildFitting(project, input.fitting, port.spec, host.systemId);
+  const built = buildFitting(project, input.fitting, port.spec, host.systemId, input.catalog);
   if (!built.ok) return built;
   const fitting = placeAtPort(built.value, port.position, port.direction, input.roll ?? 0);
   const connected = connectPorts(putElement(project, fitting), port.ref, {
@@ -578,12 +512,44 @@ export function attachFitting(project: Project, input: AttachFittingInput): Resu
   });
 }
 
+export interface PlaceEquipmentInput {
+  fitting: FittingInput;
+  spec: PipeSpec;
+  /** Posição da origem do elemento. */
+  position: Vec3;
+  /** Giro em torno do eixo Z global (rad). */
+  rotationZ?: number;
+  systemId?: string;
+  catalog?: FittingCatalog;
+}
+
+/** Posiciona um elemento isolado (bomba, reservatório etc.) em um ponto do modelo. */
+export function placeEquipment(project: Project, input: PlaceEquipmentInput): Result<Created> {
+  if (!isFiniteVec(input.position)) return fail('INVALID_POINT', 'Coordenadas inválidas.');
+  const system = defaultSystemId(project, input.systemId);
+  if (!system.ok) return system;
+  const built = buildFitting(project, input.fitting, input.spec, system.value, input.catalog);
+  if (!built.ok) return built;
+  const placed: Fitting = {
+    ...built.value,
+    placement: {
+      position: input.position,
+      rotation: quatFromAxisAngle(AXIS_Z, input.rotationZ ?? 0),
+    },
+  };
+  const next = autoConnectElement(putElement(project, placed), placed.id);
+  return ok({ project: next, elementId: placed.id, createdIds: [placed.id] });
+}
+
 export interface InsertInlineInput {
   pipeId: string;
   /** Posição do centro da conexão, medida a partir do início do tubo (m). */
   distanceFromStart: number;
-  fitting: { kind: 'tee' } | { kind: 'valve'; valveType?: ValveType };
+  fitting:
+    | { kind: 'tee'; branchSpec?: PipeSpec; familyId?: string | null }
+    | { kind: 'valve'; valveType?: ValveType; familyId?: string | null };
   roll?: number;
+  catalog?: FittingCatalog;
 }
 
 /**
@@ -595,7 +561,10 @@ export function insertInline(project: Project, input: InsertInlineInput): Result
   if (!pipe || pipe.kind !== 'pipe') {
     return fail('NOT_A_PIPE', 'Selecione um tubo para inserir a conexão em linha.');
   }
-  const built = buildFitting(project, input.fitting, pipe.spec, pipe.systemId);
+  if (input.fitting.kind === 'valve' && input.fitting.valveType === 'airRelease') {
+    return fail('NOT_INLINE', 'A ventosa não é instalada em linha: acople-a à derivação de um tê.');
+  }
+  const built = buildFitting(project, input.fitting, pipe.spec, pipe.systemId, input.catalog);
   if (!built.ok) return built;
   const total = pipeLength(pipe);
   const direction = normalize(sub(pipe.end, pipe.start));
@@ -626,9 +595,8 @@ export function insertInline(project: Project, input: InsertInlineInput): Result
     },
   };
   const first = touch({ ...pipe, end: sub(center, scale(direction, half)) });
-  const secondBase = baseFields(project, 'pipe', pipe.spec, pipe.systemId);
   const second: Pipe = {
-    ...secondBase,
+    ...baseFields(project, 'pipe', pipe.spec, pipe.systemId),
     kind: 'pipe',
     properties: { ...pipe.properties },
     manufacturing: { ...pipe.manufacturing },
@@ -659,56 +627,84 @@ export function insertInline(project: Project, input: InsertInlineInput): Result
   return ok({ project: c2.value, elementId: placed.id, createdIds: [placed.id, second.id] });
 }
 
+/** Parâmetros numéricos editáveis por tipo de elemento. */
+const EDITABLE: Record<FittingKind, readonly string[]> = {
+  elbow: ['angle', 'bendRadius'],
+  tee: ['runLength', 'branchLength'],
+  reducer: ['length'],
+  valve: ['length', 'height', 'handwheelDiameter'],
+  pump: ['length', 'dischargeOffset', 'dischargeHeight', 'ratedFlow', 'ratedHead'],
+  tank: ['diameter', 'height', 'outletHeight', 'inletHeight', 'nozzleLength'],
+};
+/** Parâmetros que podem ser zero. */
+const ALLOW_ZERO = new Set(['outletHeight', 'inletHeight']);
+/** Parâmetros que não alteram a geometria (não desvinculam o elemento da família). */
+const NON_GEOMETRIC = new Set(['ratedFlow', 'ratedHead']);
+
 export type FittingPatch = {
   angle?: number;
   bendRadius?: number;
   runLength?: number;
   branchLength?: number;
   length?: number;
+  height?: number;
+  handwheelDiameter?: number;
+  dischargeOffset?: number;
+  dischargeHeight?: number;
+  ratedFlow?: number;
+  ratedHead?: number;
+  diameter?: number;
+  outletHeight?: number;
+  inletHeight?: number;
+  nozzleLength?: number;
   valveType?: ValveType;
 };
 
-const isPositive = (v: number | undefined): v is number =>
-  v !== undefined && Number.isFinite(v) && v > 0;
-
-/** Altera parâmetros de uma conexão e reajusta os elementos vizinhos. */
+/**
+ * Altera parâmetros de uma conexão e reajusta os elementos vizinhos. Editar dimensões
+ * manualmente desvincula o elemento da família de catálogo (`familyId = null`).
+ */
 export function updateFitting(project: Project, id: string, patch: FittingPatch): Result<Project> {
   const element = getElement(project, id);
-  if (!element || element.kind === 'pipe')
+  if (!element || element.kind === 'pipe') {
     return fail('NOT_A_FITTING', 'Elemento não é uma conexão.');
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
-    if (key !== 'valveType' && !isPositive(value as number | undefined)) {
-      return fail('INVALID_VALUE', 'Valor inválido: informe um número positivo.');
-    }
   }
-  let updated: Fitting;
-  switch (element.kind) {
-    case 'elbow': {
-      const angle = patch.angle ?? element.angle;
-      const bendRadius = patch.bendRadius ?? element.bendRadius;
-      const check = validateElbow(angle, bendRadius);
-      if (!check.ok) return check;
-      updated = { ...element, angle, bendRadius };
-      break;
+  const numeric: Record<string, number> = {};
+  let geometric = false;
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined || key === 'valveType') continue;
+    if (!EDITABLE[element.kind].includes(key)) {
+      return fail('INVALID_FIELD', `O parâmetro "${key}" não se aplica a este elemento.`);
     }
-    case 'tee':
-      updated = {
-        ...element,
-        runLength: patch.runLength ?? element.runLength,
-        branchLength: patch.branchLength ?? element.branchLength,
-      };
-      break;
-    case 'reducer':
-      updated = { ...element, length: patch.length ?? element.length };
-      break;
-    case 'valve':
-      updated = {
-        ...element,
-        length: patch.length ?? element.length,
-        valveType: patch.valveType ?? element.valveType,
-      };
-      break;
+    const number = value as number;
+    const valid = Number.isFinite(number) && (ALLOW_ZERO.has(key) ? number >= 0 : number > 0);
+    if (!valid) return fail('INVALID_VALUE', 'Valor inválido: informe um número positivo.');
+    numeric[key] = number;
+    if (!NON_GEOMETRIC.has(key)) geometric = true;
+  }
+
+  let updated = { ...element, ...numeric } as Fitting;
+  if (geometric) updated = { ...updated, familyId: null };
+  if (updated.kind === 'elbow') {
+    const check = validateElbow(updated.angle, updated.bendRadius);
+    if (!check.ok) return check;
+  }
+  if (
+    updated.kind === 'tank' &&
+    Math.max(updated.outletHeight, updated.inletHeight) > updated.height
+  ) {
+    return fail('INVALID_VALUE', 'Os bocais devem ficar dentro da altura do reservatório.');
+  }
+  if (patch.valveType !== undefined && updated.kind === 'valve') {
+    const wasAir = updated.valveType === 'airRelease';
+    const willBeAir = patch.valveType === 'airRelease';
+    if (wasAir !== willBeAir) {
+      return fail(
+        'INVALID_VALUE',
+        'Não é possível converter entre ventosa e válvula em linha; exclua e insira novamente.',
+      );
+    }
+    updated = { ...updated, valveType: patch.valveType };
   }
   return reconcile(putElement(project, touch(updated)), [id]);
 }
@@ -724,8 +720,9 @@ export function rollFitting(
   angle: number,
 ): Result<Project> {
   const element = getElement(project, id);
-  if (!element || element.kind === 'pipe')
+  if (!element || element.kind === 'pipe') {
     return fail('NOT_A_FITTING', 'Elemento não é uma conexão.');
+  }
   const port = getPort(element, axisPortId);
   if (!port) return fail('PORT_NOT_FOUND', 'Porta de conexão inexistente.');
   if (!Number.isFinite(angle)) return fail('INVALID_ANGLE', 'Ângulo inválido.');
@@ -737,9 +734,14 @@ export function rollFitting(
       position: add(port.position, rotate(q, sub(element.placement.position, port.position))),
     },
   });
-  const next = putElement(project, rotated);
   // Não se usa `reconcile`: um giro não pode ser absorvido esticando tubos.
-  return verifyCoupling(next, [id]);
+  return verifyCoupling(putElement(project, rotated), [id]);
+}
+
+function translated(element: HydroElement, delta: Vec3): HydroElement {
+  return element.kind === 'pipe'
+    ? { ...element, start: add(element.start, delta), end: add(element.end, delta) }
+    : translateFitting(element, delta);
 }
 
 /** Translada elementos; tubos vizinhos se ajustam quando o acoplamento permite. */
@@ -753,87 +755,56 @@ export function translateElements(
   for (const id of ids) {
     const element = getElement(next, id);
     if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
-    next = putElement(
-      next,
-      touch(
-        element.kind === 'pipe'
-          ? { ...element, start: add(element.start, delta), end: add(element.end, delta) }
-          : translateFitting(element, delta),
-      ),
-    );
+    next = putElement(next, touch(translated(element, delta)));
   }
   return reconcile(next, ids);
 }
 
-// ---------------------------------------------------------------------------
-// Especificação (material / diâmetro)
-// ---------------------------------------------------------------------------
-
-function withSpec(element: HydroElement, spec: PipeSpec, portId: string | null): HydroElement {
-  switch (element.kind) {
-    case 'pipe':
-      return { ...element, spec };
-    case 'elbow':
-      return { ...element, spec, bendRadius: defaultBendRadius(spec) };
-    case 'tee':
-      return { ...element, spec, ...defaultTeeDimensions(spec) };
-    case 'valve':
-      return { ...element, spec, length: defaultValveLength(spec) };
-    case 'reducer': {
-      const next = portId === 'b' ? { ...element, outletSpec: spec } : { ...element, spec };
-      return { ...next, length: defaultReducerLength(next.spec, next.outletSpec) };
-    }
-  }
-}
-
-export interface ApplySpecOptions {
-  /** Propaga a especificação pelo trecho conectado, parando nas reduções. */
-  propagate?: boolean;
-  /** Para reduções: qual extremidade recebe a especificação (`a` por padrão). */
-  portId?: 'a' | 'b';
-}
-
 /**
- * Altera material/diâmetro de um elemento. As dimensões das conexões são recalculadas
- * e os vizinhos reajustados. Com `propagate`, a alteração percorre o trecho conectado
- * até encontrar reduções (que têm apenas a extremidade correspondente atualizada).
+ * Copia elementos com um deslocamento. As cópias recebem novos identificadores, mantêm as
+ * conexões internas ao conjunto e conectam-se a portas livres exatamente acopladas.
  */
-export function applySpec(
+export function copyElements(
   project: Project,
-  elementId: string,
-  spec: PipeSpec,
-  options: ApplySpecOptions = {},
-): Result<Project> {
-  if (!getElement(project, elementId)) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
+  ids: readonly string[],
+  delta: Vec3,
+): Result<Created> {
+  if (!isFiniteVec(delta)) return fail('INVALID_POINT', 'Deslocamento inválido.');
+  if (ids.length === 0) return fail('ELEMENT_NOT_FOUND', 'Nenhum elemento selecionado.');
+  const mapping = new Map<string, string>();
   let next = project;
-  const changed: string[] = [];
-  const visited = new Set<string>();
-  const queue: { id: string; via: string | null }[] = [
-    { id: elementId, via: options.portId ?? null },
-  ];
-
-  while (queue.length > 0) {
-    const item = queue.shift();
-    if (!item || visited.has(item.id)) continue;
-    visited.add(item.id);
-    const element = getElement(next, item.id);
-    if (!element) continue;
-    const isOrigin = item.id === elementId;
-    const side = element.kind === 'reducer' ? (item.via === 'b' ? 'b' : 'a') : null;
-    next = putElement(next, touch(withSpec(element, spec, side)));
-    changed.push(item.id);
-    if (!options.propagate) continue;
-
-    for (const port of getPorts(element)) {
-      // Reduções delimitam o trecho: só se atravessa a extremidade alterada da origem.
-      if (element.kind === 'reducer' && (!isOrigin || port.ref.portId !== side)) continue;
-      const connection = findConnection(next, port.ref);
-      if (!connection) continue;
-      const other = oppositeRef(connection, port.ref);
-      queue.push({ id: other.elementId, via: other.portId });
-    }
+  for (const id of ids) {
+    const element = getElement(project, id);
+    if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
+    const timestamp = now();
+    const copy: HydroElement = {
+      ...translated(element, delta),
+      id: newId(),
+      name: nextName(next, element.kind),
+      meta: { createdAt: timestamp, updatedAt: timestamp, revision: 0 },
+    };
+    mapping.set(id, copy.id);
+    next = putElement(next, copy);
   }
-  return reconcile(next, changed);
+  const internal = project.connections.flatMap((c) => {
+    const a = mapping.get(c.a.elementId);
+    const b = mapping.get(c.b.elementId);
+    return a && b
+      ? [
+          {
+            id: newId(),
+            a: { elementId: a, portId: c.a.portId },
+            b: { elementId: b, portId: c.b.portId },
+          },
+        ]
+      : [];
+  });
+  next = { ...next, connections: [...next.connections, ...internal] };
+  const createdIds = [...mapping.values()];
+  for (const id of createdIds) next = autoConnectElement(next, id);
+  const first = createdIds[0];
+  if (!first) return fail('ELEMENT_NOT_FOUND', 'Nenhum elemento selecionado.');
+  return ok({ project: next, elementId: first, createdIds });
 }
 
 // ---------------------------------------------------------------------------

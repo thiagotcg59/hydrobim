@@ -13,7 +13,6 @@ import { defaultBendRadius, elbowLegLength } from './dimensions';
 import { angleBetween, distance, vec3 } from './math';
 import {
   addPipe,
-  applySpec,
   attachFitting,
   createProject,
   deleteElements,
@@ -26,6 +25,7 @@ import {
   updateFitting,
 } from './operations';
 import { getPort, pipeLength } from './ports';
+import { applySpec } from './sizing';
 import type { Result } from './result';
 import type { Pipe, Project } from './schema';
 import { testSpec } from './testSupport';

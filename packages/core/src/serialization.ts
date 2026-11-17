@@ -8,7 +8,24 @@ import { PROJECT_FORMAT, ProjectSchema, SCHEMA_VERSION, type Project } from './s
  * Migrações de esquema: `MIGRATIONS[n]` converte um documento da versão `n` para `n + 1`.
  * Ao alterar o esquema, incremente `SCHEMA_VERSION` e registre a migração aqui.
  */
-const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string, unknown>> = {};
+const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string, unknown>> = {
+  // v1 → v2: famílias, níveis, georreferência, terreno e acabamento de extremidades.
+  1: (doc) => ({
+    ...doc,
+    schemaVersion: 2,
+    levels: [{ id: 'nivel-0', name: 'Térreo', elevation: 0 }],
+    families: [],
+    georeference: null,
+    terrain: null,
+    elements: Array.isArray(doc.elements)
+      ? doc.elements.map((element: unknown) => {
+          if (typeof element !== 'object' || element === null) return element;
+          const e = element as Record<string, unknown>;
+          return e.kind === 'pipe' ? { familyId: null, ...e } : { familyId: null, ends: {}, ...e };
+        })
+      : doc.elements,
+  }),
+};
 
 export function serializeProject(project: Project): string {
   return JSON.stringify(project, null, 2);

@@ -165,3 +165,6 @@ export function closestPointsBetweenLines(
   const t2 = (bw - ab * aw) / denom;
   return { t1, t2, p1: add(o1, scale(a, t1)), p2: add(o2, scale(b, t2)) };
 }
+
+/** Conjugado (inverso, para quaternions unitários). */
+export const quatConjugate = (q: Quat): Quat => ({ x: -q.x, y: -q.y, z: -q.z, w: q.w });

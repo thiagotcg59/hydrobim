@@ -11,7 +11,7 @@ import {
   ZERO,
   type Vec3,
 } from './math';
-import type { HydroElement, PipeSpec, Placement, PortRef } from './schema';
+import type { EndTreatment, HydroElement, PipeSpec, Placement, PortRef } from './schema';
 
 export type PortRole = 'end' | 'run' | 'branch';
 
@@ -34,6 +34,8 @@ export interface Port {
   readonly direction: Vec3;
   /** Especificação dimensional exigida do elemento conectado. */
   readonly spec: PipeSpec;
+  /** Acabamento da extremidade (bolsa, flange); `null` = ponta lisa. */
+  readonly end: EndTreatment | null;
 }
 
 interface LocalPort {
@@ -45,6 +47,9 @@ interface LocalPort {
   spec: PipeSpec;
 }
 
+const MINUS_X = vec3(-1, 0, 0);
+const PLUS_X = vec3(1, 0, 0);
+
 export function pipeLength(pipe: { start: Vec3; end: Vec3 }): number {
   return distance(pipe.start, pipe.end);
 }
@@ -52,7 +57,7 @@ export function pipeLength(pipe: { start: Vec3; end: Vec3 }): number {
 /**
  * Referencial local do elemento.
  * - Tubo: origem no ponto inicial, eixo X ao longo do tubo.
- * - Conexões: `placement` armazenado.
+ * - Demais elementos: `placement` armazenado.
  */
 export function getElementFrame(element: HydroElement): Placement {
   if (element.kind !== 'pipe') return element.placement;
@@ -63,125 +68,85 @@ export function getElementFrame(element: HydroElement): Placement {
   };
 }
 
+const port = (
+  id: string,
+  label: string,
+  role: PortRole,
+  position: Vec3,
+  direction: Vec3,
+  spec: PipeSpec,
+): LocalPort => ({ id, label, role, position, direction, spec });
+
 /**
- * Portas no referencial local. Convenção comum a todas as conexões: a porta `a` fica
- * em −X (direção −X) e o eixo X local segue o sentido de quem entra pela porta `a`.
+ * Portas no referencial local. Convenção das conexões em linha: a porta `a` fica em −X
+ * (direção −X) e o eixo X local segue o sentido de quem entra pela porta `a`.
  */
 function getLocalPorts(element: HydroElement): LocalPort[] {
   const spec = element.spec;
   switch (element.kind) {
-    case 'pipe': {
-      const len = pipeLength(element);
+    case 'pipe':
       return [
-        {
-          id: 'start',
-          label: 'Início',
-          role: 'end',
-          position: ZERO,
-          direction: vec3(-1, 0, 0),
-          spec,
-        },
-        {
-          id: 'end',
-          label: 'Fim',
-          role: 'end',
-          position: vec3(len, 0, 0),
-          direction: vec3(1, 0, 0),
-          spec,
-        },
+        port('start', 'Início', 'end', ZERO, MINUS_X, spec),
+        port('end', 'Fim', 'end', vec3(pipeLength(element), 0, 0), PLUS_X, spec),
       ];
-    }
     case 'elbow': {
       const leg = elbowLegLength(element.angle, element.bendRadius);
       const out = vec3(Math.cos(element.angle), Math.sin(element.angle), 0);
       return [
-        {
-          id: 'a',
-          label: 'Porta A',
-          role: 'end',
-          position: vec3(-leg, 0, 0),
-          direction: vec3(-1, 0, 0),
-          spec,
-        },
-        {
-          id: 'b',
-          label: 'Porta B',
-          role: 'end',
-          position: vec3(out.x * leg, out.y * leg, 0),
-          direction: out,
-          spec,
-        },
+        port('a', 'Porta A', 'end', vec3(-leg, 0, 0), MINUS_X, spec),
+        port('b', 'Porta B', 'end', vec3(out.x * leg, out.y * leg, 0), out, spec),
       ];
     }
     case 'tee': {
       const half = element.runLength / 2;
       return [
-        {
-          id: 'a',
-          label: 'Passagem A',
-          role: 'run',
-          position: vec3(-half, 0, 0),
-          direction: vec3(-1, 0, 0),
-          spec,
-        },
-        {
-          id: 'b',
-          label: 'Passagem B',
-          role: 'run',
-          position: vec3(half, 0, 0),
-          direction: vec3(1, 0, 0),
-          spec,
-        },
-        {
-          id: 'branch',
-          label: 'Derivação',
-          role: 'branch',
-          position: vec3(0, element.branchLength, 0),
-          direction: vec3(0, 1, 0),
-          spec,
-        },
+        port('a', 'Passagem A', 'run', vec3(-half, 0, 0), MINUS_X, spec),
+        port('b', 'Passagem B', 'run', vec3(half, 0, 0), PLUS_X, spec),
+        port(
+          'branch',
+          'Derivação',
+          'branch',
+          vec3(0, element.branchLength, 0),
+          vec3(0, 1, 0),
+          element.branchSpec ?? spec,
+        ),
       ];
     }
     case 'reducer': {
       const half = element.length / 2;
       return [
-        {
-          id: 'a',
-          label: 'Porta A',
-          role: 'end',
-          position: vec3(-half, 0, 0),
-          direction: vec3(-1, 0, 0),
-          spec,
-        },
-        {
-          id: 'b',
-          label: 'Porta B',
-          role: 'end',
-          position: vec3(half, 0, 0),
-          direction: vec3(1, 0, 0),
-          spec: element.outletSpec,
-        },
+        port('a', 'Porta A', 'end', vec3(-half, 0, 0), MINUS_X, spec),
+        port('b', 'Porta B', 'end', vec3(half, 0, 0), PLUS_X, element.outletSpec),
       ];
     }
     case 'valve': {
+      // Ventosa: uma única porta; o corpo se estende ao longo de +X a partir dela.
+      if (element.valveType === 'airRelease') {
+        return [port('a', 'Entrada', 'end', ZERO, MINUS_X, spec)];
+      }
       const half = element.length / 2;
       return [
-        {
-          id: 'a',
-          label: 'Porta A',
-          role: 'end',
-          position: vec3(-half, 0, 0),
-          direction: vec3(-1, 0, 0),
-          spec,
-        },
-        {
-          id: 'b',
-          label: 'Porta B',
-          role: 'end',
-          position: vec3(half, 0, 0),
-          direction: vec3(1, 0, 0),
-          spec,
-        },
+        port('a', 'Porta A', 'end', vec3(-half, 0, 0), MINUS_X, spec),
+        port('b', 'Porta B', 'end', vec3(half, 0, 0), PLUS_X, spec),
+      ];
+    }
+    case 'pump':
+      return [
+        port('a', 'Sucção', 'end', ZERO, MINUS_X, spec),
+        port(
+          'b',
+          'Recalque',
+          'end',
+          vec3(element.dischargeOffset, 0, element.dischargeHeight),
+          vec3(0, 0, 1),
+          element.dischargeSpec,
+        ),
+      ];
+    case 'tank': {
+      const reach = element.diameter / 2 + element.nozzleLength;
+      return [
+        port('a', 'Saída', 'end', vec3(reach, 0, element.outletHeight), PLUS_X, spec),
+        port('b', 'Entrada', 'end', vec3(-reach, 0, element.inletHeight), MINUS_X, spec),
       ];
     }
   }
@@ -190,6 +155,7 @@ function getLocalPorts(element: HydroElement): LocalPort[] {
 /** Portas do elemento, com posição e direção nos referenciais local e global. */
 export function getPorts(element: HydroElement): Port[] {
   const frame = getElementFrame(element);
+  const ends = element.kind === 'pipe' ? undefined : element.ends;
   return getLocalPorts(element).map((p) => ({
     ref: { elementId: element.id, portId: p.id },
     label: p.label,
@@ -199,6 +165,7 @@ export function getPorts(element: HydroElement): Port[] {
     position: add(frame.position, rotate(frame.rotation, p.position)),
     direction: rotate(frame.rotation, p.direction),
     spec: p.spec,
+    end: ends?.[p.id] ?? null,
   }));
 }
 
