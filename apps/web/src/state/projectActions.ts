@@ -15,7 +15,7 @@ export const repository: ProjectRepository = createDefaultRepository();
 const store = () => useEditorStore.getState();
 
 export function confirmDiscard(): boolean {
-  if (!selectIsDirty(store()) || store().project.elements.length === 0) return true;
+  if (!selectIsDirty(store())) return true;
   return window.confirm('Há alterações não salvas neste projeto. Deseja descartá-las?');
 }
 
@@ -57,6 +57,7 @@ export async function importProjectFile(file: File): Promise<boolean> {
     store().notify('error', `${file.name}: ${result.error.message}`);
     return false;
   }
+  if (!confirmDiscard()) return false;
   store().loadProject(result.value);
   store().notify(
     'success',

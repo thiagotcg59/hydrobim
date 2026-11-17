@@ -80,7 +80,7 @@ code {
 .app {
   display: grid;
   height: 100%;
-  grid-template-columns: 136px minmax(0, 1fr) 340px;
+  grid-template-columns: 150px minmax(0, 1fr) 340px;
   grid-template-rows: 46px minmax(0, 1fr) 28px;
   grid-template-areas:
     'top top top'
@@ -191,6 +191,8 @@ code {
 }
 
 .badge {
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 99px;
@@ -268,8 +270,17 @@ code {
   cursor: not-allowed;
 }
 
+.tool span:not(.badge) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tool .badge {
   margin-left: auto;
+  font-size: 9px;
+  padding: 0 4px;
 }
 
 /* ---------- Área de trabalho ---------- */

@@ -88,8 +88,10 @@ const HISTORY_LIMIT = 100;
 
 interface EditorState {
   project: Project;
-  /** Referência do projeto no último salvamento (para indicar alterações pendentes). */
+  /** Projeto no momento em que foi carregado ou salvo (base para detectar alterações). */
   savedProject: Project | null;
+  /** Indica se o projeto atual já foi gravado no repositório. */
+  persisted: boolean;
   past: Project[];
   future: Project[];
   selectedId: string | null;
@@ -215,7 +217,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
   return {
     project: initialProject,
-    savedProject: null,
+    savedProject: initialProject,
+    persisted: false,
     past: [],
     future: [],
     selectedId: null,
@@ -236,7 +239,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     loadProject: (project, options) =>
       set((state) => ({
         project,
-        savedProject: options?.saved ? project : null,
+        savedProject: project,
+        persisted: options?.saved ?? false,
+        message: null,
         past: [],
         future: [],
         selectedId: null,
@@ -251,7 +256,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     newProject: (discipline = 'mep') =>
       get().loadProject(createProject('Projeto sem título', discipline)),
 
-    markSaved: () => set((state) => ({ savedProject: state.project })),
+    markSaved: () => set((state) => ({ savedProject: state.project, persisted: true })),
 
     setProjectName: (name) => {
       const { project } = get();
@@ -517,4 +522,5 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   };
 });
 
+/** Há alterações desde o carregamento ou o último salvamento. */
 export const selectIsDirty = (state: EditorState): boolean => state.savedProject !== state.project;

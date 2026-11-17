@@ -115,7 +115,7 @@ export function OpenProjectDialog({ open, onClose }: Props) {
           onChange={async (event) => {
             const file = event.target.files?.[0];
             event.target.value = '';
-            if (!file || !confirmDiscard()) return;
+            if (!file) return;
             if (await importProjectFile(file)) onClose();
           }}
         />

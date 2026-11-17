@@ -11,6 +11,8 @@ export function TopBar({ onOpen }: Props) {
   const name = useEditorStore((s) => s.project.name);
   const discipline = useEditorStore((s) => s.project.discipline);
   const dirty = useEditorStore(selectIsDirty);
+  const persisted = useEditorStore((s) => s.persisted);
+  const saveState = dirty || !persisted ? 'não salvo' : 'salvo';
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
   const { setProjectName, setDiscipline, newProject, undo, redo } = useEditorStore.getState();
@@ -37,11 +39,17 @@ export function TopBar({ onOpen }: Props) {
           }}
         />
         <span
-          className={`topbar__dirty${dirty ? ' topbar__dirty--on' : ''}`}
+          className={`topbar__dirty${saveState === 'salvo' ? '' : ' topbar__dirty--on'}`}
           data-testid="dirty-indicator"
-          title={dirty ? 'Alterações não salvas' : 'Projeto salvo'}
+          title={
+            dirty
+              ? 'Há alterações não salvas'
+              : persisted
+                ? 'Projeto salvo no navegador'
+                : 'Projeto ainda não salvo no navegador'
+          }
         >
-          {dirty ? 'não salvo' : 'salvo'}
+          {saveState}
         </span>
       </label>
 

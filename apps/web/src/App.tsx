@@ -58,7 +58,7 @@ function useUnsavedChangesGuard(): void {
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent): void => {
       const state = useEditorStore.getState();
-      if (selectIsDirty(state) && state.past.length > 0) event.preventDefault();
+      if (selectIsDirty(state)) event.preventDefault();
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
