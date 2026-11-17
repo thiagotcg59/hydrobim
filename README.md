@@ -37,7 +37,7 @@ npm install
 npm run dev
 ```
 
-Abra <http://localhost:5173>. Na primeira execução é carregado um projeto de demonstração.
+Abra <http://localhost:5180>. Na primeira execução é carregado um projeto de demonstração.
 
 Build de produção: `npm run build` (saída em `apps/web/dist`) e `npm run preview` para servi-la.
 

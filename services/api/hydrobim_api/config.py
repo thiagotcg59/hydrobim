@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 class Settings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    cors_origins: tuple[str, ...] = ("http://localhost:5173", "http://127.0.0.1:5173")
+    cors_origins: tuple[str, ...] = ("http://localhost:5180", "http://127.0.0.1:5180")
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     @classmethod

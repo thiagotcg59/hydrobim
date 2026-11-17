@@ -40,7 +40,7 @@ As variáveis são lidas ao criar a aplicação; não há segredos ou serviços 
 
 | Variável | Padrão | Formato |
 | --- | --- | --- |
-| `HYDROBIM_CORS_ORIGINS` | `http://localhost:5173` e `http://127.0.0.1:5173` | Array JSON de strings; `[]` desabilita outras origens |
+| `HYDROBIM_CORS_ORIGINS` | `http://localhost:5180` e `http://127.0.0.1:5180` | Array JSON de strings; `[]` desabilita outras origens |
 | `HYDROBIM_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` ou `CRITICAL` |
 
 Exemplo em PowerShell:

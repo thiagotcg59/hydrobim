@@ -25,7 +25,7 @@ Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md
 
 ```bash
 npm install                 # dependências
-npm run dev                 # editor em http://localhost:5173
+npm run dev                 # editor em http://localhost:5180
 npm run lint                # ESLint
 npm run format              # Prettier (escreve)   | npm run format:check
 npm run typecheck           # TypeScript estrito em todos os workspaces

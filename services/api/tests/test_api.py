@@ -84,7 +84,7 @@ def test_invalid_json_document(client, body):
     assert isinstance(response.json()["detail"], list)
 
 
-@pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:5173"])
+@pytest.mark.parametrize("origin", ["http://localhost:5180", "http://127.0.0.1:5180"])
 def test_cors_default_origins(client, origin):
     response = client.options(
         VALIDATE_URL,

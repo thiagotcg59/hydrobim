@@ -22,7 +22,7 @@ def test_environment_settings_are_read_for_each_app(monkeypatch):
     assert Settings.from_env().cors_origins == ()
 
 
-@pytest.mark.parametrize("origins", ['"http://localhost:5173"', "[1]", "{", "null"])
+@pytest.mark.parametrize("origins", ['"http://localhost:5180"', "[1]", "{", "null"])
 def test_invalid_cors_configuration_fails_at_startup(monkeypatch, origins):
     monkeypatch.setenv("HYDROBIM_CORS_ORIGINS", origins)
     with pytest.raises(ValueError):
