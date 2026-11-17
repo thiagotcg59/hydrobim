@@ -1,0 +1,16 @@
+{
+  "name": "@hydrobim/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Modelo de domínio paramétrico, conectividade, operações e validação do HydroBIM",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}
