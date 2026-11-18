@@ -1,6 +1,7 @@
 import type { FittingFamily } from '@hydrobim/core';
+import { flangeEndMm, flangeSourceNote } from '../flanges';
 import { forSpecifications, type EndMm } from './builders';
-import { DUCTILE_SPECIFICATIONS, PN10_FLANGE_MM } from './ductileIron';
+import { DUCTILE_SPECIFICATIONS } from './ductileIron';
 
 /**
  * Válvulas flangeadas para redes de água — dimensões de páginas de produto da AVK
@@ -10,10 +11,12 @@ import { DUCTILE_SPECIFICATIONS, PN10_FLANGE_MM } from './ductileIron';
  *
  * `height` = eixo do tubo ao topo da haste (o volante é acessório e sua altura de cubo
  * não é tabulada); `handwheelDiameter` vem da tabela de volantes AVK 08.
- * Flanges: EN 1092-2 PN 10, mesmas dimensões usadas nas conexões de ferro dúctil.
+ * Flanges: PN 10 da tabela única de flanges (`flanges.ts`), como nas conexões de ferro
+ * dúctil. As páginas da AVK não tabulam o flange.
  */
 
-const flange = (dn: number): EndMm => PN10_FLANGE_MM[dn] ?? [20, dn * 1.6];
+const flange = (dn: number): EndMm | undefined => flangeEndMm('PN 10', dn);
+const PN10_NOTE = flangeSourceNote('PN 10');
 const AVK = 'AVK (avkvalves.eu)';
 
 // [DN, L (face a face), H (eixo ao topo da haste), Ø do volante]
@@ -84,7 +87,7 @@ export const VALVE_FAMILIES: FittingFamily[] = [
     endType: 'flange',
     manufacturer: 'AVK',
     standard: 'EN 558 série 14 (F4)',
-    source: `${AVK}, série 06/30 — L (face a face), H (eixo ao topo da haste); volante: tabela AVK 08. Flange PN 10 conforme EN 1092-2.`,
+    source: `${AVK}, série 06/30 — L (face a face), H (eixo ao topo da haste); volante: tabela AVK 08. ${PN10_NOTE}`,
     sizes: GATE_SHORT.map(([dn, l, h, wheel]) => ({
       dn,
       length: l,
@@ -101,7 +104,7 @@ export const VALVE_FAMILIES: FittingFamily[] = [
     endType: 'flange',
     manufacturer: 'AVK',
     standard: 'EN 558 série 15 (F5)',
-    source: `${AVK}, série 02/60 — L, H; volante: tabela AVK 08.`,
+    source: `${AVK}, série 02/60 — L, H; volante: tabela AVK 08. ${PN10_NOTE}`,
     sizes: GATE_LONG.map(([dn, l, h, wheel]) => ({
       dn,
       length: l,
@@ -130,7 +133,7 @@ export const VALVE_FAMILIES: FittingFamily[] = [
     endType: 'flange',
     manufacturer: 'AVK',
     standard: 'EN 558 série 48',
-    source: `${AVK}, série 41/60 — L (face a face) e H (eixo ao topo da tampa). DN 300 com L = 699 como impresso.`,
+    source: `${AVK}, série 41/60 — L (face a face) e H (eixo ao topo da tampa). DN 300 com L = 699 como impresso. ${PN10_NOTE}`,
     sizes: SWING_CHECK.map(([dn, l, h]) => ({ dn, length: l, height: h, end: flange(dn) })),
   }),
   ...forSpecifications(DUCTILE_SPECIFICATIONS, {
@@ -141,7 +144,7 @@ export const VALVE_FAMILIES: FittingFamily[] = [
     endType: 'flange',
     manufacturer: 'AVK',
     standard: 'EN 1074-4',
-    source: `${AVK}, série 701/70 — H3 (altura da face do flange de entrada ao topo). O diâmetro do corpo não é tabulado (representação genérica).`,
+    source: `${AVK}, série 701/70 — H3 (altura da face do flange de entrada ao topo). O diâmetro do corpo não é tabulado (representação genérica). ${PN10_NOTE}`,
     sizes: AIR_VALVE.map(([dn, h]) => ({ dn, length: h, end: flange(dn) })),
   }),
 ];

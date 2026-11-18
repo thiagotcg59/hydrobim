@@ -8,7 +8,7 @@ const kinds = () => state().project.elements.map((e) => e.kind);
 
 beforeEach(() => {
   state().loadProject(createProject('Teste', 'mep'));
-  state().setToolOptions({ sizeMode: 'reducers', families: {} });
+  state().setToolOptions({ sizeMode: 'reducers', families: {}, lockElbowAngles: true });
 });
 
 describe('store do editor', () => {
@@ -83,6 +83,14 @@ describe('store do editor', () => {
     state().setToolOptions({ sizeMode: 'propagate' });
     state().changeSpec(first.id, first.spec.specificationId, 50);
     expect(state().project.elements.every((e) => e.spec.dn === 50)).toBe(true);
+    // PEAD não tem conexões de catálogo: com "somente peças de catálogo", a troca que
+    // tornaria o joelho genérico é recusada.
+    const before = state().project;
+    state().changeSpec(first.id, 'pead-pe100-sdr11', 50);
+    expect(state().project).toBe(before);
+    expect(state().message?.text).toContain('deixaria de corresponder à peça de catálogo');
+
+    state().setToolOptions({ lockElbowAngles: false });
     state().changeSpec(first.id, 'pead-pe100-sdr11', 50);
     expect(state().project.elements.every((e) => e.spec.material === 'hdpe')).toBe(true);
     expect(validateProject(state().project)).toEqual([]);

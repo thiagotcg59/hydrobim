@@ -11,8 +11,12 @@ function safeFileName(name: string): string {
   return base.length > 0 ? base : 'projeto';
 }
 
-/** Baixa um conteúdo de texto como arquivo. */
-export function downloadText(fileName: string, text: string, mimeType: string): void {
+/** Baixa um conteúdo como arquivo: texto (UTF-8) ou bytes já codificados. */
+export function downloadText(
+  fileName: string,
+  text: string | Uint8Array<ArrayBuffer>,
+  mimeType: string,
+): void {
   const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

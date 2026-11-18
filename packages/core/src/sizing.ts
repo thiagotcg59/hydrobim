@@ -27,6 +27,9 @@ function portGroups(element: HydroElement): string[][] {
       return [['a'], ['b']];
     case 'tee':
       return element.branchSpec ? [['a', 'b'], ['branch']] : [['a', 'b', 'branch']];
+    case 'tank':
+      // Entrada e saída compartilham a especificação; cada bocal adicional tem a sua.
+      return [['a', 'b'], ...(element.nozzles ?? []).map((nozzle) => [nozzle.id])];
     default:
       return [getPorts(element).map((p) => p.ref.portId)];
   }
@@ -49,9 +52,31 @@ function withSpec(
   catalog: FittingCatalog,
 ): HydroElement {
   switch (element.kind) {
-    case 'pipe':
+    case 'pipe': {
+      // Tubo com flanges: o flange acompanha o novo diâmetro, pela mesma família; sem
+      // flange tabulado para ele, a extremidade volta a ser ponta lisa.
+      const { ends, ...bare } = element;
+      const next: Record<string, NonNullable<typeof ends>[string]> = {};
+      for (const [portId, end] of Object.entries(ends ?? {})) {
+        const flange =
+          end.type === 'flange' && element.familyId
+            ? catalog.pipeFlange?.(spec, element.familyId)
+            : undefined;
+        if (flange) next[portId] = flange;
+      }
+      return Object.keys(next).length > 0
+        ? { ...bare, spec, ends: next }
+        : { ...bare, spec, familyId: ends ? null : element.familyId };
+    }
     case 'tank':
-      return { ...element, spec };
+      return group.includes('a') || !element.nozzles
+        ? { ...element, spec }
+        : {
+            ...element,
+            nozzles: element.nozzles.map((nozzle) =>
+              group.includes(nozzle.id) ? { ...nozzle, spec } : nozzle,
+            ),
+          };
     case 'elbow': {
       const dims = catalog.elbow(spec, element.angle, element.familyId);
       return {

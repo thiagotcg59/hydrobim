@@ -50,7 +50,7 @@ Um joelho **não** é uma entidade `IfcElbow` (inexistente): é um `IfcPipeFitti
 
 | HydroBIM | Entidade IFC | PredefinedType | Observações |
 | --- | --- | --- | --- |
-| `pipe` | `IfcPipeSegment` | `RIGIDSEGMENT` | — |
+| `pipe` | `IfcPipeSegment` | `RIGIDSEGMENT` | Tubo liso: sólido extrudado. Tubo com flanges: malha (`Tessellation`); os flanges não são entidades separadas |
 | `elbow` | `IfcPipeFitting` | `BEND` | Ângulo e raio em propriedades |
 | `tee` | `IfcPipeFitting` | `JUNCTION` | Três portas |
 | `reducer` | `IfcPipeFitting` | `TRANSITION` | Diâmetros distintos por porta |
@@ -59,8 +59,9 @@ Um joelho **não** é uma entidade `IfcElbow` (inexistente): é um `IfcPipeFitti
 | `valve` (`check`) | `IfcValve` | `CHECK` | — |
 | `valve` (`airRelease`) | `IfcValve` | `AIRRELEASE` | Porta única |
 | `valve` (`pressureReducing`) | `IfcValve` | `PRESSUREREDUCING` | Porta `a` = montante; `FlowDirection` ainda `NOTDEFINED` |
+| `valve` (`strainer`) | `IfcFilter` | `STRAINER` | Filtro Y: classe interna `valve` (peça em linha), mas entidade IFC própria; porta `a` = montante |
 | `pump` | `IfcPump` | `ENDSUCTION` | Representação genérica |
-| `tank` | `IfcTank` | `STORAGE` | — |
+| `tank` | `IfcTank` | `STORAGE` | Reservatórios de catálogo têm `IfcTankType` e conjuntos de propriedades (abaixo) |
 
 Sistemas:
 
@@ -74,12 +75,39 @@ Sistemas:
 
 Os elementos serão associados ao sistema por `IfcRelAssignsToGroup`.
 
+## Reservatórios de catálogo
+
+Entidades e atributos conferidos no esquema `IFC4X3_ADD2` do IfcOpenShell 0.9.0; nomes e tipos das propriedades padrão conferidos nos modelos de conjuntos de propriedades do IFC 4.3 (`ifcopenshell.util.pset`).
+
+| Item | No IFC |
+| --- | --- |
+| Ocorrência | `IfcTank`, `PredefinedType = STORAGE` (valores de `IfcTankTypeEnum`: BASIN, BREAKPRESSURE, EXPANSION, FEEDANDEXPANSION, OILRETENTIONTRAY, PRESSUREVESSEL, STORAGE, VESSEL, USERDEFINED, NOTDEFINED) |
+| Tipo | `IfcTankType` (`STORAGE`), ligado por `IfcRelDefinesByType`. Um tipo por modelo comercial (ocorrências iguais compartilham); dimensões personalizadas geram um tipo por ocorrência |
+| Material | `IfcMaterial` "Aço-carbono estrutural" (categoria `steel`), associado às ocorrências e aos tipos — não o material da tubulação dos bocais |
+| Geometria | `IfcTriangulatedFaceSet` por parte (corpo, acessórios, revestimento, bocais), no referencial local do elemento |
+| `Pset_<Fabricante>_Reservatorio` (ex.: `Pset_TRAMEC_Reservatorio`) | `Manufacturer`, `Model`, `ReservoirType`, `BottomType`, `InstallationType`, `Material` (`IfcLabel`); `NominalCapacity` (`IfcVolumeMeasure`, m³); `TotalHeight`, `Diameter`, `Length`, `ColumnHeight`, `ColumnDiameter`, `ConeHeight`, `ShellThickness` (`IfcPositiveLengthMeasure`); `SupportHeight` (`IfcNonNegativeLengthMeasure`); `NumberOfCompartments` (`IfcInteger`); `CatalogReference` (`IfcText`); `BaseElevation`, `MaxWaterLevelElevation` (`IfcLengthMeasure`) |
+| `Pset_TankOccurrence` (padrão) | `TankComposition` = ELEMENT, `HasLadder` |
+| `Pset_TankTypeCommon` (padrão, no tipo) | `Reference`, `AccessType`, `NominalLengthOrDiameter`, `NominalWidthOrDiameter`, `NominalDepth`, `TankNominalCapacity`, `PatternType`, `EndShapeType`, `NumberOfSections` |
+| `Pset_ManufacturerTypeInformation` (padrão, no tipo) | `Manufacturer`, `ModelLabel`, `ModelReference`, `AssemblyPlace` (SITE no montado na obra) |
+| `HydroBIM_Reservatorio_Quantidades` (`IfcElementQuantity`) | `NominalCapacity`, `GeometricVolume` (`IfcQuantityVolume`); `TotalHeight`, `Diameter`, `Length` (`IfcQuantityLength`); `ProjectedArea` (`IfcQuantityArea`) |
+| `HydroBIM_Reservatorio_OrigemDosParametros` | Origem de cada parâmetro: catálogo, derivado do catálogo, estimado (representação) ou definido pelo usuário |
+| Bocais | `IfcDistributionPort` (`PIPE`), posicionado e orientado no referencial do reservatório; `FlowDirection` = `SINK` na entrada e `SOURCE` na saída, no extravasor e na descarga; `Pset_DistributionPortTypePipe` (`NominalDiameter`, `InnerDiameter`, `OuterDiameter`) e `HydroBIM_Bocal` (`Function`, `NominalDiameterLabel`, `HeightAboveBase`, `Azimuth`, `Specification`) |
+
+Observações:
+
+- **Propriedade sem valor = dado não informado.** `ShellThickness`, `ColumnHeight` etc. aparecem em todo reservatório, mas ficam sem `NominalValue` quando o catálogo não traz o dado e o usuário não o informou.
+- No IFC 4.3 a capacidade nominal do conjunto padrão chama-se **`TankNominalCapacity`** (e não `NominalCapacity`).
+- `NominalDiameter` do bocal é a designação DN expressa como comprimento (convenção do IFC); os diâmetros físicos vêm da especificação de tubo do bocal — o DN não é usado para derivá-los.
+- O prefixo `Pset_` é reservado pela buildingSMART aos conjuntos padronizados; `Pset_TRAMEC_Reservatorio` usa-o por requisito do projeto. O `ifcopenshell.validate` não acusa erro; ferramentas de verificação mais estritas podem apontar o nome.
+- `Qto_TankBaseQuantities` (pesos e área total) não é emitido: o catálogo não informa pesos.
+- A referência do catálogo e a origem dos parâmetros dependem das famílias, passadas a `exportIfc` em `tankFamilies` (o pacote `ifc` não depende do catálogo).
+
 ## Portas e conectividade
 
 - Cada porta do HydroBIM vira um `IfcDistributionPort` (`PredefinedType = PIPE`, `SystemType` conforme o sistema), posicionado no referencial local do elemento.
 - Vínculo porta ↔ elemento: no IFC 4.3 o padrão a adotar é `IfcRelNests`; `IfcRelConnectsPortToElement` ainda existe no esquema, mas é tratado como legado pela documentação do IFC 4.3 — **confirmar na Fase 3** antes de escolher.
 - Cada `Connection` vira um `IfcRelConnectsPorts` entre as duas portas.
-- `FlowDirection`: `NOTDEFINED` enquanto o HydroBIM não modelar sentido de escoamento.
+- `FlowDirection`: `NOTDEFINED` enquanto o HydroBIM não modelar sentido de escoamento — exceto nos bocais de reservatório, cuja função é conhecida.
 
 ## Estrutura do arquivo a exportar
 
@@ -105,6 +133,7 @@ Os testes do backend abrem os arquivos IFC de `examples/` (gerados por `npm run 
 
 - As anotações da planta baixa (cotas, textos, chamadas e etiquetas) não são exportadas; o mapeamento para `IfcAnnotation` não foi verificado no esquema e fica para uma fase posterior.
 - Conexões, válvulas e equipamentos são exportados como malhas trianguladas (`IfcTriangulatedFaceSet`); apenas os tubos são sólidos paramétricos.
-- Não há `IfcTypeObject` nem conjuntos de propriedades padrão (`Pset_*`); as propriedades estão em `HydroBIM_Especificacao` e `HydroBIM_Propriedades`.
-- `FlowDirection` das portas é `NOTDEFINED`.
+- `IfcTypeObject` e conjuntos de propriedades padrão (`Pset_*`) só existem para os reservatórios de catálogo; nos demais elementos as propriedades estão em `HydroBIM_Especificacao` e `HydroBIM_Propriedades`. No reservatório, `HydroBIM_Especificacao` descreve a tubulação dos bocais de entrada e saída.
+- `FlowDirection` das portas é `NOTDEFINED`, exceto nos bocais de reservatório.
+- Não há importação IFC: a "reimportação" dos reservatórios é verificada pelos testes do backend, que reabrem o arquivo com IfcOpenShell e conferem classe, tipo, material, propriedades, portas e a malha tesselada contra o projeto.
 - O arquivo foi validado com `ifcopenshell.validate` e tesselado com `ifcopenshell.geom`; ainda não foi testado em visualizadores e ferramentas de autoria de terceiros.

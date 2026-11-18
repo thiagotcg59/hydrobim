@@ -18,7 +18,7 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 4
+  schemaVersion: 6
   id, name
   discipline: 'mep' | 'infra'
   units: { length: 'm', angle: 'rad' }
@@ -71,15 +71,37 @@ Parâmetros específicos:
 
 | Tipo | Parâmetros | Portas |
 | --- | --- | --- |
-| Tubo (`pipe`) | `start`, `end` (o comprimento é calculado) | `start`, `end` |
+| Tubo (`pipe`) | `start`, `end` (o comprimento é calculado); `ends` opcional (tubo com flanges) | `start`, `end` |
 | Joelho (`elbow`) | `placement`, `angle` (deflexão), `bendRadius` | `a`, `b` |
 | Tê (`tee`) | `placement`, `runLength`, `branchLength`, `branchSpec` (tê de redução) | `a`, `b` (passagem), `branch` |
 | Redução (`reducer`) | `placement`, `outletSpec`, `length` | `a` (`spec`), `b` (`outletSpec`) |
 | Válvula (`valve`) | `placement`, `valveType`, `length`, `height`, `handwheelDiameter`, `width` | `a`, `b` (ventosa: só `a`; redutora de pressão: `a` = montante) |
 | Bomba (`pump`) | `placement`, `dischargeSpec`, `length`, `dischargeOffset`, `dischargeHeight`, ponto nominal | `a` (sucção), `b` (recalque) |
-| Reservatório (`tank`) | `placement`, `diameter`, `height`, alturas dos bocais | `a` (saída), `b` (entrada) |
+| Reservatório (`tank`) | `placement`, `diameter`, `height`, alturas dos bocais; forma construtiva e bocais adicionais (abaixo) | `a` (saída), `b` (entrada) e uma porta por bocal adicional |
 
 `placement = { position, rotation }` define o referencial local da conexão (quaternion unitário).
+
+### Reservatórios
+
+Sem `tankType`, o reservatório é o cilindro vertical genérico. Com `tankType` (`gobletWet`, `gobletDry`, `tubular`, `australian`, `verticalGround`, `verticalConeLegs`, `fieldErected`, `horizontal`), a geometria segue a forma construtiva; `familyId` aponta a família de catálogo e `variantId`, o modelo comercial (ausente = dimensões personalizadas). Todos os campos novos são opcionais.
+
+| Campo | Significado |
+| --- | --- |
+| `diameter` | Diâmetro do corpo (da taça, nas taças) |
+| `height` | Altura de catálogo: total acima da base — no australiano, altura do costado; no horizontal, apoio + diâmetro (recalculada) |
+| `nominalCapacity` | Capacidade nominal (m³) |
+| `columnHeight`, `columnDiameter` | Taças: coluna, da base ao início da transição cônica |
+| `coneHeight` | Transição cônica (taças) ou fundo cônico |
+| `supportHeight`, `supportType` | Pés ou longarina (`legs`/`skid`) |
+| `length` | Horizontal: comprimento de tampo a tampo |
+| `shellThickness` | Espessura das chapas, só quando o usuário informa |
+| `compartments`, `maxWaterLevel` | Células internas; nível máximo acima da base |
+| `accessories` | Escada (e posição), gaiola, guarda-corpo (e altura), boca de visita |
+| `nozzles[]` | Bocais adicionais: `id` (= identificador da porta), `role` (`inlet`, `outlet`, `overflow`, `drain`), `height`, `azimuth`, `spec` |
+
+- Referencial: base em z = 0 (a **cota da base** é `placement.position.z`), eixo vertical em Z; a saída `a` fica em +X e a entrada `b` em −X; no horizontal, o eixo do cilindro é X e essas portas ficam nos tampos. Um bocal adicional sai na direção `azimuth`, na cota `height`, a partir da superfície do corpo naquela cota.
+- Derivados (`tanks.ts`): `tankLayout` (topo, base do costado, fundo do volume de água), `tankGeometricVolume`, `tankHydraulics` (cilindro equivalente para o EPANET), `tankNozzlePorts`, `tankProblem` (coerência dos parâmetros; vira `INVALID_TANK` em `validateProject`) e `tankParameterOrigins` (catálogo, derivado, estimado ou usuário).
+- Operações: `placeEquipment` com `parameters` de `tankParametersFromFamily`; `setTankModel` (troca de família/modelo preservando `id`, bocais e conexões); `updateFitting` (dimensões — alterar uma dimensão de catálogo mantém a família e desfaz o vínculo com o modelo comercial); `updateTankSettings` (apoio, células, espessura, nível máximo, acessórios); `addTankNozzle`, `updateTankNozzle`, `removeTankNozzle` (bocal conectado não é removido nem redimensionado).
 
 ### Referenciais locais
 
@@ -93,6 +115,10 @@ Todas as conexões seguem a mesma convenção: a porta `a` fica em −X e o eixo
 ### Extremidades (`ends`)
 
 Cada conexão guarda, por porta, o acabamento da extremidade: `{ type: 'plain' | 'socket' | 'flange', length, outerDiameter }`. Em bolsas, `length` é a profundidade além da porta (sobre o tubo); em flanges, a espessura da face para dentro. A porta fica no fundo da bolsa ou na face do flange.
+
+Em flanges, a extremidade pode trazer a furação (`boltCircle`, `boltCount`, `boltHoleDiameter`) e o ressalto da face (`raisedFaceDiameter`, `raisedFaceHeight`), quando tabulados; a altura do ressalto está incluída em `length`.
+
+**Tubos com flanges.** O tubo também pode ter `ends`, com as chaves `start` e `end` (só `flange`; ausente = ponta lisa). A porta continua em `start`/`end` — agora a face do flange —, de modo que o comprimento é medido entre as portas. `familyId` identifica a família de tubos flangeados (catálogo embutido) que forneceu o flange; sem flanges, `ends` não existe e `familyId` é `null`.
 
 ## Famílias
 
@@ -133,7 +159,10 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 | `addPipe` | Cria um tubo e conecta extremidades exatamente acopladas |
 | `drawPipe` | Desenha a partir de uma porta: continuação reta, joelho automático (apara o tubo) ou recusa fora do eixo de conexões |
 | `attachFitting` | Acopla joelho, tê, redução ou válvula a uma porta livre |
-| `insertInline` | Divide um tubo e insere tê ou válvula; o tubo original mantém o id |
+| `insertInline` | Divide um tubo e insere tê ou válvula; o tubo original mantém o id; em tubo com flanges, cada trecho conserva o flange da sua extremidade |
+| `setPipeEnds` | Define as extremidades do tubo (flange/ponta lisa em `start` e `end`) com o flange resolvido pelo catálogo; recusa flange menor que o tubo ou que não caiba no comprimento |
+| `drawPipeFromPipe` | Parte de um ponto sobre um tubo existente: insere o tê em linha nesse ponto, com a derivação voltada para o ponto final (só vale a componente perpendicular ao tubo); com `targetPipeId`, termina em outro tubo com um segundo tê |
+| `drawPipeToPipe` | Termina o trecho sobre um tubo existente: insere o tê em linha no pé da perpendicular do ponto de partida, gira a derivação para ele e acopla o novo tubo (derivação no diâmetro do trecho); recusa quando não há perpendicular, espaço ou compatibilidade |
 | `resizeWithReducers` | Altera o diâmetro só do elemento, inserindo/ajustando/removendo reduções |
 | `applySpec` | Altera material/diâmetro, opcionalmente propagando pelo trecho até as reduções |
 | `placeEquipment`, `copyElements` | Posiciona bomba/reservatório; copia conjuntos preservando conexões internas |
@@ -141,6 +170,7 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 | `addLevel`, `addSystem`, `setGeoreference`, `setTerrain` | Dados de projeto |
 | `updateFitting`, `rollFitting`, `translateElements` | Edição de conexões com reconciliação |
 | `setPipeEndpoint`, `setPipeLength` | Edição de extremidades livres |
+| `setElementElevation` | Define a cota Z do elemento (`elementElevation`: eixo no início do tubo; origem da conexão; base do reservatório). Em tubo ou conexão, todos os elementos conectados sobem/descem juntos, rigidamente; em bomba ou reservatório, só o equipamento se move e os tubos vizinhos se ajustam quando o acoplamento permite |
 | `deleteElements`, `disconnect`, `renameElement`, `setElementProperty` | Edição geral |
 
 ## Catálogo (`packages/catalog`)
@@ -151,7 +181,7 @@ As dimensões padrão das conexões (`dimensions.ts`) são proporções genéric
 
 ## Evolução do esquema
 
-Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. Documentos v1 e v2 são migrados ao abrir.
+Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). Documentos de versões anteriores são migrados ao abrir.
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
 

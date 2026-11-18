@@ -1,3 +1,4 @@
+import { SCHEMA_VERSION } from './schema';
 import { describe, expect, it } from 'vitest';
 import {
   addAnnotation,
@@ -185,7 +186,7 @@ describe('anotações do projeto', () => {
     const migrated = parseProject(JSON.stringify({ ...v3, schemaVersion: 3 }));
     expect(migrated.ok).toBe(true);
     if (migrated.ok) {
-      expect(migrated.value.schemaVersion).toBe(4);
+      expect(migrated.value.schemaVersion).toBe(SCHEMA_VERSION);
       expect(migrated.value.annotations).toEqual([]);
       expect(migrated.value.drawingScale).toBe(50);
     }

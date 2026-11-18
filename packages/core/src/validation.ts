@@ -3,6 +3,7 @@ import { MIN_PIPE_LENGTH, POSITION_TOLERANCE } from './dimensions';
 import { distance } from './math';
 import { pipeLength } from './ports';
 import type { PipeSpec, Project } from './schema';
+import { tankProblem } from './tanks';
 
 export type Severity = 'error' | 'warning';
 
@@ -62,7 +63,35 @@ export function validateProject(project: Project): ValidationIssue[] {
         elementIds: [element.id],
       });
     }
-    const specs = element.kind === 'reducer' ? [element.spec, element.outletSpec] : [element.spec];
+    if (element.kind === 'pipe' && element.ends) {
+      const flanges = Object.values(element.ends);
+      const thickness = flanges.reduce((sum, end) => sum + end.length, 0);
+      if (
+        flanges.some(
+          (end) => end.type !== 'flange' || end.outerDiameter <= element.spec.outerDiameter,
+        )
+      ) {
+        issues.push({
+          severity: 'error',
+          code: 'INVALID_PIPE_END',
+          message: `"${element.name}" tem extremidade incompatível com o tubo (em tubos, só flange maior que o diâmetro externo).`,
+          elementIds: [element.id],
+        });
+      } else if (pipeLength(element) < thickness + MIN_PIPE_LENGTH) {
+        issues.push({
+          severity: 'error',
+          code: 'PIPE_TOO_SHORT',
+          message: `"${element.name}" é curto demais para os flanges das extremidades.`,
+          elementIds: [element.id],
+        });
+      }
+    }
+    const specs =
+      element.kind === 'reducer'
+        ? [element.spec, element.outletSpec]
+        : element.kind === 'tank'
+          ? [element.spec, ...(element.nozzles ?? []).map((nozzle) => nozzle.spec)]
+          : [element.spec];
     for (const spec of specs) {
       const problem = specIssues(spec);
       if (problem) {
@@ -70,6 +99,17 @@ export function validateProject(project: Project): ValidationIssue[] {
           severity: 'error',
           code: 'INVALID_SPEC',
           message: `"${element.name}": ${problem}.`,
+          elementIds: [element.id],
+        });
+      }
+    }
+    if (element.kind === 'tank') {
+      const problem = tankProblem(element);
+      if (problem) {
+        issues.push({
+          severity: 'error',
+          code: 'INVALID_TANK',
+          message: `"${element.name}": ${problem}`,
           elementIds: [element.id],
         });
       }

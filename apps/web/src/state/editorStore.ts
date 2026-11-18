@@ -2,16 +2,25 @@ import {
   BUILTIN_FAMILIES,
   defaultPipeSpec,
   getSpecification,
+  flangedPipeFamiliesFor,
+  getTankFamily,
+  pipeFlangeEnd,
   resolveNearestPipeSpec,
+  resolvePipeEnds,
   resolvePipeSpec,
+  type PipeEndConfiguration,
 } from '@hydrobim/catalog';
 import {
+  add,
   addAnnotation,
   addLevel,
   addSystem,
+  addTankNozzle,
   applyFamilyToInstances,
   applySpec,
   attachFitting,
+  availableElbowAngles,
+  catalogViolation,
   copyElements,
   createFamilyCatalog,
   createProject,
@@ -21,15 +30,29 @@ import {
   disconnect,
   distance,
   drawPipe,
+  drawPipeFromPipe,
+  drawPipeToPipe,
   elementKindLabel,
+  formatAngleList,
+  formatDegrees,
   formatMeters,
   getElement,
   getFreePorts,
   insertInline,
   isPortFree,
+  matchElbowAngle,
   mergeFamilies,
+  MIN_PIPE_LENGTH,
+  pipeBranchPoint,
   placeEquipment,
+  removeTankNozzle,
+  setTankModel,
+  tankLayout,
+  tankParametersFromFamily,
+  updateTankNozzle,
+  updateTankSettings,
   POSITION_TOLERANCE,
+  projectOntoPipeNormal,
   removeFamily,
   removeLevel,
   removeSystem,
@@ -37,13 +60,18 @@ import {
   resizeWithReducers,
   resolvePort,
   rollFitting,
+  scale,
+  setElementElevation,
   setElementProperty,
   setDrawingScale,
+  setElbowCatalogAngle,
   setElementsSystem,
   setGeoreference,
   setPipeEndpoint,
+  setPipeEnds,
   setPipeLength,
   setTerrain,
+  sub,
   translateElements,
   updateAnnotation,
   updateFitting,
@@ -51,6 +79,7 @@ import {
   updateProjectInfo,
   updateSystem,
   upsertFamily,
+  vec3,
   type AnnotationInput,
   type AnnotationPatch,
   type DimensionMode,
@@ -71,6 +100,11 @@ import {
   type PropertyValue,
   type Result,
   type SystemKind,
+  type TankCustomDimensions,
+  type TankNozzleInput,
+  type TankNozzleRole,
+  type TankSelection,
+  type TankSettingsPatch,
   type Terrain,
   type ValveType,
   type Vec3,
@@ -90,6 +124,12 @@ export const isAnnotationTool = (tool: ToolId): tool is AnnotationToolId =>
 export type ViewMode = '3d' | 'plan';
 
 /** Pontos já informados da anotação em criação na planta. */
+/**
+ * Tema da planta: `color` usa as cores do modelo 3D (material, papel de cada parte e cor do
+ * sistema); `mono` desenha em preto sobre branco, para impressão monocromática.
+ */
+export type PlanTheme = 'color' | 'mono';
+
 export interface PlanDraft {
   readonly points: readonly Point2[];
   /** Elemento escolhido para a etiqueta. */
@@ -113,6 +153,11 @@ export interface DrawAnchor {
   readonly port: PortRef | null;
   /** Eixo obrigatório do próximo ponto (saída de conexões). */
   readonly lockAxis: Vec3 | null;
+  /**
+   * Tubo existente sobre o qual o trecho começa: `point` fica no eixo dele e o tê é inserido
+   * ali quando o ponto seguinte define o lado da derivação.
+   */
+  readonly pipeId: string | null;
 }
 
 export interface CursorInfo {
@@ -121,7 +166,51 @@ export interface CursorInfo {
   readonly port: PortRef | null;
 }
 
+/** Reservatório a inserir: família de catálogo e modelo comercial ou dimensões próprias. */
+export interface TankToolOptions {
+  /** `null` = reservatório cilíndrico genérico (sem catálogo). */
+  readonly familyId: string | null;
+  /** `null` = dimensões personalizadas. */
+  readonly variantId: string | null;
+  readonly custom: TankCustomDimensions;
+}
+
+/** Entrada da operação de inserção para as opções da ferramenta Reservatório. */
+export function tankFittingInput(options: TankToolOptions): Result<FittingInput> {
+  const family = getTankFamily(options.familyId);
+  if (!family) return { ok: true, value: { kind: 'tank' } };
+  const parameters = tankParametersFromFamily(
+    family,
+    options.variantId ? { variantId: options.variantId } : { custom: options.custom },
+  );
+  return parameters.ok
+    ? { ok: true, value: { kind: 'tank', parameters: parameters.value } }
+    : parameters;
+}
+
+/** Extremidades dos tubos novos: configuração e família de tubos flangeados (classe PN). */
+export interface PipeEndsToolOptions {
+  readonly configuration: PipeEndConfiguration;
+  /** `null` = primeira família oferecida para a especificação ativa. */
+  readonly familyId: string | null;
+}
+
+/**
+ * Acabamento das extremidades de um tubo novo com a especificação `spec`, conforme as
+ * opções da ferramenta. `undefined` = pontas lisas (configuração padrão, ou especificação
+ * sem família de tubos com flanges, ou diâmetro sem flange tabulado).
+ */
+export function pipeEndsInputOf(options: PipeEndsToolOptions, spec: PipeSpec) {
+  if (options.configuration === 'plainPlain') return undefined;
+  const families = flangedPipeFamiliesFor(spec.specificationId);
+  const family = families.find((f) => f.id === options.familyId) ?? families[0];
+  const ends = family ? resolvePipeEnds(spec, family.id, options.configuration) : null;
+  return family && ends ? { ...ends, familyId: family.id } : undefined;
+}
+
 export interface ToolOptions {
+  readonly tank: TankToolOptions;
+  readonly pipeEnds: PipeEndsToolOptions;
   readonly elbowAngleDeg: number;
   readonly valveType: ValveType;
   /** DN de saída da redução; `null` = diâmetro imediatamente menor da especificação. */
@@ -135,6 +224,13 @@ export interface ToolOptions {
   readonly sizeMode: SizeMode;
   /** Família preferida por tipo de conexão (`null`/ausente = primeira compatível). */
   readonly families: Partial<Record<FamilyKind, string | null>>;
+  /**
+   * Somente peças de catálogo: as mudanças de direção travam nos ângulos dos joelhos da
+   * especificação e qualquer operação que criaria joelho, tê, redução ou válvula de
+   * dimensões genéricas (sem família) é recusada. Desligado: peças genéricas são aceitas e
+   * identificadas como tal.
+   */
+  readonly lockElbowAngles: boolean;
 }
 
 /** Clique no viewport já resolvido para o domínio. */
@@ -164,10 +260,23 @@ interface EditorState {
   planDraft: PlanDraft;
   /** Tipo das novas cotas. */
   dimensionMode: DimensionMode;
+  /**
+   * Planta em linhas finas: todo traço com 1 px na tela, em qualquer zoom. É o padrão, porque
+   * na espessura de papel o traço encobre as peças pequenas (0,25 mm em 1:50 são 12,5 mm).
+   * É um modo de visualização — a exportação mantém as espessuras de papel.
+   */
+  planThinLines: boolean;
+  /** Tema da planta; vale também para a exportação em SVG. */
+  planTheme: PlanTheme;
   tool: ToolId;
   activeSpec: PipeSpec;
   toolOptions: ToolOptions;
   workPlaneZ: number;
+  /**
+   * Elevação do eixo das tubulações (m) acima do plano de trabalho (nível). Acompanha a cota
+   * do ponto de partida do trecho; alterá-la durante o traçado cria a prumada.
+   */
+  pipeElevation: number;
   gridStep: number;
   snapToGrid: boolean;
   orthographic: boolean;
@@ -188,6 +297,8 @@ interface EditorState {
   selectAnnotation: (id: string | null) => void;
   setPlanDraft: (draft: PlanDraft) => void;
   setDimensionMode: (mode: DimensionMode) => void;
+  setPlanThinLines: (enabled: boolean) => void;
+  setPlanTheme: (theme: PlanTheme) => void;
   createAnnotation: (input: AnnotationInput) => string | null;
   changeAnnotation: (id: string, patch: AnnotationPatch) => boolean;
   changeDrawingScale: (scale: number) => void;
@@ -197,6 +308,8 @@ interface EditorState {
   setToolOptions: (patch: Partial<ToolOptions>) => void;
   setPreferredFamily: (kind: FamilyKind, familyId: string | null) => void;
   setWorkPlaneZ: (z: number) => void;
+  /** Define a elevação do eixo; com um trecho em andamento, cria a prumada até a nova cota. */
+  setPipeElevation: (elevation: number) => void;
   setGridStep: (step: number) => void;
   setSnapToGrid: (enabled: boolean) => void;
   setOrthographic: (enabled: boolean) => void;
@@ -207,6 +320,8 @@ interface EditorState {
   handleViewportClick: (click: ViewportClick) => void;
   /** Informa um ponto por coordenadas (tubo, medição, bomba e reservatório). */
   commitPoint: (point: Vec3, port?: PortRef | null) => void;
+  /** Termina o trecho em andamento sobre um tubo existente, com tê automático. */
+  finishPipeOnPipe: (pipeId: string) => void;
   insertFittingAtPort: (kind: FittingKind, target: PortRef) => void;
   insertFittingInline: (kind: 'tee' | 'valve', pipeId: string, distanceFromStart: number) => void;
 
@@ -214,7 +329,22 @@ interface EditorState {
   rename: (elementId: string, name: string) => void;
   movePipeEnd: (pipeId: string, which: 'start' | 'end', point: Vec3) => void;
   changePipeLength: (pipeId: string, length: number) => void;
+  /** Define as extremidades do tubo (flange/ponta) pela família de tubos flangeados. */
+  changePipeEnds: (
+    pipeId: string,
+    configuration: PipeEndConfiguration,
+    familyId: string | null,
+  ) => void;
+  /** Define a cota Z do elemento; tubos e conexões levam junto os elementos conectados. */
+  changeElevation: (elementId: string, elevation: number) => void;
   changeFitting: (elementId: string, patch: FittingPatch) => void;
+  /** Aplica outra família/modelo comercial (ou dimensões personalizadas) ao reservatório. */
+  changeTankModel: (elementId: string, familyId: string, selection: TankSelection) => void;
+  changeTankSettings: (elementId: string, patch: TankSettingsPatch) => void;
+  /** Acrescenta um bocal com a especificação ativa, em posição inicial editável. */
+  addTankNozzle: (elementId: string, role: TankNozzleRole) => void;
+  changeTankNozzle: (elementId: string, nozzleId: string, patch: Partial<TankNozzleInput>) => void;
+  removeTankNozzle: (elementId: string, nozzleId: string) => void;
   roll: (elementId: string, axisPortId: string, angleDeg: number) => void;
   setProperty: (elementId: string, key: string, value: PropertyValue | undefined) => void;
   disconnectPort: (ref: PortRef) => void;
@@ -254,6 +384,7 @@ function anchorFromPort(project: Project, port: Port): DrawAnchor {
     point: port.position,
     port: port.ref,
     lockAxis: host && host.kind !== 'pipe' ? port.direction : null,
+    pipeId: null,
   };
 }
 
@@ -262,12 +393,137 @@ export function familiesOf(project: Project): FittingFamily[] {
   return mergeFamilies(BUILTIN_FAMILIES, project.families);
 }
 
+/** Deflexões (rad) com joelho de catálogo para a especificação; vazio = ângulo livre. */
+export function elbowAnglesOf(project: Project, spec: PipeSpec): number[] {
+  return availableElbowAngles(familiesOf(project), spec);
+}
+
+/** Cota Z (m) dos pontos livres da ferramenta: o eixo dos tubos fica acima do nível. */
+export function drawElevationOf(state: {
+  tool: ToolId;
+  workPlaneZ: number;
+  pipeElevation: number;
+}): number {
+  return state.tool === 'pipe' ? state.workPlaneZ + state.pipeElevation : state.workPlaneZ;
+}
+
+/**
+ * Trava de ângulo do trecho em criação: saindo da extremidade de um tubo, a mudança de
+ * direção recebe um joelho automático, que precisa existir no catálogo. `null` = sem trava.
+ */
+export function deflectionConstraintOf(state: {
+  project: Project;
+  tool: ToolId;
+  anchor: DrawAnchor | null;
+  toolOptions: ToolOptions;
+}): { origin: Vec3; axis: Vec3; angles: number[] } | null {
+  const { anchor } = state;
+  if (state.tool !== 'pipe' || !anchor?.port || anchor.lockAxis) return null;
+  if (!state.toolOptions.lockElbowAngles) return null;
+  const port = resolvePort(state.project, anchor.port);
+  if (!port) return null;
+  // Sem joelho de catálogo a lista é vazia: só o prolongamento reto é possível.
+  return {
+    origin: port.position,
+    axis: port.direction,
+    angles: elbowAnglesOf(state.project, port.spec),
+  };
+}
+
+/**
+ * Tipo de válvula inicial da ferramenta: mantém o atual se houver família para a
+ * especificação; senão, o primeiro tipo com família (para a ferramenta funcionar de saída
+ * com "somente peças de catálogo").
+ */
+function catalogValveType(project: Project, spec: PipeSpec, current: ValveType): ValveType {
+  const types = familiesOf(project)
+    .filter(
+      (family) =>
+        family.kind === 'valve' &&
+        family.specificationId === spec.specificationId &&
+        family.sizes.some((size) => size.dn === spec.dn && size.length !== undefined),
+    )
+    .map((family) => family.valveType)
+    .filter((type): type is ValveType => type !== undefined && type !== 'airRelease');
+  return types.includes(current) ? current : (types[0] ?? current);
+}
+
+/**
+ * Trecho em criação apontado para um tubo existente: ponto onde o tê automático será inserido
+ * (pé da perpendicular da âncora sobre o eixo do tubo). `null` quando não se aplica.
+ */
+export function pipeJunctionOf(
+  state: { project: Project; tool: ToolId; anchor: DrawAnchor | null },
+  elementId: string | null,
+): Vec3 | null {
+  const { anchor } = state;
+  if (state.tool !== 'pipe' || !anchor || !elementId) return null;
+  // O tubo de onde o trecho parte não pode ser também o destino.
+  if (anchor.port?.elementId === elementId || anchor.pipeId === elementId) return null;
+  const target = getElement(state.project, elementId);
+  if (!target || target.kind !== 'pipe') return null;
+  return pipeBranchPoint(target, anchor.point).point;
+}
+
+type PipeSnapState = {
+  project: Project;
+  tool: ToolId;
+  anchor: DrawAnchor | null;
+  snapToGrid: boolean;
+  gridStep: number;
+};
+/** Elemento sob o cursor e, quando conhecido, o ponto indicado sobre ele. */
+type PipeSnapHit = { readonly elementId: string; readonly point: Vec3 | null };
+
+/**
+ * Início do trecho sobre um tubo existente: ponto do eixo do tubo mais próximo do indicado
+ * (ajustado à grade), onde o tê automático será inserido. `null` quando não se aplica.
+ */
+export function pipeStartOf(state: PipeSnapState, hit: PipeSnapHit | null): Vec3 | null {
+  if (state.tool !== 'pipe' || state.anchor || !hit?.point) return null;
+  const pipe = getElement(state.project, hit.elementId);
+  if (!pipe || pipe.kind !== 'pipe') return null;
+  const length = distance(pipe.start, pipe.end);
+  const along = (p: Vec3): number =>
+    Math.min(length, Math.max(0, distanceAlongPipe(pipe.start, pipe.end, p)));
+  const at = (t: number): Vec3 => add(pipe.start, scale(sub(pipe.end, pipe.start), t / length));
+  const onAxis = at(along(hit.point));
+  const step = state.snapToGrid ? state.gridStep : 0;
+  if (step <= 0) return onAxis;
+  const snap = (v: number): number => Math.round(v / step) * step;
+  return at(along(vec3(snap(onAxis.x), snap(onAxis.y), snap(onAxis.z))));
+}
+
+/**
+ * Ajuste do cursor da ferramenta de tubo junto a tubos existentes, para que a prévia mostre
+ * onde o tê automático ficará: início sobre um tubo, término sobre um tubo ou, partindo de
+ * um tubo, ponto final na perpendicular a ele. `null` = cursor sem ajuste.
+ */
+export function pipeSnapOf(
+  state: PipeSnapState,
+  hit: PipeSnapHit | null,
+  point: Vec3 | null,
+): Vec3 | null {
+  if (state.tool !== 'pipe') return null;
+  const { anchor } = state;
+  if (!anchor) return pipeStartOf(state, hit);
+  const junction = pipeJunctionOf(state, hit?.elementId ?? null);
+  if (junction) return junction;
+  const source = anchor.pipeId ? getElement(state.project, anchor.pipeId) : undefined;
+  return source?.kind === 'pipe' && point
+    ? projectOntoPipeNormal(source, anchor.point, point)
+    : null;
+}
+
+/** Evita ruído de ponto flutuante na elevação apresentada (resolução de 1 µm). */
+const roundElevation = (value: number): number => Math.round(value * 1e6) / 1e6;
+
 /** Catálogo de conexões efetivo (famílias do projeto + preferências do usuário). */
 export function catalogOf(
   project: Project,
   preferred: ToolOptions['families'] = {},
 ): FittingCatalog {
-  return createFamilyCatalog(familiesOf(project), preferred);
+  return createFamilyCatalog(familiesOf(project), preferred, { pipeFlange: pipeFlangeEnd });
 }
 
 const initialProject = createProject('Projeto sem título', 'mep');
@@ -295,6 +551,28 @@ export const useEditorStore = create<EditorState>()((set, get) => {
   }
 
   const catalog = (): FittingCatalog => catalogOf(get().project, get().toolOptions.families);
+
+  /**
+   * Com "somente peças de catálogo", informa por que o resultado de uma operação não pode
+   * ser aceito (criaria conexão de dimensões genéricas); `null` = pode ser aplicado.
+   */
+  /**
+   * Tipo de válvula a inserir em uma tubulação: o escolhido na ferramenta ou, com "somente
+   * peças de catálogo" e sem família desse tipo para a especificação do tubo, o primeiro
+   * tipo que o catálogo oferece para ela (a mensagem de sucesso informa o ajuste).
+   */
+  function valveTypeFor(spec: PipeSpec): ValveType {
+    const { project, toolOptions } = get();
+    if (!toolOptions.lockElbowAngles || toolOptions.valveType === 'airRelease') {
+      return toolOptions.valveType;
+    }
+    return catalogValveType(project, spec, toolOptions.valveType);
+  }
+
+  function catalogProblem(after: Project): string | null {
+    const { project, toolOptions } = get();
+    return toolOptions.lockElbowAngles ? catalogViolation(project, after) : null;
+  }
 
   function fittingInput(kind: FittingKind, port: Port): Result<FittingInput> {
     const { toolOptions } = get();
@@ -324,7 +602,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       case 'valve':
         return success({
           kind,
-          valveType: toolOptions.valveType,
+          valveType: valveTypeFor(port.spec),
           familyId: toolOptions.families.valve,
         });
       case 'pump':
@@ -364,17 +642,23 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     annotationSelection: null,
     planDraft: EMPTY_DRAFT,
     dimensionMode: 'aligned',
+    planThinLines: true,
+    planTheme: 'color',
     tool: 'select',
     activeSpec: defaultPipeSpec('mep'),
     toolOptions: {
+      tank: { familyId: null, variantId: null, custom: {} },
+      pipeEnds: { configuration: 'plainPlain', familyId: null },
       elbowAngleDeg: 90,
-      valveType: 'gate',
+      valveType: catalogValveType(initialProject, defaultPipeSpec('mep'), 'gate'),
       reducerDn: null,
       teeBranchDn: null,
       sizeMode: 'reducers',
       families: {},
+      lockElbowAngles: true,
     },
     workPlaneZ: 0,
+    pipeElevation: 0,
     gridStep: 0.1,
     snapToGrid: true,
     orthographic: false,
@@ -401,8 +685,17 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         measure: { a: null, b: null },
         tool: 'select',
         activeSpec: defaultPipeSpec(project.discipline),
+        toolOptions: {
+          ...state.toolOptions,
+          valveType: catalogValveType(
+            project,
+            defaultPipeSpec(project.discipline),
+            state.toolOptions.valveType,
+          ),
+        },
         gridStep: gridStepFor(project.discipline),
         workPlaneZ: 0,
+        pipeElevation: 0,
         viewRequest: { preset: 'fit', nonce: (state.viewRequest?.nonce ?? 0) + 1 },
       })),
 
@@ -435,14 +728,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       });
     },
 
-    // As ferramentas de documentação só existem na planta; as de modelagem, no modelo 3D.
+    // As ferramentas de documentação só existem na planta; as de modelagem funcionam nas
+    // duas vistas e mantêm a que estiver aberta.
     setTool: (tool) =>
       set((state) => {
-        const viewMode: ViewMode = isAnnotationTool(tool)
-          ? 'plan'
-          : tool === 'select'
-            ? state.viewMode
-            : '3d';
+        const viewMode: ViewMode = isAnnotationTool(tool) ? 'plan' : state.viewMode;
         return {
           tool,
           anchor: null,
@@ -470,6 +760,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       set((state) => ({ annotationSelection: id, selection: id ? [] : state.selection })),
     setPlanDraft: (draft) => set({ planDraft: draft }),
     setDimensionMode: (mode) => set({ dimensionMode: mode }),
+    setPlanThinLines: (enabled) => set({ planThinLines: enabled }),
+    setPlanTheme: (theme) => set({ planTheme: theme }),
 
     createAnnotation: (input) => {
       const result = addAnnotation(get().project, input);
@@ -524,6 +816,19 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     setWorkPlaneZ: (z) => {
       if (Number.isFinite(z)) set({ workPlaneZ: z });
     },
+    setPipeElevation: (elevation) => {
+      if (!Number.isFinite(elevation)) return;
+      const state = get();
+      const { anchor } = state;
+      const z = state.workPlaneZ + elevation;
+      if (state.tool !== 'pipe' || !anchor || Math.abs(anchor.point.z - z) < MIN_PIPE_LENGTH) {
+        set({ pipeElevation: roundElevation(elevation) });
+        return;
+      }
+      // Trecho em andamento: a mudança de elevação é a prumada, no ponto atual. Se ela não
+      // puder ser criada, a elevação permanece a do ponto de partida.
+      state.commitPoint(vec3(anchor.point.x, anchor.point.y, z));
+    },
     setGridStep: (step) => {
       if (Number.isFinite(step) && step > 0) set({ gridStep: step });
     },
@@ -558,6 +863,20 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         return;
       }
       if (tool === 'pipe' || tool === 'measure') {
+        // Terminar o trecho sobre um tubo existente insere o tê, em vez de sobrepor os tubos.
+        if (!click.port && click.hit && pipeJunctionOf(state, click.hit.elementId)) {
+          state.finishPipeOnPipe(click.hit.elementId);
+          return;
+        }
+        // Começar sobre um tubo existente: o tê entra ali quando o lado for indicado.
+        const start = click.port ? null : pipeStartOf(state, click.hit);
+        if (start && click.hit) {
+          set({
+            anchor: { point: start, port: null, lockAxis: null, pipeId: click.hit.elementId },
+            pipeElevation: roundElevation(start.z - state.workPlaneZ),
+          });
+          return;
+        }
         if (click.point) state.commitPoint(click.point, click.port);
         return;
       }
@@ -605,8 +924,14 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       }
 
       if (tool === 'pump' || tool === 'tank') {
+        const fitting =
+          tool === 'tank' ? tankFittingInput(state.toolOptions.tank) : success({ kind: tool });
+        if (!fitting.ok) {
+          state.notify('error', fitting.error.message);
+          return;
+        }
         const result = placeEquipment(project, {
-          fitting: { kind: tool },
+          fitting: fitting.value,
           spec: state.activeSpec,
           position: point,
         });
@@ -625,30 +950,57 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const freePort = port && isPortFree(project, port.ref) ? port : null;
 
       if (!state.anchor) {
-        set({
-          anchor: freePort
-            ? anchorFromPort(project, freePort)
-            : { point, port: null, lockAxis: null },
-        });
+        const anchor: DrawAnchor = freePort
+          ? anchorFromPort(project, freePort)
+          : { point, port: null, lockAxis: null, pipeId: null };
+        // O trecho segue na cota do ponto de partida (elevação herdada).
+        set({ anchor, pipeElevation: roundElevation(anchor.point.z - state.workPlaneZ) });
         return;
       }
 
-      const result = drawPipe(project, {
-        fromPort: state.anchor.port ?? undefined,
-        start: state.anchor.point,
-        end: point,
-        spec: state.activeSpec,
-        catalog: catalog(),
-      });
+      const origin = state.anchor.port ? resolvePort(project, state.anchor.port) : undefined;
+      const source = state.anchor.pipeId ? getElement(project, state.anchor.pipeId) : undefined;
+      const result =
+        source?.kind === 'pipe'
+          ? drawPipeFromPipe(project, {
+              sourcePipeId: source.id,
+              distanceFromStart: distanceAlongPipe(source.start, source.end, state.anchor.point),
+              end: point,
+              spec: state.activeSpec,
+              catalog: catalog(),
+              teeFamilyId: state.toolOptions.families.tee,
+            })
+          : drawPipe(project, {
+              fromPort: state.anchor.port ?? undefined,
+              start: state.anchor.point,
+              end: point,
+              spec: state.activeSpec,
+              // A partir de uma porta, o tubo herda a especificação dela.
+              ends: pipeEndsInputOf(state.toolOptions.pipeEnds, origin?.spec ?? state.activeSpec),
+              catalog: catalog(),
+              elbowAngles:
+                origin && state.toolOptions.lockElbowAngles
+                  ? elbowAnglesOf(project, origin.spec)
+                  : undefined,
+            });
       if (!result.ok) {
         state.notify('error', result.error.message);
+        return;
+      }
+      const problem = catalogProblem(result.value.project);
+      if (problem) {
+        state.notify('error', problem);
         return;
       }
       const created = result.value;
       const withElbow = created.createdIds.length > 1;
       commit(
         success(created.project),
-        withElbow ? 'Tubo criado com joelho automático.' : 'Tubo criado.',
+        source
+          ? `Tubo derivado de "${source.name}" com tê automático; o tubo foi dividido em dois trechos.`
+          : withElbow
+            ? 'Tubo criado com joelho automático.'
+            : 'Tubo criado.',
       );
       // Continua a polilinha a partir da extremidade final, se ela permanecer livre.
       const next = resolvePort(created.project, { elementId: created.elementId, portId: 'end' });
@@ -658,7 +1010,58 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           next && isPortFree(created.project, next.ref)
             ? anchorFromPort(created.project, next)
             : null,
+        // Partindo de um tubo, o ponto final é o projetado na perpendicular, não o indicado.
+        pipeElevation: roundElevation((next?.position.z ?? point.z) - state.workPlaneZ),
       });
+    },
+
+    finishPipeOnPipe: (pipeId) => {
+      const state = get();
+      const { project, anchor } = state;
+      const target = getElement(project, pipeId);
+      if (!anchor || !target) return;
+      const origin = anchor.port ? resolvePort(project, anchor.port) : undefined;
+      const source = anchor.pipeId ? getElement(project, anchor.pipeId) : undefined;
+      const result =
+        source?.kind === 'pipe' && target.kind === 'pipe'
+          ? drawPipeFromPipe(project, {
+              sourcePipeId: source.id,
+              distanceFromStart: distanceAlongPipe(source.start, source.end, anchor.point),
+              end: pipeBranchPoint(target, anchor.point).point,
+              targetPipeId: pipeId,
+              spec: state.activeSpec,
+              catalog: catalog(),
+              teeFamilyId: state.toolOptions.families.tee,
+            })
+          : drawPipeToPipe(project, {
+              fromPort: anchor.port ?? undefined,
+              start: anchor.point,
+              targetPipeId: pipeId,
+              spec: state.activeSpec,
+              catalog: catalog(),
+              teeFamilyId: state.toolOptions.families.tee,
+              elbowAngles:
+                origin && state.toolOptions.lockElbowAngles
+                  ? elbowAnglesOf(project, origin.spec)
+                  : undefined,
+            });
+      if (!result.ok) {
+        state.notify('error', result.error.message);
+        return;
+      }
+      const problem = catalogProblem(result.value.project);
+      if (problem) {
+        state.notify('error', problem);
+        return;
+      }
+      commit(
+        success(result.value.project),
+        source
+          ? `Tubo ligado de "${source.name}" a "${target.name}" com tês automáticos; os dois tubos foram divididos.`
+          : `Tubo ligado a "${target.name}" com tê automático; o tubo foi dividido em dois trechos.`,
+      );
+      // O trecho termina acoplado à derivação: a polilinha se encerra.
+      set({ selection: [result.value.elementId], anchor: null });
     },
 
     insertFittingAtPort: (kind, target) => {
@@ -673,9 +1076,26 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         get().notify('error', input.error.message);
         return;
       }
+      const { toolOptions } = get();
+      if (kind === 'elbow' && toolOptions.lockElbowAngles) {
+        const angles = elbowAnglesOf(project, port.spec);
+        const angle = degToRad(toolOptions.elbowAngleDeg);
+        if (angles.length > 0 && matchElbowAngle(angles, angle) === null) {
+          get().notify(
+            'error',
+            `Não há joelho de ${formatDegrees(angle, 2)} no catálogo para ${port.spec.sizeLabel}. Ângulos disponíveis: ${formatAngleList(angles)}.`,
+          );
+          return;
+        }
+      }
       const result = attachFitting(project, { target, fitting: input.value, catalog: catalog() });
       if (!result.ok) {
         get().notify('error', result.error.message);
+        return;
+      }
+      const problem = catalogProblem(result.value.project);
+      if (problem) {
+        get().notify('error', problem);
         return;
       }
       commit(success(result.value.project), `${elementKindLabel(kind)} inserido(a).`);
@@ -695,7 +1115,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         distanceFromStart,
         fitting:
           kind === 'valve'
-            ? { kind, valveType: toolOptions.valveType, familyId: toolOptions.families.valve }
+            ? {
+                kind,
+                valveType: pipe ? valveTypeFor(pipe.spec) : toolOptions.valveType,
+                familyId: toolOptions.families.valve,
+              }
             : { kind, familyId: toolOptions.families.tee, ...(branchSpec ? { branchSpec } : {}) },
         catalog: catalog(),
       });
@@ -703,9 +1127,18 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         get().notify('error', result.error.message);
         return;
       }
+      const problem = catalogProblem(result.value.project);
+      if (problem) {
+        get().notify('error', problem);
+        return;
+      }
+      const adjusted =
+        kind === 'valve' && pipe && valveTypeFor(pipe.spec) !== toolOptions.valveType
+          ? ` O tipo escolhido não existe no catálogo de ${pipe.spec.standard}: foi usado o tipo disponível.`
+          : '';
       commit(
         success(result.value.project),
-        `${elementKindLabel(kind)} inserido(a) em linha; o tubo foi dividido em dois trechos.`,
+        `${elementKindLabel(kind)} inserido(a) em linha; o tubo foi dividido em dois trechos.${adjusted}`,
       );
       set({ selection: [result.value.elementId] });
     },
@@ -735,6 +1168,11 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           get().notify('error', result.error.message);
           return;
         }
+        const problem = catalogProblem(result.value.project);
+        if (problem) {
+          get().notify('error', problem);
+          return;
+        }
         const { createdIds, removedIds } = result.value;
         const details = [
           createdIds.length > 0 ? `${createdIds.length} redução(ões) inserida(s)` : '',
@@ -746,10 +1184,18 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         );
         return;
       }
-      commit(
-        applySpec(project, elementId, spec, { propagate: true, portId, catalog: catalog() }),
-        `Especificação alterada para ${spec.sizeLabel} em todo o trecho conectado.`,
-      );
+      const applied = applySpec(project, elementId, spec, {
+        propagate: true,
+        portId,
+        catalog: catalog(),
+      });
+      // Trocar para uma especificação sem as mesmas peças tornaria as conexões genéricas.
+      const problem = applied.ok ? catalogProblem(applied.value) : null;
+      if (problem) {
+        get().notify('error', problem);
+        return;
+      }
+      commit(applied, `Especificação alterada para ${spec.sizeLabel} em todo o trecho conectado.`);
     },
 
     rename: (elementId, name) => {
@@ -761,8 +1207,110 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     changePipeLength: (pipeId, length) => {
       commit(setPipeLength(get().project, pipeId, length));
     },
+    changePipeEnds: (pipeId, configuration, familyId) => {
+      const { project } = get();
+      const pipe = getElement(project, pipeId);
+      if (!pipe || pipe.kind !== 'pipe') return;
+      const input = pipeEndsInputOf({ configuration, familyId }, pipe.spec);
+      if (configuration !== 'plainPlain' && !input) {
+        get().notify(
+          'error',
+          `Não há flange tabulado para ${pipe.spec.sizeLabel} nas famílias de tubos com flanges desta especificação.`,
+        );
+        return;
+      }
+      commit(
+        setPipeEnds(project, pipeId, input ?? { start: null, end: null, familyId: null }),
+        'Extremidades do tubo alteradas.',
+      );
+    },
+    changeElevation: (elementId, elevation) => {
+      commit(setElementElevation(get().project, elementId, elevation), 'Elevação alterada.');
+    },
+    changeTankModel: (elementId, familyId, selection) => {
+      const family = getTankFamily(familyId);
+      if (!family) {
+        get().notify('error', 'Família de reservatório inexistente no catálogo.');
+        return;
+      }
+      const parameters = tankParametersFromFamily(family, selection);
+      if (!parameters.ok) {
+        get().notify('error', parameters.error.message);
+        return;
+      }
+      commit(
+        setTankModel(get().project, elementId, parameters.value),
+        `Reservatório alterado para "${parameters.value.manufacturing.model ?? family.name}".`,
+      );
+    },
+    changeTankSettings: (elementId, patch) => {
+      commit(updateTankSettings(get().project, elementId, patch));
+    },
+    addTankNozzle: (elementId, role) => {
+      const { project, activeSpec } = get();
+      const tank = getElement(project, elementId);
+      if (tank?.kind !== 'tank') return;
+      // Posição inicial: extravasor e entrada junto ao topo; descarga e saída junto ao fundo.
+      const layout = tankLayout(tank);
+      const high = role === 'overflow' || role === 'inlet';
+      const span = layout.top - layout.shellBottom;
+      const height = high
+        ? layout.top - Math.min(0.3, span / 4)
+        : layout.shellBottom + Math.min(0.2, span / 4);
+      const result = addTankNozzle(project, elementId, {
+        role,
+        height,
+        azimuth: -Math.PI / 2,
+        spec: activeSpec,
+      });
+      if (!result.ok) {
+        get().notify('error', result.error.message);
+        return;
+      }
+      commit(success(result.value.project), 'Bocal acrescentado; ajuste a altura e a direção.');
+    },
+    changeTankNozzle: (elementId, nozzleId, patch) => {
+      commit(updateTankNozzle(get().project, elementId, nozzleId, patch));
+    },
+    removeTankNozzle: (elementId, nozzleId) => {
+      commit(removeTankNozzle(get().project, elementId, nozzleId), 'Bocal removido.');
+    },
     changeFitting: (elementId, patch) => {
-      commit(updateFitting(get().project, elementId, patch));
+      const { project, toolOptions } = get();
+      const element = getElement(project, elementId);
+      // Alterar o ângulo de um joelho segue a mesma trava do traçado: só ângulos com peça.
+      if (patch.angle !== undefined && element?.kind === 'elbow' && toolOptions.lockElbowAngles) {
+        const angles = elbowAnglesOf(project, element.spec);
+        if (matchElbowAngle(angles, patch.angle) === null) {
+          get().notify(
+            'error',
+            angles.length > 0
+              ? `Não há joelho de ${formatDegrees(patch.angle, 2)} no catálogo para ${element.spec.sizeLabel}. Ângulos disponíveis: ${formatAngleList(angles)}.`
+              : `Não há joelho de catálogo para ${element.spec.standard}, ${element.spec.sizeLabel}.`,
+          );
+          return;
+        }
+        // Outro ângulo de catálogo: a peça assume as dimensões e o vínculo da família.
+        const { angle, ...rest } = patch;
+        const relinked = setElbowCatalogAngle(
+          project,
+          elementId,
+          angle,
+          catalog(),
+          toolOptions.families.elbow,
+        );
+        if (!relinked.ok || Object.keys(rest).length === 0) {
+          commit(relinked);
+          return;
+        }
+      }
+      const result = updateFitting(project, elementId, patch);
+      const problem = result.ok ? catalogProblem(result.value) : null;
+      if (problem) {
+        get().notify('error', problem);
+        return;
+      }
+      commit(result);
     },
     roll: (elementId, axisPortId, angleDeg) => {
       commit(rollFitting(get().project, elementId, axisPortId, degToRad(angleDeg)));

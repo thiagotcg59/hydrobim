@@ -42,11 +42,14 @@ export function NumberField({
   const id = useId();
   const [text, setText] = useState(() => formatDecimal(value, digits));
   const [invalid, setInvalid] = useState(false);
+  // Conta as confirmações: se a alteração for recusada pelo domínio, `value` não muda e o
+  // campo precisa voltar a mostrar o valor vigente, não o texto digitado.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     setText(formatDecimal(value, digits));
     setInvalid(false);
-  }, [value, digits]);
+  }, [value, digits, attempt]);
 
   const commit = (): void => {
     const parsed = parseDecimal(text);
@@ -55,8 +58,10 @@ export function NumberField({
       return;
     }
     setInvalid(false);
-    if (Math.abs(parsed - value) > 10 ** -(digits + 2)) onCommit(parsed);
-    else setText(formatDecimal(value, digits));
+    if (Math.abs(parsed - value) > 10 ** -(digits + 2)) {
+      onCommit(parsed);
+      setAttempt((count) => count + 1);
+    } else setText(formatDecimal(value, digits));
   };
 
   return (

@@ -17,8 +17,13 @@ const KIND_LABEL: Record<ElementKind, string> = {
 
 export const elementKindLabel = (kind: ElementKind): string => KIND_LABEL[kind];
 
-export function nextName(project: Project, kind: ElementKind): string {
-  const prefix = `${KIND_LABEL[kind]} `;
+/** `label` substitui o nome do tipo quando a peça tem denominação própria (ex.: filtro Y). */
+export function nextName(
+  project: Project,
+  kind: ElementKind,
+  label: string = KIND_LABEL[kind],
+): string {
+  const prefix = `${label} `;
   let max = 0;
   for (const e of project.elements) {
     if (e.kind !== kind || !e.name.startsWith(prefix)) continue;

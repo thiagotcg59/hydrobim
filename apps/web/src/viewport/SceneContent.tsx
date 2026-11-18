@@ -18,10 +18,16 @@ import {
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Group, OrthographicCamera as OrthoImpl, PerspectiveCamera } from 'three';
-import { BufferAttribute, BufferGeometry, DoubleSide, Vector3 } from 'three';
-import { useEditorStore, type ViewPreset } from '../state/editorStore';
+import { BufferAttribute, BufferGeometry, DoubleSide, MOUSE, Vector3 } from 'three';
+import { drawElevationOf, useEditorStore, type ViewPreset } from '../state/editorStore';
 import { ElementMesh } from './ElementMesh';
 import { InteractionController } from './InteractionController';
+import { SceneLighting } from './SceneLighting';
+
+/** Cores de apoio escolhidas para contrastar com o fundo branco. */
+const DRAW_COLOR = '#e8590c';
+const PORT_COLOR = '#0b93a8';
+const MEASURE_COLOR = '#0c8f6f';
 
 const tuple = (v: Vec3): [number, number, number] => [v.x, v.y, v.z];
 
@@ -97,7 +103,7 @@ function FreePortMarkers() {
           <mesh key={`${port.ref.elementId}#${port.ref.portId}`} position={tuple(port.position)}>
             <sphereGeometry args={[radius, 16, 12]} />
             <meshBasicMaterial
-              color={active ? '#ffd166' : '#35d0e0'}
+              color={active ? DRAW_COLOR : PORT_COLOR}
               transparent
               opacity={active ? 0.95 : 0.6}
               depthTest={false}
@@ -123,14 +129,14 @@ function DrawingOverlay() {
       {showCursor && (
         <mesh position={tuple(cursor.point)}>
           <sphereGeometry args={[0.025, 12, 8]} />
-          <meshBasicMaterial color="#ffd166" depthTest={false} />
+          <meshBasicMaterial color={DRAW_COLOR} depthTest={false} />
         </mesh>
       )}
       {tool === 'pipe' && anchor && cursor && distance(anchor.point, cursor.point) > 1e-6 && (
         <>
           <Line
             points={[tuple(anchor.point), tuple(cursor.point)]}
-            color="#ffd166"
+            color={DRAW_COLOR}
             lineWidth={2}
             dashed
             dashSize={0.1}
@@ -148,7 +154,7 @@ function DrawingOverlay() {
         <>
           <Line
             points={[tuple(measure.a), tuple(measureEnd)]}
-            color="#7ee0c3"
+            color={MEASURE_COLOR}
             lineWidth={2}
             depthTest={false}
           />
@@ -229,15 +235,19 @@ export function SceneContent() {
   const elementsRef = useRef<Group>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const gridStep = useEditorStore((s) => s.gridStep);
-  const workPlaneZ = useEditorStore((s) => s.workPlaneZ);
+  // A grade acompanha a cota em que os pontos são criados (nível + elevação do eixo).
+  const workPlaneZ = useEditorStore(drawElevationOf);
   const orthographic = useEditorStore((s) => s.orthographic);
+  // O botão do meio também orbita: em Selecionar, o esquerdo abre a janela de seleção
+  // (o InteractionController alterna LEFT a cada clique).
+  const mouseButtons = useMemo(
+    () => ({ LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.ROTATE, RIGHT: MOUSE.PAN }),
+    [],
+  );
 
   return (
     <>
-      <color attach="background" args={['#10161f']} />
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[8, -6, 14]} intensity={1.6} />
-      <directionalLight position={[-9, 7, 5]} intensity={0.55} />
+      <SceneLighting />
 
       <Grid
         position={[0, 0, workPlaneZ]}
@@ -245,8 +255,8 @@ export function SceneContent() {
         infiniteGrid
         cellSize={gridStep}
         sectionSize={gridStep * 10}
-        cellColor="#2a3646"
-        sectionColor="#3f5470"
+        cellColor="#d5dbe3"
+        sectionColor="#aab4c1"
         cellThickness={0.6}
         sectionThickness={1.1}
         fadeDistance={gridStep * 400}
@@ -274,7 +284,12 @@ export function SceneContent() {
       <FreePortMarkers />
       <DrawingOverlay />
 
-      <OrbitControls makeDefault enableDamping={false} maxPolarAngle={Math.PI} />
+      <OrbitControls
+        makeDefault
+        enableDamping={false}
+        maxPolarAngle={Math.PI}
+        mouseButtons={mouseButtons}
+      />
       <CameraRig />
       <InteractionController elementsRef={elementsRef} onHover={setHoveredId} />
 

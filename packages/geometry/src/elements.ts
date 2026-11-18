@@ -6,6 +6,7 @@ import {
   pipeLength,
   scale,
   sub,
+  tankLayout,
   vec3,
   type EndTreatment,
   type HydroElement,
@@ -14,8 +15,13 @@ import {
   type Vec3,
 } from '@hydrobim/core';
 import { box, loft, type ProfilePoint } from './loft';
+import { buildPbaParts, teeIsBuildable, type JeSocket, type PbaShape } from './pba';
+import { mapMesh } from './skin';
+import { flangeDisc, flangeHubRadius } from './flange';
 import { pilotValveParts } from './pilotValve';
 import { accent, body, coated, cylinder, ORIGIN, torus, turned, upFor, X, Z } from './primitives';
+import { strainerParts } from './strainer';
+import { tankParts } from './tank';
 import type { MeshData } from './sweep';
 
 /**
@@ -30,15 +36,32 @@ import type { MeshData } from './sweep';
  *
  * O que é REPRESENTAÇÃO (não tabulado nos catálogos usados): espessura de parede do corpo
  * das conexões (adota-se o diâmetro externo do tubo), concordância entre corpo e bolsa,
- * cubo dos flanges, bojo, castelo e acionamento das válvulas. Furação de flanges, anéis
- * de vedação e nervuras não são modelados.
+ * cubo dos flanges, bojo, castelo e acionamento das válvulas. Anéis de vedação, parafusos
+ * e nervuras não são modelados.
+ *
+ * Flanges: todas as peças usam o mesmo disco (`flangeDisc`), com a furação e o ressalto da
+ * face quando tabulados, e o mesmo cubo de representação (`flangeHubRadius`).
  */
 
 /**
  * Papel da parte, usado para a cor: `body` = material do tubo; `accent` = acionamento;
- * `coated` = corpo com revestimento do fabricante; `trim` = acessórios metálicos (inox).
+ * `coated` = corpo com revestimento do fabricante; `trim` = acessórios metálicos (inox);
+ * `seal` = anéis de vedação (borracha); `castIron` = corpo de ferro fundido com a pintura
+ * cinza-azulada do fabricante. Reservatórios metálicos: `paint` = pintura clara de
+ * acabamento; `steel` = aço aparente; `galvanized` = chapa corrugada galvanizada;
+ * `liner` = revestimento interno azul.
  */
-export type PartRole = 'body' | 'accent' | 'coated' | 'trim';
+export type PartRole =
+  | 'body'
+  | 'accent'
+  | 'coated'
+  | 'trim'
+  | 'seal'
+  | 'castIron'
+  | 'paint'
+  | 'steel'
+  | 'galvanized'
+  | 'liner';
 
 export interface MeshPart {
   readonly role: PartRole;
@@ -49,6 +72,8 @@ export interface ElementGeometry {
   readonly transform: Placement;
   readonly parts: readonly MeshPart[];
 }
+
+const castIron = (mesh: MeshData): MeshPart => ({ role: 'castIron', mesh });
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const smooth = (x: number): number => {
@@ -155,8 +180,8 @@ function resolveEnd(end: ConduitEnd | null, bodyRadius: number, available: numbe
     };
   }
   if (treatment.type === 'flange') {
-    // Cubo do flange: reforço cônico atrás do disco (proporção genérica).
-    const hub = Math.min(bodyRadius + treatment.length * 0.5, treatment.outerDiameter / 2);
+    // Cubo do flange: reforço atrás do disco (representação, igual em todas as peças).
+    const hub = flangeHubRadius(treatment, bodyRadius);
     const hold = Math.min(treatment.length, available);
     return {
       socket: null,
@@ -251,16 +276,16 @@ function conduit(options: ConduitOptions): MeshData {
   return loft(points, { up: path.up });
 }
 
-/** Disco do flange, da face (porta) para dentro da peça. */
+/**
+ * Disco do flange, da face (porta) para dentro da peça: com a furação tabulada, sai com os
+ * furos dos parafusos; com o ressalto tabulado, sai com o ressalto da face de vedação.
+ */
 function flangeParts(port: Port): MeshPart[] {
   const end = port.end;
   if (end?.type !== 'flange' || end.length <= 0) return [];
-  const back = add(port.localPosition, scale(port.localDirection, -end.length));
-  return [
-    body(
-      cylinder(back, port.localPosition, end.outerDiameter / 2, port.spec.innerDiameter / 2, 48),
-    ),
-  ];
+  return flangeDisc(port.localPosition, port.localDirection, end, port.spec.innerDiameter / 2).map(
+    body,
+  );
 }
 
 /** Bocal reto que nasce dentro de outro corpo e termina na porta. */
@@ -351,6 +376,9 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
           : { center: length / 2, half: Math.min(length * 0.45, d * 1.1), radius: d * 0.8 };
       case 'butterfly':
         return { center: length / 2, half: length / 2, radius: d * 0.62 };
+      case 'strainer':
+        // O corpo do filtro é uma luva cilíndrica própria (strainerParts), sem bojo.
+        return undefined;
       default:
         return { center: length / 2, half: Math.min(length * 0.4, d * 1.2), radius: d * 0.75 };
     }
@@ -388,6 +416,27 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
         ),
       );
       return parts;
+    }
+    case 'strainer': {
+      // Furo passante e flanges em ferro fundido pintado; corpo e bojo em strainerParts.
+      const flange = a.end?.type === 'flange' ? a.end : undefined;
+      return [
+        ...parts.map((part) => (part.role === 'body' ? castIron(part.mesh) : part)),
+        ...strainerParts({
+          pipeDiameter: d,
+          length,
+          depth: element.height ?? d * 2.3,
+          flangeThickness: flange?.length ?? 0,
+          ...(flange
+            ? {
+                hubLimit:
+                  flange.boltCircle !== undefined && flange.boltHoleDiameter !== undefined
+                    ? flange.boltCircle / 2 - flange.boltHoleDiameter * 0.65
+                    : flange.outerDiameter * 0.4,
+              }
+            : {}),
+        }),
+      ];
     }
     case 'pressureReducing':
       // Corpo e flanges recebem o revestimento epóxi azul do fabricante.
@@ -451,15 +500,126 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
   return parts;
 }
 
+/**
+ * PVC PBA (NBR 5647): as bolsas têm o alojamento do anel de vedação. O DEFoFo fica de fora
+ * porque usa conexões de ferro dúctil, de outro perfil.
+ */
+const isElasticJointPvc = (element: HydroElement): boolean =>
+  element.spec.material === 'pvc' &&
+  element.spec.jointType === 'socketSpigot' &&
+  element.spec.standard.includes('5647');
+
+const jeSocket = (port: Port): JeSocket | null =>
+  port.end?.type === 'socket' && port.end.length > 0
+    ? {
+        outerDiameter: port.end.outerDiameter,
+        boreDiameter: port.spec.outerDiameter,
+        depth: port.end.length,
+      }
+    : null;
+
+/**
+ * Tê e redução de PVC com junta elástica: perfil de bolsa do fabricante e derivação com a
+ * interseção exata. Devolve `null` quando as cotas do elemento não comportam essa
+ * geometria (dimensões genéricas ou editadas), caso em que vale a representação comum.
+ */
+function elasticJointParts(element: HydroElement, ports: Port[]): MeshPart[] | null {
+  if (!isElasticJointPvc(element)) return null;
+  if (element.kind === 'tee') {
+    const [a, b, branch] = ports;
+    const run = a && jeSocket(a);
+    const out = branch && jeSocket(branch);
+    if (!a || !b || !branch || !run || !out || !jeSocket(b)) return null;
+    const shape: Extract<PbaShape, { type: 'tee' }> = {
+      type: 'tee',
+      socket: run,
+      wall: Math.max(element.spec.wallThickness, branch.spec.wallThickness),
+      bore: element.spec.innerDiameter,
+      length: element.runLength + 2 * run.depth,
+      branch: {
+        socket: out,
+        bore: branch.spec.innerDiameter,
+        reach: element.branchLength + out.depth,
+      },
+      branches: 1,
+    };
+    return teeIsBuildable(shape) ? buildPbaParts(shape) : null;
+  }
+  if (element.kind === 'reducer') {
+    const [a, b] = ports;
+    if (!a || !b) return null;
+    // A redução PBA tem ponta no diâmetro maior e bolsa no menor.
+    const aIsSpigot = a.spec.outerDiameter > b.spec.outerDiameter;
+    const spigot = aIsSpigot ? a : b;
+    const small = aIsSpigot ? b : a;
+    const socket = jeSocket(small);
+    if (!socket || spigot.end || spigot.spec.outerDiameter <= small.spec.outerDiameter) return null;
+    const total = element.length + socket.depth;
+    const [part] = buildPbaParts({
+      type: 'reducer',
+      socket,
+      wall: small.spec.wallThickness,
+      bore: small.spec.innerDiameter,
+      spigot: {
+        outerDiameter: spigot.spec.outerDiameter,
+        // O comprimento da ponta não faz parte do elemento: proporção de representação.
+        length: element.length * 0.75,
+        wall: spigot.spec.wallThickness,
+      },
+      length: total,
+    });
+    if (!part) return null;
+    // O gerador nasce na extremidade da ponta, em +X; a porta `a` fica em −comprimento/2.
+    const half = element.length / 2;
+    const mesh = aIsSpigot
+      ? mapMesh(
+          part.mesh,
+          (p) => vec3(p.x - half, p.y, p.z),
+          (d) => d,
+        )
+      : mapMesh(
+          part.mesh,
+          (p) => vec3(half - p.x, -p.y, p.z),
+          (d) => vec3(-d.x, -d.y, d.z),
+        );
+    return [body(mesh)];
+  }
+  return null;
+}
+
 function localParts(element: HydroElement): MeshPart[] {
   // Portas no referencial local (usa-se apenas `localPosition`/`localDirection`).
   const ports = getPorts(element);
   const outer = element.spec.outerDiameter / 2;
   const inner = element.spec.innerDiameter / 2;
 
+  const elastic = elasticJointParts(element, ports);
+  if (elastic) return elastic;
+
   switch (element.kind) {
-    case 'pipe':
-      return [body(cylinder(ORIGIN, vec3(pipeLength(element), 0, 0), outer, inner))];
+    case 'pipe': {
+      const [start, end] = ports;
+      // Tubo liso: cilindro simples. Tubo com flanges: corpo com o cubo dos flanges e os
+      // discos nas extremidades (a porta fica na face do flange).
+      if (!start || !end || (!start.end && !end.end)) {
+        return [body(cylinder(ORIGIN, vec3(pipeLength(element), 0, 0), outer, inner))];
+      }
+      return [
+        body(
+          conduit({
+            path: linePath(start.localPosition, end.localPosition),
+            start: endOf(start),
+            end: endOf(end),
+            bodyStart: outer,
+            bodyEnd: outer,
+            boreStart: inner,
+            boreEnd: inner,
+          }),
+        ),
+        ...flangeParts(start),
+        ...flangeParts(end),
+      ];
+    }
 
     case 'elbow': {
       const [a, b] = ports;
@@ -552,13 +712,22 @@ function localParts(element: HydroElement): MeshPart[] {
     }
 
     case 'tank': {
-      const radius = element.diameter / 2;
-      const [outlet, inlet] = ports;
-      const parts: MeshPart[] = [body(cylinder(ORIGIN, vec3(0, 0, element.height), radius, 0, 64))];
-      for (const nozzle of [outlet, inlet]) {
-        if (!nozzle) continue;
-        const sign = nozzle.localDirection.x >= 0 ? 1 : -1;
-        const from = vec3(sign * radius * 0.98, 0, nozzle.localPosition.z);
+      const shaped = tankParts(element);
+      const layout = tankLayout(element);
+      // Os bocais nascem dentro do corpo (atrás do tampo abaulado, no horizontal).
+      const inset = shaped
+        ? layout.type === 'horizontal'
+          ? layout.headDepth + 0.05
+          : 0.05
+        : layout.radius * 0.02;
+      const parts: MeshPart[] = shaped ?? [
+        body(cylinder(ORIGIN, vec3(0, 0, element.height), layout.radius, 0, 64)),
+      ];
+      for (const nozzle of ports) {
+        const from = add(
+          nozzle.localPosition,
+          scale(nozzle.localDirection, -(element.nozzleLength + inset)),
+        );
         parts.push(...stub(from, nozzle));
       }
       return parts;

@@ -42,11 +42,12 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Interface | `apps/web/src/ui` |
 | Persistência | `apps/web/src/persistence`, `packages/core/src/serialization.ts` |
 | Exportação IFC | `packages/ifc` (cliente); verificação em `services/api/tests` |
+| Exportação DXF (planta anotada e modelo 3D) | `packages/dxf` (cliente) |
 | Quantitativo, EPANET, interferências, terreno, perfil | `packages/core/src/quantities.ts`, `epanet.ts`, `analysis.ts` |
 
 ## Fluxo de uma edição
 
-1. O usuário clica no viewport. `InteractionController` converte o evento em um raio e chama `pickPoint` (`editor/picking.ts`), que resolve o ponto 3D e o tipo de snap (porta, grade, eixo, vertical).
+1. O usuário clica no viewport. `InteractionController` converte o evento em um raio e chama `pickPoint` (`editor/picking.ts`), que resolve o ponto 3D e o tipo de snap (porta, grade, eixo, vertical). Na planta baixa, `PlanView` faz o mesmo com `pickPlanPoint`/`planPipeHit` (`editor/planPicking.ts`): o clique só informa X e Y; a cota Z vem da elevação de desenho (nível + elevação do eixo), da âncora ou da porta capturada. As duas vistas entregam o mesmo evento (`ViewportClick`) à store e usam a mesma trava de ângulo (`deflectionConstraintOf` + `constrainDeflection`).
 2. A store (`state/editorStore.ts`) recebe um evento de domínio (`handleViewportClick`, `commitPoint`) e chama uma **operação pura** de `@hydrobim/core`.
 3. A operação devolve um novo `Project` imutável ou um erro de domínio (`Result<T>`), com mensagem em português.
 4. A store registra o projeto anterior no histórico (desfazer/refazer) ou exibe o erro na barra de status. O projeto nunca fica em estado parcial.

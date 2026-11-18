@@ -1,6 +1,15 @@
-import { JOINT_TYPE_LABELS, MATERIAL_LABELS } from '@hydrobim/catalog';
 import {
+  flangedPipeFamiliesFor,
+  JOINT_TYPE_LABELS,
+  MATERIAL_LABELS,
+  PIPE_END_CONFIGURATION_LABELS,
+  PIPE_END_CONFIGURATIONS,
+  pipeEndConfigurationOf,
+} from '@hydrobim/catalog';
+import {
+  connectedComponent,
   connectedPortRef,
+  elementElevation,
   degToRad,
   elementKindLabel,
   formatMeters,
@@ -27,6 +36,7 @@ import { familiesOf, selectPrimaryId, useEditorStore, type SizeMode } from '../s
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
 import { SYSTEM_KIND_LABELS, VALVE_TYPE_LABELS } from './labels';
 import { SpecSelector } from './SpecSelector';
+import { TankProperties } from './TankProperties';
 
 const actions = () => useEditorStore.getState();
 
@@ -211,6 +221,93 @@ function PointFields({
   );
 }
 
+/**
+ * Cota Z do elemento. Em tubos e conexões a alteração leva junto todos os elementos
+ * conectados; em equipamentos, só o próprio elemento (a regra está no domínio).
+ */
+function ElevationField({
+  element,
+  project,
+  label,
+}: {
+  element: HydroElement;
+  project: Project;
+  label: string;
+}) {
+  const equipment = element.kind === 'pump' || element.kind === 'tank';
+  const connected = equipment ? 0 : connectedComponent(project, element.id).length - 1;
+  return (
+    <>
+      <NumberField
+        label={label}
+        unit="m"
+        value={elementElevation(element)}
+        onCommit={(value) => actions().changeElevation(element.id, value)}
+        testId="prop-elevation"
+      />
+      <span className="muted" data-testid="prop-elevation-info">
+        {equipment
+          ? 'Altera só este equipamento; tubos conectados se ajustam quando o acoplamento permite.'
+          : connected > 0
+            ? `Alterar a elevação move também os ${connected} elemento(s) conectado(s).`
+            : 'Sem elementos conectados: só este elemento é movido.'}
+      </span>
+    </>
+  );
+}
+
+/**
+ * Extremidades do tubo (tubos com flanges): flange e flange, flange e ponta, ponta e flange
+ * ou ponta e ponta, com o flange da classe escolhida. Só aparece quando a especificação do
+ * tubo tem família de tubos flangeados no catálogo.
+ */
+function PipeEnds({ pipe }: { pipe: Pipe }) {
+  const families = flangedPipeFamiliesFor(pipe.spec.specificationId);
+  if (families.length === 0) return null;
+  const configuration = pipeEndConfigurationOf(pipe);
+  const family = families.find((f) => f.id === pipe.familyId) ?? families[0];
+  const flange = pipe.ends?.start ?? pipe.ends?.end;
+  return (
+    <>
+      <SelectField
+        label="Extremidades"
+        value={configuration}
+        options={PIPE_END_CONFIGURATIONS.map((value) => ({
+          value,
+          label: PIPE_END_CONFIGURATION_LABELS[value],
+        }))}
+        onChange={(value) => actions().changePipeEnds(pipe.id, value, family?.id ?? null)}
+        testId="prop-pipe-ends"
+      />
+      {configuration !== 'plainPlain' && family && (
+        <>
+          <SelectField
+            label="Flange"
+            value={family.id}
+            options={families.map((f) => ({ value: f.id, label: f.pressureClass }))}
+            onChange={(id) => actions().changePipeEnds(pipe.id, configuration, id)}
+            testId="prop-pipe-flange"
+          />
+          {flange && (
+            <ReadOnlyRow
+              label="Flange (catálogo)"
+              value={
+                <span data-testid="prop-pipe-flange-info">
+                  Ø {formatMillimeters(flange.outerDiameter)} · esp.{' '}
+                  {formatMillimeters(flange.length, 1)}
+                  {flange.boltCount !== undefined && flange.boltHoleDiameter !== undefined
+                    ? ` · ${flange.boltCount} furos Ø ${formatMillimeters(flange.boltHoleDiameter)}`
+                    : ''}
+                </span>
+              }
+            />
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 function PipeGeometry({ pipe, project }: { pipe: Pipe; project: Project }) {
   const startLocked =
     connectedPortRef(project, { elementId: pipe.id, portId: 'start' }) !== undefined;
@@ -236,10 +333,18 @@ function PipeGeometry({ pipe, project }: { pipe: Pipe; project: Project }) {
         testId="prop-length"
       />
       <ReadOnlyRow label="Declividade" value={slope} />
-      <ReadOnlyRow
-        label="Elevação (eixo)"
-        value={`${formatMeters(pipe.start.z)} → ${formatMeters(pipe.end.z)}`}
+      <PipeEnds pipe={pipe} />
+      <ElevationField
+        element={pipe}
+        project={project}
+        label={Math.abs(rise) < 1e-9 ? 'Elevação do eixo' : 'Elevação do eixo (início)'}
       />
+      {Math.abs(rise) >= 1e-9 && (
+        <ReadOnlyRow
+          label="Elevação (eixo)"
+          value={`${formatMeters(pipe.start.z)} → ${formatMeters(pipe.end.z)}`}
+        />
+      )}
       <PointFields
         title="Início"
         point={pipe.start}
@@ -288,7 +393,13 @@ function Dimension({
   );
 }
 
-function FittingGeometry({ element }: { element: Exclude<HydroElement, Pipe> }) {
+function FittingGeometry({
+  element,
+  project,
+}: {
+  element: Exclude<HydroElement, Pipe>;
+  project: Project;
+}) {
   const ports = getPorts(element);
   const [axisPort, setAxisPort] = useState(ports[0]?.ref.portId ?? 'a');
   const [step, setStep] = useState(90);
@@ -355,7 +466,9 @@ function FittingGeometry({ element }: { element: Exclude<HydroElement, Pipe> }) 
           <Dimension
             element={element}
             field="height"
-            label="Altura do eixo ao topo"
+            label={
+              element.valveType === 'strainer' ? 'Eixo ao fundo do bojo' : 'Altura do eixo ao topo'
+            }
             testId="prop-valve-height"
           />
           <Dimension
@@ -421,49 +534,13 @@ function FittingGeometry({ element }: { element: Exclude<HydroElement, Pipe> }) 
           </span>
         </>
       )}
-      {element.kind === 'tank' && (
-        <>
-          <Dimension
-            element={element}
-            field="diameter"
-            label="Diâmetro"
-            unit="m"
-            testId="prop-tank-diameter"
-          />
-          <Dimension
-            element={element}
-            field="height"
-            label="Altura"
-            unit="m"
-            testId="prop-tank-height"
-          />
-          <Dimension
-            element={element}
-            field="outletHeight"
-            label="Altura da saída"
-            unit="m"
-            testId="prop-tank-outlet"
-          />
-          <Dimension
-            element={element}
-            field="inletHeight"
-            label="Altura da entrada"
-            unit="m"
-            testId="prop-tank-inlet"
-          />
-          <Dimension
-            element={element}
-            field="nozzleLength"
-            label="Comprimento dos bocais"
-            testId="prop-tank-nozzle"
-          />
-          <ReadOnlyRow
-            label="Volume geométrico"
-            value={`${((Math.PI * element.diameter ** 2 * element.height) / 4).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m³`}
-          />
-        </>
-      )}
+      {element.kind === 'tank' && <TankProperties tank={element} />}
       <ReadOnlyRow label="Origem" value={formatPoint(element.placement.position)} />
+      <ElevationField
+        element={element}
+        project={project}
+        label={element.kind === 'tank' ? 'Elevação da base' : 'Elevação'}
+      />
 
       <div className="rotate">
         <span className="point__title">Girar em torno do eixo da porta</span>
@@ -742,7 +819,7 @@ function ElementProperties({ element, project }: { element: HydroElement; projec
       {element.kind === 'pipe' ? (
         <PipeGeometry pipe={element} project={project} />
       ) : (
-        <FittingGeometry key={element.id} element={element} />
+        <FittingGeometry key={element.id} element={element} project={project} />
       )}
 
       <Section title="Portas de conexão" testId="section-ports">

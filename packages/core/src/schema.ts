@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 4 as const;
+export const SCHEMA_VERSION = 8 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -75,6 +75,22 @@ export const EndTypeSchema = z.enum(END_TYPES);
 export type EndType = z.infer<typeof EndTypeSchema>;
 
 /**
+ * Furação do flange, quando tabulada pela norma ou pelo catálogo: diâmetro do círculo de
+ * furação, número de furos e diâmetro dos furos (m). Ausente = flange representado sem furos.
+ *
+ * Ressalto da face de vedação, quando tabulado: diâmetro (`raisedFaceDiameter`) e altura
+ * (`raisedFaceHeight`). A altura do ressalto está INCLUÍDA na espessura `length`; a porta
+ * fica na face do ressalto.
+ */
+const flangeDrilling = {
+  boltCircle: positive.optional(),
+  boltCount: z.number().int().positive().optional(),
+  boltHoleDiameter: positive.optional(),
+  raisedFaceDiameter: positive.optional(),
+  raisedFaceHeight: positive.optional(),
+};
+
+/**
  * Acabamento da extremidade de uma conexão em uma porta:
  *  - `plain`: ponta lisa (solda de topo, termofusão);
  *  - `socket`: bolsa — `length` é a profundidade além da porta (sobre o tubo);
@@ -84,6 +100,7 @@ export const EndTreatmentSchema = z.object({
   type: EndTypeSchema,
   length: nonNegative,
   outerDiameter: positive,
+  ...flangeDrilling,
 });
 export type EndTreatment = z.infer<typeof EndTreatmentSchema>;
 
@@ -112,11 +129,17 @@ const fittingBase = {
   ends: z.record(z.string(), EndTreatmentSchema),
 };
 
+/**
+ * Tubo reto. `ends` descreve o acabamento das extremidades `start` e `end` (tubos com
+ * flanges); extremidade ausente = ponta lisa. Com flange, a porta fica na face do flange e
+ * `familyId` identifica a família de tubos flangeados que forneceu as dimensões.
+ */
 export const PipeSchema = z.object({
   ...elementBase,
   kind: z.literal('pipe'),
   start: Vec3Schema,
   end: Vec3Schema,
+  ends: z.record(z.string(), EndTreatmentSchema).optional(),
 });
 export type Pipe = z.infer<typeof PipeSchema>;
 
@@ -160,6 +183,9 @@ export const VALVE_TYPES = [
   'airRelease',
   // Redutora de pressão pilotada (corpo em Y). A porta `a` é a de montante.
   'pressureReducing',
+  // Filtro Y (não é válvula: no IFC é `IfcFilter`). A porta `a` é a de montante; o bojo do
+  // elemento filtrante desce a 45° no sentido de jusante.
+  'strainer',
 ] as const;
 export const ValveTypeSchema = z.enum(VALVE_TYPES);
 export type ValveType = z.infer<typeof ValveTypeSchema>;
@@ -170,7 +196,10 @@ export const ValveSchema = z.object({
   valveType: ValveTypeSchema,
   /** Comprimento face a face (m). Na ventosa (`airRelease`): altura acima da porta. */
   length: positive,
-  /** Altura do eixo ao topo do acionamento (m), quando informada pelo catálogo. */
+  /**
+   * Altura do eixo ao topo do acionamento (m), quando informada pelo catálogo. No filtro Y
+   * (`strainer`): do eixo ao ponto mais baixo do bojo (tampa).
+   */
   height: positive.optional(),
   /** Diâmetro do volante (m), quando informado pelo catálogo. */
   handwheelDiameter: positive.optional(),
@@ -197,11 +226,92 @@ export const PumpSchema = z.object({
 });
 export type Pump = z.infer<typeof PumpSchema>;
 
-/** Reservatório cilíndrico vertical com dois bocais radiais opostos. */
+/**
+ * Forma construtiva do reservatório. Ausente no elemento = `generic` (cilindro vertical
+ * simples, sem identificação de produto).
+ */
+export const TANK_TYPES = [
+  'generic',
+  // Taça (cálice) com armazenamento também na coluna.
+  'gobletWet',
+  // Taça (cálice) com a coluna seca: só a taça armazena.
+  'gobletDry',
+  // Tubular alto: cilindro vertical esbelto apoiado no solo.
+  'tubular',
+  // Australiano: costado baixo de chapa corrugada, aberto, fundo cônico e pés.
+  'australian',
+  // Vertical apoiado: cilindro de fundo plano sobre a base.
+  'verticalGround',
+  // Vertical elevado: fundo cônico e pés de apoio.
+  'verticalConeLegs',
+  // Vertical apoiado de grande porte, montado na obra.
+  'fieldErected',
+  // Cilíndrico horizontal, sobre longarina ou pés.
+  'horizontal',
+] as const;
+export const TankTypeSchema = z.enum(TANK_TYPES);
+export type TankType = z.infer<typeof TankTypeSchema>;
+
+export const TANK_NOZZLE_ROLES = ['inlet', 'outlet', 'overflow', 'drain'] as const;
+export const TankNozzleRoleSchema = z.enum(TANK_NOZZLE_ROLES);
+export type TankNozzleRole = z.infer<typeof TankNozzleRoleSchema>;
+
+/**
+ * Bocal adicional do reservatório (além da saída `a` e da entrada `b`). O `id` é o
+ * identificador da porta. O diâmetro vem sempre de uma especificação de tubo escolhida
+ * pelo usuário — nunca é presumido a partir do reservatório.
+ */
+export const TankNozzleSchema = z.object({
+  id: z.string().min(1),
+  role: TankNozzleRoleSchema,
+  /** Altura do eixo do bocal acima da base do reservatório (m). */
+  height: nonNegative,
+  /** Direção do bocal em planta, a partir do eixo X local, anti-horária (rad). */
+  azimuth: finite,
+  spec: PipeSpecSchema,
+});
+export type TankNozzle = z.infer<typeof TankNozzleSchema>;
+
+/**
+ * Acessórios construtivos. Posições e dimensões são de REPRESENTAÇÃO (o catálogo dos
+ * fabricantes não as tabula); o usuário pode ligá-los, desligá-los e reposicioná-los.
+ */
+export const TankAccessoriesSchema = z.object({
+  /** Escada externa tipo marinheiro. */
+  ladder: z.boolean(),
+  /** Posição da escada em planta, a partir do eixo X local (rad). */
+  ladderAzimuth: finite,
+  /** Gaiola de proteção da escada. */
+  cage: z.boolean(),
+  /** Guarda-corpo na cobertura. */
+  guardrail: z.boolean(),
+  guardrailHeight: positive,
+  /** Boca de visita (inspeção). */
+  manhole: z.boolean(),
+});
+export type TankAccessories = z.infer<typeof TankAccessoriesSchema>;
+
+export const TANK_SUPPORT_TYPES = ['legs', 'skid'] as const;
+export const TankSupportTypeSchema = z.enum(TANK_SUPPORT_TYPES);
+export type TankSupportType = z.infer<typeof TankSupportTypeSchema>;
+
+/**
+ * Reservatório. Sem `tankType` é o cilindro vertical genérico. Com `tankType`, a geometria
+ * segue a forma construtiva; `familyId` identifica a família de catálogo e `variantId`, o
+ * modelo comercial (ausente = dimensões personalizadas).
+ *
+ * A porta `a` é a saída e a porta `b`, a entrada (bocais opostos: +X e −X; no reservatório
+ * horizontal ficam nos tampos).
+ */
 export const TankSchema = z.object({
   ...fittingBase,
   kind: z.literal('tank'),
+  /** Diâmetro do corpo (da taça, nos reservatórios tipo taça) (m). */
   diameter: positive,
+  /**
+   * Altura de catálogo (m): altura total acima da base — exceto no australiano, em que é a
+   * altura do costado (os pés ficam abaixo dele).
+   */
   height: positive,
   /** Altura do eixo do bocal de saída (porta `a`) acima da base (m). */
   outletHeight: nonNegative,
@@ -209,8 +319,95 @@ export const TankSchema = z.object({
   inletHeight: nonNegative,
   /** Comprimento dos bocais além do costado (m). */
   nozzleLength: positive,
+  tankType: TankTypeSchema.optional(),
+  /** Modelo comercial da família (`familyId`); ausente = dimensões personalizadas. */
+  variantId: z.string().min(1).optional(),
+  /** Capacidade nominal (m³), como informada pelo catálogo ou pelo usuário. */
+  nominalCapacity: positive.optional(),
+  /** Taça: altura da coluna, da base ao início da transição cônica (m). */
+  columnHeight: positive.optional(),
+  /** Taça: diâmetro da coluna (m). */
+  columnDiameter: positive.optional(),
+  /** Altura da transição cônica (taça) ou do fundo cônico (m). */
+  coneHeight: positive.optional(),
+  /** Altura dos pés de apoio ou da longarina (m). */
+  supportHeight: nonNegative.optional(),
+  /** Horizontal: tipo de apoio. */
+  supportType: TankSupportTypeSchema.optional(),
+  /** Horizontal: comprimento total, de tampo a tampo (m). */
+  length: positive.optional(),
+  /** Espessura das chapas (m), quando informada pelo usuário; o catálogo não a tabula. */
+  shellThickness: positive.optional(),
+  /** Quantidade de células internas (ausente = 1). */
+  compartments: z.number().int().positive().optional(),
+  /** Nível máximo de água acima da base (m), informado pelo usuário. */
+  maxWaterLevel: positive.optional(),
+  accessories: TankAccessoriesSchema.optional(),
+  /** Bocais adicionais (extravasor, descarga, outras entradas e saídas). */
+  nozzles: z.array(TankNozzleSchema).optional(),
 });
 export type Tank = z.infer<typeof TankSchema>;
+
+// ---------------------------------------------------------------------------
+// Famílias de reservatórios (catálogo embutido e famílias personalizadas do projeto)
+// ---------------------------------------------------------------------------
+
+/** Modelo de uma família: uma linha da tabela (valores em SI; capacidade em litros). */
+export const TankVariantSchema = z.object({
+  id: z.string().min(1),
+  /** Capacidade nominal (litros). */
+  capacityL: positive,
+  /** Altura total (m). */
+  height: positive,
+  /** Diâmetro do corpo ou da taça (m). */
+  diameter: positive,
+  /** Altura da coluna (m), quando tabulada. */
+  columnHeight: positive.optional(),
+  /** Marca impressa junto à linha (ex.: asterisco), transcrita sem interpretação. */
+  mark: z.string().optional(),
+});
+export type TankVariant = z.infer<typeof TankVariantSchema>;
+
+/**
+ * Família de reservatórios: forma construtiva e tabela de modelos. `builtin` = transcrita
+ * do catálogo de um fabricante; `custom` = criada no projeto (em geral, duplicada de uma
+ * família de catálogo) — suas dimensões são do usuário, não do fabricante.
+ */
+export const TankFamilySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  tankType: TankTypeSchema.exclude(['generic']),
+  manufacturer: z.string(),
+  /** Material do corpo, como descrito pelo fabricante. */
+  material: z.string(),
+  /** Documento, página e URL; nas personalizadas, de onde a família foi duplicada. */
+  source: z.string(),
+  page: z.number().int().nonnegative(),
+  description: z.string(),
+  /** Modelos tabulados (vazio = só a faixa de capacidade é conhecida). */
+  variants: z.array(TankVariantSchema),
+  /** Faixa de capacidade informada no texto do catálogo (litros). */
+  capacityRangeL: z.tuple([positive, positive]),
+  /** Alturas informadas no texto do catálogo (m), quando não há tabela. */
+  catalogHeights: z.array(positive).optional(),
+  /** Altura dos pés informada pelo catálogo (m). */
+  catalogSupportHeight: positive.optional(),
+  /** Dimensões iniciais para um modelo fora da tabela. */
+  customDefaults: z.object({
+    capacityL: positive,
+    diameter: positive,
+    height: positive,
+    length: positive.optional(),
+  }),
+  /** O que NÃO vem do catálogo: valores derivados, estimados ou de representação. */
+  approximations: z.array(z.string()),
+  /** Observações sobre a transcrição (divergências, marcas sem legenda). */
+  remarks: z.array(z.string()),
+  origin: z.enum(['builtin', 'custom']),
+  /** Personalizadas: família de catálogo de que esta foi duplicada. */
+  basedOn: z.string().optional(),
+});
+export type TankFamily = z.infer<typeof TankFamilySchema>;
 
 export const ElementSchema = z.discriminatedUnion('kind', [
   PipeSchema,
@@ -272,7 +469,11 @@ export const FAMILY_KINDS = ['elbow', 'tee', 'reducer', 'valve'] as const;
 export const FamilyKindSchema = z.enum(FAMILY_KINDS);
 export type FamilyKind = z.infer<typeof FamilyKindSchema>;
 
-export const FamilyEndSchema = z.object({ length: nonNegative, outerDiameter: positive });
+export const FamilyEndSchema = z.object({
+  length: nonNegative,
+  outerDiameter: positive,
+  ...flangeDrilling,
+});
 export type FamilyEnd = z.infer<typeof FamilyEndSchema>;
 
 /**
@@ -423,6 +624,8 @@ export const ProjectSchema = z.object({
   levels: z.array(LevelSchema),
   /** Famílias personalizadas ou alteradas neste projeto (sobrepõem o catálogo embutido). */
   families: z.array(FittingFamilySchema),
+  /** Famílias de reservatórios personalizadas neste projeto (somam-se ao catálogo embutido). */
+  tankFamilies: z.array(TankFamilySchema),
   georeference: GeoreferenceSchema.nullable(),
   terrain: TerrainSchema.nullable(),
   elements: z.array(ElementSchema),

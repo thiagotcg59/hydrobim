@@ -30,6 +30,17 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   2: (doc) => ({ ...doc, schemaVersion: 3 }),
   // v3 → v4: anotações da planta baixa e escala do desenho.
   3: (doc) => ({ ...doc, schemaVersion: 4, annotations: [], drawingScale: 50 }),
+  // v4 → v5: tipo `strainer` (filtro Y) e furação opcional dos flanges.
+  // Documentos v4 já são válidos no esquema v5.
+  4: (doc) => ({ ...doc, schemaVersion: 5 }),
+  // v5 → v6: forma construtiva, modelo comercial, bocais adicionais e acessórios dos
+  // reservatórios (todos opcionais). Documentos v5 já são válidos no esquema v6.
+  5: (doc) => ({ ...doc, schemaVersion: 6 }),
+  // v6 → v7: ressalto dos flanges e acabamento das extremidades dos tubos (tubos com
+  // flanges), ambos opcionais. Documentos v6 já são válidos no esquema v7.
+  6: (doc) => ({ ...doc, schemaVersion: 7 }),
+  // v7 → v8: famílias de reservatórios personalizadas no projeto.
+  7: (doc) => ({ tankFamilies: [], ...doc, schemaVersion: 8 }),
 };
 
 export function serializeProject(project: Project): string {

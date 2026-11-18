@@ -1,4 +1,5 @@
 import type { FittingFamily } from '@hydrobim/core';
+import { flangeEndMm, flangeSourceNote } from '../flanges';
 import { forSpecifications, type EndMm, type SizeMm } from './builders';
 
 /**
@@ -11,6 +12,10 @@ import { forSpecifications, type EndMm, type SizeMm } from './builders';
  *
  * Valores copiados como impressos, inclusive os que parecem erros do catálogo (curvas
  * flangeadas de 22°30' e 11°15' em DN 500/600 repetem os valores da curva de 45°).
+ *
+ * Flanges: as peças flangeadas usam o flange PN 10 da tabela única (`flanges.ts`, Catálogo
+ * Geral p. 246), e não mais o flange da tabela PAM p. 572 — os valores coincidem, exceto a
+ * espessura em DN 600 (30 mm no Catálogo Geral; 29 mm na PAM).
  *
  * Convenções: nas peças com bolsas a porta fica no fundo da bolsa; nas flangeadas, na
  * face do flange. As mesmas conexões atendem o PVC DEFoFo (mesmos diâmetros externos).
@@ -35,24 +40,15 @@ const SOCKET: Record<number, EndMm> = {
   500: [117.5, 628],
   600: [132.5, 737],
 };
-/** Flange PN 10 por DN: [espessura b + ressalto f, diâmetro externo D] — p. 572. */
-const FLANGE: Record<number, EndMm> = {
-  80: [19, 200],
-  100: [19, 220],
-  150: [19, 285],
-  200: [20, 340],
-  250: [22, 400],
-  300: [24.5, 455],
-  350: [24.5, 505],
-  400: [24.5, 565],
-  500: [26.5, 670],
-  600: [29, 780],
-};
 const socket = (dn: number): EndMm => SOCKET[dn] ?? [100, dn * 1.6];
-const flange = (dn: number): EndMm => FLANGE[dn] ?? [20, dn * 1.6];
+/**
+ * Flange PN 10 da tabela única de flanges (`flanges.ts`). Todos os DN desta família (80 a
+ * 600) constam da tabela; sem dado, a peça fica sem o disco do flange — nunca se inventa.
+ */
+const flange = (dn: number): EndMm | undefined => flangeEndMm('PN 10', dn);
 
 /** Lu por DN (80 … 600), na ordem de `DNS`. */
-function bends(lu: readonly number[], end: (dn: number) => EndMm): SizeMm[] {
+function bends(lu: readonly number[], end: (dn: number) => EndMm | undefined): SizeMm[] {
   return DNS.map((dn, i) => ({ dn, centerToEnd: lu[i] ?? 0, end: end(dn) }));
 }
 
@@ -247,6 +243,8 @@ const FLANGED_TAPERS = [
   [600, 500, 600],
 ] as const;
 
+const PN10_NOTE = flangeSourceNote('PN 10');
+
 const common = { manufacturer: 'Saint-Gobain PAM', standard: 'EN 545 / ISO 2531 (ABNT NBR 7675)' };
 
 export const DUCTILE_IRON_FAMILIES: FittingFamily[] = [
@@ -270,7 +268,7 @@ export const DUCTILE_IRON_FAMILIES: FittingFamily[] = [
       kind: 'elbow',
       endType: 'flange',
       angleDeg: bend.angle,
-      source: `${PAM}, p. ${bend.page} — Lu (face do flange ao centro). Flange PN 10: p. 572 (D; espessura b + ressalto f).`,
+      source: `${PAM}, p. ${bend.page} — Lu (face do flange ao centro). ${PN10_NOTE}`,
       sizes: bends(bend.lu, flange),
     }),
   ),
@@ -298,7 +296,7 @@ export const DUCTILE_IRON_FAMILIES: FittingFamily[] = [
     name: 'Tê com flanges PN 10',
     kind: 'tee',
     endType: 'flange',
-    source: `${PAM}, p. 545–546 — centro à face da passagem = Lu/2 (derivado); hu (eixo à face da derivação). Flange PN 10: p. 572.`,
+    source: `${PAM}, p. 545–546 — centro à face da passagem = Lu/2 (derivado); hu (eixo à face da derivação). ${PN10_NOTE}`,
     sizes: FLANGED_TEES.map(([dn, branch, lu, hu]) => ({
       dn,
       ...(branch !== dn ? { dn2: branch } : {}),
@@ -329,7 +327,7 @@ export const DUCTILE_IRON_FAMILIES: FittingFamily[] = [
     name: 'Redução com flanges PN 10',
     kind: 'reducer',
     endType: 'flange',
-    source: `${PAM}, p. 560–561 — Lu (face a face). Flange PN 10: p. 572.`,
+    source: `${PAM}, p. 560–561 — Lu (face a face). ${PN10_NOTE}`,
     sizes: FLANGED_TAPERS.map(([dn, small, lu]) => ({
       dn,
       dn2: small,
@@ -340,4 +338,4 @@ export const DUCTILE_IRON_FAMILIES: FittingFamily[] = [
   }),
 ];
 
-export { FLANGE as PN10_FLANGE_MM, SPECIFICATIONS as DUCTILE_SPECIFICATIONS };
+export { SPECIFICATIONS as DUCTILE_SPECIFICATIONS };

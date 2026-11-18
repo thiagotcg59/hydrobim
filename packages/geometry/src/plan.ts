@@ -1,5 +1,5 @@
 import { rotate, vec3 } from '@hydrobim/core';
-import type { ElementGeometry } from './elements';
+import type { ElementGeometry, PartRole } from './elements';
 
 /**
  * Projeção em planta (vista de cima, direção −Z) de um elemento, para desenho técnico:
@@ -21,6 +21,25 @@ export interface PlanOutline {
   readonly maxY: number;
   /** Cota mais alta do elemento (ordem de desenho). */
   readonly maxZ: number;
+  /**
+   * A mesma máscara separada por papel da parte (corpo, acabamento, vedação…), para colorir a
+   * planta como o modelo 3D. Está na ordem de desenho: de baixo para cima.
+   */
+  readonly shading: readonly PlanShade[];
+  /** As linhas visíveis (`lines`) agrupadas pelo papel da parte a que pertencem. */
+  readonly lineGroups: readonly PlanLineGroup[];
+}
+
+export interface PlanShade {
+  readonly role: PartRole;
+  /** Triângulos em planta: 6 números por triângulo. */
+  readonly fill: Float32Array;
+}
+
+export interface PlanLineGroup {
+  readonly role: PartRole;
+  /** Segmentos: 4 números por segmento. */
+  readonly lines: Float32Array;
 }
 
 /** Quinas com ângulo entre faces acima deste valor são desenhadas. */
@@ -37,6 +56,8 @@ interface Face {
   readonly ny: number;
   readonly nz: number;
   readonly up: boolean;
+  /** Índice da parte (em `geometry.parts`) a que a face pertence. */
+  readonly part: number;
 }
 
 export function planOutline(geometry: ElementGeometry): PlanOutline {
@@ -47,7 +68,7 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
   const faces: Face[] = [];
   const edges = new Map<string, number[]>();
 
-  for (const part of geometry.parts) {
+  for (const [partIndex, part] of geometry.parts.entries()) {
     const { positions, indices } = part.mesh;
     // Solda os vértices duplicados nas quinas (normais distintas) para achar as adjacências.
     const welded = new Map<string, number>();
@@ -92,7 +113,7 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
       ny /= size;
       nz /= size;
       const face = faces.length;
-      faces.push({ a, b, c, nx, ny, nz, up: nz > FACING_EPS });
+      faces.push({ a, b, c, nx, ny, nz, up: nz > FACING_EPS, part: partIndex });
       for (const [p, q] of [
         [a, b],
         [b, c],
@@ -127,6 +148,8 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
       maxX: 0,
       maxY: 0,
       maxZ: 0,
+      shading: [],
+      lineGroups: [],
     };
   }
 
@@ -185,6 +208,7 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
   };
 
   const lines: number[] = [];
+  const linesByRole = new Map<PartRole, number[]>();
   const step = Math.max(diagonal / 48, 1e-6);
   for (const [key, list] of edges) {
     const first = faces[list[0] ?? 0];
@@ -211,28 +235,88 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
     const z2 = zs[q] ?? 0;
     const planLength = Math.hypot(x2 - x1, y2 - y1);
     if (planLength < 1e-7) continue; // aresta vertical: um ponto em planta
+    // Os vértices são soldados por parte: toda aresta pertence a uma única parte.
+    const role = geometry.parts[first.part]?.role ?? 'body';
+    let group = linesByRole.get(role);
+    if (!group) {
+      group = [];
+      linesByRole.set(role, group);
+    }
+    const shownAt = (t: number): boolean =>
+      !hidden(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, z1 + (z2 - z1) * t);
+    /**
+     * Ponto em que a aresta passa de visível a oculta (ou o contrário), entre duas amostras:
+     * a bisseção leva o corte ao lugar exato, sem a folga de meio passo da amostragem.
+     */
+    const boundary = (tShown: number, tHidden: number): number => {
+      let a = tShown;
+      let b = tHidden;
+      for (let k = 0; k < 14; k += 1) {
+        const mid = (a + b) / 2;
+        if (shownAt(mid)) a = mid;
+        else b = mid;
+      }
+      return (a + b) / 2;
+    };
     const pieces = Math.min(32, Math.max(1, Math.ceil(planLength / step)));
+    const sample = (i: number): number => (i + 0.5) / pieces;
     let runStart = -1;
     for (let i = 0; i <= pieces; i += 1) {
-      let shown = false;
-      if (i < pieces) {
-        const t = (i + 0.5) / pieces;
-        shown = !hidden(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, z1 + (z2 - z1) * t);
+      const shown = i < pieces && shownAt(sample(i));
+      if (shown && runStart < 0) {
+        runStart = i === 0 ? 0 : boundary(sample(i), sample(i - 1));
       }
-      if (shown && runStart < 0) runStart = i;
       if (!shown && runStart >= 0) {
-        const t0 = runStart / pieces;
-        const t1 = i / pieces;
-        lines.push(
-          x1 + (x2 - x1) * t0,
-          y1 + (y2 - y1) * t0,
-          x1 + (x2 - x1) * t1,
-          y1 + (y2 - y1) * t1,
-        );
+        const runEnd = i === pieces ? 1 : boundary(sample(i - 1), sample(i));
+        const segment = [
+          x1 + (x2 - x1) * runStart,
+          y1 + (y2 - y1) * runStart,
+          x1 + (x2 - x1) * runEnd,
+          y1 + (y2 - y1) * runEnd,
+        ];
+        lines.push(...segment);
+        group.push(...segment);
         runStart = -1;
       }
     }
   }
 
-  return { fill, lines: new Float32Array(lines), minX, minY, maxX, maxY, maxZ };
+  // Sombreamento por parte: os triângulos são desenhados de baixo para cima (algoritmo do
+  // pintor, pela cota do centro), em sequências contíguas do mesmo papel. Nenhum é descartado:
+  // decidir por amostragem que um triângulo está encoberto abre furos nos maiores.
+  const shaded: { role: PartRole; z: number; index: number }[] = upFaces.map((f, index) => ({
+    role: geometry.parts[f.part]?.role ?? 'body',
+    z: ((zs[f.a] ?? 0) + (zs[f.b] ?? 0) + (zs[f.c] ?? 0)) / 3,
+    index,
+  }));
+  shaded.sort((p, q) => p.z - q.z || p.index - q.index);
+  const shading: PlanShade[] = [];
+  let run: number[] = [];
+  let runRole: PartRole | null = null;
+  const flush = (): void => {
+    if (runRole !== null && run.length > 0) {
+      shading.push({ role: runRole, fill: new Float32Array(run) });
+    }
+    run = [];
+  };
+  for (const entry of shaded) {
+    if (entry.role !== runRole) {
+      flush();
+      runRole = entry.role;
+    }
+    for (let k = 0; k < 6; k += 1) run.push(fill[entry.index * 6 + k] ?? 0);
+  }
+  flush();
+
+  return {
+    fill,
+    lines: new Float32Array(lines),
+    minX,
+    minY,
+    maxX,
+    maxY,
+    maxZ,
+    shading,
+    lineGroups: [...linesByRole].map(([role, group]) => ({ role, lines: new Float32Array(group) })),
+  };
 }

@@ -12,12 +12,12 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 - Viewport 3D (Z para cima) com órbita, grade, eixos, vistas e projeção ortográfica.
 - Planta baixa em traço técnico gerada do modelo, com cotas, textos, chamadas e etiquetas de elementos, escala do desenho e exportação em SVG.
 - Tubos por dois pontos (mouse ou coordenadas), com joelho automático ao mudar de direção.
-- Joelho, tê (inclusive de redução), redução, válvulas (gaveta, globo, esfera, borboleta, retenção, ventosa, redutora de pressão), bomba e reservatório.
+- Joelho, tê (inclusive de redução), redução, válvulas (gaveta, globo, esfera, borboleta, retenção, ventosa, redutora de pressão), bomba e reservatório (genérico ou de catálogo: oito famílias de reservatórios metálicos TRAMEC, com modelos comerciais, acessórios e bocais configuráveis).
 - Seleção múltipla, mover, copiar, desfazer/refazer, níveis e sistemas hidráulicos.
 
 **Catálogo e famílias**
 - Famílias de conexões com dimensões de catálogos (Krona, Tigre, Amanco Wavin, Saint-Gobain PAM, AVK, ASME B16.9), cada uma com a fonte registrada — ver [catálogos](docs/CATALOGS.md).
-- Seção **Famílias**: consultar e editar as tabelas dimensionais por projeto e reaplicar às peças já inseridas.
+- Seção **Catálogo**: famílias de conexões (consultar e editar as tabelas dimensionais por projeto e reaplicar às peças já inseridas), reservatórios (tabelas e modelo 3D) e biblioteca de produtos.
 - Geometria com bolsas (furo e batente), flanges, corpo curvo e dimensões principais das famílias.
 
 **Troca de diâmetro inteligente**
@@ -25,6 +25,7 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 
 **Interoperabilidade e análises**
 - Exportação **IFC 4.3** no navegador, verificada com IfcOpenShell.
+- Exportação **DXF**: planta baixa em R2000 (camadas `REDE_*` por categoria, cotas como `DIMENSION`, conexões como blocos, textos e etiquetas) e modelo 3D em malhas (metros).
 - Quantitativo em CSV e rede em formato EPANET (INP).
 - Georreferência informada pelo usuário, terreno por pontos XYZ, perfil longitudinal com recobrimento e detecção de interferências entre tubos.
 - Salvar/abrir no navegador e em arquivo JSON versionado (projetos antigos são migrados).
@@ -64,14 +65,14 @@ Documentação interativa em <http://localhost:8000/docs>. O editor ainda não d
 ## Como usar (roteiro rápido)
 
 1. **Tubulação** (`T`): escolha especificação e diâmetro, clique o ponto inicial e os seguintes. `Shift` restringe à vertical; `Esc` encerra. Também é possível digitar X, Y, Z e usar **Adicionar ponto**.
-2. **Selecionar** (`S`): clique em um elemento ou escolha-o na lista **Elementos** do painel direito.
+2. **Selecionar** (`S`): clique em um elemento ou escolha-o na lista **Elementos** do painel direito. Na vista 3D, arraste com o botão esquerdo para abrir uma janela e selecionar os elementos inteiramente dentro dela (`Ctrl`/`Shift` soma à seleção); nessa ferramenta a câmera orbita com o botão do meio ou `Alt` + arrastar.
 3. No painel **Propriedades**: altere diâmetro/material, comprimento e coordenadas de extremidades livres; em **Portas de conexão**, acople joelho, tê, válvula ou redução a uma extremidade livre; em **Inserir em linha**, divida o tubo com um tê ou uma válvula.
 4. **Joelho** (`J`), **Tê** (`E`), **Redução** (`R`), **Válvula** (`V`): clique em uma extremidade livre (marcadores ciano) ou, para tê e válvula, sobre um tubo.
 5. **Bomba** (`B`) e **Reservatório** (`Q`): clique um ponto ou informe as coordenadas.
 6. **Trocar diâmetro**: no painel, escolha o novo diâmetro. Com "Somente esta peça" as reduções são criadas automaticamente; com "Todo o trecho conectado" a alteração se propaga.
-7. **Famílias**: abre as tabelas dimensionais das conexões para consulta e edição.
+7. **Catálogo**: abre as famílias de conexões (consulta e edição), os reservatórios e a biblioteca de produtos 3D.
 8. **Projeto**: níveis, sistemas, georreferência, terreno, perfil e interferências.
-9. **Salvar** (`Ctrl+S`) grava no navegador; os botões **JSON**, **IFC**, **Quantitativo** e **EPANET** exportam arquivos; **Abrir** lista os projetos salvos e importa arquivos. `Ctrl+clique` seleciona vários elementos.
+9. **Salvar** (`Ctrl+S`) grava no navegador; os botões **JSON**, **IFC**, **DXF 3D**, **Quantitativo** e **EPANET** exportam arquivos (a planta em SVG ou DXF é exportada pela vista **Planta**); **Abrir** lista os projetos salvos e importa arquivos. `Ctrl+clique` seleciona vários elementos.
 10. **Planta baixa** (alternador no alto da área de trabalho, ou qualquer ferramenta de **Documentar**): **Cota** (`C`) — dois pontos e a posição da linha; **Texto** (`X`); **Chamada** (`L`) — ponto indicado e posição do texto; **Etiqueta** (`I`) — elemento e posição. Com **Selecionar**, arraste uma anotação para reposicioná-la e edite-a no quadro à direita; `Delete` exclui. Escolha a **Escala** e use **Exportar SVG** para gerar o desenho.
 
 A barra inferior mostra coordenadas, modo da ferramenta, mensagens e o resultado da validação (clique para ver as pendências).
@@ -100,6 +101,7 @@ packages/core/       Modelo de domínio, portas, conectividade, operações, val
 packages/geometry/   Malhas paramétricas dos elementos (independente de motor gráfico)
 packages/catalog/    Especificações de tubos e famílias de conexões (catálogos)
 packages/ifc/        Exportação IFC 4.3 (escritor IFC-SPF puro, roda no navegador)
+packages/dxf/        Exportação DXF (planta anotada em R2000 e modelo 3D em R12)
 services/api/        API FastAPI (validação do projeto; verificação do IFC nos testes)
 examples/            Projetos de demonstração (.hydrobim.json)
 tests/               Testes de integração e ponta a ponta

@@ -255,7 +255,7 @@ const soldavel: FittingFamily[] = [
 ];
 
 /** Especificações de tubo PBA atendidas pelas mesmas conexões de junta elástica. */
-const PBA = ['pvc-pba-nbr5647-cl15', 'pvc-pba-nbr5647-cl20'] as const;
+const PBA = ['pvc-pba-nbr5647-cl12', 'pvc-pba-nbr5647-cl15', 'pvc-pba-nbr5647-cl20'] as const;
 const WAVIN_PBA =
   'Amanco Wavin — FT Linha PBA, FTC000088, jan/2025 (https://mediahub.wavin.com/m/89a6b27bb1db716/original/FT-Linha-PBA.pdf)';
 

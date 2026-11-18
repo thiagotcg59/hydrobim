@@ -15,6 +15,7 @@ import {
   exportCurrentProject,
   exportEpanetFile,
   exportIfcFile,
+  exportModelDxfFile,
   exportQuantitiesFile,
   saveCurrentProject,
 } from '../state/projectActions';
@@ -99,9 +100,9 @@ export function TopBar({ onOpen, onFamilies, onProject }: Props) {
           className="btn"
           data-testid="action-families"
           onClick={onFamilies}
-          title="Famílias de conexões: consultar e editar as tabelas dimensionais"
+          title="Catálogo: famílias de conexões, reservatórios e biblioteca de produtos"
         >
-          <Library size={16} /> Famílias
+          <Library size={16} /> Catálogo
         </button>
         <button
           type="button"
@@ -133,6 +134,15 @@ export function TopBar({ onOpen, onFamilies, onProject }: Props) {
           title="Exportar o modelo em IFC 4.3"
         >
           IFC
+        </button>
+        <button
+          type="button"
+          className="btn btn--compact"
+          data-testid="action-export-dxf"
+          onClick={exportModelDxfFile}
+          title="Exportar o modelo 3D em DXF (malhas em metros, uma camada por sistema). A planta com cotas é exportada pela vista Planta."
+        >
+          DXF 3D
         </button>
         <button
           type="button"

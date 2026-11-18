@@ -111,6 +111,32 @@ test('trocar o diâmetro altera só o tubo e insere reduções de catálogo', as
   expect(errors).toEqual([]);
 });
 
+test('elevação: alterar a cota de um tubo move os elementos conectados', async ({ page }) => {
+  const errors = trackErrors(page);
+  await openEmptyProject(page);
+  await drawNetwork(page);
+
+  await items(page, 'pipe').first().click();
+  await expect(page.getByTestId('prop-elevation')).toHaveValue('0');
+  await expect(page.getByTestId('prop-elevation-info')).toContainText('4 elemento(s) conectado(s)');
+  await setField(page, 'prop-elevation', '1,5');
+  await expect(page.getByTestId('status-message')).toContainText('Elevação alterada');
+  await expect(page.getByTestId('prop-start-z')).toHaveValue('1,5');
+  await expect(page.getByTestId('prop-length')).toHaveValue('2,982');
+
+  // Os demais elementos da rede acompanharam: último tubo e joelho.
+  await showProject(page);
+  await items(page, 'pipe').nth(2).click();
+  await expect(page.getByTestId('prop-elevation')).toHaveValue('1,5');
+  await showProject(page);
+  await items(page, 'elbow').first().click();
+  await expect(page.getByTestId('prop-elevation')).toHaveValue('1,5');
+  await showProject(page);
+  await expect(page.getByTestId('connection-count')).toHaveText('4');
+  await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
+  expect(errors).toEqual([]);
+});
+
 test('famílias: consultar, editar dimensões e aplicar às peças do projeto', async ({ page }) => {
   const errors = trackErrors(page);
   await openEmptyProject(page);
@@ -127,6 +153,30 @@ test('famílias: consultar, editar dimensões e aplicar às peças do projeto', 
   await dialog.locator('[data-family-id="krona-joelho-90-soldavel"]').click();
   await expect(dialog.getByTestId('family-row')).toHaveCount(9);
   await expect(dialog.getByTestId('family-apply')).toBeChecked();
+
+  // Ao abrir a família aparece o modelo 3D da primeira linha; clicar em outra o troca.
+  const preview = dialog.getByTestId('family-preview');
+  await expect(preview).toHaveAttribute('data-state', 'model');
+  const rows = dialog.getByTestId('family-row');
+  await expect(preview).toHaveAttribute('data-dn', (await rows.first().getAttribute('data-dn'))!);
+  await expect(dialog.getByTestId('family-preview-canvas').locator('canvas')).toBeVisible();
+  await rows.nth(8).click();
+  await expect(preview).toHaveAttribute('data-dn', (await rows.nth(8).getAttribute('data-dn'))!);
+  await expect(rows.nth(8)).toHaveClass(/is-preview/);
+
+  // As cotas do catálogo aparecem sobre o modelo, com o valor da linha, e podem ser ocultadas.
+  const centerToEnd = dialog.locator(
+    '[data-testid="family-dimension"][data-dimension="centerToEnd"]',
+  );
+  await expect(centerToEnd).toBeVisible();
+  const tabulated = await dialog.getByTestId('family-cell-8-centerToEnd').inputValue();
+  await expect(centerToEnd).toContainText(`${tabulated} mm`);
+  await expect(dialog.getByTestId('family-dimension')).toHaveCount(3);
+  await dialog.getByTestId('family-preview-dimensions').uncheck();
+  await expect(dialog.getByTestId('family-dimension')).toHaveCount(0);
+  await dialog.getByTestId('family-preview-dimensions').check();
+  await expect(centerToEnd).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('familia-modelo-3d.png') });
 
   // Linha do DN 25 (DE 32): centro à porta 18 → 30 mm.
   const cell = dialog.getByTestId('family-cell-2-centerToEnd');

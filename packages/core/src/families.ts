@@ -52,6 +52,17 @@ export interface FittingCatalog {
   /** `a` e `b` são as especificações das portas `a` e `b`, em qualquer ordem de diâmetro. */
   reducer(a: PipeSpec, b: PipeSpec, preferredFamilyId?: string | null): ReducerDimensions;
   valve(spec: PipeSpec, valveType: ValveType, preferredFamilyId?: string | null): ValveDimensions;
+  /**
+   * Flange de um tubo da família de tubos flangeados `familyId`, para o diâmetro de `spec`.
+   * `undefined` quando a família não atende a especificação ou não tabula o diâmetro.
+   * Ausente no catálogo genérico: sem tabela, não há flange a oferecer.
+   */
+  pipeFlange?(spec: PipeSpec, familyId: string): EndTreatment | undefined;
+}
+
+/** Recursos do catálogo que não são famílias de conexões (tubos com flanges). */
+export interface CatalogExtensions {
+  pipeFlange?: (spec: PipeSpec, familyId: string) => EndTreatment | undefined;
 }
 
 /** Proporções genéricas em função do diâmetro externo (não representam produtos reais). */
@@ -78,7 +89,14 @@ const ANGLE_MATCH = degToRad(0.5);
 
 function toEnd(family: FittingFamily, end: FamilyEnd | undefined): EndTreatment | undefined {
   if (!end || family.endType === 'plain') return undefined;
-  return { type: family.endType, length: end.length, outerDiameter: end.outerDiameter };
+  // A furação só existe em flanges; bolsas e pontas ignoram esses campos.
+  const { length, outerDiameter, ...drilling } = end;
+  return {
+    type: family.endType,
+    length,
+    outerDiameter,
+    ...(family.endType === 'flange' ? drilling : {}),
+  };
 }
 
 function buildEnds(entries: [string, EndTreatment | undefined][]): Ends {
@@ -94,6 +112,7 @@ function buildEnds(entries: [string, EndTreatment | undefined][]): Ends {
 export function createFamilyCatalog(
   families: readonly FittingFamily[],
   preferred: Partial<Record<FamilyKind, string | null>> = {},
+  extensions: CatalogExtensions = {},
 ): FittingCatalog {
   function candidates(
     kind: FamilyKind,
@@ -121,6 +140,8 @@ export function createFamilyCatalog(
   }
 
   return {
+    ...(extensions.pipeFlange ? { pipeFlange: extensions.pipeFlange } : {}),
+
     elbow(spec, angle, preferredId) {
       const hit = find(
         candidates('elbow', spec, preferredId, (f) =>

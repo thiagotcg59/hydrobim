@@ -338,6 +338,15 @@ code {
   white-space: nowrap;
 }
 
+/* Janela de seleção do viewport 3D (posicionada em coordenadas da janela do navegador). */
+.selection-box {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  border: 1px solid #3e8fff;
+  background: rgba(62, 143, 255, 0.14);
+}
+
 .viewport-label--measure {
   border-color: #7ee0c3;
   color: #7ee0c3;
@@ -1228,9 +1237,30 @@ code {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
 
+/*
+ * Linhas finas: traço de 1 px na tela, independente do zoom. Fica no CSS (e não nos atributos
+ * do SVG) para que a exportação, que clona o desenho, mantenha as espessuras de papel.
+ */
+.plan--thin [data-layer] path,
+.plan--thin [data-layer] line:not([data-ui]) {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1px;
+}
+
+.plan__bar .btn.is-active {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #fff;
+}
+
 .plan__hint {
   flex: 1 1 220px;
   min-width: 0;
+}
+
+/* Modelagem na planta: a barra cede o canto ao painel de opções da ferramenta. */
+.plan--modeling .plan__bar {
+  left: 298px;
 }
 
 .plan__field {
@@ -1287,4 +1317,176 @@ code {
 
 .plan__inspector p {
   margin: 0;
+}
+
+/* Cotas de catálogo sobre o modelo 3D da família */
+.viewport-label--dimension {
+  font-family: var(--font);
+  font-size: 10.5px;
+  padding: 1px 5px;
+}
+
+.viewport-label--dimension strong {
+  font-family: var(--mono);
+}
+
+.families__preview-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--text);
+}
+
+.family-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.family-preview__labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.family-preview__labels > span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+}
+
+/* Biblioteca de produtos (modelos 3D de catálogo) */
+.families[hidden] {
+  display: none;
+}
+
+.dialog--families .dialog__header .tabs {
+  margin-right: auto;
+  margin-left: 16px;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.dialog--families .dialog__header .tabs__item {
+  border-bottom: 1px solid transparent;
+  border-radius: var(--radius);
+}
+
+.products__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.products__header h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.products__info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.products__info .families__table {
+  flex: none;
+}
+
+.products__info td {
+  padding: 5px 8px;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+
+.products__info tbody tr {
+  cursor: pointer;
+}
+
+.products__legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 2px 14px;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.products__legend div {
+  display: flex;
+  gap: 6px;
+}
+
+.products__legend dt {
+  min-width: 20px;
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+.products__legend dd {
+  margin: 0;
+}
+
+.products__notes ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.products__extent {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--mono);
+}
+
+/* Reservatórios: selo de origem do parâmetro, bocais e notas do catálogo. */
+.tank-param {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.tank-param > .field {
+  flex: 1;
+}
+.badge--origin {
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+.badge--catalog {
+  background: #1d6b3c;
+  color: #fff;
+}
+.badge--derived {
+  background: #1f5fa8;
+  color: #fff;
+}
+.badge--estimated {
+  background: #8a5a00;
+  color: #fff;
+}
+.badge--user {
+  background: #5a6270;
+  color: #fff;
+}
+.tank-nozzle {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto auto;
+  align-items: end;
+  gap: 6px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(127, 127, 127, 0.25);
+}
+.tank-notes {
+  font-size: 12px;
+}
+.tank-notes ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
 }

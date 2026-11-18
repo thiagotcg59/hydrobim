@@ -1,8 +1,17 @@
 import {
+  angleBetween,
   dimensionOffsetAt,
+  distance,
   DRAWING_SCALES,
+  formatDegrees,
+  formatMeters,
   getAnnotation,
+  getElement,
+  getFreePorts,
+  ok,
   planSnapPoints,
+  resolvePort,
+  sub,
   updateAnnotation,
   vec3,
   type Annotation,
@@ -10,8 +19,11 @@ import {
   type DimensionMode,
   type Point2,
   type Project,
+  type Result,
+  type Vec3,
 } from '@hydrobim/core';
-import { FileDown } from 'lucide-react';
+import { encodeDxf, exportPlanDxf } from '@hydrobim/dxf';
+import { FileDown, Minus } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -21,8 +33,16 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { SnapKind } from '../editor/picking';
+import { pickPlanPoint, planPipeHit, type PlanPick } from '../editor/planPicking';
 import { downloadText, projectFileBase } from '../persistence/fileIO';
-import { useEditorStore } from '../state/editorStore';
+import {
+  deflectionConstraintOf,
+  drawElevationOf,
+  isAnnotationTool,
+  pipeSnapOf,
+  useEditorStore,
+  type PlanTheme,
+} from '../state/editorStore';
 import { TOOL_HINTS } from '../ui/labels';
 import { AnnotationInspector, DIMENSION_MODE_LABELS } from './AnnotationInspector';
 import {
@@ -106,8 +126,25 @@ const idOf = (target: EventTarget, attribute: string): string | null =>
     : null;
 
 /**
+ * Elemento sob o cursor e o ponto correspondente sobre o eixo, quando ele é um tubo legível
+ * em planta (em tubo vertical a posição ao longo do eixo é indefinida).
+ */
+function planHit(
+  project: Project,
+  elementId: string | null,
+  raw: Point2,
+): { elementId: string; point: Vec3 | null } | null {
+  const element = elementId ? getElement(project, elementId) : undefined;
+  if (!element) return null;
+  const onAxis = element.kind === 'pipe' ? planPipeHit(element, raw) : null;
+  return { elementId: element.id, point: onAxis?.ok ? onAxis.value : null };
+}
+
+/**
  * Planta baixa: projeção horizontal do modelo em traço técnico, com cotas, textos, chamadas
- * e etiquetas. A vista não contém regras de modelagem: lê o projeto e chama a store.
+ * e etiquetas. As ferramentas de modelagem também atuam aqui: o clique é resolvido em ponto
+ * 3D, porta e elemento (`planPicking`) e entregue à store, como no viewport 3D. A vista não
+ * contém regras de modelagem: lê o projeto e chama a store.
  */
 export function PlanView() {
   const project = useEditorStore((s) => s.project);
@@ -116,14 +153,27 @@ export function PlanView() {
   const tool = useEditorStore((s) => s.tool);
   const draft = useEditorStore((s) => s.planDraft);
   const dimensionMode = useEditorStore((s) => s.dimensionMode);
+  const thinLines = useEditorStore((s) => s.planThinLines);
+  const theme = useEditorStore((s) => s.planTheme);
   const snapToGrid = useEditorStore((s) => s.snapToGrid);
   const gridStep = useEditorStore((s) => s.gridStep);
+  const anchor = useEditorStore((s) => s.anchor);
+  const measure = useEditorStore((s) => s.measure);
+  const drawZ = useEditorStore(drawElevationOf);
+  const workPlaneZ = useEditorStore((s) => s.workPlaneZ);
+  /** Ferramenta de modelagem ativa (tubo, conexões, equipamentos, medição). */
+  const modeling = tool !== 'select' && !isAnnotationTool(tool);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ cx: 0, cy: 0, mpp: 0.01 });
-  const [pointer, setPointer] = useState<{ point: Point2; snap: SnapKind } | null>(null);
+  const [pointer, setPointer] = useState<{
+    point: Point2;
+    snap: SnapKind;
+    /** Ponto 3D resolvido para as ferramentas de modelagem. */
+    pick?: PlanPick;
+  } | null>(null);
   const [preview, setPreview] = useState<{ id: string; patch: AnnotationPatch } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
 
@@ -199,6 +249,11 @@ export function PlanView() {
   }, []);
 
   const snapPoints = useMemo(() => planSnapPoints(project), [project]);
+  // Elementos de sistemas ocultos não são desenhados nem capturados.
+  const freePorts = useMemo(() => {
+    const shown = new Set(visibleElements(project).map((element) => element.id));
+    return getFreePorts(project).filter((port) => shown.has(port.ref.elementId));
+  }, [project]);
 
   const toModel = (event: { clientX: number; clientY: number }): Point2 => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -232,8 +287,78 @@ export function PlanView() {
     return { point: raw, snap: 'plane' };
   };
 
+  /** Escolha manual entre extremidades sobrepostas em planta (tecla Tab). */
+  const stackCycle = useRef(0);
+  const lastHover = useRef<{ raw: Point2; elementId: string | null } | null>(null);
+
+  /** Ponto 3D, porta e captura indicados pelo cursor para as ferramentas de modelagem. */
+  const pickModel = (raw: Point2, elementId: string | null): Result<PlanPick> => {
+    const state = useEditorStore.getState();
+    const picked = pickPlanPoint({
+      point: raw,
+      tolerance: SNAP_PX * view.mpp,
+      freePorts,
+      drawZ: drawElevationOf(state),
+      gridStep: state.snapToGrid ? state.gridStep : 0,
+      anchor:
+        state.tool === 'pipe' && state.anchor
+          ? { point: state.anchor.point, lockAxis: state.anchor.lockAxis }
+          : null,
+      constraint: deflectionConstraintOf(state),
+      cycle: stackCycle.current,
+    });
+    if (picked.ok && picked.value.port) return picked;
+    // Junto a um tubo existente, o cursor mostra onde o tê automático ficará.
+    const onPipe = pipeSnapOf(
+      state,
+      planHit(state.project, elementId, raw),
+      picked.ok ? picked.value.point : null,
+    );
+    return onPipe ? ok({ point: onPipe, snap: 'pipe', port: null, stacked: 1 }) : picked;
+  };
+
+  /** Clique de modelagem: mesmo evento de domínio do viewport 3D. */
+  const modelClick = (d: Drag, raw: Point2, additive: boolean): void => {
+    const store = useEditorStore.getState();
+    const picked = pickModel(raw, d.elementId);
+    if (!picked.ok) {
+      store.notify('info', picked.error.message);
+      return;
+    }
+    const pick = picked.value;
+    let hit: { elementId: string; point: Vec3 } | null = null;
+    const target = d.elementId ? getElement(store.project, d.elementId) : undefined;
+    if (target && pick.snap === 'pipe') {
+      // Mesmo ponto sobre o eixo usado na prévia (início do trecho sobre o tubo).
+      const onAxis = planHit(store.project, target.id, raw)?.point;
+      hit = { elementId: target.id, point: onAxis ?? pick.point };
+    } else if (target && !pick.port && (tool === 'tee' || tool === 'valve')) {
+      if (target.kind === 'pipe') {
+        // A posição em linha é medida sobre o eixo real do tubo, não sobre a projeção.
+        const onAxis = planPipeHit(target, raw);
+        if (!onAxis.ok) {
+          store.notify('error', onAxis.error.message);
+          return;
+        }
+        hit = { elementId: target.id, point: onAxis.value };
+      } else {
+        hit = { elementId: target.id, point: pick.point };
+      }
+    }
+    store.handleViewportClick({
+      point: pick.point,
+      port: pick.port?.ref ?? null,
+      hit,
+      additive,
+    });
+  };
+
   const click = (d: Drag, raw: Point2, additive: boolean): void => {
     const store = useEditorStore.getState();
+    if (modeling) {
+      modelClick(d, raw, additive);
+      return;
+    }
     const point = snap(raw).point;
     if (tool === 'select') {
       if (d.annotationId) store.selectAnnotation(d.annotationId);
@@ -312,6 +437,41 @@ export function PlanView() {
     if (mode === 'annotation') useEditorStore.getState().selectAnnotation(annotationId);
   };
 
+  /** Atualiza o cursor de modelagem; fora de um empilhamento, a escolha manual é esquecida. */
+  const hoverModel = (raw: Point2, elementId: string | null): void => {
+    lastHover.current = { raw, elementId };
+    let picked = pickModel(raw, elementId);
+    if (stackCycle.current !== 0 && !(picked.ok && picked.value.stacked > 1)) {
+      stackCycle.current = 0;
+      picked = pickModel(raw, elementId);
+    }
+    const pick = picked.ok ? picked.value : null;
+    setPointer(
+      pick ? { point: { x: pick.point.x, y: pick.point.y }, snap: pick.snap, pick } : null,
+    );
+    useEditorStore
+      .getState()
+      .setCursor(
+        pick ? { point: pick.point, snap: pick.snap, port: pick.port?.ref ?? null } : null,
+      );
+  };
+  const hoverRef = useRef(hoverModel);
+  hoverRef.current = hoverModel;
+  const stackedUnderCursor = modeling && (pointer?.pick?.stacked ?? 1) > 1;
+
+  // Tab alterna entre as extremidades sobrepostas sob o cursor.
+  useEffect(() => {
+    if (!stackedUnderCursor) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Tab' || !lastHover.current) return;
+      event.preventDefault();
+      stackCycle.current += event.shiftKey ? -1 : 1;
+      hoverRef.current(lastHover.current.raw, lastHover.current.elementId);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [stackedUnderCursor]);
+
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>): void => {
     const raw = toModel(event);
     const d = drag.current;
@@ -332,6 +492,10 @@ export function PlanView() {
           cy: d.view.cy + dy * d.view.mpp,
         });
       }
+      return;
+    }
+    if (modeling) {
+      hoverModel(raw, idOf(event.target, 'data-element-id'));
       return;
     }
     const snapped = snap(raw);
@@ -426,6 +590,30 @@ export function PlanView() {
     });
   };
 
+  const exportDxf = (): void => {
+    const store = useEditorStore.getState();
+    const current = store.project;
+    if (!planBounds(current)) {
+      store.notify('error', 'A planta está vazia: não há o que exportar.');
+      return;
+    }
+    try {
+      // Mesmas dimensões de papel e mesma projeção (em cache) da planta na tela.
+      const text = exportPlanDxf(current, {
+        paper: PAPER,
+        outline: (element) => outlineOf(element).outline,
+      });
+      downloadText(`${projectFileBase(current)}-planta.dxf`, encodeDxf(text), 'application/dxf');
+      store.notify(
+        'success',
+        `Planta exportada em DXF (R2000): desenho em metros, camadas REDE_*, anotações para plotagem em 1:${current.drawingScale}.`,
+      );
+    } catch (error) {
+      console.error('[HydroBIM] Falha na exportação DXF da planta.', error);
+      store.notify('error', 'Não foi possível exportar a planta em DXF.');
+    }
+  };
+
   const { elements, systems: systemList } = project;
   const systems = useMemo(() => new Map(systemList.map((s) => [s.id, s])), [systemList]);
   // Algoritmo do pintor: os elementos mais altos são desenhados por último.
@@ -453,6 +641,40 @@ export function PlanView() {
     ? DRAWING_SCALES
     : [...DRAWING_SCALES, project.drawingScale].sort((a, b) => a - b);
 
+  // Prévia elástica do trecho: da âncora ao ponto resolvido, com comprimento real e deflexão.
+  const modelPoint = modeling ? (pointer?.pick?.point ?? null) : null;
+  const pipePreview =
+    tool === 'pipe' && anchor && modelPoint && distance(anchor.point, modelPoint) > 1e-6
+      ? { from: anchor.point, to: modelPoint }
+      : null;
+  const previewOrigin = pipePreview && anchor?.port ? resolvePort(project, anchor.port) : undefined;
+  const previewLabel = pipePreview
+    ? [
+        formatMeters(distance(pipePreview.from, pipePreview.to), 2),
+        previewOrigin
+          ? formatDegrees(
+              angleBetween(previewOrigin.direction, sub(pipePreview.to, pipePreview.from)),
+            )
+          : '',
+        Math.abs(pipePreview.to.z - pipePreview.from.z) > 1e-6
+          ? `ΔZ ${formatMeters(pipePreview.to.z - pipePreview.from.z, 2)}`
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+  const measureEnd = tool === 'measure' && measure.a ? (measure.b ?? modelPoint) : null;
+  const capturedPort = modeling ? (pointer?.pick?.port ?? null) : null;
+  const level = project.levels.find((l) => Math.abs(l.elevation - workPlaneZ) < 1e-9);
+  const label = {
+    fontSize: 11 * view.mpp,
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    fill: HIGHLIGHT,
+    stroke: '#ffffff',
+    strokeWidth: 3 * view.mpp,
+    paintOrder: 'stroke',
+  } as const;
+
   const draftAnnotation: Annotation | null = !cursorPoint
     ? null
     : tool === 'dimension' && first && second
@@ -478,7 +700,14 @@ export function PlanView() {
           : null;
 
   return (
-    <div className="plan" data-testid="plan-view" data-tool={tool}>
+    <div
+      className={['plan', modeling ? 'plan--modeling' : '', thinLines ? 'plan--thin' : '']
+        .filter(Boolean)
+        .join(' ')}
+      data-testid="plan-view"
+      data-tool={tool}
+      data-theme={theme}
+    >
       <svg
         ref={svgRef}
         data-testid="plan-svg"
@@ -499,6 +728,7 @@ export function PlanView() {
               element={element}
               systemColor={systems.get(element.systemId)?.color}
               selected={selection.includes(element.id) || draft.elementId === element.id}
+              monochrome={theme === 'mono'}
               unit={unit}
             />
           ))}
@@ -540,6 +770,72 @@ export function PlanView() {
           {draft.points.map((p, i) => (
             <circle key={i} cx={p.x} cy={-p.y} r={marker * 0.7} fill={HIGHLIGHT} />
           ))}
+          {tool === 'pipe' && anchor && (
+            <circle
+              data-testid="plan-anchor"
+              cx={anchor.point.x}
+              cy={-anchor.point.y}
+              r={marker * 0.7}
+              fill={HIGHLIGHT}
+            />
+          )}
+          {pipePreview && (
+            <>
+              <line
+                data-testid="plan-pipe-preview"
+                x1={pipePreview.from.x}
+                y1={-pipePreview.from.y}
+                x2={pipePreview.to.x}
+                y2={-pipePreview.to.y}
+                stroke={HIGHLIGHT}
+                strokeWidth={2 * view.mpp}
+                strokeDasharray={`${6 * view.mpp} ${4 * view.mpp}`}
+              />
+              <text
+                data-testid="plan-pipe-preview-label"
+                x={(pipePreview.from.x + pipePreview.to.x) / 2 + 8 * view.mpp}
+                y={-(pipePreview.from.y + pipePreview.to.y) / 2 - 8 * view.mpp}
+                {...label}
+              >
+                {previewLabel}
+              </text>
+            </>
+          )}
+          {measure.a && measureEnd && (
+            <>
+              <line
+                data-testid="plan-measure"
+                x1={measure.a.x}
+                y1={-measure.a.y}
+                x2={measureEnd.x}
+                y2={-measureEnd.y}
+                stroke={HIGHLIGHT}
+                strokeWidth={1.5 * view.mpp}
+              />
+              <text
+                x={(measure.a.x + measureEnd.x) / 2 + 8 * view.mpp}
+                y={-(measure.a.y + measureEnd.y) / 2 - 8 * view.mpp}
+                {...label}
+              >
+                {formatMeters(distance(measure.a, measureEnd))}
+              </text>
+            </>
+          )}
+          {/* Portas sobrepostas em planta: informa a cota da que foi capturada. */}
+          {capturedPort && pointer?.pick && (
+            <text
+              data-testid="plan-port-info"
+              data-stacked={pointer.pick.stacked}
+              x={capturedPort.position.x + 10 * view.mpp}
+              y={-capturedPort.position.y + 16 * view.mpp}
+              {...label}
+            >
+              {`Z ${formatMeters(capturedPort.position.z, 2)}`}
+              {pointer.pick.stacked > 1
+                ? ` · ${pointer.pick.stacked} extremidades sobrepostas — Tab alterna`
+                : ''}
+            </text>
+          )}
           {drafting && pointer && (
             <circle
               cx={pointer.point.x}
@@ -572,6 +868,30 @@ export function PlanView() {
             ))}
           </select>
         </label>
+        <label className="plan__field">
+          <span>Tema</span>
+          <select
+            data-testid="plan-theme"
+            value={theme}
+            onChange={(event) =>
+              useEditorStore.getState().setPlanTheme(event.target.value as PlanTheme)
+            }
+            title="Tema do desenho: colorido (as cores do modelo 3D: material, partes e sistema) ou preto e branco. Vale também para a exportação em SVG"
+          >
+            <option value="color">Colorido</option>
+            <option value="mono">Preto e branco</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          className={thinLines ? 'btn btn--compact is-active' : 'btn btn--compact'}
+          data-testid="plan-thin-lines"
+          aria-pressed={thinLines}
+          onClick={() => useEditorStore.getState().setPlanThinLines(!thinLines)}
+          title="Linhas finas: todo traço com 1 px na tela, em qualquer zoom, para enxergar a geometria das peças. Desligue para ver as espessuras de plotagem na escala do desenho. Não altera a exportação"
+        >
+          <Minus size={14} /> Linhas finas
+        </button>
         {tool === 'dimension' && (
           <label className="plan__field">
             <span>Tipo de cota</span>
@@ -599,10 +919,23 @@ export function PlanView() {
         >
           <FileDown size={14} /> Exportar SVG
         </button>
+        <button
+          type="button"
+          className="btn btn--compact"
+          data-testid="plan-export-dxf"
+          onClick={exportDxf}
+          title="Exportar a planta em DXF (CAD, R2000): desenho em metros nas coordenadas do projeto, camadas REDE_* por categoria, cotas como DIMENSION e conexões como blocos"
+        >
+          <FileDown size={14} /> Exportar DXF
+        </button>
         <span className="muted plan__hint" data-testid="plan-hint">
           {tool === 'select'
             ? 'Clique para selecionar. Arraste o fundo para mover a vista e uma anotação para reposicioná-la. Roda do mouse: zoom.'
-            : TOOL_HINTS[tool]}
+            : modeling
+              ? `Nível: ${level ? level.name : 'cota livre'} (${formatMeters(workPlaneZ, 2)}) · ${
+                  tool === 'pipe' ? 'eixo dos tubos' : 'pontos'
+                } na cota Z ${formatMeters(drawZ, 2)}. Ajuste no painel da ferramenta.`
+              : TOOL_HINTS[tool]}
         </span>
       </div>
 

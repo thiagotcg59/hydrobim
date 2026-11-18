@@ -11,11 +11,45 @@ import {
  * convertendo para as unidades internas (metros, radianos).
  */
 
-/** Extremidade em mm: [profundidade da bolsa ou espessura do flange, diâmetro externo]. */
-export type EndMm = readonly [length: number, outerDiameter: number];
+/**
+ * Extremidade em mm: [profundidade da bolsa ou espessura do flange, diâmetro externo];
+ * para flanges com furação tabulada, [..., círculo de furação, nº de furos, Ø do furo]; e,
+ * com o ressalto tabulado, [..., Ø do ressalto, altura do ressalto] (a altura do ressalto
+ * está incluída na espessura).
+ */
+export type EndMm =
+  | readonly [length: number, outerDiameter: number]
+  | readonly [
+      length: number,
+      outerDiameter: number,
+      boltCircle: number,
+      boltCount: number,
+      boltHoleDiameter: number,
+    ]
+  | readonly [
+      length: number,
+      outerDiameter: number,
+      boltCircle: number,
+      boltCount: number,
+      boltHoleDiameter: number,
+      raisedFaceDiameter: number,
+      raisedFaceHeight: number,
+    ];
 
-const end = (value: EndMm | undefined): FamilyEnd | undefined =>
-  value ? { length: mmToM(value[0]), outerDiameter: mmToM(value[1]) } : undefined;
+function end(value: EndMm | undefined): FamilyEnd | undefined {
+  if (!value) return undefined;
+  const [length, outerDiameter, boltCircle, boltCount, boltHoleDiameter, raisedD, raisedH] = value;
+  return {
+    length: mmToM(length),
+    outerDiameter: mmToM(outerDiameter),
+    ...(boltCircle !== undefined && boltCount !== undefined && boltHoleDiameter !== undefined
+      ? { boltCircle: mmToM(boltCircle), boltCount, boltHoleDiameter: mmToM(boltHoleDiameter) }
+      : {}),
+    ...(raisedD !== undefined && raisedH !== undefined
+      ? { raisedFaceDiameter: mmToM(raisedD), raisedFaceHeight: mmToM(raisedH) }
+      : {}),
+  };
+}
 
 export interface SizeMm {
   dn: number;

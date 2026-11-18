@@ -42,6 +42,7 @@ UUIDs dos projetos e elementos são preservados; IDs textuais legados usam a sem
 | Ventosa | `IfcValve` | `AIRRELEASE` |
 | Bomba | `IfcPump` | `ENDSUCTION` |
 | Reservatório | `IfcTank` | `STORAGE` |
+| Reservatório de catálogo | `IfcTank` + `IfcTankType`, material, `Pset_<Fabricante>_Reservatorio`, conjuntos padrão e portas com função (ver `docs/IFC_MAPPING.md`) | `STORAGE` |
 
 - Projeto, contexto Model/Body e unidades metro, metro quadrado, metro cúbico e radiano.
 - MEP: site → edifício → pavimentos. Cada elemento usa o pavimento mais alto cuja
@@ -50,7 +51,9 @@ UUIDs dos projetos e elementos são preservados; IDs textuais legados usam a sem
 - Infra: contenção diretamente no site. `IfcProjectedCRS` e `IfcMapConversion`
   somente quando a georreferência foi informada; nenhum EPSG é presumido.
 - Tubos: perfil circular oco extrudado no eixo X local, com diâmetro físico e
-  espessura da especificação. Demais elementos: partes locais retornadas por
+  espessura da especificação. Tubos com flanges saem em malha (corpo, discos e
+  ressaltos), com as dimensões dos flanges em `HydroBIM_Especificacao`
+  (`StartFlange*`/`EndFlange*`). Demais elementos: partes locais retornadas por
   `buildElementGeometry`, com soldagem de vértices e remoção de faces degeneradas.
   Malhas abertas permanecem identificadas como abertas.
 - Portas derivadas do core, aninhadas por `IfcRelNests`; uma `IfcRelConnectsPorts`

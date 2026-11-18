@@ -1,18 +1,9 @@
 import type { HydroElement, Material } from '@hydrobim/core';
-import { buildElementGeometry, type MeshData } from '@hydrobim/geometry';
+import { buildElementGeometry, type MeshData, type MeshPart } from '@hydrobim/geometry';
 import { memo, useEffect, useMemo } from 'react';
 import { BufferAttribute, BufferGeometry } from 'three';
+import { partFinish } from './materials';
 
-const MATERIAL_COLORS: Record<Material, string> = {
-  pvc: '#8a6548',
-  hdpe: '#2c3440',
-  ductileIron: '#5b6f86',
-  carbonSteel: '#9aa7b4',
-};
-const ACCENT_COLOR = '#d9534a';
-/** Acessórios metálicos (inox) e revestimento epóxi azul de válvulas de controle. */
-const TRIM_COLOR = '#c5ccd4';
-const COATED_COLOR = '#1f5fc4';
 const SELECTED_EMISSIVE = '#1f6fe0';
 const HOVER_EMISSIVE = '#16406f';
 
@@ -24,6 +15,54 @@ function toBufferGeometry(mesh: MeshData): BufferGeometry {
   geometry.computeBoundingSphere();
   return geometry;
 }
+
+interface PartMeshesProps {
+  parts: readonly MeshPart[];
+  material: Material;
+  selected?: boolean;
+  hovered?: boolean;
+  /** Cor do sistema hidráulico; ausente = cor do material. */
+  colorOverride?: string;
+}
+
+/** Malhas de um conjunto de partes, com a cor de cada papel. */
+export const PartMeshes = memo(function PartMeshes({
+  parts,
+  material,
+  selected = false,
+  hovered = false,
+  colorOverride,
+}: PartMeshesProps) {
+  const geometries = useMemo(
+    () => parts.map((part) => ({ role: part.role, geometry: toBufferGeometry(part.mesh) })),
+    [parts],
+  );
+  useEffect(
+    () => () => {
+      for (const part of geometries) part.geometry.dispose();
+    },
+    [geometries],
+  );
+  const emissive = selected ? SELECTED_EMISSIVE : hovered ? HOVER_EMISSIVE : '#000000';
+  return (
+    <>
+      {geometries.map((part, index) => {
+        const finish = partFinish(part.role, material, colorOverride);
+        return (
+          <mesh key={index} geometry={part.geometry}>
+            <meshStandardMaterial
+              color={finish.color}
+              emissive={emissive}
+              emissiveIntensity={selected ? 0.9 : hovered ? 0.7 : 0}
+              roughness={finish.roughness}
+              metalness={finish.metalness}
+            />
+          </mesh>
+        );
+      })}
+    </>
+  );
+});
 
 interface ElementMeshProps {
   element: HydroElement;
@@ -43,26 +82,8 @@ export const ElementMesh = memo(function ElementMesh({
   hovered,
   colorOverride,
 }: ElementMeshProps) {
-  const { transform, parts } = useMemo(() => {
-    const geometry = buildElementGeometry(element);
-    return {
-      transform: geometry.transform,
-      parts: geometry.parts.map((part) => ({
-        role: part.role,
-        geometry: toBufferGeometry(part.mesh),
-      })),
-    };
-  }, [element]);
-
-  useEffect(
-    () => () => {
-      for (const part of parts) part.geometry.dispose();
-    },
-    [parts],
-  );
-
+  const { transform, parts } = useMemo(() => buildElementGeometry(element), [element]);
   const { position, rotation } = transform;
-  const emissive = selected ? SELECTED_EMISSIVE : hovered ? HOVER_EMISSIVE : '#000000';
 
   return (
     <group
@@ -70,28 +91,13 @@ export const ElementMesh = memo(function ElementMesh({
       quaternion={[rotation.x, rotation.y, rotation.z, rotation.w]}
       userData={{ elementId: element.id }}
     >
-      {parts.map((part, index) => (
-        <mesh key={index} geometry={part.geometry}>
-          <meshStandardMaterial
-            color={
-              part.role === 'accent'
-                ? ACCENT_COLOR
-                : part.role === 'trim'
-                  ? TRIM_COLOR
-                  : (colorOverride ??
-                    (part.role === 'coated'
-                      ? COATED_COLOR
-                      : MATERIAL_COLORS[element.spec.material]))
-            }
-            emissive={emissive}
-            emissiveIntensity={selected ? 0.9 : hovered ? 0.7 : 0}
-            roughness={part.role === 'trim' ? 0.35 : 0.55}
-            metalness={
-              part.role === 'trim' ? 0.75 : element.spec.material === 'carbonSteel' ? 0.5 : 0.15
-            }
-          />
-        </mesh>
-      ))}
+      <PartMeshes
+        parts={parts}
+        material={element.spec.material}
+        selected={selected}
+        hovered={hovered}
+        colorOverride={colorOverride}
+      />
     </group>
   );
 });

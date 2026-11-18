@@ -8,6 +8,9 @@ import {
 import { SPECIFICATIONS, type CatalogSize, type PipeSpecification } from './specifications';
 
 export { BUILTIN_FAMILIES } from './families';
+export * from './flanges';
+export * from './products';
+export { getTankFamily, TANK_FAMILIES } from './tanks';
 export { SPECIFICATIONS, type CatalogSize, type PipeSpecification } from './specifications';
 
 export const MATERIAL_LABELS: Record<Material, string> = {

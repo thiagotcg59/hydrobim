@@ -24,6 +24,7 @@ export const body = (mesh: MeshData): MeshPart => ({ role: 'body', mesh });
 export const accent = (mesh: MeshData): MeshPart => ({ role: 'accent', mesh });
 export const coated = (mesh: MeshData): MeshPart => ({ role: 'coated', mesh });
 export const trim = (mesh: MeshData): MeshPart => ({ role: 'trim', mesh });
+export const seal = (mesh: MeshData): MeshPart => ({ role: 'seal', mesh });
 
 /** Cilindro (oco ou maciço) entre dois pontos. */
 export function cylinder(from: Vec3, to: Vec3, outer: number, inner = 0, segments = 32): MeshData {

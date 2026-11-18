@@ -13,6 +13,7 @@ Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md
 | `packages/core` | Esquema, matemática, portas, conectividade, operações, validação, serialização | apenas `zod` |
 | `packages/catalog` | Especificações de tubos e famílias de conexões (com fontes) | `core` |
 | `packages/ifc` | Exportação IFC 4.3 (escritor IFC-SPF puro) | `core`, `geometry` |
+| `packages/dxf` | Exportação DXF (planta anotada em R2000 e modelo 3D em R12), escritor ASCII puro | `core`, `geometry` |
 | `packages/geometry` | Malhas paramétricas (sem motor gráfico) | `core` |
 | `apps/web` | Editor React/Three.js: `ui/`, `viewport/`, `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
 | `services/api` | API FastAPI (validação; verificação do IFC com IfcOpenShell nos testes) | contrato JSON do projeto |
@@ -70,6 +71,7 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 11. Recursos não implementados aparecem desabilitados e identificados (com a fase), nunca com ações simuladas.
 12. **Dados de catálogo só de fontes identificadas**: todo valor de família vem de um documento citado em `source` (fabricante, edição, página, URL); valores derivados são declarados; nada é inventado ou interpolado. Ver `docs/CATALOGS.md`.
 13. **A porta fica no fundo da bolsa ou na face do flange**; a bolsa é geometria sobre o tubo.
+14. **Flanges PN vêm da tabela única** (`packages/catalog/src/flanges.ts`, PN 10/16/25/40): toda família nova com flange PN usa `flangeEndMm`/`flangeEnd` em vez de transcrever o flange de outra fonte; DN que a tabela não traz fica sem flange. Flanges de outro padrão (ex.: ASME) só com a fonte própria citada. Ver `docs/CATALOGS.md`.
 
 ## Alterações no esquema do projeto
 

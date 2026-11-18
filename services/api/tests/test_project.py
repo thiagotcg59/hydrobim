@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 4
+    assert project.schema_version == 7
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 5),
+        (("schemaVersion",), 8),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 4.0
+    project_document["schemaVersion"] = 7.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -134,6 +134,209 @@ def test_migrates_v3_adding_annotations_and_scale(project_document):
     before = deepcopy(legacy)
     assert Project.model_validate(legacy).model_dump() == project_document
     assert legacy == before
+
+
+def test_migrates_v4_without_changing_input(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 4
+    before = deepcopy(legacy)
+    assert Project.model_validate(legacy).model_dump() == project_document
+    assert legacy == before
+
+
+def test_migrates_v5_without_changing_input(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 5
+    before = deepcopy(legacy)
+    assert Project.model_validate(legacy).model_dump() == project_document
+    assert legacy == before
+
+
+def test_migrates_v6_without_changing_input(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 6
+    before = deepcopy(legacy)
+    assert Project.model_validate(legacy).model_dump() == project_document
+    assert legacy == before
+
+
+def _pn10_flange():
+    """Flange PN 10 DN 50 da tabela única (Catálogo Geral, p. 246), em metros."""
+    return {
+        "type": "flange",
+        "length": 0.019,
+        "outerDiameter": 0.165,
+        "boltCircle": 0.125,
+        "boltCount": 4,
+        "boltHoleDiameter": 0.019,
+        "raisedFaceDiameter": 0.099,
+        "raisedFaceHeight": 0.003,
+    }
+
+
+def test_flanged_pipe_round_trips(project_document):
+    pipe = next(e for e in project_document["elements"] if e["kind"] == "pipe")
+    pipe["familyId"] = "tubo-fofo-flanges-pn10"
+    pipe["ends"] = {"start": _pn10_flange()}
+    project = Project.model_validate(project_document)
+    assert project.model_dump(by_alias=True) == project_document
+    assert validate_project(project) == []
+    # Tubo sem `ends` continua válido e a chave não é criada.
+    del pipe["ends"]
+    assert (
+        "ends"
+        not in Project.model_validate(project_document).model_dump(by_alias=True)["elements"][
+            project_document["elements"].index(pipe)
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    ("patch", "code"),
+    [
+        ({"type": "socket"}, "INVALID_PIPE_END"),
+        ({"outerDiameter": 0.01}, "INVALID_PIPE_END"),
+        ({"length": 50.0}, "PIPE_TOO_SHORT"),
+    ],
+)
+def test_incoherent_pipe_end_is_reported(project_document, patch, code):
+    pipe = next(e for e in project_document["elements"] if e["kind"] == "pipe")
+    pipe["ends"] = {"end": {**_pn10_flange(), **patch}}
+    issues = validate_project(Project.model_validate(project_document))
+    assert code in [issue.code for issue in issues]
+
+
+@pytest.mark.parametrize("key", ["raisedFaceDiameter", "raisedFaceHeight"])
+def test_raised_face_must_be_positive(project_document, key):
+    pipe = next(e for e in project_document["elements"] if e["kind"] == "pipe")
+    pipe["ends"] = {"start": {**_pn10_flange(), key: 0}}
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
+
+
+def _catalog_tank(project_document):
+    """Reservatório de catálogo (taça sem água na coluna) com um extravasor."""
+    element = project_document["elements"][3]
+    element["kind"] = "tank"
+    del element["valveType"], element["length"]
+    element.update(
+        familyId="tramec-taca-sem-agua",
+        manufacturing={"manufacturer": "TRAMEC", "model": "Taça 10.000 L"},
+        diameter=1.91,
+        height=8.3,
+        outletHeight=0.3,
+        inletHeight=0.3,
+        nozzleLength=0.15,
+        tankType="gobletDry",
+        variantId="tramec-taca-sem-agua/10000-830-191-480",
+        nominalCapacity=10,
+        columnHeight=4.8,
+        columnDiameter=0.955,
+        coneHeight=0.382,
+        compartments=1,
+        accessories={
+            "ladder": True,
+            "ladderAzimuth": 1.5707963267948966,
+            "cage": True,
+            "guardrail": True,
+            "guardrailHeight": 1.1,
+            "manhole": True,
+        },
+        nozzles=[
+            {
+                "id": "extravasor",
+                "role": "overflow",
+                "height": 7.5,
+                "azimuth": 0,
+                "spec": deepcopy(element["spec"]),
+            }
+        ],
+    )
+    return element
+
+
+def test_catalog_tank_round_trips(project_document):
+    _catalog_tank(project_document)
+    project = Project.model_validate(project_document)
+    assert project.model_dump(by_alias=True) == project_document
+    tank = project.elements[3]
+    assert tank.tank_type == "gobletDry"
+    assert tank.nozzles[0].role == "overflow"
+    assert tank.accessories.guardrail_height == 1.1
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("tankType", "esferico"),
+        ("variantId", ""),
+        ("nominalCapacity", 0),
+        ("columnHeight", -1),
+        ("supportHeight", -0.1),
+        ("supportType", "rodas"),
+        ("compartments", 1.5),
+        ("compartments", 0),
+        ("shellThickness", "6mm"),
+        ("nozzles", [{"id": "x", "role": "saida", "height": 1, "azimuth": 0}]),
+        ("accessories", {"ladder": True}),
+    ],
+)
+def test_rejects_invalid_catalog_tank(project_document, key, value):
+    _catalog_tank(project_document)[key] = value
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
+
+
+def test_tank_nozzle_is_a_valid_port(project_document):
+    tank = _catalog_tank(project_document)
+    # A conexão que usava a porta `b` passa a usar o bocal adicional.
+    connection = next(
+        c
+        for c in project_document["connections"]
+        if tank["id"] in (c["a"]["elementId"], c["b"]["elementId"])
+    )
+    side = "a" if connection["a"]["elementId"] == tank["id"] else "b"
+    connection[side]["portId"] = "extravasor"
+    assert validate_project(Project.model_validate(project_document)) == []
+    connection[side]["portId"] = "bocal-inexistente"
+    issues = validate_project(Project.model_validate(project_document))
+    assert [issue.code for issue in issues] == ["DANGLING_CONNECTION"]
+
+
+def test_y_strainer_with_drilled_flanges(project_document):
+    valve = next(e for e in project_document["elements"] if e["kind"] == "valve")
+    valve["valveType"] = "strainer"
+    valve["height"] = 0.265
+    valve["ends"] = {
+        port: {
+            "type": "flange",
+            "length": 0.0239,
+            "outerDiameter": 0.2286,
+            "boltCircle": 0.1905,
+            "boltCount": 8,
+            "boltHoleDiameter": 0.01905,
+        }
+        for port in ("a", "b")
+    }
+    project = Project.model_validate(project_document)
+    assert project.model_dump(by_alias=True) == project_document
+
+
+@pytest.mark.parametrize("count", [0, -4, 2.5, "8", True])
+def test_flange_bolt_count_must_be_a_positive_integer(project_document, count):
+    valve = next(e for e in project_document["elements"] if e["kind"] == "valve")
+    valve["ends"] = {
+        "a": {
+            "type": "flange",
+            "length": 0.02,
+            "outerDiameter": 0.2,
+            "boltCircle": 0.16,
+            "boltCount": count,
+            "boltHoleDiameter": 0.018,
+        }
+    }
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
 
 
 def test_plan_annotations_round_trip(project_document):

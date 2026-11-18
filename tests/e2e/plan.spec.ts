@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 /**
  * Planta baixa (documentação técnica): projeção do modelo, cotas, textos, chamadas,
- * etiquetas, escala do desenho, exportação em SVG e persistência no projeto.
+ * etiquetas, escala do desenho, exportação em SVG e DXF (planta e 3D) e persistência no projeto.
  */
 
 function trackErrors(page: Page): string[] {
@@ -124,6 +124,35 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   await page.getByTestId('plan-scale').selectOption('25');
   await expect(page.getByTestId('plan-scale')).toHaveValue('25');
 
+  // Linhas finas (padrão): traço de 1 px na tela, sem alterar as espessuras de papel do desenho.
+  // Desligadas, a planta mostra as espessuras de plotagem.
+  const outlinePath = svg.locator('[data-element-kind="pipe"] path[fill="none"]').first();
+  const paperWidth = await outlinePath.getAttribute('stroke-width');
+  const strokeWidth = () => outlinePath.evaluate((node) => getComputedStyle(node).strokeWidth);
+  await expect(page.getByTestId('plan-thin-lines')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByTestId('plan-thin-lines').click();
+  await expect(page.getByTestId('plan-thin-lines')).toHaveAttribute('aria-pressed', 'false');
+  expect(await strokeWidth()).not.toBe('1px');
+  await page.getByTestId('plan-thin-lines').click();
+  expect(await strokeWidth()).toBe('1px');
+  expect(await outlinePath.evaluate((node) => getComputedStyle(node).vectorEffect)).toBe(
+    'non-scaling-stroke',
+  );
+  expect(await outlinePath.getAttribute('stroke-width')).toBe(paperWidth);
+
+  // Tema colorido: as cores do modelo 3D (tubo de PVC marrom).
+  const fillPath = svg.locator('[data-element-kind="pipe"] path').first();
+  expect(await fillPath.getAttribute('fill')).toBe('#6e4a36');
+  expect(await fillPath.getAttribute('data-role')).toBe('body');
+
+  // Tema preto e branco: preenchimento branco, traço preto.
+  await page.getByTestId('plan-theme').selectOption('mono');
+  await expect(page.getByTestId('plan-view')).toHaveAttribute('data-theme', 'mono');
+  for (const path of await svg.locator('[data-layer="elements"] path:first-child').all()) {
+    expect(await path.getAttribute('fill')).toBe('#ffffff');
+  }
+  expect(await outlinePath.getAttribute('stroke')).toBe('#111111');
+
   // Exportação em SVG: tamanho físico, legenda com a escala e sem auxiliares de tela.
   const svgDownload = page.waitForEvent('download');
   await page.getByTestId('plan-export-svg').click();
@@ -135,6 +164,47 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   expect(svgText).toContain('RECALQUE');
   expect(svgText).toContain('3,00');
   expect(svgText).not.toContain('data-ui');
+  // O tema acompanha a exportação; as linhas finas, não (espessuras de papel preservadas).
+  expect(svgText).not.toContain('#6e4a36');
+  expect(svgText).toContain(`stroke-width="${paperWidth}"`);
+  expect(svgText).not.toContain('vector-effect');
+
+  // Exportação em DXF da planta (R2000): metros, camadas por categoria, cota como DIMENSION,
+  // joelho como bloco e textos em Windows-1252.
+  const onLayer = (type: string, layer: string): RegExp =>
+    new RegExp(`\\n${type}\\n5\\n[0-9A-F]+\\n330\\n[0-9A-F]+\\n100\\nAcDbEntity\\n8\\n${layer}\\n`);
+  const planDxfDownload = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('plan-export-dxf').click(),
+  ]).then(([download]) => download);
+  expect(planDxfDownload.suggestedFilename()).toMatch(/-planta\.dxf$/);
+  const planDxf = await readFile(await planDxfDownload.path(), 'latin1');
+  expect(planDxf).toContain('$INSUNITS\n70\n6\n');
+  expect(planDxf).toContain('$ACADVER\n1\nAC1015\n');
+  // Cada trecho de tubo é um bloco próprio (dois trechos, separados pelo joelho).
+  expect(planDxf).toMatch(onLayer('INSERT', 'REDE_TUBULACOES'));
+  expect(planDxf.match(/\n2\nHB_TUBO_\d+\n70\n0\n/g)?.length).toBe(2);
+  expect(planDxf).toMatch(onLayer('INSERT', 'REDE_CONEXOES'));
+  expect(planDxf).toMatch(onLayer('DIMENSION', 'REDE_COTAS'));
+  expect(planDxf).toMatch(onLayer('TEXT', 'REDE_DIAMETROS'));
+  expect(planDxf).toMatch(onLayer('SOLID', 'REDE_TEXTOS'));
+  expect(planDxf).toContain('\n2\nREDE_COTAS_ALTIMETRICAS\n');
+  expect(planDxf).toContain('\n1\n3,00\n');
+  expect(planDxf).toContain('\n1\nRECALQUE\n');
+  expect(planDxf).toContain('PLANTA BAIXA \x97 ESC. 1:25');
+  expect(planDxf.endsWith('0\nEOF\n')).toBe(true);
+  await expect(page.getByTestId('status-message')).toContainText('Planta exportada em DXF');
+
+  // Exportação em DXF do modelo 3D: uma malha poliface por parte de cada elemento.
+  const modelDxfDownload = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('action-export-dxf').click(),
+  ]).then(([download]) => download);
+  expect(modelDxfDownload.suggestedFilename()).toMatch(/-3d\.dxf$/);
+  const modelDxf = await readFile(await modelDxfDownload.path(), 'latin1');
+  expect(modelDxf.match(/\nPOLYLINE\n/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+  expect(modelDxf).toContain('\n70\n64\n');
+  expect(modelDxf).not.toContain('\nTEXT\n');
 
   // As anotações fazem parte do projeto exportado.
   const jsonDownload = page.waitForEvent('download');
@@ -144,7 +214,7 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
     drawingScale: number;
     annotations: { kind: string }[];
   };
-  expect(exported.schemaVersion).toBe(4);
+  expect(exported.schemaVersion).toBe(7);
   expect(exported.drawingScale).toBe(25);
   expect(exported.annotations.map((a) => a.kind).sort()).toEqual(['dimension', 'tag', 'text']);
 

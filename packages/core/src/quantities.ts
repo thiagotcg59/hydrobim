@@ -1,5 +1,6 @@
 import { pipeLength } from './ports';
 import type { FittingFamily, HydroElement, Project } from './schema';
+import { TANK_TYPE_LABELS, tankTypeOf } from './tanks';
 import { radToDeg } from './units';
 
 /** Linha do quantitativo (lista de materiais). */
@@ -30,13 +31,22 @@ const VALVE: Record<string, string> = {
   check: 'retenção',
   airRelease: 'ventosa',
   pressureReducing: 'redutora de pressão',
+  strainer: 'filtro Y',
 };
 
 function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'description' | 'size'> {
   const size = element.spec.sizeLabel;
   switch (element.kind) {
-    case 'pipe':
-      return { category: 'Tubo', description: 'Tubo', size };
+    case 'pipe': {
+      const start = element.ends?.start?.type === 'flange';
+      const end = element.ends?.end?.type === 'flange';
+      return {
+        category: 'Tubo',
+        description:
+          start && end ? 'Tubo flange e flange' : start || end ? 'Tubo flange e ponta' : 'Tubo',
+        size,
+      };
+    }
     case 'elbow': {
       const angle = Math.round(radToDeg(element.angle) * 100) / 100;
       return {
@@ -63,7 +73,11 @@ function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'descri
       return {
         category: 'Válvula',
         description:
-          element.valveType === 'airRelease' ? 'Ventosa' : `Válvula de ${VALVE[element.valveType]}`,
+          element.valveType === 'airRelease'
+            ? 'Ventosa'
+            : element.valveType === 'strainer'
+              ? 'Filtro Y'
+              : `Válvula de ${VALVE[element.valveType]}`,
         size,
       };
     case 'pump':
@@ -72,12 +86,27 @@ function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'descri
         description: 'Conjunto motobomba',
         size: `${size} × ${element.dischargeSpec.sizeLabel}`,
       };
-    case 'tank':
+    case 'tank': {
+      const fmt = (v: number): string => v.toLocaleString('pt-BR');
+      const type = tankTypeOf(element);
+      const capacity =
+        element.nominalCapacity === undefined
+          ? ''
+          : ` ${fmt(Math.round(element.nominalCapacity * 1000))} L —`;
+      const dims =
+        type === 'horizontal'
+          ? `Ø ${fmt(element.diameter)} m × ${fmt(element.length ?? 0)} m`
+          : `Ø ${fmt(element.diameter)} m × ${fmt(element.height)} m`;
+      const maker = element.manufacturing.manufacturer;
       return {
         category: 'Equipamento',
-        description: `Reservatório Ø ${element.diameter.toLocaleString('pt-BR')} m × ${element.height.toLocaleString('pt-BR')} m`,
+        description:
+          type === 'generic'
+            ? `Reservatório ${dims}`
+            : `${TANK_TYPE_LABELS[type]}${maker ? ` ${maker}` : ''} —${capacity} ${dims}`,
         size,
       };
+    }
   }
 }
 
@@ -87,7 +116,7 @@ function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'descri
  */
 export function computeQuantities(
   project: Project,
-  families: readonly FittingFamily[] = [],
+  families: readonly Pick<FittingFamily, 'id' | 'name'>[] = [],
 ): QuantityRow[] {
   const rows = new Map<string, QuantityRow>();
   const systems = new Map(project.systems.map((s) => [s.id, s.name]));
@@ -96,7 +125,9 @@ export function computeQuantities(
   for (const element of project.elements) {
     const base = describe(element);
     const family =
-      element.kind === 'pipe' || element.kind === 'pump' || element.kind === 'tank'
+      element.kind === 'pump' ||
+      element.kind === 'tank' ||
+      (element.kind === 'pipe' && element.familyId === null)
         ? '—'
         : element.familyId
           ? (familyNames.get(element.familyId) ?? element.familyId)

@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 7
 
 
 def _json_number(value: Any) -> int | float:
@@ -34,15 +34,31 @@ NonNegativeNumber = Annotated[FiniteNumber, Field(ge=0)]
 NonEmptyString = Annotated[str, Field(min_length=1)]
 # JSON/JavaScript não distingue 1 de 1.0; strict=False só após conferir o tipo.
 NonNegativeInteger = Annotated[int, Field(ge=0, strict=False), BeforeValidator(_json_number)]
+PositiveInteger = Annotated[int, Field(gt=0, strict=False), BeforeValidator(_json_number)]
 Material = Literal["pvc", "hdpe", "ductileIron", "carbonSteel"]
 JointType = Literal["solventWeld", "socketSpigot", "buttFusion", "buttWeld", "flanged", "threaded"]
-ValveType = Literal["gate", "globe", "ball", "butterfly", "check", "airRelease", "pressureReducing"]
+ValveType = Literal[
+    "gate", "globe", "ball", "butterfly", "check", "airRelease", "pressureReducing", "strainer"
+]
 EndType = Literal["plain", "socket", "flange"]
 SystemKind = Literal[
     "domesticColdWater", "domesticHotWater", "fireProtection", "waterSupply", "other"
 ]
 Discipline = Literal["mep", "infra"]
 DimensionMode = Literal["aligned", "horizontal", "vertical"]
+TankType = Literal[
+    "generic",
+    "gobletWet",
+    "gobletDry",
+    "tubular",
+    "australian",
+    "verticalGround",
+    "verticalConeLegs",
+    "fieldErected",
+    "horizontal",
+]
+TankNozzleRole = Literal["inlet", "outlet", "overflow", "drain"]
+TankSupportType = Literal["legs", "skid"]
 PropertyValue = str | FiniteNumber | bool
 
 
@@ -120,6 +136,13 @@ class EndTreatment(CamelModel):
     type: EndType
     length: NonNegativeNumber
     outer_diameter: PositiveNumber
+    # Furação do flange (círculo, número e diâmetro dos furos), quando tabulada.
+    bolt_circle: PositiveNumber = Field(default=None, validate_default=False)
+    bolt_count: PositiveInteger = Field(default=None, validate_default=False)
+    bolt_hole_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    # Ressalto da face de vedação (diâmetro e altura, já incluída em length), quando tabulado.
+    raised_face_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    raised_face_height: PositiveNumber = Field(default=None, validate_default=False)
 
 
 class ElementBase(CamelModel):
@@ -137,6 +160,8 @@ class Pipe(ElementBase):
     kind: Literal["pipe"]
     start: Vec3
     end: Vec3
+    # Esquema v7: acabamento das extremidades `start`/`end` (tubos com flanges), opcional.
+    ends: dict[str, EndTreatment] = Field(default=None, validate_default=False)
 
 
 class FittingBase(ElementBase):
@@ -182,6 +207,25 @@ class Pump(FittingBase):
     rated_head: PositiveNumber = Field(default=None, validate_default=False)
 
 
+class TankNozzle(CamelModel):
+    """Bocal adicional do reservatório; o id é o identificador da porta."""
+
+    id: NonEmptyString
+    role: TankNozzleRole
+    height: NonNegativeNumber
+    azimuth: FiniteNumber
+    spec: PipeSpec
+
+
+class TankAccessories(CamelModel):
+    ladder: bool
+    ladder_azimuth: FiniteNumber
+    cage: bool
+    guardrail: bool
+    guardrail_height: PositiveNumber
+    manhole: bool
+
+
 class Tank(FittingBase):
     kind: Literal["tank"]
     diameter: PositiveNumber
@@ -189,6 +233,21 @@ class Tank(FittingBase):
     outlet_height: NonNegativeNumber
     inlet_height: NonNegativeNumber
     nozzle_length: PositiveNumber
+    # Esquema v6: forma construtiva, modelo comercial, bocais e acessórios (opcionais).
+    tank_type: TankType = Field(default=None, validate_default=False)
+    variant_id: NonEmptyString = Field(default=None, validate_default=False)
+    nominal_capacity: PositiveNumber = Field(default=None, validate_default=False)
+    column_height: PositiveNumber = Field(default=None, validate_default=False)
+    column_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    cone_height: PositiveNumber = Field(default=None, validate_default=False)
+    support_height: NonNegativeNumber = Field(default=None, validate_default=False)
+    support_type: TankSupportType = Field(default=None, validate_default=False)
+    length: PositiveNumber = Field(default=None, validate_default=False)
+    shell_thickness: PositiveNumber = Field(default=None, validate_default=False)
+    compartments: PositiveInteger = Field(default=None, validate_default=False)
+    max_water_level: PositiveNumber = Field(default=None, validate_default=False)
+    accessories: TankAccessories = Field(default=None, validate_default=False)
+    nozzles: list[TankNozzle] = Field(default=None, validate_default=False)
 
 
 HydroElement = Annotated[
@@ -220,6 +279,13 @@ class HydraulicSystem(CamelModel):
 class FamilyEnd(CamelModel):
     length: NonNegativeNumber
     outer_diameter: PositiveNumber
+    # Furação do flange (círculo, número e diâmetro dos furos), quando tabulada.
+    bolt_circle: PositiveNumber = Field(default=None, validate_default=False)
+    bolt_count: PositiveInteger = Field(default=None, validate_default=False)
+    bolt_hole_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    # Ressalto da face de vedação (diâmetro e altura, já incluída em length), quando tabulado.
+    raised_face_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    raised_face_height: PositiveNumber = Field(default=None, validate_default=False)
 
 
 class FamilySize(CamelModel):
@@ -315,7 +381,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[4], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[7], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -335,14 +401,21 @@ class Project(CamelModel):
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v4), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v7), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in (1, 2, 3):
+        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6):
+            return document
+        # v6 → v7: ressalto dos flanges e extremidades dos tubos (opcionais).
+        # v5 → v6: forma construtiva, bocais e acessórios dos reservatórios (opcionais).
+        # v4 → v5: filtro Y e furação opcional dos flanges. Nos dois casos o documento
+        # já era válido.
+        document = {**document, "schemaVersion": 7}
+        if version in (4, 5, 6):
             return document
         # v3 → v4: anotações da planta baixa e escala do desenho.
-        document = {**document, "schemaVersion": 4, "annotations": [], "drawingScale": 50}
+        document = {**document, "annotations": [], "drawingScale": 50}
         if version != 1:
             # v2 → v3: novo tipo de válvula e largura opcional; o documento já era válido.
             return document

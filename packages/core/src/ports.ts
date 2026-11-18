@@ -12,6 +12,7 @@ import {
   type Vec3,
 } from './math';
 import type { EndTreatment, HydroElement, PipeSpec, Placement, PortRef } from './schema';
+import { tankNozzlePorts } from './tanks';
 
 export type PortRole = 'end' | 'run' | 'branch';
 
@@ -142,20 +143,17 @@ function getLocalPorts(element: HydroElement): LocalPort[] {
           element.dischargeSpec,
         ),
       ];
-    case 'tank': {
-      const reach = element.diameter / 2 + element.nozzleLength;
-      return [
-        port('a', 'Saída', 'end', vec3(reach, 0, element.outletHeight), PLUS_X, spec),
-        port('b', 'Entrada', 'end', vec3(-reach, 0, element.inletHeight), MINUS_X, spec),
-      ];
-    }
+    case 'tank':
+      return tankNozzlePorts(element).map((nozzle) =>
+        port(nozzle.id, nozzle.label, 'end', nozzle.position, nozzle.direction, nozzle.spec),
+      );
   }
 }
 
 /** Portas do elemento, com posição e direção nos referenciais local e global. */
 export function getPorts(element: HydroElement): Port[] {
   const frame = getElementFrame(element);
-  const ends = element.kind === 'pipe' ? undefined : element.ends;
+  const ends = element.ends;
   return getLocalPorts(element).map((p) => ({
     ref: { elementId: element.id, portId: p.id },
     label: p.label,

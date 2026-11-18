@@ -21,6 +21,9 @@ VALID_PORTS = {
 def valid_ports(element: HydroElement) -> frozenset[str]:
     if element.kind == "valve" and element.valve_type == "airRelease":
         return frozenset({"a"})
+    if element.kind == "tank" and element.nozzles:
+        # Cada bocal adicional é uma porta, identificada pelo id do bocal.
+        return VALID_PORTS["tank"] | {nozzle.id for nozzle in element.nozzles}
     return VALID_PORTS[element.kind]
 
 
@@ -69,9 +72,29 @@ def validate_project(project: Project) -> list[ValidationIssue]:
             )
             if length < MIN_PIPE_LENGTH:
                 add("PIPE_TOO_SHORT", f'"{element.name}" não tem comprimento.', [element.id])
+            # Tubos com flanges: só flange maior que o tubo, e os flanges cabem no comprimento.
+            flanges = list((element.ends or {}).values())
+            if any(
+                end.type != "flange" or end.outer_diameter <= element.spec.outer_diameter
+                for end in flanges
+            ):
+                add(
+                    "INVALID_PIPE_END",
+                    f'"{element.name}" tem extremidade incompatível com o tubo '
+                    "(em tubos, só flange maior que o diâmetro externo).",
+                    [element.id],
+                )
+            elif flanges and length < sum(end.length for end in flanges) + MIN_PIPE_LENGTH:
+                add(
+                    "PIPE_TOO_SHORT",
+                    f'"{element.name}" é curto demais para os flanges das extremidades.',
+                    [element.id],
+                )
         specs = [element.spec]
         if element.kind == "reducer":
             specs.append(element.outlet_spec)
+        if element.kind == "tank" and element.nozzles:
+            specs.extend(nozzle.spec for nozzle in element.nozzles)
         for spec in specs:
             if problem := _spec_problem(spec):
                 add("INVALID_SPEC", f'"{element.name}": {problem}.', [element.id])

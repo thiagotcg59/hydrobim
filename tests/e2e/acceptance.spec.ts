@@ -173,7 +173,7 @@ test('fluxo completo de modelagem, edição, salvamento e reabertura', async ({ 
     elements: unknown[];
   };
   expect(exported.format).toBe('hydrobim-project');
-  expect(exported.schemaVersion).toBe(4);
+  expect(exported.schemaVersion).toBe(7);
   expect(exported.elements).toHaveLength(11);
 
   await page.getByTestId('action-new').click();
@@ -229,11 +229,31 @@ test('interação direta no viewport: desenhar e selecionar com o mouse', async 
   await page.mouse.click(cx, cy);
   await expect(selectedKind(page)).toHaveAttribute('data-element-kind', 'pipe');
 
-  // Órbita (arrasto) não altera a seleção nem gera erros.
+  // Janela de seleção sobre área vazia: limpa a seleção.
+  await page.mouse.move(cx + 280, cy - 260);
+  await page.mouse.down();
+  await page.mouse.move(cx + 330, cy - 230, { steps: 4 });
+  await expect(page.getByTestId('selection-box')).toBeVisible();
+  await page.mouse.up();
+  await expect(page.getByTestId('selection-box')).toHaveCount(0);
+  await expect(page.getByTestId('section-project')).toBeVisible();
+
+  // Janela em volta do tubo: seleciona o que está inteiramente dentro dela.
+  const reach = (Math.min(box.width, box.height) / 2) * 0.95;
+  await page.mouse.move(cx - reach, cy - reach);
+  await page.mouse.down();
+  await page.mouse.move(cx + reach, cy + reach, { steps: 6 });
+  await page.mouse.up();
+  await expect(selectedKind(page)).toHaveAttribute('data-element-kind', 'pipe');
+
+  // Órbita (Alt + arrasto) não altera a seleção nem gera erros.
+  await page.keyboard.down('Alt');
   await page.mouse.move(cx + 100, cy + 100);
   await page.mouse.down();
   await page.mouse.move(cx + 220, cy + 30, { steps: 6 });
   await page.mouse.up();
+  await page.keyboard.up('Alt');
+  await expect(page.getByTestId('selection-box')).toHaveCount(0);
   await expect(selectedKind(page)).toHaveAttribute('data-element-kind', 'pipe');
 
   expect(errors).toEqual([]);

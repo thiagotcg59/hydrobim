@@ -9,8 +9,14 @@ import {
   type Point2,
   type Project,
 } from '@hydrobim/core';
-import { buildElementGeometry, planOutline, type PlanOutline } from '@hydrobim/geometry';
+import {
+  buildElementGeometry,
+  planOutline,
+  type PartRole,
+  type PlanOutline,
+} from '@hydrobim/geometry';
 import { memo, type ReactNode } from 'react';
+import { partFinish } from '../viewport/materials';
 
 /**
  * Desenho da planta baixa em SVG. Coordenadas do SVG = metros do modelo, com Y invertido
@@ -32,8 +38,9 @@ export const PAPER = {
 
 export const INK = '#111111';
 export const HIGHLIGHT = '#1f6fe0';
-const FILL = '#e4e7eb';
-const TANK_FILL = '#cfe8f7';
+const MONO_FILL = '#ffffff';
+/** Traço sobre partes escuras (PEAD, ferro com betume, borracha), onde o preto não aparece. */
+const LIGHT_INK = '#eef1f4';
 const FONT = 'Arial, Helvetica, sans-serif';
 
 const f = (value: number): string => (Math.round(value * 1e4) / 1e4).toString();
@@ -42,6 +49,30 @@ interface CachedOutline {
   readonly outline: PlanOutline;
   readonly fillPath: string;
   readonly linePath: string;
+  /** Preenchimento por papel da parte, na ordem de desenho (tema colorido). */
+  readonly shades: readonly { role: PartRole; path: string }[];
+  /** Linhas por papel da parte (tema colorido: o traço contrasta com a cor da parte). */
+  readonly lineGroups: readonly { role: PartRole; path: string }[];
+}
+
+function trianglesPath(fill: Float32Array): string {
+  const path: string[] = [];
+  for (let i = 0; i + 5 < fill.length; i += 6) {
+    path.push(
+      `M${f(fill[i] ?? 0)} ${f(-(fill[i + 1] ?? 0))}L${f(fill[i + 2] ?? 0)} ${f(-(fill[i + 3] ?? 0))}L${f(fill[i + 4] ?? 0)} ${f(-(fill[i + 5] ?? 0))}Z`,
+    );
+  }
+  return path.join('');
+}
+
+function segmentsPath(lines: Float32Array): string {
+  const path: string[] = [];
+  for (let i = 0; i + 3 < lines.length; i += 4) {
+    path.push(
+      `M${f(lines[i] ?? 0)} ${f(-(lines[i + 1] ?? 0))}L${f(lines[i + 2] ?? 0)} ${f(-(lines[i + 3] ?? 0))}`,
+    );
+  }
+  return path.join('');
 }
 // O projeto é imutável: a projeção de um elemento vale enquanto o objeto for o mesmo.
 const cache = new WeakMap<HydroElement, CachedOutline>();
@@ -50,36 +81,33 @@ export function outlineOf(element: HydroElement): CachedOutline {
   const hit = cache.get(element);
   if (hit) return hit;
   const outline = planOutline(buildElementGeometry(element));
-  const fill: string[] = [];
-  for (let i = 0; i + 5 < outline.fill.length; i += 6) {
-    fill.push(
-      `M${f(outline.fill[i] ?? 0)} ${f(-(outline.fill[i + 1] ?? 0))}L${f(outline.fill[i + 2] ?? 0)} ${f(-(outline.fill[i + 3] ?? 0))}L${f(outline.fill[i + 4] ?? 0)} ${f(-(outline.fill[i + 5] ?? 0))}Z`,
-    );
-  }
-  const lines: string[] = [];
-  for (let i = 0; i + 3 < outline.lines.length; i += 4) {
-    lines.push(
-      `M${f(outline.lines[i] ?? 0)} ${f(-(outline.lines[i + 1] ?? 0))}L${f(outline.lines[i + 2] ?? 0)} ${f(-(outline.lines[i + 3] ?? 0))}`,
-    );
-  }
-  const entry = { outline, fillPath: fill.join(''), linePath: lines.join('') };
+  const entry = {
+    outline,
+    fillPath: trianglesPath(outline.fill),
+    linePath: segmentsPath(outline.lines),
+    shades: outline.shading.map((shade) => ({ role: shade.role, path: trianglesPath(shade.fill) })),
+    lineGroups: outline.lineGroups.map((group) => ({
+      role: group.role,
+      path: segmentsPath(group.lines),
+    })),
+  };
   cache.set(element, entry);
   return entry;
 }
 
-/** Clareia a cor do sistema para o preenchimento (as linhas continuam pretas). */
-function tint(hex: string): string {
-  const channel = (i: number): number => {
-    const value = Number.parseInt(hex.slice(i, i + 2), 16);
-    return Math.round(value + (255 - value) * 0.78);
-  };
-  return `rgb(${channel(1)}, ${channel(3)}, ${channel(5)})`;
+/** A cor (#rrggbb) é escura a ponto de esconder o traço preto? */
+function isDark(hex: string): boolean {
+  const channel = (i: number): number => Number.parseInt(hex.slice(i, i + 2), 16) / 255;
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5) < 0.16;
 }
 
 interface PlanElementProps {
   element: HydroElement;
+  /** Cor do sistema hidráulico; ausente = cor do material, como no modelo 3D. */
   systemColor: string | undefined;
   selected: boolean;
+  /** Preto e branco: preenchimento branco, que ainda encobre o que está por baixo. */
+  monochrome: boolean;
   /** Milímetro de papel em metros do modelo. */
   unit: number;
 }
@@ -88,22 +116,55 @@ export const PlanElement = memo(function PlanElement({
   element,
   systemColor,
   selected,
+  monochrome,
   unit,
 }: PlanElementProps) {
-  const { fillPath, linePath } = outlineOf(element);
-  const fill = systemColor ? tint(systemColor) : element.kind === 'tank' ? TANK_FILL : FILL;
+  const { fillPath, linePath, shades, lineGroups } = outlineOf(element);
   const width = PAPER.outline * unit;
+  const lineWidth = selected ? width * 1.8 : width;
+  // Mesma biblioteca de materiais do modelo 3D: papel da parte, material e cor do sistema.
+  const colorOf = (role: PartRole): string =>
+    partFinish(role, element.spec.material, systemColor).color;
   return (
     <g data-element-id={element.id} data-element-kind={element.kind}>
       {/* O traço fino na cor do preenchimento fecha as frestas entre os triângulos. */}
-      <path d={fillPath} fill={fill} stroke={fill} strokeWidth={width * 0.4} />
-      <path
-        d={linePath}
-        fill="none"
-        stroke={selected ? HIGHLIGHT : INK}
-        strokeWidth={selected ? width * 1.8 : width}
-        strokeLinecap="round"
-      />
+      {monochrome ? (
+        <path d={fillPath} fill={MONO_FILL} stroke={MONO_FILL} strokeWidth={width * 0.4} />
+      ) : (
+        shades.map((shade, index) => {
+          const color = colorOf(shade.role);
+          return (
+            <path
+              key={index}
+              data-role={shade.role}
+              d={shade.path}
+              fill={color}
+              stroke={color}
+              strokeWidth={width * 0.4}
+            />
+          );
+        })
+      )}
+      {monochrome || selected ? (
+        <path
+          d={linePath}
+          fill="none"
+          stroke={selected ? HIGHLIGHT : INK}
+          strokeWidth={lineWidth}
+          strokeLinecap="round"
+        />
+      ) : (
+        lineGroups.map((group) => (
+          <path
+            key={group.role}
+            d={group.path}
+            fill="none"
+            stroke={isDark(colorOf(group.role)) ? LIGHT_INK : INK}
+            strokeWidth={lineWidth}
+            strokeLinecap="round"
+          />
+        ))
+      )}
     </g>
   );
 });

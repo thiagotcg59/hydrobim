@@ -15,7 +15,7 @@ import {
 import { getPort, getPorts, pipeLength } from './ports';
 import { applyFamilyToInstances, upsertFamily } from './projectOps';
 import type { Result } from './result';
-import type { FittingFamily, Pipe, Project } from './schema';
+import { SCHEMA_VERSION, type FittingFamily, type Pipe, type Project } from './schema';
 import { parseProjectDocument, serializeProject } from './serialization';
 import { resizeWithReducers } from './sizing';
 import { testSpec } from './testSupport';
@@ -346,7 +346,7 @@ describe('migração de esquema', () => {
     const migrated = parseProjectDocument(v1);
     expect(migrated.ok ? '' : migrated.error.message).toBe('');
     if (!migrated.ok) return;
-    expect(migrated.value.schemaVersion).toBe(4);
+    expect(migrated.value.schemaVersion).toBe(SCHEMA_VERSION);
     expect(migrated.value.annotations).toEqual([]);
     expect(migrated.value.levels).toHaveLength(1);
     expect(migrated.value.elements.map((e) => e.id)).toEqual(n.project.elements.map((e) => e.id));
@@ -358,6 +358,15 @@ describe('migração de esquema', () => {
     const current = JSON.parse(serializeProject(n.project)) as Record<string, unknown>;
     const { annotations: _a, drawingScale: _s, ...v2 } = current;
     const migrated = parseProjectDocument({ ...v2, schemaVersion: 2 });
+    expect(migrated.ok ? '' : migrated.error.message).toBe('');
+    if (!migrated.ok) return;
+    expect(migrated.value).toEqual(n.project);
+  });
+
+  it('abre projetos da versão 4 sem alterar o conteúdo', () => {
+    const n = network();
+    const current = JSON.parse(serializeProject(n.project)) as Record<string, unknown>;
+    const migrated = parseProjectDocument({ ...current, schemaVersion: 4 });
     expect(migrated.ok ? '' : migrated.error.message).toBe('');
     if (!migrated.ok) return;
     expect(migrated.value).toEqual(n.project);

@@ -67,7 +67,12 @@ def test_ifc_schema_and_model(example):
     assert model.by_type("IfcProject")[0].GlobalId == global_id(document["id"])
     assert model.by_type("IfcProject")[0].Name == document["name"]
     expected = Counter(
-        ("IfcValve", VALVES[e["valveType"]]) if e["kind"] == "valve" else CLASSES[e["kind"]]
+        # O filtro Y é um tipo interno de válvula, mas no IFC é IfcFilter/STRAINER.
+        ("IfcFilter", "STRAINER")
+        if e.get("valveType") == "strainer"
+        else ("IfcValve", VALVES[e["valveType"]])
+        if e["kind"] == "valve"
+        else CLASSES[e["kind"]]
         for e in elements
     )
     actual = Counter(
@@ -78,12 +83,24 @@ def test_ifc_schema_and_model(example):
     assert len({e.GlobalId for e in roots}) == len(roots)
     assert all(re.fullmatch(r"[0-3][0-9A-Za-z_$]{21}", e.GlobalId) for e in roots)
     port_count = sum(
-        3 if e["kind"] == "tee" else 1 if e.get("valveType") == "airRelease" else 2
+        3
+        if e["kind"] == "tee"
+        else 1
+        if e.get("valveType") == "airRelease"
+        else 2 + len(e.get("nozzles", []))
         for e in elements
     )
     ports = model.by_type("IfcDistributionPort")
     assert len(ports) == port_count
-    assert all(p.PredefinedType == "PIPE" and p.FlowDirection == "NOTDEFINED" for p in ports)
+    assert all(p.PredefinedType == "PIPE" for p in ports)
+    # Só os bocais de reservatório têm sentido de escoamento: entrada = SINK; saída,
+    # extravasor e descarga = SOURCE.
+    tank_ids = {global_id(e["id"]) for e in elements if e["kind"] == "tank"}
+    for port in ports:
+        if port.Nests[0].RelatingObject.GlobalId in tank_ids:
+            assert port.FlowDirection == ("SINK" if port.Name.startswith("Entrada") else "SOURCE")
+        else:
+            assert port.FlowDirection == "NOTDEFINED"
     assert len(model.by_type("IfcRelNests")) == len(elements)
     assert all(len(p.Nests) == 1 for p in ports)
     assert len(model.by_type("IfcRelConnectsPorts")) == len(document["connections"])
@@ -182,3 +199,182 @@ def test_ifc_geometry_tessellates(example):
         ]
         assert min(projections) == pytest.approx(0, abs=1e-6)
         assert max(projections) == pytest.approx(length, abs=1e-6)
+
+
+def _psets(entity):
+    """Conjuntos de propriedades de uma ocorrência: {conjunto: {propriedade: valor}}."""
+    result = {}
+    for relation in entity.IsDefinedBy:
+        definition = relation.RelatingPropertyDefinition
+        if definition.is_a("IfcPropertySet"):
+            result[definition.Name] = {
+                p.Name: (
+                    p.NominalValue.wrappedValue
+                    if p.is_a("IfcPropertySingleValue") and p.NominalValue is not None
+                    else p.EnumerationValues[0].wrappedValue
+                    if p.is_a("IfcPropertyEnumeratedValue")
+                    else None
+                )
+                for p in definition.HasProperties
+            }
+    return result
+
+
+def _catalog_tanks(example):
+    return [
+        e
+        for e in source_document(example)["elements"]
+        if e["kind"] == "tank" and e.get("tankType", "generic") != "generic"
+    ]
+
+
+TANK_EXAMPLES = [path for path in EXAMPLES if _catalog_tanks(path)]
+
+
+def test_there_is_an_example_with_catalog_tanks():
+    assert TANK_EXAMPLES, "Nenhum exemplo com reservatórios de catálogo em examples/."
+    kinds = {e["tankType"] for path in TANK_EXAMPLES for e in _catalog_tanks(path)}
+    assert kinds == {
+        "gobletWet",
+        "gobletDry",
+        "tubular",
+        "australian",
+        "verticalGround",
+        "verticalConeLegs",
+        "fieldErected",
+        "horizontal",
+    }
+
+
+@pytest.mark.parametrize("example", TANK_EXAMPLES, ids=[p.name for p in TANK_EXAMPLES])
+def test_catalog_tanks_keep_classification_and_parameters(example):
+    """Reabre o IFC e confere, contra o projeto, classe, tipo, material e propriedades."""
+    model = ifcopenshell.open(str(example))
+    tanks = _catalog_tanks(example)
+    assert len(model.by_type("IfcTankType")) == len(tanks)
+    material = model.by_type("IfcMaterial")
+    assert [m.Name for m in material if m.Category == "steel"] == ["Aço-carbono estrutural"]
+    for source in tanks:
+        entity = model.by_guid(global_id(source["id"]))
+        assert entity.is_a("IfcTank") and entity.PredefinedType == "STORAGE"
+        tank_type = entity.IsTypedBy[0].RelatingType
+        assert tank_type.is_a("IfcTankType") and tank_type.PredefinedType == "STORAGE"
+        assert tank_type.Name == source["manufacturing"]["model"]
+        assert [
+            a.RelatingMaterial.Name
+            for a in entity.HasAssociations
+            if a.is_a("IfcRelAssociatesMaterial")
+        ] == ["Aço-carbono estrutural"]
+
+        psets = _psets(entity)
+        tramec = psets["Pset_TRAMEC_Reservatorio"]
+        support = source.get("supportHeight", 0)
+        total = {
+            "australian": support + source["height"],
+            "horizontal": support + source["diameter"],
+        }.get(source["tankType"], source["height"])
+        assert tramec["Manufacturer"] == "TRAMEC"
+        assert tramec["Model"] == source["manufacturing"]["model"]
+        assert tramec["NominalCapacity"] == pytest.approx(source["nominalCapacity"])
+        assert tramec["TotalHeight"] == pytest.approx(total)
+        assert tramec["Diameter"] == pytest.approx(source["diameter"])
+        assert tramec["Material"] == "Aço-carbono estrutural"
+        assert "tramec.com.br" in tramec["CatalogReference"]
+        assert tramec["NumberOfCompartments"] == source.get("compartments", 1)
+        for name, key in [
+            ("ColumnHeight", "columnHeight"),
+            ("ConeHeight", "coneHeight"),
+            ("SupportHeight", "supportHeight"),
+            ("ShellThickness", "shellThickness"),
+            ("Length", "length"),
+        ]:
+            # Ausente no projeto = propriedade presente, mas sem valor (nada é inventado).
+            assert name in tramec
+            if key in source:
+                assert tramec[name] == pytest.approx(source[key])
+            else:
+                assert tramec[name] is None
+        assert {"BottomType", "InstallationType", "ReservoirType"} <= tramec.keys()
+        assert psets["Pset_TankOccurrence"]["HasLadder"] is source["accessories"]["ladder"]
+        origins = psets["HydroBIM_Reservatorio_OrigemDosParametros"]
+        assert origins["ShellThickness"].startswith(
+            "definido" if "shellThickness" in source else "estimado"
+        )
+        if "variantId" in source:
+            assert origins["Diameter"] == "catálogo" and origins["Height"] == "catálogo"
+
+        type_psets = {p.Name: p for p in tank_type.HasPropertySets}
+        common = {p.Name: p for p in type_psets["Pset_TankTypeCommon"].HasProperties}
+        assert common["TankNominalCapacity"].NominalValue.wrappedValue == pytest.approx(
+            source["nominalCapacity"]
+        )
+        assert common["PatternType"].EnumerationValues[0].wrappedValue == (
+            "HORIZONTALCYLINDER" if source["tankType"] == "horizontal" else "VERTICALCYLINDER"
+        )
+        assert "Pset_ManufacturerTypeInformation" in type_psets
+
+        quantities = next(
+            r.RelatingPropertyDefinition
+            for r in entity.IsDefinedBy
+            if r.RelatingPropertyDefinition.is_a("IfcElementQuantity")
+        )
+        by_name = {q.Name: q for q in quantities.Quantities}
+        assert by_name["NominalCapacity"].VolumeValue == pytest.approx(source["nominalCapacity"])
+        assert by_name["TotalHeight"].LengthValue == pytest.approx(total)
+        assert by_name["ProjectedArea"].is_a("IfcQuantityArea")
+
+        # Bocais: função, sentido, posição e diâmetro da especificação escolhida.
+        ports = {p.Name: p for p in entity.IsNestedBy[0].RelatedObjects}
+        assert len(ports) == 2 + len(source.get("nozzles", []))
+        assert ports["Saída"].FlowDirection == "SOURCE"
+        assert ports["Entrada"].FlowDirection == "SINK"
+        for nozzle in source.get("nozzles", []):
+            label = {"overflow": "Extravasor", "drain": "Descarga"}[nozzle["role"]]
+            port = ports[label]
+            assert port.FlowDirection == "SOURCE"
+            port_psets = _psets(port)
+            pipe = port_psets["Pset_DistributionPortTypePipe"]
+            assert pipe["OuterDiameter"] == pytest.approx(nozzle["spec"]["outerDiameter"])
+            assert pipe["NominalDiameter"] == pytest.approx(nozzle["spec"]["dn"] / 1000)
+            assert port_psets["HydroBIM_Bocal"]["HeightAboveBase"] == pytest.approx(
+                nozzle["height"]
+            )
+            location = port.ObjectPlacement.RelativePlacement.Location.Coordinates
+            assert location[2] == pytest.approx(nozzle["height"])
+
+
+@pytest.mark.parametrize("example", TANK_EXAMPLES, ids=[p.name for p in TANK_EXAMPLES])
+def test_catalog_tank_geometry_survives_reimport(example):
+    """A malha lida do IFC tem as dimensões do projeto e está na posição do elemento."""
+    geom = pytest.importorskip(
+        "ifcopenshell.geom",
+        reason="Módulo geom do IfcOpenShell indisponível; validação de esquema permanece ativa.",
+    )
+    model = ifcopenshell.open(str(example))
+    settings = geom.settings()
+    settings.set(settings.USE_WORLD_COORDS, True)
+    for source in _catalog_tanks(example):
+        shape = geom.create_shape(settings, model.by_guid(global_id(source["id"])))
+        verts = shape.geometry.verts
+        xs, ys, zs = verts[0::3], verts[1::3], verts[2::3]
+        assert len(shape.geometry.faces) > 300, source["name"]
+        origin = source["placement"]["position"]
+        accessories = source["accessories"]
+        support = source.get("supportHeight", 0)
+        top = {
+            "australian": support + source["height"],
+            "horizontal": support + source["diameter"],
+        }.get(source["tankType"], source["height"])
+        # Base no piso; topo na altura total, mais o guarda-corpo quando existe.
+        assert min(zs) == pytest.approx(origin["z"], abs=1e-4)
+        if accessories["guardrail"]:
+            assert max(zs) == pytest.approx(
+                origin["z"] + top + accessories["guardrailHeight"], abs=0.03
+            )
+        elif not accessories["ladder"]:
+            assert max(zs) == pytest.approx(origin["z"] + top, abs=1e-3)
+        # Em planta, o corpo ocupa ao menos o diâmetro (os bocais e a escada passam dele).
+        reach = source.get("length", source["diameter"]) / 2
+        assert max(xs) - origin["x"] >= reach - 1e-4
+        assert origin["x"] - min(xs) >= reach - 1e-4
+        assert max(ys) - min(ys) >= source["diameter"] - 1e-3

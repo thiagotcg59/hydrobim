@@ -1,6 +1,7 @@
 import { portKey } from './connectivity';
 import { getPorts, pipeLength } from './ports';
 import type { HydroElement, Material, Project } from './schema';
+import { tankHydraulics } from './tanks';
 
 /**
  * Exportação da rede para o formato INP do EPANET 2.x.
@@ -111,6 +112,11 @@ export function exportEpanet(project: Project): EpanetExport {
               `"${element.name}" (redutora de pressão) foi exportada como trecho aberto; defina a válvula PRV e a pressão de ajuste no EPANET.`,
             );
           }
+          if (element.valveType === 'strainer') {
+            warnings.push(
+              `"${element.name}" (filtro Y) foi exportado como trecho aberto; a perda de carga do elemento filtrante não é representada.`,
+            );
+          }
           pipes.push(
             `${pad(link())}${pad(nodeOf(element.id, 'a'))}${pad(nodeOf(element.id, 'b'))}${pad(num(element.length))}${pad(diameter)}${pad(c)}${pad(0)}${element.valveType === 'check' ? 'CV  ' : 'Open'}    ; ${element.name} (válvula)`,
           );
@@ -156,9 +162,16 @@ export function exportEpanet(project: Project): EpanetExport {
     coordinates.push(`${pad(id)}${pad(num(point.x))}${pad(num(point.y))}`);
     const tank = tankNodes.get(id);
     if (tank) {
-      const base = tank.placement.position.z;
+      // Reservatórios elevados ou de seção variável viram o cilindro equivalente.
+      const water = tankHydraulics(tank);
+      const base = tank.placement.position.z + water.bottom;
+      if (water.approximate) {
+        warnings.push(
+          `"${tank.name}" não tem seção constante: foi exportado como cilindro equivalente (mesmo volume e mesma altura de água); revise a curva de volume no EPANET.`,
+        );
+      }
       tanks.push(
-        `${pad(id)}${pad(num(base))}${pad(num(tank.height / 2))}${pad(num(0))}${pad(num(tank.height))}${pad(num(tank.diameter))}${pad(0)}; ${tank.name}`,
+        `${pad(id)}${pad(num(base))}${pad(num(water.maxLevel / 2))}${pad(num(0))}${pad(num(water.maxLevel))}${pad(num(water.diameter))}${pad(0)}; ${tank.name}`,
       );
     } else {
       junctions.push(`${pad(id)}${pad(num(point.z))}${pad(0)}`);

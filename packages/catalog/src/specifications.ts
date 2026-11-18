@@ -60,6 +60,21 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     ],
   },
   {
+    id: 'pvc-pba-nbr5647-cl12',
+    name: 'PVC PBA junta elástica — classe 12',
+    material: 'pvc',
+    standard: 'ABNT NBR 5647',
+    jointType: 'socketSpigot',
+    pressureClass: 'Classe 12 (0,60 MPa)',
+    disciplines: ['infra'],
+    // Fonte: Amanco Wavin (FT Linha PBA, FTC000088, jan/2025, p. 14).
+    sizes: [
+      size(50, 'DN 50 (DE 60)', 60, 2.7),
+      size(75, 'DN 75 (DE 85)', 85, 3.9),
+      size(100, 'DN 100 (DE 110)', 110, 5.0),
+    ],
+  },
+  {
     id: 'pvc-pba-nbr5647-cl15',
     name: 'PVC PBA junta elástica — classe 15',
     material: 'pvc',

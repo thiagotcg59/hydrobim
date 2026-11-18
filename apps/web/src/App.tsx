@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { selectIsDirty, useEditorStore } from './state/editorStore';
+import { isAnnotationTool, selectIsDirty, useEditorStore } from './state/editorStore';
 import { restoreSession, saveCurrentProject } from './state/projectActions';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { PlanView } from './plan/PlanView';
@@ -113,7 +113,7 @@ export function App() {
           ) : (
             <Viewport />
           )}
-          {viewMode === '3d' && tool !== 'select' && <ToolOptions />}
+          {tool !== 'select' && !isAnnotationTool(tool) && <ToolOptions />}
           <div className="segmented viewmode" role="group" aria-label="Área de trabalho">
             {(['3d', 'plan'] as const).map((mode) => (
               <button

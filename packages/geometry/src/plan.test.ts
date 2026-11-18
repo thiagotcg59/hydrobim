@@ -63,7 +63,27 @@ describe('projeção em planta', () => {
     const both = totalLength(planOutline({ transform: identity, parts: [below, above] }).lines);
     // Some o trecho de 2 m de cada lado longo da caixa de baixo; entra o perímetro da de cima.
     expect(alone).toBeCloseTo(10, 4);
-    expect(both).toBeCloseTo(10 - 4 + 10, 1);
+    // O corte entre o trecho visível e o oculto é exato (bisseção), não de meio passo.
+    expect(both).toBeCloseTo(10 - 4 + 10, 3);
+  });
+
+  it('separa preenchimento e linhas pelo papel da parte, de baixo para cima', () => {
+    const below = { role: 'body' as const, mesh: box(vec3(0, 0, 0), vec3(4, 1, 0.2)) };
+    const above = { role: 'accent' as const, mesh: box(vec3(1, -1, 0.5), vec3(3, 2, 0.8)) };
+    // A ordem das partes na malha não define a ordem de desenho: vale a cota.
+    const outline = planOutline({ transform: identity, parts: [above, below] });
+    expect(outline.shading.map((shade) => shade.role)).toEqual(['body', 'accent']);
+    expect(outline.shading.map((shade) => fillArea(shade.fill))).toEqual([
+      expect.closeTo(4, 5),
+      expect.closeTo(6, 5),
+    ]);
+    const byRole = new Map(outline.lineGroups.map((group) => [group.role, group.lines]));
+    expect(totalLength(byRole.get('body') ?? new Float32Array(0))).toBeCloseTo(6, 3);
+    expect(totalLength(byRole.get('accent') ?? new Float32Array(0))).toBeCloseTo(10, 3);
+    // Os grupos são uma partição de `lines`.
+    expect(outline.lineGroups.reduce((sum, group) => sum + group.lines.length, 0)).toBe(
+      outline.lines.length,
+    );
   });
 
   it('tubo horizontal: duas geratrizes na largura do diâmetro externo', () => {

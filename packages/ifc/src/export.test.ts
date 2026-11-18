@@ -184,18 +184,21 @@ describe('exportação IFC 4.3', () => {
     expect(byType(all, 'IfcDistributionPort')).toHaveLength(
       project.elements.flatMap(getPorts).length,
     );
-    expect(
-      byType(all, 'IfcDistributionPort').every(
-        (e) => e.args.slice(7).join() === '.NOTDEFINED.,.PIPE.,.DOMESTICCOLDWATER.',
-      ),
-    ).toBe(true);
+    // Só os bocais do reservatório têm sentido definido: saída (SOURCE) e entrada (SINK).
+    const flows = byType(all, 'IfcDistributionPort').map((e) => e.args.slice(7).join());
+    expect(flows.every((flow) => flow.endsWith('.PIPE.,.DOMESTICCOLDWATER.'))).toBe(true);
+    expect(flows.filter((flow) => !flow.startsWith('.NOTDEFINED.')).sort()).toEqual([
+      '.SINK.,.PIPE.,.DOMESTICCOLDWATER.',
+      '.SOURCE.,.PIPE.,.DOMESTICCOLDWATER.',
+    ]);
     expect(byType(all, 'IfcRelNests')).toHaveLength(project.elements.length);
     expect(byType(all, 'IfcRelConnectsPorts')).toHaveLength(project.connections.length);
     expect(byType(all, 'IfcDistributionSystem')).toHaveLength(1);
     expect(byType(all, 'IfcRelAssignsToGroup')).toHaveLength(1);
     expect(byType(all, 'IfcMaterial')[0]?.args[0]).toBe("'PVC'");
     expect(byType(all, 'IfcRelAssociatesMaterial')).toHaveLength(1);
-    expect(byType(all, 'IfcPropertySet')).toHaveLength(project.elements.length + 1);
+    // Um conjunto por elemento, as propriedades livres do 1º e dois por bocal do reservatório.
+    expect(byType(all, 'IfcPropertySet')).toHaveLength(project.elements.length + 1 + 4);
     const props = byType(all, 'IfcPropertySingleValue');
     expect(props.find((p) => p.args[0] === "'texto'")?.args[2]).toContain('IFCTEXT(');
     expect(props.find((p) => p.args[0] === "'real'")?.args[2]).toBe('IFCREAL(2.5)');
@@ -263,6 +266,39 @@ describe('exportação IFC 4.3', () => {
     const all = entities(exportIfc(project, { timestamp }));
     expect(byType(all, 'IfcValve')[0]?.args[8]).toBe(`.${expected}.`);
     expect(byType(all, 'IfcDistributionPort')).toHaveLength(valveType === 'airRelease' ? 1 : 2);
+  });
+
+  it('tubo com flanges é exportado como malha, com as dimensões do flange', () => {
+    const flange = {
+      type: 'flange' as const,
+      length: 0.019,
+      outerDiameter: 0.165,
+      boltCircle: 0.125,
+      boltCount: 4,
+      boltHoleDiameter: 0.019,
+      raisedFaceDiameter: 0.099,
+      raisedFaceHeight: 0.003,
+    };
+    const flanged = unwrap(
+      addPipe(createProject('Flanges'), {
+        spec,
+        start: vec3(0, 0, 0),
+        end: vec3(1, 0, 0),
+        ends: { start: flange, end: null, familyId: 'tubo-flangeado' },
+      }),
+    ).project;
+    expect(validateProject(flanged)).toEqual([]);
+    const ifc = exportIfc(flanged, { timestamp });
+    // Sem o perfil extrudado do tubo liso: corpo, disco e ressalto em malha.
+    expect(ifc).not.toContain('IFCEXTRUDEDAREASOLID');
+    expect(ifc.match(/IFCTRIANGULATEDFACESET/g)).toHaveLength(3);
+    expect(ifc).toContain("'Tessellation'");
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('StartFlangeOuterDiameter'");
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('StartFlangeBoltCount',$,IFCINTEGER(4)");
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('FamilyId',$,IFCLABEL('tubo-flangeado')");
+    expect(ifc).not.toContain('EndFlange');
+    // O tubo liso continua sendo um sólido extrudado.
+    expect(exportIfc(sample(), { timestamp })).toContain('IFCEXTRUDEDAREASOLID');
   });
 
   it('usa a menor cota das portas para conter elementos e subtrai a origem do pavimento', () => {

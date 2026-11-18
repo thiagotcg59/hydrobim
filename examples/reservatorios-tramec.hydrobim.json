@@ -1,0 +1,605 @@
+{
+  "format": "hydrobim-project",
+  "schemaVersion": 7,
+  "id": "ffecc208-9d89-4cff-a120-c0a437379d22",
+  "name": "Reservatórios metálicos TRAMEC — demonstração",
+  "discipline": "infra",
+  "units": {
+    "length": "m",
+    "angle": "rad"
+  },
+  "createdAt": "2026-11-18T01:08:53.163Z",
+  "updatedAt": "2026-11-18T01:08:53.255Z",
+  "systems": [
+    {
+      "id": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "name": "Abastecimento de água",
+      "kind": "waterSupply"
+    }
+  ],
+  "levels": [
+    {
+      "id": "f13b0b57-18cc-40f0-8705-631012d8a3ca",
+      "name": "Referência",
+      "elevation": 0
+    }
+  ],
+  "families": [],
+  "georeference": null,
+  "terrain": null,
+  "elements": [
+    {
+      "id": "3cc33f74-a2de-4b22-8cdc-081b9e4cfc22",
+      "name": "Reservatório 1",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": "tramec-taca-com-agua",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório tipo taça com água na coluna 10.000 L"
+      },
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.251Z",
+        "updatedAt": "2026-11-18T01:08:53.251Z",
+        "revision": 0
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "gobletWet",
+      "variantId": "tramec-taca-com-agua/10000-705-191",
+      "nominalCapacity": 10,
+      "diameter": 1.91,
+      "height": 7.05,
+      "columnHeight": 4.53,
+      "columnDiameter": 0.955,
+      "coneHeight": 0.382,
+      "outletHeight": 0.3,
+      "inletHeight": 0.3,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": true,
+        "guardrail": true,
+        "manhole": true
+      }
+    },
+    {
+      "id": "5ddbbde9-757d-4e34-aebf-7bddde5c96fc",
+      "name": "Reservatório 2",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": "tramec-taca-sem-agua",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório tipo taça sem água na coluna 10.000 L"
+      },
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.252Z",
+        "updatedAt": "2026-11-18T01:08:53.254Z",
+        "revision": 2
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 6,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "gobletDry",
+      "variantId": "tramec-taca-sem-agua/10000-830-191-480",
+      "nominalCapacity": 10,
+      "diameter": 1.91,
+      "height": 8.3,
+      "columnHeight": 4.8,
+      "columnDiameter": 0.955,
+      "coneHeight": 0.382,
+      "outletHeight": 0.3,
+      "inletHeight": 0.3,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": true,
+        "guardrail": true,
+        "manhole": true
+      },
+      "nozzles": [
+        {
+          "id": "d51b3d63-7ef8-4837-a0cb-d4df45dbdb6a",
+          "role": "overflow",
+          "height": 7.9,
+          "azimuth": -1.5707963267948966,
+          "spec": {
+            "specificationId": "ferro-ductil-nbr7675-k9",
+            "material": "ductileIron",
+            "standard": "ABNT NBR 7675 / ISO 2531",
+            "jointType": "socketSpigot",
+            "pressureClass": "K9",
+            "dn": 100,
+            "sizeLabel": "DN 100",
+            "outerDiameter": 0.118,
+            "wallThickness": 0.006,
+            "innerDiameter": 0.106
+          }
+        },
+        {
+          "id": "d1703910-1c8e-40d5-835b-7fff45c33986",
+          "role": "drain",
+          "height": 5.4,
+          "azimuth": -1.5707963267948966,
+          "spec": {
+            "specificationId": "ferro-ductil-nbr7675-k9",
+            "material": "ductileIron",
+            "standard": "ABNT NBR 7675 / ISO 2531",
+            "jointType": "socketSpigot",
+            "pressureClass": "K9",
+            "dn": 80,
+            "sizeLabel": "DN 80",
+            "outerDiameter": 0.098,
+            "wallThickness": 0.006,
+            "innerDiameter": 0.08600000000000001
+          }
+        }
+      ]
+    },
+    {
+      "id": "9288cc78-db07-43f4-9684-f0e85f8683c8",
+      "name": "Reservatório 3",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": "tramec-tubular-alto",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório tubular alto 20.000 L"
+      },
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.252Z",
+        "updatedAt": "2026-11-18T01:08:53.252Z",
+        "revision": 0
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 12,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "tubular",
+      "variantId": "tramec-tubular-alto/20000-1020-159",
+      "nominalCapacity": 20,
+      "diameter": 1.59,
+      "height": 10.2,
+      "outletHeight": 0.2,
+      "inletHeight": 9.899999999999999,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": true,
+        "guardrail": true,
+        "manhole": true
+      }
+    },
+    {
+      "id": "de681998-be29-49d4-9540-c6586653410e",
+      "name": "Reservatório 4",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": "tramec-australiano",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório tipo australiano (dimensões personalizadas)"
+      },
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.253Z",
+        "updatedAt": "2026-11-18T01:08:53.253Z",
+        "revision": 0
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 21,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "australian",
+      "nominalCapacity": 50,
+      "diameter": 6.084,
+      "height": 1.72,
+      "coneHeight": 0.27999999999999997,
+      "supportHeight": 0.35,
+      "outletHeight": 0.55,
+      "inletHeight": 1.7699999999999998,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": false,
+        "cage": false,
+        "guardrail": false,
+        "manhole": false
+      }
+    },
+    {
+      "id": "7df60735-cd91-435d-b72f-63f0a81fedf8",
+      "name": "Reservatório 5",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": "tramec-vertical-apoiado",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório vertical apoiado 15.000 L"
+      },
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.253Z",
+        "updatedAt": "2026-11-18T01:08:53.253Z",
+        "revision": 0
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 30,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "verticalGround",
+      "variantId": "tramec-vertical-apoiado/15000-400-223",
+      "nominalCapacity": 15,
+      "diameter": 2.23,
+      "height": 4,
+      "outletHeight": 0.2,
+      "inletHeight": 3.7,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": true,
+        "guardrail": true,
+        "manhole": true
+      }
+    },
+    {
+      "id": "239821d3-e653-4776-b58e-aab6d58b4802",
+      "name": "Reservatório 6",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": "tramec-vertical-fundo-conico",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório vertical de fundo cônico com pés 15.000 L"
+      },
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.253Z",
+        "updatedAt": "2026-11-18T01:08:53.253Z",
+        "revision": 0
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 36,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "verticalConeLegs",
+      "variantId": "tramec-vertical-fundo-conico/15000-450-223",
+      "nominalCapacity": 15,
+      "diameter": 2.23,
+      "height": 4.5,
+      "coneHeight": 0.4,
+      "supportHeight": 0.5,
+      "outletHeight": 0.7,
+      "inletHeight": 4.2,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": true,
+        "guardrail": true,
+        "manhole": true
+      }
+    },
+    {
+      "id": "ce5e45e0-1d36-46f8-bdc2-a711fd7bca0a",
+      "name": "Reservatório 7",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": "tramec-vertical-in-loco",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório vertical apoiado montado na obra (dimensões personalizadas)"
+      },
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.253Z",
+        "updatedAt": "2026-11-18T01:08:53.253Z",
+        "revision": 0
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 46,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "fieldErected",
+      "nominalCapacity": 200,
+      "diameter": 8,
+      "height": 4,
+      "outletHeight": 0.2,
+      "inletHeight": 3.7,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": true,
+        "guardrail": true,
+        "manhole": true
+      }
+    },
+    {
+      "id": "9cd063c2-7caa-4839-a843-aac3d11c796f",
+      "name": "Reservatório 8",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": "tramec-cilindrico-horizontal",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório cilíndrico horizontal (dimensões personalizadas)"
+      },
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.253Z",
+        "updatedAt": "2026-11-18T01:08:53.255Z",
+        "revision": 1
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 57,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "horizontal",
+      "nominalCapacity": 10,
+      "diameter": 1.91,
+      "height": 2.06,
+      "supportHeight": 0.15,
+      "supportType": "skid",
+      "length": 3.6,
+      "outletHeight": 0.532,
+      "inletHeight": 1.678,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": false,
+        "guardrail": false,
+        "manhole": true
+      },
+      "compartments": 2,
+      "shellThickness": 0.00635
+    },
+    {
+      "id": "ca40df4a-f9d4-4268-bbcd-f600c88adbc3",
+      "name": "Tubo 1",
+      "systemId": "6213c9a3-29df-49d9-a288-2968f7eb5c7a",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-18T01:08:53.254Z",
+        "updatedAt": "2026-11-18T01:08:53.254Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 6.6274999999999995,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 8.6275,
+        "y": 0,
+        "z": 0.3
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "819d988e-fa3f-4c52-9b62-affc94b3e0d0",
+      "a": {
+        "elementId": "ca40df4a-f9d4-4268-bbcd-f600c88adbc3",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "5ddbbde9-757d-4e34-aebf-7bddde5c96fc",
+        "portId": "a"
+      }
+    }
+  ],
+  "annotations": [],
+  "drawingScale": 500
+}

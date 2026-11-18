@@ -1,3 +1,4 @@
+import { FLANGED_PIPE_FAMILIES, TANK_FAMILIES } from '@hydrobim/catalog';
 import {
   computeQuantities,
   createTerrain,
@@ -6,6 +7,7 @@ import {
   parseTerrainPoints,
   quantitiesToCsv,
 } from '@hydrobim/core';
+import { encodeDxf, exportModelDxf } from '@hydrobim/dxf';
 import { exportIfc } from '@hydrobim/ifc';
 import { createDemoProject } from '../demo/demoProject';
 import {
@@ -97,7 +99,11 @@ export function exportIfcFile(): void {
     return;
   }
   try {
-    const text = exportIfc(project, { timestamp: new Date(), application: 'HydroBIM' });
+    const text = exportIfc(project, {
+      timestamp: new Date(),
+      application: 'HydroBIM',
+      tankFamilies: TANK_FAMILIES,
+    });
     downloadText(`${projectFileBase(project)}.ifc`, text, 'application/x-step');
     store().notify('success', `IFC 4.3 exportado (${project.elements.length} elementos).`);
   } catch (error) {
@@ -106,10 +112,33 @@ export function exportIfcFile(): void {
   }
 }
 
+/** Exporta o modelo 3D em DXF (malhas em metros, uma camada por sistema). */
+export function exportModelDxfFile(): void {
+  const { project } = store();
+  if (project.elements.length === 0) {
+    store().notify('error', 'O projeto não tem elementos para exportar.');
+    return;
+  }
+  try {
+    downloadText(
+      `${projectFileBase(project)}-3d.dxf`,
+      encodeDxf(exportModelDxf(project)),
+      'application/dxf',
+    );
+    store().notify(
+      'success',
+      `Modelo 3D exportado em DXF (${project.elements.length} elementos, unidades em metros).`,
+    );
+  } catch (error) {
+    console.error('[HydroBIM] Falha na exportação DXF.', error);
+    store().notify('error', 'Não foi possível exportar o DXF.');
+  }
+}
+
 /** Exporta o quantitativo (lista de materiais) em CSV. */
 export function exportQuantitiesFile(): void {
   const { project } = store();
-  const rows = computeQuantities(project, familiesOf(project));
+  const rows = computeQuantities(project, [...familiesOf(project), ...FLANGED_PIPE_FAMILIES]);
   if (rows.length === 0) {
     store().notify('error', 'O projeto não tem elementos para quantificar.');
     return;

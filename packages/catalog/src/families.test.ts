@@ -142,8 +142,10 @@ describe('famílias embutidas', () => {
     expect(es600.length).toBeCloseTo(1.45);
     expect(es600.width).toBeCloseTo(0.92);
     expect(es600.height).toBeCloseTo(0.795);
-    // DN sem dado de flange não recebem flange inventado.
-    expect(en.sizes.find((s) => s.dn === 50)!.end).toBeUndefined();
+    // DN sem dado de flange (a tabela PN 10 não traz DN 40) não recebem flange inventado;
+    // DN 50 passou a ter o flange da tabela única.
+    expect(en.sizes.find((s) => s.dn === 40)!.end).toBeUndefined();
+    expect(en.sizes.find((s) => s.dn === 50)!.end?.outerDiameter).toBeCloseTo(0.165);
 
     // A preferência do usuário escolhe entre as séries EN e ES.
     const di150 = resolvePipeSpec('ferro-ductil-nbr7675-k9', 150)!;

@@ -13,6 +13,7 @@
   "dependencies": {
     "@hydrobim/catalog": "*",
     "@hydrobim/core": "*",
+    "@hydrobim/dxf": "*",
     "@hydrobim/geometry": "*",
     "@hydrobim/ifc": "*",
     "@react-three/drei": "^10.7.9",

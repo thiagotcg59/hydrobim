@@ -1,6 +1,7 @@
 import type { FittingFamily } from '@hydrobim/core';
+import { flangeEndMm, flangeSourceNote } from '../flanges';
 import { forSpecifications, type EndMm, type SizeMm } from './builders';
-import { DUCTILE_SPECIFICATIONS, PN10_FLANGE_MM } from './ductileIron';
+import { DUCTILE_SPECIFICATIONS } from './ductileIron';
 
 /**
  * Válvula redutora de pressão BERMAD Modelo 720 — série 700 SIGMA (corpo em "Y", flangeada,
@@ -21,8 +22,8 @@ import { DUCTILE_SPECIFICATIONS, PN10_FLANGE_MM } from './ductileIron';
  * básica; o circuito de controle (piloto e tubos) não é dimensionado no documento.
  *
  * Flanges: a BERMAD informa "Flanged (all standards)" e não tabula o flange. Adotado o
- * flange PN 10 (EN 1092-2) já usado nas conexões de ferro dúctil, onde há dado; os DN sem
- * dado de flange (40, 50, 65, 125 e 450) ficam sem o disco do flange na geometria.
+ * flange PN 10 da tabela única de flanges (`flanges.ts`), onde há dado; os DN que a tabela
+ * não traz (40, 65 e 125) ficam sem o disco do flange na geometria.
  */
 
 const SOURCE =
@@ -60,7 +61,7 @@ const SIGMA_ES = [
 
 function sizes(rows: readonly (readonly [number, number, number, number, number])[]): SizeMm[] {
   return rows.map(([dn, l, w, h, total]) => {
-    const flange: EndMm | undefined = PN10_FLANGE_MM[dn];
+    const flange: EndMm | undefined = flangeEndMm('PN 10', dn);
     return {
       dn,
       length: l,
@@ -84,14 +85,14 @@ export const BERMAD_FAMILIES: FittingFamily[] = [
     ...common,
     id: 'bermad-720-sigma-en',
     name: 'Válvula redutora de pressão BERMAD 720 — 700 SIGMA EN',
-    source: `${SOURCE}, p. 10 (700 SIGMA EN, métrico) — L, W, h, H. Altura do eixo ao topo = H − h; W adotada como diâmetro da tampa do atuador. Flange PN 10 (EN 1092-2) da tabela Saint-Gobain PAM; DN 40, 50 e 65 sem dado de flange.`,
+    source: `${SOURCE}, p. 10 (700 SIGMA EN, métrico) — L, W, h, H. Altura do eixo ao topo = H − h; W adotada como diâmetro da tampa do atuador. ${flangeSourceNote('PN 10')} DN 40 e 65 sem dado de flange.`,
     sizes: sizes(SIGMA_EN),
   }),
   ...forSpecifications(DUCTILE_SPECIFICATIONS, {
     ...common,
     id: 'bermad-720-sigma-es',
     name: 'Válvula redutora de pressão BERMAD 720 — 700 SIGMA ES',
-    source: `${SOURCE}, p. 12 (700 SIGMA ES, métrico) — L, W, h, H. Altura do eixo ao topo = H − h; W adotada como diâmetro da tampa do atuador. Flange PN 10 (EN 1092-2) da tabela Saint-Gobain PAM; DN 65, 125 e 450 sem dado de flange.`,
+    source: `${SOURCE}, p. 12 (700 SIGMA ES, métrico) — L, W, h, H. Altura do eixo ao topo = H − h; W adotada como diâmetro da tampa do atuador. ${flangeSourceNote('PN 10')} DN 65 e 125 sem dado de flange.`,
     sizes: sizes(SIGMA_ES),
   }),
 ];
