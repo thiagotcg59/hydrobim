@@ -1,0 +1,72 @@
+import type { SystemKind, ValveType } from '@hydrobim/core';
+import type { SnapKind } from '../editor/picking';
+import type { ToolId } from '../state/editorStore';
+
+export const VALVE_TYPE_LABELS: Record<ValveType, string> = {
+  gate: 'Gaveta',
+  globe: 'Globo',
+  ball: 'Esfera',
+  butterfly: 'Borboleta',
+  check: 'Retenção',
+  airRelease: 'Ventosa',
+  pressureReducing: 'Redutora de pressão',
+  strainer: 'Filtro Y',
+};
+
+export const SYSTEM_KIND_LABELS: Record<SystemKind, string> = {
+  domesticColdWater: 'Água fria predial',
+  domesticHotWater: 'Água quente predial',
+  fireProtection: 'Combate a incêndio',
+  waterSupply: 'Abastecimento de água',
+  other: 'Outro',
+};
+
+export const SNAP_LABELS: Record<SnapKind, string> = {
+  port: 'Extremidade livre',
+  grid: 'Grade',
+  plane: 'Plano de trabalho',
+  axis: 'Eixo da porta',
+  vertical: 'Vertical',
+  angle: 'Ângulo de catálogo',
+  pipe: 'Tê automático no tubo',
+};
+
+export const TOOL_LABELS: Record<ToolId, string> = {
+  select: 'Selecionar',
+  pipe: 'Tubulação',
+  elbow: 'Joelho',
+  tee: 'Tê',
+  reducer: 'Redução',
+  valve: 'Válvula',
+  pump: 'Bomba',
+  tank: 'Reservatório',
+  measure: 'Medir',
+  dimension: 'Cota',
+  text: 'Texto',
+  leader: 'Chamada',
+  tag: 'Etiqueta',
+};
+
+export const TOOL_HINTS: Record<ToolId, string> = {
+  select:
+    'Clique em um elemento para selecioná-lo ou arraste uma janela em volta dos elementos (Ctrl/Shift soma à seleção). Órbita: botão do meio ou Alt + arrastar.',
+  pipe: 'Clique o ponto inicial e o final. Shift: trecho vertical. Esc: encerrar. Partindo da extremidade de um tubo, o joelho é criado automaticamente. Começando ou terminando sobre um tubo existente, o tê é inserido automaticamente.',
+  elbow: 'Clique em uma extremidade livre para acoplar o joelho.',
+  tee: 'Clique sobre um tubo para inserir em linha, ou em uma extremidade livre.',
+  reducer: 'Clique em uma extremidade livre para acoplar a redução.',
+  valve: 'Clique sobre um tubo para inserir em linha, ou em uma extremidade livre.',
+  pump: 'Clique um ponto do plano de trabalho (ou informe as coordenadas) para posicionar a bomba; ou clique em uma extremidade livre para acoplar a sucção.',
+  tank: 'Clique um ponto do plano de trabalho (ou informe as coordenadas) para posicionar o reservatório.',
+  measure: 'Clique dois pontos para medir a distância.',
+  dimension: 'Clique os dois pontos a cotar e, em seguida, a posição da linha de cota.',
+  text: 'Clique na planta para posicionar o texto e digite o conteúdo.',
+  leader: 'Clique o ponto indicado e, em seguida, a posição do texto da chamada.',
+  tag: 'Clique em um elemento e, em seguida, a posição da etiqueta.',
+};
+
+/** Orientações das ferramentas de modelagem quando usadas na planta baixa. */
+export const PLAN_TOOL_HINTS: Partial<Record<ToolId, string>> = {
+  pipe: 'Clique o ponto inicial e os seguintes: o eixo fica na elevação indicada. Para subir ou descer, altere a elevação do eixo durante o traçado (cria a prumada). Começando ou terminando sobre um tubo existente, o tê é inserido automaticamente. Esc: encerrar.',
+  pump: 'Clique um ponto da planta para posicionar a bomba no nível ativo; ou clique em uma extremidade livre para acoplar a sucção.',
+  tank: 'Clique um ponto da planta para posicionar o reservatório no nível ativo.',
+};

@@ -1,0 +1,17 @@
+{
+  "name": "@hydrobim/dxf",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Exportação DXF (planta baixa anotada e modelo 3D), escritor ASCII puro",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hydrobim/core": "*",
+    "@hydrobim/geometry": "*"
+  }
+}
