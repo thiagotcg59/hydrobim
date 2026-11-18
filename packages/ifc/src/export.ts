@@ -3,134 +3,30 @@ import {
   AXIS_Y,
   AXIS_Z,
   ZERO,
-  dot,
-  getPorts,
-  normalize,
   pipeLength,
   rotate,
-  scale,
   sub,
-  TANK_NOZZLE_ROLE_LABELS,
-  TANK_ORIGIN_LABELS,
-  TANK_TYPE_LABELS,
-  tankBottomType,
-  tankGeometricVolume,
-  tankInstallationType,
-  tankLayout,
-  tankNozzlePorts,
-  tankParameterOrigins,
-  tankTypeOf,
   type HydroElement,
-  type Material,
   type Project,
-  type PropertyValue,
-  type SystemKind,
-  type Tank,
-  type TankFamily,
   type Vec3,
 } from '@hydrobim/core';
 import { buildElementGeometry, type ElementGeometry } from '@hydrobim/geometry';
+import { buildIfcModel, type IfcModelOptions } from './bim/model';
+import type { IfcPropertyInfo, IfcPropertySetInfo, IfcValue } from './bim/types';
+import { isIntegerIfcType } from './bim/values';
 import { derivedGuid, persistentGuid } from './guid';
 import { weldMesh } from './mesh';
 import { enumeration as en, list, real, StepWriter, stepString as str } from './step';
 
-export interface IfcExportOptions {
+/**
+ * Opções da exportação. As famílias (catálogo + projeto) alimentam os
+ * tipos IFC: referência do catálogo, fabricante e origem de cada parâmetro.
+ */
+export interface IfcExportOptions extends IfcModelOptions {
   timestamp?: Date;
   author?: string;
   organization?: string;
   application?: string;
-  /**
-   * Famílias de reservatórios do catálogo. Com elas, a exportação registra a referência do
-   * catálogo e a origem de cada parâmetro (catálogo, derivado, estimado ou do usuário).
-   */
-  tankFamilies?: readonly TankFamily[];
-}
-
-/** "Fabricados em aço carbono estrutural" — material dos reservatórios metálicos de catálogo. */
-const STRUCTURAL_STEEL = 'Aço-carbono estrutural';
-/** Tipos de valor IFC que são inteiros (não levam ponto decimal no arquivo). */
-const INTEGER_TYPES = new Set(['IFCINTEGER', 'IFCCOUNTMEASURE']);
-// Enumerações dos conjuntos de propriedades padrão (IFC 4.3), conferidas no IfcOpenShell.
-const PENUM_TANK_ACCESS = [
-  'LOOSECOVER',
-  'MANHOLE',
-  'NONE',
-  'SECUREDCOVER',
-  'SECUREDCOVERWITHMANHOLE',
-  'OTHER',
-  'NOTKNOWN',
-  'UNSET',
-];
-const PENUM_TANK_PATTERN = [
-  'HORIZONTALCYLINDER',
-  'RECTANGULAR',
-  'VERTICALCYLINDER',
-  'OTHER',
-  'NOTKNOWN',
-  'UNSET',
-];
-const PENUM_END_SHAPE = [
-  'CONCAVECONVEX',
-  'CONCAVEFLAT',
-  'CONVEXCONVEX',
-  'FLATCONVEX',
-  'FLATFLAT',
-  'OTHER',
-  'NOTKNOWN',
-  'UNSET',
-];
-const PENUM_TANK_COMPOSITION = ['COMPLEX', 'ELEMENT', 'PARTIAL', 'OTHER', 'NOTKNOWN', 'UNSET'];
-const PENUM_ASSEMBLY_PLACE = ['FACTORY', 'OFFSITE', 'SITE', 'OTHER', 'NOTKNOWN', 'UNSET'];
-
-/** Reservatório de família de catálogo (forma construtiva definida). */
-const isCatalogTank = (element: HydroElement): element is Tank =>
-  element.kind === 'tank' && tankTypeOf(element) !== 'generic';
-
-const SYSTEM_TYPES: Record<SystemKind, string> = {
-  domesticColdWater: 'DOMESTICCOLDWATER',
-  domesticHotWater: 'DOMESTICHOTWATER',
-  fireProtection: 'FIREPROTECTION',
-  waterSupply: 'WATERSUPPLY',
-  other: 'USERDEFINED',
-};
-const MATERIAL_NAMES: Record<Material, string> = {
-  pvc: 'PVC',
-  hdpe: 'PEAD',
-  ductileIron: 'Ferro fundido dúctil',
-  carbonSteel: 'Aço-carbono',
-};
-
-function elementType(element: HydroElement): [string, string] {
-  switch (element.kind) {
-    case 'pipe':
-      return ['IfcPipeSegment', 'RIGIDSEGMENT'];
-    case 'elbow':
-      return ['IfcPipeFitting', 'BEND'];
-    case 'tee':
-      return ['IfcPipeFitting', 'JUNCTION'];
-    case 'reducer':
-      return ['IfcPipeFitting', 'TRANSITION'];
-    case 'pump':
-      return ['IfcPump', 'ENDSUCTION'];
-    case 'tank':
-      return ['IfcTank', 'STORAGE'];
-    case 'valve':
-      // O filtro Y é um tipo interno de "válvula" (peça em linha), mas no IFC é IfcFilter.
-      if (element.valveType === 'strainer') return ['IfcFilter', 'STRAINER'];
-      return [
-        'IfcValve',
-        {
-          gate: 'ISOLATING',
-          ball: 'ISOLATING',
-          butterfly: 'ISOLATING',
-          globe: 'REGULATING',
-          check: 'CHECK',
-          airRelease: 'AIRRELEASE',
-          pressureReducing: 'PRESSUREREDUCING',
-          strainer: 'NOTDEFINED',
-        }[element.valveType],
-      ];
-  }
 }
 
 interface Container {
@@ -180,14 +76,39 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
   const placement = (parent: string, position: Vec3, z = AXIS_Z, x = AXIS_X): string =>
     writer.entity('IfcLocalPlacement', parent, axis(position, z, x));
 
-  const metre = writer.entity('IfcSIUnit', '*', '.LENGTHUNIT.', '$', '.METRE.');
+  const si = (type: string, name: string): string =>
+    writer.entity('IfcSIUnit', '*', en(type), '$', en(name));
+  const metre = si('LENGTHUNIT', 'METRE');
+  const cubicMetre = si('VOLUMEUNIT', 'CUBIC_METRE');
+  const second = si('TIMEUNIT', 'SECOND');
+  const power = (unit: string, exponent: number): string =>
+    writer.entity('IfcDerivedUnitElement', unit, String(exponent));
+  // Unidades SI de todas as grandezas usadas nas propriedades (pressão em pascal, vazão em
+  // m³/s, potência em watt, rotação em s⁻¹).
   const units = writer.entity(
     'IfcUnitAssignment',
     list([
       metre,
-      writer.entity('IfcSIUnit', '*', '.AREAUNIT.', '$', '.SQUARE_METRE.'),
-      writer.entity('IfcSIUnit', '*', '.VOLUMEUNIT.', '$', '.CUBIC_METRE.'),
-      writer.entity('IfcSIUnit', '*', '.PLANEANGLEUNIT.', '$', '.RADIAN.'),
+      si('AREAUNIT', 'SQUARE_METRE'),
+      cubicMetre,
+      si('PLANEANGLEUNIT', 'RADIAN'),
+      second,
+      si('PRESSUREUNIT', 'PASCAL'),
+      si('POWERUNIT', 'WATT'),
+      writer.entity(
+        'IfcDerivedUnit',
+        list([power(cubicMetre, 1), power(second, -1)]),
+        '.VOLUMETRICFLOWRATEUNIT.',
+        '$',
+        '$',
+      ),
+      writer.entity(
+        'IfcDerivedUnit',
+        list([power(second, -1)]),
+        '.ROTATIONALFREQUENCYUNIT.',
+        '$',
+        '$',
+      ),
     ]),
   );
   const context = writer.entity(
@@ -386,304 +307,82 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
     return writer.entity('IfcProductDefinitionShape', '$', '$', list([shape]));
   };
 
-  const property = (name: string, type: string, value: PropertyValue | null): string =>
-    writer.entity(
-      'IfcPropertySingleValue',
-      str(name),
-      '$',
-      value === null
-        ? '$'
-        : `${type.toUpperCase()}(${typeof value === 'string' ? str(value) : typeof value === 'boolean' ? (value ? '.T.' : '.F.') : INTEGER_TYPES.has(type.toUpperCase()) ? String(Math.round(value)) : real(value)})`,
-      '$',
-    );
+  // O modelo de informação é a fonte única: o que a aba BIM / IFC mostra é o que se grava.
+  const model = buildIfcModel(project, options);
+
+  const typed = (type: string, value: IfcValue): string =>
+    `${type.toUpperCase()}(${typeof value === 'string' ? str(value) : typeof value === 'boolean' ? (value ? '.T.' : '.F.') : isIntegerIfcType(type) ? String(Math.round(value)) : real(value)})`;
   const enumerations = new Map<string, string>();
-  /** Propriedade enumerada de um conjunto padrão (`PEnum_*`). */
-  const enumerated = (
-    name: string,
-    enumeration: string,
-    values: readonly string[],
-    value: string,
-  ): string => {
-    let reference = enumerations.get(enumeration);
+  /** Propriedade (valor simples ou enumerado); sem valor = dado não informado. */
+  const property = (info: IfcPropertyInfo): string => {
+    if (info.kind !== 'enumerated' || !info.enumeration)
+      return writer.entity(
+        'IfcPropertySingleValue',
+        str(info.name),
+        '$',
+        info.value === null ? '$' : typed(info.ifcType, info.value),
+        '$',
+      );
+    let reference = enumerations.get(info.enumeration.name);
     if (!reference) {
       reference = writer.entity(
         'IfcPropertyEnumeration',
-        str(enumeration),
-        list(values.map((item) => `IFCLABEL(${str(item)})`)),
+        str(info.enumeration.name),
+        list(info.enumeration.values.map((item) => `IFCLABEL(${str(item)})`)),
         '$',
       );
-      enumerations.set(enumeration, reference);
+      enumerations.set(info.enumeration.name, reference);
     }
     return writer.entity(
       'IfcPropertyEnumeratedValue',
-      str(name),
+      str(info.name),
       '$',
-      list([`IFCLABEL(${str(value)})`]),
+      info.value === null ? '$' : list([`IFCLABEL(${str(String(info.value))})`]),
       reference,
     );
   };
-  const propertySet = (owner: string, name: string, members: string[]): string =>
-    root('IfcPropertySet', derivedGuid(`${owner}:${name}`), name, null, list(members));
-  const defineBy = (owner: string, name: string, target: string, definition: string): void => {
-    relation('IfcRelDefinesByProperties', `${owner}:${name}:relation`, list([target]), definition);
-  };
-
-  /** Tipos de reservatório (`IfcTankType`): um por modelo comercial ou conjunto personalizado. */
-  const tankTypes = new Map<string, { sample: Tank; members: string[] }>();
-  const tankFamilyOf = (tank: Tank): TankFamily | undefined =>
-    options.tankFamilies?.find((family) => family.id === tank.familyId);
-
-  /** Propriedades, quantidades e tipo de um reservatório de catálogo. */
-  const tankData = (tank: Tank, tankRef: string): void => {
-    const layout = tankLayout(tank);
-    const type = tankTypeOf(tank);
-    const family = tankFamilyOf(tank);
-    const base = tank.placement.position.z;
-    const maker = tank.manufacturing.manufacturer ?? 'HydroBIM';
-    const name = `Pset_${maker.replace(/[^A-Za-z0-9]/g, '')}_Reservatorio`;
-    defineBy(
-      tank.id,
-      name,
-      tankRef,
-      propertySet(tank.id, name, [
-        property('Manufacturer', 'IfcLabel', tank.manufacturing.manufacturer ?? null),
-        property('Model', 'IfcLabel', tank.manufacturing.model ?? null),
-        property('ReservoirType', 'IfcLabel', TANK_TYPE_LABELS[type]),
-        property('NominalCapacity', 'IfcVolumeMeasure', tank.nominalCapacity ?? null),
-        property('TotalHeight', 'IfcPositiveLengthMeasure', layout.top),
-        property('Diameter', 'IfcPositiveLengthMeasure', tank.diameter),
-        property('Length', 'IfcPositiveLengthMeasure', tank.length ?? null),
-        property('ColumnHeight', 'IfcPositiveLengthMeasure', tank.columnHeight ?? null),
-        property('ColumnDiameter', 'IfcPositiveLengthMeasure', tank.columnDiameter ?? null),
-        property('ConeHeight', 'IfcPositiveLengthMeasure', tank.coneHeight ?? null),
-        property('SupportHeight', 'IfcNonNegativeLengthMeasure', tank.supportHeight ?? null),
-        // Sem valor quando o usuário não informou: o catálogo não tabula a espessura.
-        property('ShellThickness', 'IfcPositiveLengthMeasure', tank.shellThickness ?? null),
-        property('NumberOfCompartments', 'IfcInteger', tank.compartments ?? 1),
-        property('BottomType', 'IfcLabel', tankBottomType(type)),
-        property('InstallationType', 'IfcLabel', tankInstallationType(tank)),
-        property('Material', 'IfcLabel', family?.material ?? STRUCTURAL_STEEL),
-        property('CatalogReference', 'IfcText', family?.source ?? null),
-        property('BaseElevation', 'IfcLengthMeasure', base),
-        property(
-          'MaxWaterLevelElevation',
-          'IfcLengthMeasure',
-          tank.maxWaterLevel === undefined ? null : base + tank.maxWaterLevel,
-        ),
-      ]),
-    );
-    defineBy(
-      tank.id,
-      'Pset_TankOccurrence',
-      tankRef,
-      propertySet(tank.id, 'Pset_TankOccurrence', [
-        enumerated('TankComposition', 'PEnum_TankComposition', PENUM_TANK_COMPOSITION, 'ELEMENT'),
-        property('HasLadder', 'IfcBoolean', tank.accessories?.ladder ?? false),
-      ]),
-    );
-    if (family) {
-      const origins = Object.entries(tankParameterOrigins(tank, family)).sort(([a], [b]) =>
-        a < b ? -1 : a > b ? 1 : 0,
+  const QUANTITY_ENTITIES = new Set([
+    'IfcQuantityLength',
+    'IfcQuantityArea',
+    'IfcQuantityVolume',
+    'IfcQuantityCount',
+    'IfcQuantityWeight',
+  ]);
+  /** Conjunto de propriedades (`IfcPropertySet`) ou de quantidades (`IfcElementQuantity`). */
+  const definitionSet = (owner: string, set: IfcPropertySetInfo): string => {
+    const guid = derivedGuid(`${owner}:${set.name}`);
+    if (set.kind === 'pset')
+      return root(
+        'IfcPropertySet',
+        guid,
+        set.name,
+        set.description,
+        list(set.properties.map(property)),
       );
-      defineBy(
-        tank.id,
-        'HydroBIM_Reservatorio_OrigemDosParametros',
-        tankRef,
-        propertySet(
-          tank.id,
-          'HydroBIM_Reservatorio_OrigemDosParametros',
-          origins.map(([key, origin]) =>
-            property(
-              `${key.charAt(0).toUpperCase()}${key.slice(1)}`,
-              'IfcLabel',
-              TANK_ORIGIN_LABELS[origin],
-            ),
-          ),
-        ),
-      );
-    }
-
-    const quantity = (entity: string, label: string, value: number): string =>
-      writer.entity(entity, str(label), '$', '$', real(value), '$');
-    const horizontal = type === 'horizontal';
-    const quantities = root(
+    return root(
       'IfcElementQuantity',
-      derivedGuid(`${tank.id}:HydroBIM_Reservatorio_Quantidades`),
-      'HydroBIM_Reservatorio_Quantidades',
+      guid,
+      set.name,
       null,
-      str('Dimensões externas, sem descontar chapas nem borda livre'),
-      list([
-        ...(tank.nominalCapacity === undefined
-          ? []
-          : [quantity('IfcQuantityVolume', 'NominalCapacity', tank.nominalCapacity)]),
-        quantity('IfcQuantityVolume', 'GeometricVolume', tankGeometricVolume(tank)),
-        quantity('IfcQuantityLength', 'TotalHeight', layout.top),
-        quantity('IfcQuantityLength', 'Diameter', tank.diameter),
-        ...(horizontal ? [quantity('IfcQuantityLength', 'Length', tank.length ?? 0)] : []),
-        quantity(
-          'IfcQuantityArea',
-          'ProjectedArea',
-          horizontal ? tank.diameter * (tank.length ?? 0) : Math.PI * layout.radius ** 2,
-        ),
-      ]),
+      set.description === null ? '$' : str(set.description),
+      list(
+        set.properties.map((info) => {
+          if (!QUANTITY_ENTITIES.has(info.ifcType) || typeof info.value !== 'number')
+            throw new Error(`Quantidade inválida: ${set.name}.${info.name}.`);
+          const value =
+            info.ifcType === 'IfcQuantityCount' ? String(Math.round(info.value)) : real(info.value);
+          return writer.entity(info.ifcType, str(info.name), '$', '$', value, '$');
+        }),
+      ),
     );
-    defineBy(tank.id, 'HydroBIM_Reservatorio_Quantidades', tankRef, quantities);
-
-    // Reservatórios do mesmo modelo comercial e mesma configuração compartilham o tipo.
-    const key = tank.variantId
-      ? JSON.stringify([
-          tank.familyId,
-          tank.variantId,
-          tank.compartments ?? 1,
-          tank.accessories?.manhole ?? false,
-        ])
-      : JSON.stringify(['custom', tank.id]);
-    const entry = tankTypes.get(key);
-    if (entry) entry.members.push(tankRef);
-    else tankTypes.set(key, { sample: tank, members: [tankRef] });
   };
-
-  const tankTypeObjects = (): string[] => {
-    const refs: string[] = [];
-    for (const [key, { sample, members }] of tankTypes) {
-      const type = tankTypeOf(sample);
-      const layout = tankLayout(sample);
-      const horizontal = type === 'horizontal';
-      const seed = `${project.id}:tank-type:${key}`;
-      const psets = [
-        propertySet(seed, 'Pset_TankTypeCommon', [
-          property('Reference', 'IfcIdentifier', sample.variantId ?? sample.familyId ?? null),
-          enumerated(
-            'AccessType',
-            'PEnum_TankAccessType',
-            PENUM_TANK_ACCESS,
-            sample.accessories?.manhole ? 'MANHOLE' : 'NONE',
-          ),
-          property(
-            'NominalLengthOrDiameter',
-            'IfcPositiveLengthMeasure',
-            horizontal ? (sample.length ?? null) : sample.diameter,
-          ),
-          property('NominalWidthOrDiameter', 'IfcPositiveLengthMeasure', sample.diameter),
-          property(
-            'NominalDepth',
-            'IfcNonNegativeLengthMeasure',
-            horizontal ? sample.diameter : layout.top,
-          ),
-          property('TankNominalCapacity', 'IfcVolumeMeasure', sample.nominalCapacity ?? null),
-          enumerated(
-            'PatternType',
-            'PEnum_TankPatternType',
-            PENUM_TANK_PATTERN,
-            horizontal ? 'HORIZONTALCYLINDER' : 'VERTICALCYLINDER',
-          ),
-          enumerated(
-            'EndShapeType',
-            'PEnum_EndShapeType',
-            PENUM_END_SHAPE,
-            horizontal
-              ? 'CONVEXCONVEX'
-              : layout.coneHeight > 0 || type === 'australian'
-                ? 'OTHER'
-                : 'FLATFLAT',
-          ),
-          property('NumberOfSections', 'IfcCountMeasure', sample.compartments ?? 1),
-        ]),
-        propertySet(seed, 'Pset_ManufacturerTypeInformation', [
-          property('Manufacturer', 'IfcLabel', sample.manufacturing.manufacturer ?? null),
-          property('ModelLabel', 'IfcLabel', sample.manufacturing.model ?? null),
-          property('ModelReference', 'IfcLabel', sample.variantId ?? null),
-          enumerated(
-            'AssemblyPlace',
-            'PEnum_AssemblyPlace',
-            PENUM_ASSEMBLY_PLACE,
-            type === 'fieldErected' ? 'SITE' : 'FACTORY',
-          ),
-        ]),
-      ];
-      const ref = root(
-        'IfcTankType',
-        derivedGuid(seed),
-        sample.manufacturing.model ?? TANK_TYPE_LABELS[type],
-        TANK_TYPE_LABELS[type],
-        '$',
-        list(psets),
-        '$',
-        '$',
-        str(type),
-        '.STORAGE.',
-      );
-      relation('IfcRelDefinesByType', `${seed}:occurrences`, list(members), ref);
-      refs.push(ref);
-    }
-    return refs;
-  };
-  const properties = (element: HydroElement, elementRef: string): void => {
-    const spec = element.spec;
-    const values = [
-      property('NominalDiameter', 'IfcLabel', spec.sizeLabel),
-      property('DN', 'IfcReal', spec.dn),
-      property('OuterDiameter', 'IfcPositiveLengthMeasure', spec.outerDiameter),
-      property('InnerDiameter', 'IfcPositiveLengthMeasure', spec.innerDiameter),
-      property('WallThickness', 'IfcPositiveLengthMeasure', spec.wallThickness),
-      property('Standard', 'IfcLabel', spec.standard),
-      property('PressureClass', 'IfcLabel', spec.pressureClass),
-      property('JointType', 'IfcLabel', spec.jointType),
-      property('Material', 'IfcLabel', MATERIAL_NAMES[spec.material]),
-    ];
-    if (element.familyId !== null) values.push(property('FamilyId', 'IfcLabel', element.familyId));
-    if (element.kind === 'reducer')
-      values.push(
-        property('OutletNominalDiameter', 'IfcLabel', element.outletSpec.sizeLabel),
-        property(
-          'OutletOuterDiameter',
-          'IfcPositiveLengthMeasure',
-          element.outletSpec.outerDiameter,
-        ),
-      );
-    if (element.kind === 'pipe') {
-      values.push(property('Length', 'IfcPositiveLengthMeasure', pipeLength(element)));
-      // Tubo com flanges: acabamento de cada extremidade e dimensões do flange de catálogo.
-      for (const [portId, end] of Object.entries(element.ends ?? {}).sort(([a], [b]) =>
-        a < b ? -1 : a > b ? 1 : 0,
-      )) {
-        const prefix = portId === 'start' ? 'StartFlange' : 'EndFlange';
-        values.push(
-          property(`${prefix}OuterDiameter`, 'IfcPositiveLengthMeasure', end.outerDiameter),
-          property(`${prefix}Thickness`, 'IfcPositiveLengthMeasure', end.length),
-        );
-        if (end.boltCircle !== undefined && end.boltCount !== undefined)
-          values.push(
-            property(`${prefix}BoltCircle`, 'IfcPositiveLengthMeasure', end.boltCircle),
-            property(`${prefix}BoltCount`, 'IfcInteger', end.boltCount),
-          );
-      }
-    }
-    if (element.kind === 'elbow')
-      values.push(
-        property('Angle', 'IfcPlaneAngleMeasure', element.angle),
-        property('BendRadius', 'IfcPositiveLengthMeasure', element.bendRadius),
-      );
-    const pset = (name: string, members: string[]): void =>
-      defineBy(element.id, name, elementRef, propertySet(element.id, name, members));
-    pset('HydroBIM_Especificacao', values);
-    const free = Object.entries(element.properties).sort(([a], [b]) =>
-      a < b ? -1 : a > b ? 1 : 0,
-    );
-    if (free.length)
-      pset(
-        'HydroBIM_Propriedades',
-        free.map(([name, value]) =>
-          property(
-            name,
-            typeof value === 'string'
-              ? 'IfcText'
-              : typeof value === 'boolean'
-                ? 'IfcBoolean'
-                : 'IfcReal',
-            value,
-          ),
-        ),
+  const define = (owner: string, target: string, sets: readonly IfcPropertySetInfo[]): void => {
+    for (const set of sets)
+      relation(
+        'IfcRelDefinesByProperties',
+        `${owner}:${set.name}:relation`,
+        list([target]),
+        definitionSet(owner, set),
       );
   };
 
@@ -691,10 +390,11 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
   const portRefs = new Map<string, string>();
   const portKey = (elementId: string, portId: string): string =>
     JSON.stringify([elementId, portId]);
-  const systemKinds = new Map(project.systems.map((system) => [system.id, system.kind]));
-  for (const element of project.elements) {
-    const ports = getPorts(element);
-    const minZ = Math.min(...ports.map((port) => port.position.z));
+  const sources = new Map(project.elements.map((element) => [element.id, element]));
+  for (const info of model.elements) {
+    const element = sources.get(info.elementId);
+    if (!element) throw new Error(`Elemento inexistente na exportação IFC: ${info.elementId}.`);
+    const minZ = Math.min(...info.ports.map((port) => port.position.z));
     let container = storeys[0] ?? fallback;
     for (const storey of storeys) if (storey.elevation <= minZ) container = storey;
     const geometry = buildElementGeometry(element);
@@ -705,86 +405,39 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
       rotate(frame.rotation, AXIS_Z),
       rotate(frame.rotation, AXIS_X),
     );
-    const [type, predefined] = elementType(element);
-    const description =
-      element.kind === 'pipe'
-        ? null
-        : isCatalogTank(element)
-          ? 'Geometria paramétrica da forma construtiva da família; dimensões principais do catálogo ou do usuário. Chapas, acessórios e bocais são representação ou configuração do usuário.'
-          : element.familyId === null
-            ? 'Geometria genérica; dimensões livres, sem identificação de produto comercial.'
-            : 'Geometria simplificada; dimensões principais da família de catálogo.';
     const elementRef = root(
-      type,
-      persistentGuid(element.id),
-      element.name,
-      description,
-      str(element.kind === 'valve' ? element.valveType : element.kind),
+      info.entity,
+      info.globalId,
+      info.name,
+      info.description,
+      str(info.objectType),
       localPlacement,
       representation(element, geometry),
-      str(element.id),
-      en(predefined),
+      str(info.tag),
+      en(info.predefinedType),
     );
-    elementRefs.set(element.id, elementRef);
+    elementRefs.set(info.elementId, elementRef);
     container.elements.push(elementRef);
-    properties(element, elementRef);
-    if (isCatalogTank(element)) tankData(element, elementRef);
-    const nozzles =
-      element.kind === 'tank'
-        ? new Map(tankNozzlePorts(element).map((nozzle) => [nozzle.id, nozzle]))
-        : null;
-    const kind = systemKinds.get(element.systemId);
-    if (!kind) throw new Error(`Sistema inexistente em "${element.name}".`);
-    const nested = ports.map((port) => {
-      const z = port.localDirection;
-      const reference = Math.abs(dot(z, AXIS_Z)) > 0.9 ? AXIS_X : AXIS_Z;
-      const x = normalize(sub(reference, scale(z, dot(reference, z))));
-      // Bocais de reservatório têm função definida: a entrada recebe o escoamento (SINK);
-      // saída, extravasor e descarga o entregam (SOURCE).
-      const nozzle = nozzles?.get(port.ref.portId);
-      const owner = `${element.id}:port:${port.ref.portId}`;
+    define(info.elementId, elementRef, info.psets);
+    const nested = info.ports.map((port) => {
+      const owner = `${info.elementId}:port:${port.portId}`;
       const ref = root(
         'IfcDistributionPort',
-        derivedGuid(owner),
-        port.label,
-        nozzle ? `Bocal: ${TANK_NOZZLE_ROLE_LABELS[nozzle.role].toLowerCase()}` : null,
-        kind === 'other' ? str('other') : '$',
-        placement(localPlacement, port.localPosition, z, x),
+        port.globalId,
+        port.name,
+        port.description,
+        port.systemType === 'USERDEFINED' ? str('other') : '$',
+        placement(localPlacement, port.localPosition, port.localDirection, port.localReference),
         '$',
-        nozzle ? (nozzle.role === 'inlet' ? '.SINK.' : '.SOURCE.') : '.NOTDEFINED.',
+        en(port.flowDirection),
         '.PIPE.',
-        en(SYSTEM_TYPES[kind]),
+        en(port.systemType),
       );
-      if (nozzle) {
-        // NominalDiameter é a designação DN expressa como comprimento (convenção do IFC);
-        // os diâmetros físicos vêm da especificação de tubo escolhida para o bocal.
-        defineBy(
-          owner,
-          'Pset_DistributionPortTypePipe',
-          ref,
-          propertySet(owner, 'Pset_DistributionPortTypePipe', [
-            property('NominalDiameter', 'IfcPositiveLengthMeasure', port.spec.dn / 1000),
-            property('InnerDiameter', 'IfcPositiveLengthMeasure', port.spec.innerDiameter),
-            property('OuterDiameter', 'IfcPositiveLengthMeasure', port.spec.outerDiameter),
-          ]),
-        );
-        defineBy(
-          owner,
-          'HydroBIM_Bocal',
-          ref,
-          propertySet(owner, 'HydroBIM_Bocal', [
-            property('Function', 'IfcLabel', TANK_NOZZLE_ROLE_LABELS[nozzle.role]),
-            property('NominalDiameterLabel', 'IfcLabel', port.spec.sizeLabel),
-            property('HeightAboveBase', 'IfcLengthMeasure', nozzle.height),
-            property('Azimuth', 'IfcPlaneAngleMeasure', nozzle.azimuth),
-            property('Specification', 'IfcLabel', port.spec.standard),
-          ]),
-        );
-      }
-      portRefs.set(portKey(element.id, port.ref.portId), ref);
+      define(owner, ref, port.psets);
+      portRefs.set(portKey(info.elementId, port.portId), ref);
       return ref;
     });
-    relation('IfcRelNests', `${element.id}:ports`, elementRef, list(nested));
+    relation('IfcRelNests', `${info.elementId}:ports`, elementRef, list(nested));
   }
   for (const container of [fallback, ...storeys]) {
     if (container.elements.length)
@@ -801,44 +454,65 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
     if (!a || !b) throw new Error('Conexão referencia porta inexistente na exportação IFC.');
     relation('IfcRelConnectsPorts', `${connection.id}:connection`, a, b, '$');
   }
-  for (const system of project.systems) {
-    const members = project.elements
-      .filter((element) => element.systemId === system.id)
-      .map((element) => elementRefs.get(element.id) ?? '$');
-    if (!members.length) continue;
+  const refsOf = (ids: readonly string[]): string[] => ids.map((id) => elementRefs.get(id) ?? '$');
+  for (const system of model.systems) {
+    if (!system.memberIds.length) continue;
     const ref = root(
       'IfcDistributionSystem',
-      derivedGuid(`${system.id}:system`),
+      system.globalId,
       system.name,
       null,
-      system.kind === 'other' ? str(system.kind) : '$',
+      system.objectType === null ? '$' : str(system.objectType),
       '$',
-      en(SYSTEM_TYPES[system.kind]),
+      en(system.predefinedType),
     );
-    relation('IfcRelAssignsToGroup', `${system.id}:elements`, list(members), '$', ref);
-  }
-  for (const material of Object.keys(MATERIAL_NAMES) as Material[]) {
-    // O material de um reservatório de catálogo é o do corpo, não o da tubulação dos bocais.
-    const members = project.elements
-      .filter((element) => element.spec.material === material && !isCatalogTank(element))
-      .map((element) => elementRefs.get(element.id) ?? '$');
-    if (!members.length) continue;
-    const ref = writer.entity('IfcMaterial', str(MATERIAL_NAMES[material]), '$', '$');
-    relation('IfcRelAssociatesMaterial', `${project.id}:material:${material}`, list(members), ref);
+    relation(
+      'IfcRelAssignsToGroup',
+      `${system.systemId}:elements`,
+      list(refsOf(system.memberIds)),
+      '$',
+      ref,
+    );
   }
 
-  const typeRefs = tankTypeObjects();
-  const steelTanks = project.elements
-    .filter(isCatalogTank)
-    .map((element) => elementRefs.get(element.id) ?? '$');
-  if (steelTanks.length) {
-    const steel = writer.entity('IfcMaterial', str(STRUCTURAL_STEEL), '$', str('steel'));
-    relation(
-      'IfcRelAssociatesMaterial',
-      `${project.id}:material:structural-steel`,
-      list([...steelTanks, ...typeRefs]),
-      steel,
+  // Tipos (`Ifc…Type`): dados da família, compartilhados pelas ocorrências do mesmo tipo.
+  const typeRefs = new Map<string, string>();
+  for (const type of model.types) {
+    const ref = root(
+      type.entity,
+      type.globalId,
+      type.name,
+      type.description,
+      '$',
+      type.psets.length ? list(type.psets.map((set) => definitionSet(type.seed, set))) : '$',
+      '$',
+      '$',
+      str(type.elementType),
+      en(type.predefinedType),
     );
+    relation('IfcRelDefinesByType', `${type.seed}:occurrences`, list(refsOf(type.memberIds)), ref);
+    typeRefs.set(type.key, ref);
+  }
+
+  // Materiais: associados às ocorrências e aos tipos.
+  const materials = new Map<string, { category: string | null; members: string[] }>();
+  const associate = (name: string, category: string | null, ref: string): void => {
+    const entry = materials.get(name);
+    if (entry) entry.members.push(ref);
+    else materials.set(name, { category, members: [ref] });
+  };
+  for (const info of model.elements)
+    associate(info.material.name, info.material.category, elementRefs.get(info.elementId) ?? '$');
+  for (const type of model.types)
+    associate(type.material.name, type.material.category, typeRefs.get(type.key) ?? '$');
+  for (const [name, { category, members }] of materials) {
+    const ref = writer.entity(
+      'IfcMaterial',
+      str(name),
+      '$',
+      category === null ? '$' : str(category),
+    );
+    relation('IfcRelAssociatesMaterial', `${project.id}:material:${name}`, list(members), ref);
   }
 
   const updatedAt = Date.parse(project.updatedAt);

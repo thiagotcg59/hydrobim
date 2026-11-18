@@ -103,6 +103,7 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     levels: [{ id: newId(), name: discipline === 'infra' ? 'Referência' : 'Térreo', elevation: 0 }],
     families: [],
     tankFamilies: [],
+    ifcTypes: {},
     georeference: null,
     terrain: null,
     elements: [],
@@ -1305,6 +1306,57 @@ export function setElementProperty(
   );
   if (value !== undefined) properties[name] = value;
   return ok(putElement(project, touch({ ...element, properties })));
+}
+
+/**
+ * Guarda (ou remove, com `undefined`) um valor IFC informado pelo usuário para a ocorrência.
+ * A chave é `Conjunto.Propriedade`; a validade do valor frente ao esquema IFC é conferida
+ * por `@hydrobim/ifc` (`setIfcValue`), que é quem chama esta operação.
+ */
+export function setElementIfcValue(
+  project: Project,
+  id: string,
+  key: string,
+  value: PropertyValue | undefined,
+): Result<Project> {
+  const element = getElement(project, id);
+  if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
+  if (key.trim().length === 0)
+    return fail('INVALID_NAME', 'O nome da propriedade não pode ser vazio.');
+  const values = Object.fromEntries(
+    Object.entries(element.ifc ?? {}).filter(([existing]) => existing !== key),
+  );
+  if (value !== undefined) values[key] = value;
+  const { ifc: _previous, ...rest } = element;
+  return ok(
+    putElement(
+      project,
+      touch((Object.keys(values).length ? { ...rest, ifc: values } : rest) as HydroElement),
+    ),
+  );
+}
+
+/**
+ * Guarda (ou remove, com `undefined`) um valor IFC informado pelo usuário para um TIPO: vale
+ * para todas as ocorrências com a mesma chave de tipo, inclusive as criadas depois.
+ */
+export function setIfcTypeValue(
+  project: Project,
+  typeKey: string,
+  key: string,
+  value: PropertyValue | undefined,
+): Result<Project> {
+  if (typeKey.trim().length === 0 || key.trim().length === 0)
+    return fail('INVALID_NAME', 'O tipo e o nome da propriedade não podem ser vazios.');
+  const values = Object.fromEntries(
+    Object.entries(project.ifcTypes[typeKey] ?? {}).filter(([existing]) => existing !== key),
+  );
+  if (value !== undefined) values[key] = value;
+  const ifcTypes = Object.fromEntries(
+    Object.entries(project.ifcTypes).filter(([existing]) => existing !== typeKey),
+  );
+  if (Object.keys(values).length) ifcTypes[typeKey] = values;
+  return ok({ ...project, updatedAt: now(), ifcTypes });
 }
 
 /** Exclui elementos e todas as conexões que os referenciam. */

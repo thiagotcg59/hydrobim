@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 8
+    assert project.schema_version == 9
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 9),
+        (("schemaVersion",), 10),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 8.0
+    project_document["schemaVersion"] = 9.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -167,6 +167,29 @@ def test_migrates_v7_adding_tank_families(project_document):
     before = deepcopy(legacy)
     assert Project.model_validate(legacy).model_dump() == project_document
     assert legacy == before
+
+
+def test_migrates_v8_adding_ifc_types(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 8
+    del legacy["ifcTypes"]
+    before = deepcopy(legacy)
+    assert Project.model_validate(legacy).model_dump() == project_document
+    assert legacy == before
+
+
+def test_accepts_ifc_values_of_types_and_occurrences(project_document):
+    key = "Pset_PipeSegmentOccurrence.InteriorRoughnessCoefficient"
+    project_document["elements"][0]["ifc"] = {key: 0.0001, "Description": "Trecho A"}
+    project_document["ifcTypes"] = {
+        "pipe|generic|x|50|plain|plain": {"Pset_PipeSegmentTypeCommon.WorkingPressure": 600000}
+    }
+    project = Project.model_validate(project_document)
+    assert project.elements[0].ifc[key] == 0.0001
+    assert project.model_dump()["ifcTypes"] == project_document["ifcTypes"]
+    project_document["ifcTypes"] = {"tipo": {"chave": [1, 2]}}
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
 
 
 def _custom_tank_family():

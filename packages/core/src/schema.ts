@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 8 as const;
+export const SCHEMA_VERSION = 9 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -115,6 +115,13 @@ const elementBase = {
   /** Propriedades BIM livres definidas pelo usuário. */
   properties: z.record(z.string(), PropertyValueSchema),
   manufacturing: ManufacturingSchema,
+  /**
+   * Valores IFC informados pelo usuário para ESTA ocorrência, por `Conjunto.Propriedade`
+   * (ex.: `Pset_PipeSegmentOccurrence.InteriorRoughnessCoefficient`), em unidades SI. A
+   * chave `Description` substitui a descrição gerada. Só guarda o que o usuário digitou:
+   * os demais valores são derivados do modelo a cada exportação. Ausente = nenhum.
+   */
+  ifc: z.record(z.string(), PropertyValueSchema).optional(),
   meta: ElementMetaSchema,
 };
 
@@ -626,6 +633,12 @@ export const ProjectSchema = z.object({
   families: z.array(FittingFamilySchema),
   /** Famílias de reservatórios personalizadas neste projeto (somam-se ao catálogo embutido). */
   tankFamilies: z.array(TankFamilySchema),
+  /**
+   * Valores IFC informados pelo usuário para os TIPOS (`Ifc…Type`), por chave do tipo e
+   * `Conjunto.Propriedade`. Valem para todas as ocorrências do mesmo tipo — inclusive as
+   * criadas depois. As chaves dos tipos são geradas por `@hydrobim/ifc`.
+   */
+  ifcTypes: z.record(z.string(), z.record(z.string(), PropertyValueSchema)),
   georeference: GeoreferenceSchema.nullable(),
   terrain: TerrainSchema.nullable(),
   elements: z.array(ElementSchema),

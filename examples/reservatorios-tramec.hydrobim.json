@@ -1,38 +1,39 @@
 {
   "format": "hydrobim-project",
-  "schemaVersion": 8,
-  "id": "7d4e44f7-afe6-4ae6-8013-d746f740dd19",
+  "schemaVersion": 9,
+  "id": "377059e4-a956-4866-8b17-14f56e145d79",
   "name": "Reservatórios metálicos TRAMEC — demonstração",
   "discipline": "infra",
   "units": {
     "length": "m",
     "angle": "rad"
   },
-  "createdAt": "2026-11-18T01:21:41.253Z",
-  "updatedAt": "2026-11-18T01:21:41.292Z",
+  "createdAt": "2026-11-18T01:57:19.082Z",
+  "updatedAt": "2026-11-18T01:57:19.102Z",
   "systems": [
     {
-      "id": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "id": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "name": "Abastecimento de água",
       "kind": "waterSupply"
     }
   ],
   "levels": [
     {
-      "id": "80d7f89f-c128-4c73-a2bd-1f8dbc3a0be3",
+      "id": "7448a7d9-326d-4b42-84ee-93fe0aeed0f3",
       "name": "Referência",
       "elevation": 0
     }
   ],
   "families": [],
   "tankFamilies": [],
+  "ifcTypes": {},
   "georeference": null,
   "terrain": null,
   "elements": [
     {
-      "id": "66852d6a-6e25-41e5-a3c2-e34f6901751a",
+      "id": "682853d5-3556-4526-b989-7c68bbd397eb",
       "name": "Reservatório 1",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -52,8 +53,8 @@
         "model": "Reservatório tipo taça com água na coluna 10.000 L"
       },
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.288Z",
-        "updatedAt": "2026-11-18T01:21:41.288Z",
+        "createdAt": "2026-11-18T01:57:19.100Z",
+        "updatedAt": "2026-11-18T01:57:19.100Z",
         "revision": 0
       },
       "kind": "tank",
@@ -92,9 +93,9 @@
       }
     },
     {
-      "id": "4062ccb3-f886-4cf5-a1f9-92225618dd09",
+      "id": "cc4ff3dd-4248-4d61-b8b8-9bd1311591fd",
       "name": "Reservatório 2",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -114,8 +115,8 @@
         "model": "Reservatório tipo taça sem água na coluna 10.000 L"
       },
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.289Z",
-        "updatedAt": "2026-11-18T01:21:41.292Z",
+        "createdAt": "2026-11-18T01:57:19.100Z",
+        "updatedAt": "2026-11-18T01:57:19.102Z",
         "revision": 2
       },
       "kind": "tank",
@@ -154,7 +155,7 @@
       },
       "nozzles": [
         {
-          "id": "0744fc7b-90f4-4380-afc6-5770fcd740be",
+          "id": "97f52b55-d498-437e-aed8-11732593e907",
           "role": "overflow",
           "height": 7.9,
           "azimuth": -1.5707963267948966,
@@ -172,7 +173,7 @@
           }
         },
         {
-          "id": "5a95fa3c-e19d-447c-a4f3-a0a4d237f4fd",
+          "id": "3bcca098-ae62-4a9a-8170-0f8035809d30",
           "role": "drain",
           "height": 5.4,
           "azimuth": -1.5707963267948966,
@@ -192,9 +193,9 @@
       ]
     },
     {
-      "id": "4b42a6d5-35d4-40ba-b44c-2fed16ac52c6",
+      "id": "16dcd182-804e-4524-aa70-51076c36499a",
       "name": "Reservatório 3",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -214,8 +215,8 @@
         "model": "Reservatório tubular alto 20.000 L"
       },
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.289Z",
-        "updatedAt": "2026-11-18T01:21:41.289Z",
+        "createdAt": "2026-11-18T01:57:19.100Z",
+        "updatedAt": "2026-11-18T01:57:19.100Z",
         "revision": 0
       },
       "kind": "tank",
@@ -251,9 +252,9 @@
       }
     },
     {
-      "id": "3c5f41d3-49c4-41c4-aa36-c4f29dffec42",
+      "id": "b846b6a8-c86a-4122-9d83-ff8940669dbf",
       "name": "Reservatório 4",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -273,8 +274,8 @@
         "model": "Reservatório tipo australiano (dimensões personalizadas)"
       },
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.290Z",
-        "updatedAt": "2026-11-18T01:21:41.290Z",
+        "createdAt": "2026-11-18T01:57:19.101Z",
+        "updatedAt": "2026-11-18T01:57:19.101Z",
         "revision": 0
       },
       "kind": "tank",
@@ -311,9 +312,9 @@
       }
     },
     {
-      "id": "5c4e9830-eb75-4170-abcf-38af7f453c28",
+      "id": "4cf6854d-b0d9-4079-9145-46edcafea20a",
       "name": "Reservatório 5",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -333,8 +334,8 @@
         "model": "Reservatório vertical apoiado 15.000 L"
       },
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.290Z",
-        "updatedAt": "2026-11-18T01:21:41.290Z",
+        "createdAt": "2026-11-18T01:57:19.101Z",
+        "updatedAt": "2026-11-18T01:57:19.101Z",
         "revision": 0
       },
       "kind": "tank",
@@ -370,9 +371,9 @@
       }
     },
     {
-      "id": "4084995f-7406-4448-b7b3-28a81db5393c",
+      "id": "a80fd43b-5882-4c62-8fd6-63552350269c",
       "name": "Reservatório 6",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -392,8 +393,8 @@
         "model": "Reservatório vertical de fundo cônico com pés 15.000 L"
       },
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.290Z",
-        "updatedAt": "2026-11-18T01:21:41.290Z",
+        "createdAt": "2026-11-18T01:57:19.101Z",
+        "updatedAt": "2026-11-18T01:57:19.101Z",
         "revision": 0
       },
       "kind": "tank",
@@ -431,9 +432,9 @@
       }
     },
     {
-      "id": "e436d8ad-d0df-4916-95bd-7b99ba3b528d",
+      "id": "04ca9ae3-c498-4364-9ffc-bee5626d9329",
       "name": "Reservatório 7",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -453,8 +454,8 @@
         "model": "Reservatório vertical apoiado montado na obra (dimensões personalizadas)"
       },
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.291Z",
-        "updatedAt": "2026-11-18T01:21:41.291Z",
+        "createdAt": "2026-11-18T01:57:19.101Z",
+        "updatedAt": "2026-11-18T01:57:19.101Z",
         "revision": 0
       },
       "kind": "tank",
@@ -489,9 +490,9 @@
       }
     },
     {
-      "id": "8bd91187-7d01-4d62-9b3a-2fa0fca4e02e",
+      "id": "5e1a268b-d02a-4120-827f-aeae6923d068",
       "name": "Reservatório 8",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -511,8 +512,8 @@
         "model": "Reservatório cilíndrico horizontal (dimensões personalizadas)"
       },
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.291Z",
-        "updatedAt": "2026-11-18T01:21:41.292Z",
+        "createdAt": "2026-11-18T01:57:19.101Z",
+        "updatedAt": "2026-11-18T01:57:19.102Z",
         "revision": 1
       },
       "kind": "tank",
@@ -552,9 +553,9 @@
       "shellThickness": 0.00635
     },
     {
-      "id": "120d09b0-af65-4b42-b849-ea14bfdbeffa",
+      "id": "2b594f7f-f470-44f7-bbd1-acbab42f65cc",
       "name": "Tubo 1",
-      "systemId": "df62a9a3-08b2-4634-90a9-5be5d1f4bf66",
+      "systemId": "f9473f8b-0569-408c-aa33-a21b8d1d7539",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -571,8 +572,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-18T01:21:41.292Z",
-        "updatedAt": "2026-11-18T01:21:41.292Z",
+        "createdAt": "2026-11-18T01:57:19.102Z",
+        "updatedAt": "2026-11-18T01:57:19.102Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -590,13 +591,13 @@
   ],
   "connections": [
     {
-      "id": "7a4cd382-875b-4ed9-b433-46f9da56a8b0",
+      "id": "59e3ce64-ab95-4de5-b721-a651c3b103e7",
       "a": {
-        "elementId": "120d09b0-af65-4b42-b849-ea14bfdbeffa",
+        "elementId": "2b594f7f-f470-44f7-bbd1-acbab42f65cc",
         "portId": "start"
       },
       "b": {
-        "elementId": "4062ccb3-f886-4cf5-a1f9-92225618dd09",
+        "elementId": "cc4ff3dd-4248-4d61-b8b8-9bd1311591fd",
         "portId": "a"
       }
     }

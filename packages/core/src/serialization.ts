@@ -41,6 +41,9 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   6: (doc) => ({ ...doc, schemaVersion: 7 }),
   // v7 → v8: famílias de reservatórios personalizadas no projeto.
   7: (doc) => ({ tankFamilies: [], ...doc, schemaVersion: 8 }),
+  // v8 → v9: valores IFC informados pelo usuário, por tipo (`ifcTypes`) e por ocorrência
+  // (`ifc`, opcional em cada elemento).
+  8: (doc) => ({ ifcTypes: {}, ...doc, schemaVersion: 9 }),
 };
 
 export function serializeProject(project: Project): string {
