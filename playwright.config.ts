@@ -4,7 +4,9 @@ const PORT = 5183;
 
 export default defineConfig({
   testDir: 'tests/e2e',
-  timeout: 60_000,
+  // No CI o WebGL é por software (SwiftShader, sem GPU): os fluxos longos de
+  // aceite levam ~30 s localmente e passam de 60 s lá.
+  timeout: process.env.CI ? 180_000 : 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,
