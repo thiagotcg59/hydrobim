@@ -185,6 +185,8 @@ export function ifcTypeKey(element: HydroElement): string {
         spec.dn,
         round(radToDeg(element.angle)),
         round(element.bendRadius),
+        // Trechos retos distinguem a curva ponta e bolsa do joelho de mesmo raio.
+        ...(element.straight ? [round(element.straight.a), round(element.straight.b)] : []),
       );
       break;
     case 'tee':

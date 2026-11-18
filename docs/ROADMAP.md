@@ -16,6 +16,7 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 
 - ✅ Catálogo dimensional de conexões por fabricante/norma, com fontes (`docs/CATALOGS.md`).
 - ✅ Famílias editáveis por projeto, com reaplicação às peças existentes.
+- ✅ Válvulas de gaveta com cunha de borracha EURO 21 a 25 (flanges PN e ANSI, bolsas PBA e ferro dúctil), com castelo retangular K × K1.
 - ✅ Filtro Y de ferro fundido (Spirax Sarco CI, ASME 125) e flanges com a furação da norma na geometria.
 - ✅ Flanges padronizados: tabela única PN 10/16/25/40 (Catálogo Geral, p. 246–249) usada por todas as peças flangeadas PN, com furação e ressalto na geometria; aba "Flanges e tubos flangeados" no Catálogo. Esquema v7.
 - ✅ Tubos de ferro fundido dúctil com flanges (flange e flange, flange e ponta em qualquer extremidade, ponta e ponta), com comprimento livre e classe PN 10/16/25/40.

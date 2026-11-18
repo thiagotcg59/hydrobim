@@ -241,6 +241,31 @@ export function pbaBendGeometryMm(
   return { bendRadius, lead };
 }
 
+/**
+ * Cotas (mm) de uma curva PBA como conexão de rede: distância do vértice teórico ao fundo
+ * da bolsa (`toSocket` = trecho reto S + R·tg θ/2) e à extremidade da ponta (`toSpigot` =
+ * F + R·tg θ/2), raio e bolsa `[profundidade C, Ø externo A]`. Usa o raio e o trecho reto
+ * derivados em `pbaBendGeometryMm` — mesma hipótese, mesma ressalva.
+ */
+export function pbaBendPortsMm(
+  angleDeg: number,
+  dn: number,
+):
+  | { bendRadius: number; toSocket: number; toSpigot: number; socket: readonly [number, number] }
+  | undefined {
+  const geometry = pbaBendGeometryMm(angleDeg, dn);
+  const common = BEND_COMMON[DN_LABELS.findIndex(([, size]) => size === dn)];
+  if (!geometry || !common) return undefined;
+  const [a, , c, , f] = common;
+  const leg = geometry.bendRadius * Math.tan(rad(angleDeg) / 2);
+  return {
+    bendRadius: geometry.bendRadius,
+    toSocket: geometry.lead + leg,
+    toSpigot: f + leg,
+    socket: [c, a],
+  };
+}
+
 function bendFamily(
   angleDeg: number,
   label: string,
@@ -266,7 +291,10 @@ function bendFamily(
       GROOVE_NOTE,
     ],
     remarks,
-    network: { inserted: false, note: PLANNED },
+    network: {
+      inserted: true,
+      note: `Inserida como joelho pela ferramenta Tubo (mudança de direção) ou Joelho (família "Curva ${label} PBA ponta e bolsa"): a bolsa fica na porta A e a ponta na porta B.`,
+    },
     columns: BEND_COLUMNS,
     sizes: sizes(
       DN_LABELS,

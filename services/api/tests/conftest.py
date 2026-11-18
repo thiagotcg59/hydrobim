@@ -67,7 +67,7 @@ def project_document():
 
     return {
         "format": "hydrobim-project",
-        "schemaVersion": 9,
+        "schemaVersion": 10,
         "id": "project-test",
         "name": "Projeto de teste",
         "discipline": "mep",

@@ -44,6 +44,10 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   // v8 → v9: valores IFC informados pelo usuário, por tipo (`ifcTypes`) e por ocorrência
   // (`ifc`, opcional em cada elemento).
   8: (doc) => ({ ifcTypes: {}, ...doc, schemaVersion: 9 }),
+  // v9 → v10: trechos retos do joelho (`straight`) e, nas famílias, `centerToEnd2` e
+  // `bendRadius` (curvas ponta e bolsa); em válvulas e famílias, `bonnetLength` (castelo
+  // retangular das gavetas). Todos opcionais: documentos v9 já são válidos.
+  9: (doc) => ({ ...doc, schemaVersion: 10 }),
 };
 
 export function serializeProject(project: Project): string {

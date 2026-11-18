@@ -18,7 +18,7 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 9
+  schemaVersion: 10
   id, name
   discipline: 'mep' | 'infra'
   units: { length: 'm', angle: 'rad' }
@@ -74,7 +74,7 @@ Parâmetros específicos:
 | Tipo | Parâmetros | Portas |
 | --- | --- | --- |
 | Tubo (`pipe`) | `start`, `end` (o comprimento é calculado); `ends` opcional (tubo com flanges) | `start`, `end` |
-| Joelho (`elbow`) | `placement`, `angle` (deflexão), `bendRadius` | `a`, `b` |
+| Joelho (`elbow`) | `placement`, `angle` (deflexão), `bendRadius`, `straight` opcional (trechos retos entre o arco e as portas `a`/`b`, nas curvas ponta e bolsa) | `a`, `b` |
 | Tê (`tee`) | `placement`, `runLength`, `branchLength`, `branchSpec` (tê de redução) | `a`, `b` (passagem), `branch` |
 | Redução (`reducer`) | `placement`, `outletSpec`, `length` | `a` (`spec`), `b` (`outletSpec`) |
 | Válvula (`valve`) | `placement`, `valveType`, `length`, `height`, `handwheelDiameter`, `width` | `a`, `b` (ventosa: só `a`; redutora de pressão: `a` = montante) |
@@ -201,7 +201,7 @@ As dimensões padrão das conexões (`dimensions.ts`) são proporções genéric
 
 ## Evolução do esquema
 
-Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. Documentos de versões anteriores são migrados ao abrir.
+Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. **v10** — trechos retos do joelho (`straight: { a, b }`) e, nos tamanhos de família, `centerToEnd2` e `bendRadius` (curvas ponta e bolsa); em válvulas e nos tamanhos de família, `bonnetLength` (dimensão do castelo ao longo do eixo do tubo, que com `width` define o castelo retangular das gavetas). Todos opcionais (documentos v9 já são válidos). Documentos de versões anteriores são migrados ao abrir.
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
 

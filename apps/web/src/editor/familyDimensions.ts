@@ -182,6 +182,31 @@ export function catalogDimensions(element: Fitting): CatalogDimension[] {
           margin * 0.6,
         );
       }
+      if (
+        type === 'gate' &&
+        top !== undefined &&
+        element.width !== undefined &&
+        element.bonnetLength !== undefined
+      ) {
+        // Castelo retangular: K ao longo do eixo do tubo e K1 na transversal, no topo da caixa.
+        const level = top * 0.64;
+        push(
+          'bonnetLength',
+          'Castelo K',
+          vec3(-element.bonnetLength / 2, 0, level),
+          vec3(element.bonnetLength / 2, 0, level),
+          AXIS_Z,
+          margin * 1.6,
+        );
+        push(
+          'width',
+          'Castelo K1',
+          vec3(0, -element.width / 2, level),
+          vec3(0, element.width / 2, level),
+          AXIS_Z,
+          margin * 0.8,
+        );
+      }
       endOf('a', 'end');
       break;
     }

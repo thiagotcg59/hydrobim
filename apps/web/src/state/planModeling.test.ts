@@ -332,9 +332,9 @@ describe('modelagem pela planta baixa', () => {
   });
 
   it('recusa peças genéricas: sem joelho de catálogo o traçado só prolonga em linha reta', () => {
-    // PVC PBA não tem joelho nem curva como família de conexão.
-    state().setActiveSpec('pvc-pba-nbr5647-cl12', 50);
-    expect(state().activeSpec.specificationId).toBe('pvc-pba-nbr5647-cl12');
+    // PEAD não tem conexões de catálogo.
+    state().setActiveSpec('pead-pe100-sdr11', 50);
+    expect(state().activeSpec.specificationId).toBe('pead-pe100-sdr11');
     expect(elbowAnglesOf(state().project, state().activeSpec)).toEqual([]);
     state().setTool('pipe');
     planClick(0, 0);
@@ -365,6 +365,42 @@ describe('modelagem pela planta baixa', () => {
     state().handleViewportClick({ point: end.position, port: end.ref, hit: null });
     expect(count('elbow')).toBe(1);
     expect(state().project.elements.find((e) => e.kind === 'elbow')?.familyId).toBeNull();
+  });
+
+  it('PVC PBA: muda de direção a 90° com a curva ponta e bolsa de catálogo', () => {
+    state().setActiveSpec('pvc-pba-nbr5647-cl12', 50);
+    expect(elbowAnglesOf(state().project, state().activeSpec).map((a) => radToDeg(a))).toEqual([
+      11.25, 22.5, 45, 90,
+    ]);
+    state().setTool('pipe');
+    planClick(0, 0);
+    planClick(3, 0);
+    // Clique fora do esquadro: a deflexão é levada aos 90° da curva de catálogo.
+    planClick(3.05, 3);
+
+    const elbow = state().project.elements.find((e) => e.kind === 'elbow');
+    expect(elbow?.kind === 'elbow' && radToDeg(elbow.angle)).toBeCloseTo(90, 6);
+    expect(elbow?.familyId).toBe('wavin-curva-90-pba@pvc-pba-nbr5647-cl12');
+    const pipes = state().project.elements.filter((e): e is Pipe => e.kind === 'pipe');
+    expect(pipes).toHaveLength(2);
+    // Bolsa de um lado, ponta do outro: os tubos são aparados a distâncias diferentes.
+    expect(pipes[0]?.end.x).toBeCloseTo(3 - 0.152, 3);
+    expect(pipes[1]?.start.x).toBeCloseTo(3, 9);
+    expect(pipes[1]?.start.y).toBeGreaterThan(0.2);
+    expect(
+      radToDeg(
+        angleBetween(sub(pipes[0]!.end, pipes[0]!.start), sub(pipes[1]!.end, pipes[1]!.start)),
+      ),
+    ).toBeCloseTo(90, 6);
+    expect(validateProject(state().project)).toEqual([]);
+
+    // A curva de 45° também existe; 60° não.
+    planClick(6, 6);
+    expect(count('elbow')).toBe(2);
+    const before = state().project;
+    state().commitPoint(vec3(20, 7, 0));
+    expect(state().project).toBe(before);
+    expect(validateProject(state().project)).toEqual([]);
   });
 
   it('não deixa alterar as dimensões de uma conexão de catálogo', () => {

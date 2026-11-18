@@ -196,8 +196,10 @@ test('famílias: consultar, editar dimensões e aplicar às peças do projeto', 
   await page.getByTestId('action-families').click();
   await dialog.getByTestId('families-specification').selectOption('ferro-ductil-nbr7675-k9');
   await dialog.getByTestId('families-kind').selectOption('valve');
-  // 5 famílias AVK + 2 da redutora de pressão BERMAD 720 (SIGMA EN e ES).
-  await expect(dialog.getByTestId('family-item')).toHaveCount(7);
+  // 5 famílias AVK + 2 da redutora BERMAD 720 (SIGMA EN e ES) + 6 gavetas EURO 20
+  // (EURO 21 em PN 10/16, PN 10 e PN 25; EURO 23 em PN 10/16 e PN 10; EURO 25 com bolsas).
+  await expect(dialog.getByTestId('family-item')).toHaveCount(13);
+  await expect(dialog.getByTestId('family-item').filter({ hasText: 'EURO 2' })).toHaveCount(6);
   await expect(dialog.getByTestId('family-item').filter({ hasText: 'BERMAD 720' })).toHaveCount(2);
   await dialog.getByTestId('families-close').click();
   expect(errors).toEqual([]);

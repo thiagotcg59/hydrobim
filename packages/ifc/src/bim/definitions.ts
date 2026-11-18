@@ -1,5 +1,5 @@
 import {
-  elbowLegLength,
+  elbowPortDistances,
   pipeLength,
   tankTypeOf,
   type EndTreatment,
@@ -256,9 +256,11 @@ function axisLength(element: HydroElement): number | null {
   switch (element.kind) {
     case 'pipe':
       return pipeLength(element);
-    // As portas do joelho ficam nos pontos de tangência: o eixo entre elas é o arco.
+    // O eixo entre as portas do joelho é o arco mais os trechos retos, quando existem.
     case 'elbow':
-      return element.bendRadius * element.angle;
+      return (
+        element.bendRadius * element.angle + (element.straight?.a ?? 0) + (element.straight?.b ?? 0)
+      );
     case 'tee':
       return element.runLength;
     case 'reducer':
@@ -558,7 +560,8 @@ export const IFC_PROPERTY_DEFINITIONS: readonly IfcPropertyDefinition[] = [
       when: ({ element }) => element.kind === 'elbow',
       resolve: ({ element }) =>
         element.kind === 'elbow'
-          ? value(elbowLegLength(element.angle, element.bendRadius), dimensional(element))
+          ? // Curvas ponta e bolsa: a cota vale para a porta `a` (bolsa).
+            value(elbowPortDistances(element).a, dimensional(element))
           : null,
       binding: 'Família: dimensão do joelho',
     },

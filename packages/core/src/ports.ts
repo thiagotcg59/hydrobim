@@ -1,4 +1,4 @@
-import { elbowLegLength } from './dimensions';
+import { elbowPortDistances } from './dimensions';
 import {
   add,
   distance,
@@ -91,11 +91,11 @@ function getLocalPorts(element: HydroElement): LocalPort[] {
         port('end', 'Fim', 'end', vec3(pipeLength(element), 0, 0), PLUS_X, spec),
       ];
     case 'elbow': {
-      const leg = elbowLegLength(element.angle, element.bendRadius);
+      const legs = elbowPortDistances(element);
       const out = vec3(Math.cos(element.angle), Math.sin(element.angle), 0);
       return [
-        port('a', 'Porta A', 'end', vec3(-leg, 0, 0), MINUS_X, spec),
-        port('b', 'Porta B', 'end', vec3(out.x * leg, out.y * leg, 0), out, spec),
+        port('a', 'Porta A', 'end', vec3(-legs.a, 0, 0), MINUS_X, spec),
+        port('b', 'Porta B', 'end', vec3(out.x * legs.b, out.y * legs.b, 0), out, spec),
       ];
     }
     case 'tee': {
