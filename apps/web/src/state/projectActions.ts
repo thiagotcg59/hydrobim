@@ -1,4 +1,4 @@
-import { FLANGED_PIPE_FAMILIES, TANK_FAMILIES } from '@hydrobim/catalog';
+import { FLANGED_PIPE_FAMILIES } from '@hydrobim/catalog';
 import {
   computeQuantities,
   createTerrain,
@@ -18,7 +18,7 @@ import {
 } from '../persistence/fileIO';
 import { createDefaultRepository } from '../persistence/LocalStorageProjectRepository';
 import type { ProjectRepository } from '../persistence/ProjectRepository';
-import { familiesOf, selectIsDirty, useEditorStore } from './editorStore';
+import { familiesOf, selectIsDirty, tankFamiliesOf, useEditorStore } from './editorStore';
 
 /**
  * Casos de uso de projeto (novo, abrir, salvar, exportar), ligando a store do editor
@@ -102,7 +102,7 @@ export function exportIfcFile(): void {
     const text = exportIfc(project, {
       timestamp: new Date(),
       application: 'HydroBIM',
-      tankFamilies: TANK_FAMILIES,
+      tankFamilies: tankFamiliesOf(project),
     });
     downloadText(`${projectFileBase(project)}.ifc`, text, 'application/x-step');
     store().notify('success', `IFC 4.3 exportado (${project.elements.length} elementos).`);

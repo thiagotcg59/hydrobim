@@ -26,6 +26,7 @@ Project {
   systems: HydraulicSystem[]      // ao menos um; cor e visibilidade opcionais
   levels: Level[]                 // níveis/pavimentos
   families: FittingFamily[]       // famílias personalizadas (sobrepõem o catálogo)
+  tankFamilies: TankFamily[]      // famílias de reservatórios personalizadas (somam-se ao catálogo)
   georeference: Georeference | null   // informada pelo usuário; nunca presumida
   terrain: Terrain | null         // TIN em coordenadas locais
   elements: HydroElement[]
@@ -101,6 +102,7 @@ Sem `tankType`, o reservatório é o cilindro vertical genérico. Com `tankType`
 
 - Referencial: base em z = 0 (a **cota da base** é `placement.position.z`), eixo vertical em Z; a saída `a` fica em +X e a entrada `b` em −X; no horizontal, o eixo do cilindro é X e essas portas ficam nos tampos. Um bocal adicional sai na direção `azimuth`, na cota `height`, a partir da superfície do corpo naquela cota.
 - Derivados (`tanks.ts`): `tankLayout` (topo, base do costado, fundo do volume de água), `tankGeometricVolume`, `tankHydraulics` (cilindro equivalente para o EPANET), `tankNozzlePorts`, `tankProblem` (coerência dos parâmetros; vira `INVALID_TANK` em `validateProject`) e `tankParameterOrigins` (catálogo, derivado, estimado ou usuário).
+- Famílias (`TankFamily`, em `schema.ts`): `origin: 'builtin'` no catálogo embutido e `'custom'` nas do projeto (`basedOn` aponta a família de origem). `duplicateTankFamily`, `upsertTankFamily` (só personalizadas; valida cada linha), `applyTankFamilyToInstances` e `removeTankFamily`. Numa família personalizada nenhum valor é classificado como *catálogo*.
 - Operações: `placeEquipment` com `parameters` de `tankParametersFromFamily`; `setTankModel` (troca de família/modelo preservando `id`, bocais e conexões); `updateFitting` (dimensões — alterar uma dimensão de catálogo mantém a família e desfaz o vínculo com o modelo comercial); `updateTankSettings` (apoio, células, espessura, nível máximo, acessórios); `addTankNozzle`, `updateTankNozzle`, `removeTankNozzle` (bocal conectado não é removido nem redimensionado).
 
 ### Referenciais locais
@@ -181,7 +183,7 @@ As dimensões padrão das conexões (`dimensions.ts`) são proporções genéric
 
 ## Evolução do esquema
 
-Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). Documentos de versões anteriores são migrados ao abrir.
+Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). Documentos de versões anteriores são migrados ao abrir.
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
 

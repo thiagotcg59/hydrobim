@@ -248,3 +248,92 @@ test('catálogo: reservatórios com tabela e modelo 3D, e famílias de todas as 
   await dialog.getByTestId('families-close').click();
   expect(errors).toEqual([]);
 });
+
+test('catálogo: duplicar uma família de reservatórios e editar a tabela da cópia', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await openEmptyProject(page);
+  await page.getByTestId('environment-infra').click();
+  await page.getByTestId('action-families').click();
+  const dialog = page.getByTestId('families-dialog');
+  await dialog.getByTestId('families-tab-tanks').click();
+
+  // A família do fabricante é somente leitura.
+  await dialog.locator('[data-family-id="tramec-taca-sem-agua"]').click();
+  await expect(dialog.getByTestId('tank-row')).toHaveCount(34);
+  await expect(dialog.locator('[data-testid^="tank-cell-"]')).toHaveCount(0);
+  await expect(dialog.getByTestId('tank-family-save')).toHaveCount(0);
+
+  // A cópia entra no projeto com a mesma tabela, agora editável.
+  await dialog.getByTestId('tank-library-duplicate').click();
+  await expect(dialog.getByTestId('tank-family-item')).toHaveCount(9);
+  const custom = dialog.locator('[data-testid="tank-family-item"][data-origin="custom"]');
+  await expect(custom).toHaveCount(1);
+  await expect(custom).toHaveClass(/is-active/);
+  await expect(dialog.getByTestId('tank-family-name')).toHaveValue(
+    'Reservatório tipo taça sem água na coluna (personalizado)',
+  );
+  await expect(dialog.getByTestId('tank-row')).toHaveCount(34);
+  await expect(dialog.getByTestId('tank-library-source')).toContainText('Personalizada');
+  await expect(dialog.getByTestId('tank-library-source')).toContainText('p. 4');
+  await expect(dialog.getByTestId('tank-cell-10-height')).toHaveValue('8,3');
+
+  // Editar a linha de 10.000 L: o modelo 3D acompanha antes mesmo de salvar.
+  const commit = async (testId: string, value: string) => {
+    const cell = dialog.getByTestId(testId);
+    await cell.fill(value);
+    await cell.press('Enter');
+  };
+  await dialog.getByTestId('tank-family-name').fill('Taça da obra');
+  await commit('tank-cell-10-height', '9');
+  await commit('tank-cell-10-columnHeight', '5,5');
+  await expect(dialog.getByTestId('tank-preview-extent')).toContainText('9,00 m');
+  await expect(dialog.getByTestId('tank-preview')).toHaveAttribute('data-state', 'model');
+
+  // Linha incoerente (coluna mais alta que o reservatório) é recusada ao salvar.
+  await commit('tank-cell-10-columnHeight', '12');
+  await dialog.getByTestId('tank-family-save').click();
+  await expect(page.getByTestId('status-message')).toHaveAttribute('data-level', 'error');
+  await expect(page.getByTestId('status-message')).toContainText('Linha 11');
+  await commit('tank-cell-10-columnHeight', '5,5');
+  await dialog.getByTestId('tank-family-save').click();
+  await expectNoError(page);
+  await expect(dialog.getByTestId('tank-family-save')).toBeDisabled();
+  await expect(custom).toContainText('Taça da obra');
+
+  // Inserir um reservatório da família personalizada.
+  await dialog.getByTestId('tank-library-use').click();
+  await expect(dialog).toBeHidden();
+  await page.getByTestId('coord-add').click();
+  await expectNoError(page);
+  await page.getByTestId('tool-select').click();
+  await expect(page.getByTestId('prop-tank-height')).toHaveValue('9');
+  await expect(page.getByTestId('prop-tank-columnHeight')).toHaveValue('5,5');
+  // As dimensões da tabela personalizada são do usuário, não do fabricante.
+  await expect(origin(page, 'height')).toHaveAttribute('data-origin', 'user');
+  await expect(origin(page, 'diameter')).toHaveAttribute('data-origin', 'user');
+  await expect(page.getByTestId('prop-tank-source')).toContainText('personalizada');
+
+  // Alterar a tabela reaplica as dimensões ao reservatório já inserido.
+  await page.getByTestId('action-families').click();
+  await dialog.getByTestId('families-tab-tanks').click();
+  await custom.click();
+  await expect(dialog.getByTestId('tank-family-apply')).toBeChecked();
+  await commit('tank-cell-10-diameter', '2,2');
+  await dialog.getByTestId('tank-family-save').click();
+  await expectNoError(page);
+  await dialog.getByTestId('families-close').click();
+  await expect(page.getByTestId('prop-tank-diameter')).toHaveValue('2,2');
+  await expect(page.getByTestId('prop-tank-height')).toHaveValue('9');
+
+  // O catálogo do fabricante continua intacto.
+  await page.getByTestId('action-families').click();
+  await dialog.getByTestId('families-tab-tanks').click();
+  await dialog.locator('[data-family-id="tramec-taca-sem-agua"]').click();
+  await dialog.locator('[data-variant-id="tramec-taca-sem-agua/10000-830-191-480"]').click();
+  await expect(dialog.getByTestId('tank-preview-extent')).toContainText('8,30 m');
+  await page.screenshot({ path: 'test-results/tanks-04-personalizada.png' });
+  await dialog.getByTestId('families-close').click();
+  expect(errors).toEqual([]);
+});

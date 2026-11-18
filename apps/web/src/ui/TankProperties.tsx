@@ -1,4 +1,3 @@
-import { getTankFamily, TANK_FAMILIES } from '@hydrobim/catalog';
 import {
   degToRad,
   formatMeters,
@@ -19,7 +18,7 @@ import {
   type TankParameterOrigin,
 } from '@hydrobim/core';
 import { Plus, Trash2 } from 'lucide-react';
-import { useEditorStore } from '../state/editorStore';
+import { tankFamiliesOf, useEditorStore } from '../state/editorStore';
 import { NumberField, ReadOnlyRow, SelectField } from './fields';
 
 const actions = () => useEditorStore.getState();
@@ -97,7 +96,9 @@ const ACCESSORY_LABELS: [
 export function TankProperties({ tank }: { tank: Tank }) {
   const activeSpec = useEditorStore((s) => s.activeSpec);
   const type = tankTypeOf(tank);
-  const family = getTankFamily(tank.familyId);
+  const project = useEditorStore((s) => s.project);
+  const families = tankFamiliesOf(project);
+  const family = families.find((f) => f.id === tank.familyId);
   const layout = tankLayout(tank);
   const origins = tankParameterOrigins(tank, family);
   const base = tank.placement.position.z;
@@ -128,10 +129,10 @@ export function TankProperties({ tank }: { tank: Tank }) {
         value={family?.id ?? 'generic'}
         options={[
           ...(generic ? [{ value: 'generic', label: 'Genérico (sem catálogo)' }] : []),
-          ...TANK_FAMILIES.map((f) => ({ value: f.id, label: `${f.name} — ${f.manufacturer}` })),
+          ...families.map((f) => ({ value: f.id, label: `${f.name} — ${f.manufacturer}` })),
         ]}
         onChange={(id) => {
-          const next = getTankFamily(id);
+          const next = families.find((f) => f.id === id);
           if (!next || next.id === family?.id) return;
           const first = next.variants[0];
           actions().changeTankModel(
@@ -176,7 +177,7 @@ export function TankProperties({ tank }: { tank: Tank }) {
       )}
       {family && family.variants.length === 0 && (
         <span className="muted" data-testid="prop-tank-no-table">
-          O catálogo não tabula os modelos desta família (só a faixa de{' '}
+          Esta família não tem modelos tabulados (faixa de{' '}
           {family.capacityRangeL[0].toLocaleString('pt-BR')} a{' '}
           {family.capacityRangeL[1].toLocaleString('pt-BR')} L): as dimensões são do usuário.
         </span>

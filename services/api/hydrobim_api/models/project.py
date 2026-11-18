@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def _json_number(value: Any) -> int | float:
@@ -250,6 +250,55 @@ class Tank(FittingBase):
     nozzles: list[TankNozzle] = Field(default=None, validate_default=False)
 
 
+class TankVariant(CamelModel):
+    """Linha da tabela de uma família de reservatórios (SI; capacidade em litros)."""
+
+    id: NonEmptyString
+    capacity_l: PositiveNumber
+    height: PositiveNumber
+    diameter: PositiveNumber
+    column_height: PositiveNumber = Field(default=None, validate_default=False)
+    mark: str = Field(default=None, validate_default=False)
+
+
+class TankCustomDefaults(CamelModel):
+    capacity_l: PositiveNumber
+    diameter: PositiveNumber
+    height: PositiveNumber
+    length: PositiveNumber = Field(default=None, validate_default=False)
+
+
+class TankFamily(CamelModel):
+    """Família de reservatórios personalizada no projeto (espelho de TankFamilySchema)."""
+
+    id: NonEmptyString
+    name: NonEmptyString
+    tank_type: Literal[
+        "gobletWet",
+        "gobletDry",
+        "tubular",
+        "australian",
+        "verticalGround",
+        "verticalConeLegs",
+        "fieldErected",
+        "horizontal",
+    ]
+    manufacturer: str
+    material: str
+    source: str
+    page: NonNegativeInteger
+    description: str
+    variants: list[TankVariant]
+    capacity_range_l: Annotated[list[PositiveNumber], Field(min_length=2, max_length=2)]
+    catalog_heights: list[PositiveNumber] = Field(default=None, validate_default=False)
+    catalog_support_height: PositiveNumber = Field(default=None, validate_default=False)
+    custom_defaults: TankCustomDefaults
+    approximations: list[str]
+    remarks: list[str]
+    origin: Literal["builtin", "custom"]
+    based_on: str = Field(default=None, validate_default=False)
+
+
 HydroElement = Annotated[
     Pipe | Elbow | Tee | Reducer | Valve | Pump | Tank, Field(discriminator="kind")
 ]
@@ -381,7 +430,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[7], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[8], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -391,6 +440,7 @@ class Project(CamelModel):
     systems: Annotated[list[HydraulicSystem], Field(min_length=1)]
     levels: list[Level]
     families: list[FittingFamily]
+    tank_families: list[TankFamily]
     georeference: Georeference | None
     terrain: Terrain | None
     elements: list[HydroElement]
@@ -401,18 +451,19 @@ class Project(CamelModel):
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v7), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v8), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6):
+        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7):
             return document
+        # v7 → v8: famílias de reservatórios personalizadas no projeto.
         # v6 → v7: ressalto dos flanges e extremidades dos tubos (opcionais).
         # v5 → v6: forma construtiva, bocais e acessórios dos reservatórios (opcionais).
         # v4 → v5: filtro Y e furação opcional dos flanges. Nos dois casos o documento
         # já era válido.
-        document = {**document, "schemaVersion": 7}
-        if version in (4, 5, 6):
+        document = {"tankFamilies": [], **document, "schemaVersion": 8}
+        if version in (4, 5, 6, 7):
             return document
         # v3 → v4: anotações da planta baixa e escala do desenho.
         document = {**document, "annotations": [], "drawingScale": 50}

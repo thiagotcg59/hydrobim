@@ -1,10 +1,8 @@
 import {
   flangedPipeFamiliesFor,
   getSpecification,
-  getTankFamily,
   PIPE_END_CONFIGURATION_LABELS,
   PIPE_END_CONFIGURATIONS,
-  TANK_FAMILIES,
 } from '@hydrobim/catalog';
 import {
   formatMeters,
@@ -17,7 +15,13 @@ import {
   type FittingFamily,
 } from '@hydrobim/core';
 import { useState } from 'react';
-import { drawElevationOf, elbowAnglesOf, familiesOf, useEditorStore } from '../state/editorStore';
+import {
+  drawElevationOf,
+  elbowAnglesOf,
+  familiesOf,
+  tankFamiliesOf,
+  useEditorStore,
+} from '../state/editorStore';
 import { NumberField, SelectField } from './fields';
 import { PLAN_TOOL_HINTS, TOOL_HINTS, TOOL_LABELS, VALVE_TYPE_LABELS } from './labels';
 import { SpecSelector } from './SpecSelector';
@@ -126,7 +130,9 @@ function FamilySelect({
 function TankOptions() {
   const tank = useEditorStore((s) => s.toolOptions.tank);
   const { setToolOptions } = useEditorStore.getState();
-  const family = getTankFamily(tank.familyId);
+  const project = useEditorStore((s) => s.project);
+  const families = tankFamiliesOf(project);
+  const family = families.find((f) => f.id === tank.familyId);
   const custom = tank.custom;
   const set = (patch: Partial<typeof tank>): void =>
     setToolOptions({ tank: { ...tank, ...patch } });
@@ -146,10 +152,10 @@ function TankOptions() {
         value={family?.id ?? 'generic'}
         options={[
           { value: 'generic', label: 'Genérico (sem catálogo)' },
-          ...TANK_FAMILIES.map((f) => ({ value: f.id, label: `${f.name} — ${f.manufacturer}` })),
+          ...families.map((f) => ({ value: f.id, label: `${f.name} — ${f.manufacturer}` })),
         ]}
         onChange={(id) => {
-          const next = getTankFamily(id);
+          const next = families.find((f) => f.id === id);
           // Ao trocar de família, parte-se do primeiro modelo tabulado (ou das dimensões
           // iniciais, quando o catálogo não tabula a família).
           set({

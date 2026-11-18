@@ -546,6 +546,11 @@ export function tankParametersFromFamily(
       diameter,
       height,
     };
+    // Taça de coluna seca fora da tabela: parte da coluna do primeiro modelo da família
+    // (ou de metade da altura), a ajustar pelo usuário.
+    if (type === 'gobletDry' && dims.columnHeight === undefined) {
+      dims.columnHeight = family.variants[0]?.columnHeight ?? height / 2;
+    }
     const length = custom.length ?? defaults.length;
     if (type === 'horizontal' && length !== undefined) dims.length = length;
   }

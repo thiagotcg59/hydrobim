@@ -67,7 +67,7 @@ def project_document():
 
     return {
         "format": "hydrobim-project",
-        "schemaVersion": 7,
+        "schemaVersion": 8,
         "id": "project-test",
         "name": "Projeto de teste",
         "discipline": "mep",
@@ -77,6 +77,7 @@ def project_document():
         "systems": [{"id": "cold-water", "name": "Água fria", "kind": "domesticColdWater"}],
         "levels": [{"id": "nivel-0", "name": "Térreo", "elevation": 0}],
         "families": [],
+        "tankFamilies": [],
         "georeference": None,
         "terrain": None,
         "annotations": [],

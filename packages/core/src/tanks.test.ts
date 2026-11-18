@@ -4,7 +4,7 @@ import { exportEpanet } from './epanet';
 import { createProject, drawPipe, placeEquipment, updateFitting } from './operations';
 import { getPorts } from './ports';
 import { computeQuantities } from './quantities';
-import { SCHEMA_VERSION, type PipeSpec, type Project, type Tank } from './schema';
+import { SCHEMA_VERSION, type PipeSpec, type Project, type Tank, type TankFamily } from './schema';
 import { parseProject, serializeProject } from './serialization';
 import {
   addTankNozzle,
@@ -24,7 +24,6 @@ import {
   tankLayout,
   tankParameterOrigins,
   tankParametersFromFamily,
-  type TankFamily,
   type TankSelection,
 } from './tanks';
 import { validateProject } from './validation';
@@ -56,10 +55,10 @@ const base = {
   source: 'Catálogo de teste, p. 1',
   page: 1,
   description: '',
-  approximations: [],
-  remarks: [],
-  origin: 'builtin',
-} as const;
+  approximations: [] as string[],
+  remarks: [] as string[],
+  origin: 'builtin' as const,
+};
 
 /** Famílias de teste (o catálogo real é conferido em `packages/catalog`). */
 const DRY: TankFamily = {

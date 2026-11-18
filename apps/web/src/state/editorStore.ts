@@ -3,7 +3,7 @@ import {
   defaultPipeSpec,
   getSpecification,
   flangedPipeFamiliesFor,
-  getTankFamily,
+  TANK_FAMILIES,
   pipeFlangeEnd,
   resolveNearestPipeSpec,
   resolvePipeEnds,
@@ -17,6 +17,11 @@ import {
   addSystem,
   addTankNozzle,
   applyFamilyToInstances,
+  applyTankFamilyToInstances,
+  duplicateTankFamily,
+  removeTankFamily,
+  tankFamiliesOf as mergeTankFamilies,
+  upsertTankFamily,
   applySpec,
   attachFitting,
   availableElbowAngles,
@@ -101,6 +106,7 @@ import {
   type Result,
   type SystemKind,
   type TankCustomDimensions,
+  type TankFamily,
   type TankNozzleInput,
   type TankNozzleRole,
   type TankSelection,
@@ -175,9 +181,21 @@ export interface TankToolOptions {
   readonly custom: TankCustomDimensions;
 }
 
+/** Famílias de reservatórios: catálogo embutido mais as personalizadas do projeto. */
+export function tankFamiliesOf(project: Project): TankFamily[] {
+  return mergeTankFamilies(project, TANK_FAMILIES);
+}
+
+export function tankFamilyOf(
+  project: Project,
+  id: string | null | undefined,
+): TankFamily | undefined {
+  return id ? tankFamiliesOf(project).find((family) => family.id === id) : undefined;
+}
+
 /** Entrada da operação de inserção para as opções da ferramenta Reservatório. */
-export function tankFittingInput(options: TankToolOptions): Result<FittingInput> {
-  const family = getTankFamily(options.familyId);
+export function tankFittingInput(project: Project, options: TankToolOptions): Result<FittingInput> {
+  const family = tankFamilyOf(project, options.familyId);
   if (!family) return { ok: true, value: { kind: 'tank' } };
   const parameters = tankParametersFromFamily(
     family,
@@ -338,6 +356,10 @@ interface EditorState {
   /** Define a cota Z do elemento; tubos e conexões levam junto os elementos conectados. */
   changeElevation: (elementId: string, elevation: number) => void;
   changeFitting: (elementId: string, patch: FittingPatch) => void;
+  /** Duplica a família como personalizada do projeto; devolve o id da cópia. */
+  duplicateTankFamily: (family: TankFamily) => string | null;
+  saveTankFamily: (family: TankFamily, applyToInstances: boolean) => boolean;
+  deleteTankFamily: (familyId: string) => void;
   /** Aplica outra família/modelo comercial (ou dimensões personalizadas) ao reservatório. */
   changeTankModel: (elementId: string, familyId: string, selection: TankSelection) => void;
   changeTankSettings: (elementId: string, patch: TankSettingsPatch) => void;
@@ -925,7 +947,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
       if (tool === 'pump' || tool === 'tank') {
         const fitting =
-          tool === 'tank' ? tankFittingInput(state.toolOptions.tank) : success({ kind: tool });
+          tool === 'tank'
+            ? tankFittingInput(project, state.toolOptions.tank)
+            : success({ kind: tool });
         if (!fitting.ok) {
           state.notify('error', fitting.error.message);
           return;
@@ -1227,8 +1251,42 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     changeElevation: (elementId, elevation) => {
       commit(setElementElevation(get().project, elementId, elevation), 'Elevação alterada.');
     },
+    duplicateTankFamily: (family) => {
+      const result = duplicateTankFamily(get().project, family);
+      if (!result.ok) {
+        get().notify('error', result.error.message);
+        return null;
+      }
+      commit(
+        success(result.value.project),
+        `Família "${family.name}" duplicada: a tabela da cópia pode ser editada.`,
+      );
+      return result.value.familyId;
+    },
+    saveTankFamily: (family, applyToInstances) => {
+      const saved = upsertTankFamily(get().project, family);
+      if (!saved.ok) {
+        get().notify('error', saved.error.message);
+        return false;
+      }
+      if (!applyToInstances) {
+        return commit(saved, `Família "${family.name}" salva no projeto.`);
+      }
+      const applied = applyTankFamilyToInstances(saved.value, family);
+      if (!applied.ok) {
+        get().notify('error', `Família não aplicada: ${applied.error.message}`);
+        return false;
+      }
+      return commit(
+        success(applied.value.project),
+        `Família "${family.name}" salva e aplicada a ${applied.value.updated} reservatório(s) do projeto.`,
+      );
+    },
+    deleteTankFamily: (familyId) => {
+      commit(removeTankFamily(get().project, familyId), 'Família de reservatórios excluída.');
+    },
     changeTankModel: (elementId, familyId, selection) => {
-      const family = getTankFamily(familyId);
+      const family = tankFamilyOf(get().project, familyId);
       if (!family) {
         get().notify('error', 'Família de reservatório inexistente no catálogo.');
         return;

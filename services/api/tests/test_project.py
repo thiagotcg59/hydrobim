@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 7
+    assert project.schema_version == 8
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 8),
+        (("schemaVersion",), 9),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 7.0
+    project_document["schemaVersion"] = 8.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -158,6 +158,71 @@ def test_migrates_v6_without_changing_input(project_document):
     before = deepcopy(legacy)
     assert Project.model_validate(legacy).model_dump() == project_document
     assert legacy == before
+
+
+def test_migrates_v7_adding_tank_families(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 7
+    del legacy["tankFamilies"]
+    before = deepcopy(legacy)
+    assert Project.model_validate(legacy).model_dump() == project_document
+    assert legacy == before
+
+
+def _custom_tank_family():
+    return {
+        "id": "custom-tank-1",
+        "name": "Taça da obra (personalizado)",
+        "tankType": "gobletDry",
+        "manufacturer": "Personalizado",
+        "material": "Aço-carbono estrutural",
+        "source": "Família personalizada neste projeto.",
+        "page": 4,
+        "description": "",
+        "variants": [
+            {
+                "id": "custom-tank-1/a",
+                "capacityL": 10000,
+                "height": 7.5,
+                "diameter": 1.91,
+                "columnHeight": 4,
+            }
+        ],
+        "capacityRangeL": [5000, 100000],
+        "customDefaults": {"capacityL": 10000, "diameter": 1.91, "height": 7.1},
+        "approximations": ["Espessura das chapas: não informada."],
+        "remarks": [],
+        "origin": "custom",
+        "basedOn": "tramec-taca-sem-agua",
+    }
+
+
+def test_custom_tank_family_round_trips(project_document):
+    project_document["tankFamilies"] = [_custom_tank_family()]
+    project = Project.model_validate(project_document)
+    assert project.model_dump(by_alias=True) == project_document
+    assert project.tank_families[0].variants[0].capacity_l == 10000
+    assert project.tank_families[0].capacity_range_l == [5000, 100000]
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("name", ""),
+        ("tankType", "generic"),
+        ("origin", "fabricante"),
+        ("capacityRangeL", [5000]),
+        ("variants", [{"id": "x", "capacityL": 0, "height": 1, "diameter": 1}]),
+        ("variants", [{"id": "", "capacityL": 1, "height": 1, "diameter": 1}]),
+        ("customDefaults", {"capacityL": 1, "diameter": 1}),
+    ],
+)
+def test_rejects_invalid_tank_family(project_document, key, value):
+    family = _custom_tank_family()
+    family[key] = value
+    project_document["tankFamilies"] = [family]
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
 
 
 def _pn10_flange():

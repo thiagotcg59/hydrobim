@@ -258,3 +258,19 @@ Verificação: `flanges.test.ts` (catálogo), `pipeEnds.test.ts` (core), `flange
 - **GitHub Pages.** O editor roda inteiro no navegador (a API é opcional), então `pages.yml` publica o build de `apps/web` em `/hydrobim/` a cada push na `main`. Caminhos de arquivos públicos usam `import.meta.env.BASE_URL`.
 
 Sem dependências novas: PowerShell, Git e GitHub Actions oficiais (`upload-pages-artifact`, `deploy-pages`).
+
+## ADR-032 — Famílias de reservatórios personalizadas: cópia no projeto, catálogo intacto
+
+**Data:** 2026-11-17 · **Estado:** aceita (complementa a ADR-029)
+
+O usuário precisa ajustar as dimensões de tabela de uma família de reservatórios sem alterar o catálogo do fabricante. A família é **duplicada** para o projeto (`Project.tankFamilies`, esquema v8) e só a cópia é editável.
+
+- **Cópia, não sobreposição.** Nas conexões, a família alterada sobrepõe a do catálogo com o mesmo id. Nos reservatórios a cópia recebe um id novo e convive com a original: a tabela do fabricante continua disponível e conferível contra o PDF, e não há como um valor editado passar por valor impresso.
+- **A cópia não é dado de fabricante.** Fabricante "Personalizado", `origin: 'custom'`, `basedOn` e fonte que cita a origem. `tankParameterOrigins` nunca devolve *catálogo* para uma família personalizada; no IFC o conjunto sai como `Pset_Personalizado_Reservatorio`, com a fonte declarando a personalização (regras 8 e 12).
+- **`TankFamily` passou a ser tipo do esquema** (Zod), porque agora é persistido; o catálogo embutido usa o mesmo tipo, com `origin: 'builtin'`.
+- **Linhas mantêm o id ao serem editadas**, de modo que os reservatórios inseridos continuam ligados ao modelo e podem ser recalculados (`applyTankFamilyToInstances`). Linha removida: o reservatório mantém as dimensões e perde o vínculo com o modelo. Família excluída: mantém forma e dimensões, sem família.
+- **Validação por linha.** Cada linha precisa gerar um reservatório coerente (`tankParametersFromFamily`); o erro indica a linha.
+
+Limitações aceitas: só as colunas da tabela (e o nome) são editáveis na família — proporções estimadas, acessórios e bocais continuam sendo ajustados em cada reservatório; não há importação/exportação de famílias entre projetos.
+
+Verificação: `packages/core/src/tanks.test.ts` (duplicar, editar, recusar, reaplicar, excluir, salvar e reabrir), backend (esquema v8, migração e validação de `tankFamilies`) e E2E (`tests/e2e/tanks.spec.ts`).
