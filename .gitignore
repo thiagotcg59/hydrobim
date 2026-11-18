@@ -162,3 +162,5 @@ playwright-report/
 .venv/
 __pycache__/
 *.hydrobim.json.tmp
+# DXF exportados à mão na raiz do repositório (exemplos versionados ficam em examples/)
+/*.dxf

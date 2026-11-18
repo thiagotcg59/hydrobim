@@ -90,7 +90,9 @@ Mudou `packages/core/src/schema.ts`? Então: incremente `SCHEMA_VERSION`, regist
 - Branches: `main` (protegida, sem push direto) ← `develop` ← `feature/<assunto>`.
 - Commits pequenos, no formato Conventional Commits, em português: `feat(core): …`, `fix(web): …`, `docs: …`, `test: …`, `chore: …`.
 - Nunca: `git push --force`, `git reset --hard`, `git clean -fd`, reescrita de histórico ou exclusão de arquivos sem autorização.
-- Push e pull requests somente com autenticação disponível e autorização do responsável.
+- **Envio ao GitHub ao fim de cada sessão do localhost** (autorizado pelo responsável em 2026-11-17): o `iniciar.ps1` abre o editor e, quando a sessão é encerrada com Q, roda `npm run check` e, só se passar, faz `git push` da branch de trabalho atual (`feature/...`). Nunca envia direto para `main` ou `develop`, que recebem alterações por pull request. Alterações sem commit só entram com uma mensagem Conventional Commits digitada pelo responsável. `.\iniciar.ps1 -SomenteEnviar` faz só a verificação e o envio.
+- Agentes de IA fazem commits pequenos (só com testes passando) ao longo da sessão; o envio fica para o encerramento da sessão. Fora desse fluxo, push e pull requests só com autorização do responsável.
+- A `main` é publicada no GitHub Pages (`.github/workflows/pages.yml`): <https://thiagotcg59.github.io/hydrobim/>.
 - Não versionar: `node_modules`, `dist`, `.venv`, `test-results`, credenciais.
 
 ## Regras para sessões de IA
@@ -100,5 +102,5 @@ Mudou `packages/core/src/schema.ts`? Então: incremente `SCHEMA_VERSION`, regist
 - Implemente a fase em andamento; planeje as seguintes sem antecipá-las sem necessidade.
 - Divisão preferencial quando houver mais de um agente: arquitetura, domínio, interface e documentação com Claude; geometria, conectividade, backend, IFC e testes com Codex. Agentes não editam os mesmos arquivos simultaneamente — delimite diretórios e revise cada integração.
 - Antes de concluir: `npm run check`, `npm run test:e2e` e os testes do backend; atualize a documentação afetada.
-- Operações externas (push, PR, deploy, instalação global) exigem aprovação: apresente o comando e aguarde.
+- Operações externas (PR, deploy, instalação global, e push fora do fluxo do `iniciar.ps1`) exigem aprovação: apresente o comando e aguarde.
 - Se uma ferramenta estiver indisponível, informe a limitação; não simule execuções.

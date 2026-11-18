@@ -246,3 +246,15 @@ Verificação: testes unitários do core (`tanks.test.ts`), transcrição do cat
 Limitações aceitas: a compatibilidade do tipo de extremidade (flange × ponta, PN diferentes) ainda não é verificada na conexão (roadmap, Fase 2); o flange avulso não é elemento da rede; parafusos e juntas não são modelados nem quantificados.
 
 Verificação: `flanges.test.ts` (catálogo), `pipeEnds.test.ts` (core), `flange.test.ts` (geometria), `export.test.ts` (IFC), `test_project.py` (backend, esquema v7) e `tests/e2e/flanges.spec.ts`, com conferência visual do flange e do tubo flangeado.
+
+## ADR-031 — Envio ao GitHub no encerramento da sessão; editor no GitHub Pages
+
+**Data:** 2026-11-17 · **Estado:** aceita
+
+- **Quando enviar.** O responsável quer o GitHub atualizado sempre que usa a ferramenta, mas só ao terminar a sessão do localhost. O `iniciar.ps1` abre o editor e, ao encerrar com Q, roda `npm run check` e faz `git push` da branch atual. É o mesmo princípio do projeto ifc-energy (push após trabalho verificado), adaptado ao fluxo de branches deste repositório.
+- **Para onde.** Só a branch de trabalho (`feature/...`); `main` e `develop` continuam recebendo por pull request. O script recusa enviar se estiver nelas.
+- **Sem commits genéricos.** Alterações pendentes só viram commit com mensagem Conventional Commits digitada pelo responsável, validada por expressão regular; Enter envia apenas os commits já feitos. Nada é commitado nem enviado se a verificação falhar.
+- **Ctrl+C não envia.** Encerrar com Q é intencional; Ctrl+C é a saída de emergência. Os testes E2E e do backend ficam com o CI (`ci.yml`), para o encerramento não demorar.
+- **GitHub Pages.** O editor roda inteiro no navegador (a API é opcional), então `pages.yml` publica o build de `apps/web` em `/hydrobim/` a cada push na `main`. Caminhos de arquivos públicos usam `import.meta.env.BASE_URL`.
+
+Sem dependências novas: PowerShell, Git e GitHub Actions oficiais (`upload-pages-artifact`, `deploy-pages`).

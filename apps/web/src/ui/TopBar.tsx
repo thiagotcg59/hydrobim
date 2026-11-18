@@ -41,7 +41,8 @@ export function TopBar({ onOpen, onFamilies, onProject }: Props) {
   return (
     <header className="topbar">
       <div className="topbar__brand" aria-label="HydroBIM">
-        <img src="/favicon.svg" alt="" width={22} height={22} />
+        {/* BASE_URL: no GitHub Pages o editor fica em /hydrobim/, não na raiz. */}
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={22} height={22} />
         <span>HydroBIM</span>
       </div>
 

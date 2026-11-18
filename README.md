@@ -43,12 +43,23 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 
 ### Editor web
 
-```bash
-npm install
-npm run dev
+No Windows, pelo PowerShell, dentro da pasta do projeto:
+
+```powershell
+.\iniciar.ps1
 ```
 
-Abra <http://localhost:5180>. Na primeira execução é carregado um projeto de demonstração.
+O script confere as dependências e abre <http://localhost:5180> no navegador. Para **encerrar a sessão, pressione Q** na janela do PowerShell: o editor fecha, o `npm run check` roda e, se passar, a branch de trabalho é enviada ao GitHub (veja [AGENTS.md](AGENTS.md), "Convenções Git"). Se houver alterações sem commit, o script pede a mensagem do commit; Enter deixa esses arquivos de fora.
+
+| Comando | O que faz |
+| --- | --- |
+| `.\iniciar.ps1` | Abre o editor; ao encerrar com Q, verifica e envia |
+| `.\iniciar.ps1 -SemEnviar` | Abre o editor sem enviar nada ao encerrar |
+| `.\iniciar.ps1 -SomenteEnviar` | Não abre o editor; só verifica e envia |
+
+Ctrl+C também fecha o editor, mas sem enviar. Sem o script: `npm install` e `npm run dev`. Na primeira execução é carregado um projeto de demonstração.
+
+Versão publicada (branch `main`): <https://thiagotcg59.github.io/hydrobim/>.
 
 Build de produção: `npm run build` (saída em `apps/web/dist`) e `npm run preview` para servi-la.
 
