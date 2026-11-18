@@ -1,0 +1,17 @@
+{
+  "name": "@hydrobim/ifc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Exportação IFC 4.3 no cliente, com geometria paramétrica compartilhada",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hydrobim/core": "*",
+    "@hydrobim/geometry": "*"
+  }
+}
