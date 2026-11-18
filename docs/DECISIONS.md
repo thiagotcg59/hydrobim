@@ -274,3 +274,22 @@ O usuário precisa ajustar as dimensões de tabela de uma família de reservató
 Limitações aceitas: só as colunas da tabela (e o nome) são editáveis na família — proporções estimadas, acessórios e bocais continuam sendo ajustados em cada reservatório; não há importação/exportação de famílias entre projetos.
 
 Verificação: `packages/core/src/tanks.test.ts` (duplicar, editar, recusar, reaplicar, excluir, salvar e reabrir), backend (esquema v8, migração e validação de `tankFamilies`) e E2E (`tests/e2e/tanks.spec.ts`).
+
+## ADR-033 — Camada BIM: modelo de informação IFC derivado, registro único de propriedades e valores do usuário no esquema v9
+
+**Contexto.** A exportação IFC classificava os elementos, mas só os reservatórios de catálogo tinham `IfcTypeObject` e conjuntos padronizados; as demais propriedades iam para um conjunto próprio. Não havia onde consultar, completar e validar a informação IFC antes de exportar.
+
+**Decisão.**
+
+- **Um modelo de informação, duas saídas.** `buildIfcModel(project)` (`packages/ifc/src/bim`) deriva do projeto a classificação, os tipos, os conjuntos de propriedades e de quantidades, as portas e os materiais. A aba BIM / IFC mostra esse modelo e `exportIfc` o grava — não existe campo de interface que não seja exportado, nem propriedade exportada que o painel não mostre.
+- **Registro central de propriedades** (`definitions.ts`): cada definição traz conjunto, escopo (tipo × ocorrência), classes de elemento, tipo predefinido, como o valor é derivado, se o perfil do projeto a exige e se o usuário pode informá-la. Não há estruturas por família.
+- **Nada do esquema é digitado à mão.** O tipo de valor e a enumeração das propriedades padronizadas vêm de `schemaData.ts`, gerado por `services/api/scripts/generate_ifc_schema_data.py` a partir do esquema `IFC4X3_ADD2` e dos modelos de conjuntos de propriedades do IfcOpenShell. Referir uma propriedade inexistente faz o módulo falhar ao carregar. Conjuntos próprios usam o prefixo `HydroBIM_`.
+- **Sem dados fictícios.** O que o modelo não conhece fica sem valor. As pressões (`WorkingPressure`, `PressureClass` em pascal) **não são derivadas** da designação da classe ("PN 10", "Classe 15", "K9"): a designação continua em `HydroBIM_Especificacao.PressureClass` e a pressão é informada pelo usuário. Cada valor declara a origem: geometria, cadastro, catálogo, usuário ou não informado.
+- **Tipo por produto.** A chave do tipo (`ifcTypeKey`) reúne família, especificação, diâmetros, dimensões e dados de fabricação. Ocorrências iguais compartilham o `Ifc…Type`; os reservatórios de catálogo mantêm a chave e os GlobalIds anteriores.
+- **Esquema v9.** Só os valores digitados são persistidos: `element.ifc` (ocorrência) e `project.ifcTypes` (tipo — vale também para ocorrências futuras). Tudo o mais continua derivado (regra 5).
+- **Validação em dois níveis.** `schema`: requisitos normativos do IFC 4.3; `project`: requisitos adicionais do perfil (propriedades exigidas → *pendente*). O mesmo perfil é exportado em IDS 1.0.
+- **Unidades.** O arquivo declara pascal, watt, segundo, m³/s e s⁻¹ além de metro, m², m³ e radiano; a aba converte para MPa, L/s, kW, rpm, mm e % só na apresentação.
+
+**Consequências.** A exportação passou a depender das famílias do catálogo (`IfcExportOptions.families`), fornecidas pelo editor — o pacote `ifc` continua sem depender de `catalog`. Trocar a dimensão de um elemento muda o seu tipo e, com ele, os valores de tipo aplicáveis (os anteriores ficam guardados para quando o tipo voltar a existir). O perfil de requisitos é fixo no código; torná-lo editável e importar IDS de terceiros ficam para depois.
+
+**Verificação.** Vitest: registro × esquema, modelo, validação, edição e IDS (`packages/ifc/src/bim/bim.test.ts`), operações e migração (`packages/core/src/ifcValues.test.ts`), biblioteca e exemplos (`tests/integration/ifcBim.test.ts`). Backend: `tests/test_ifc_bim.py` reabre os IFC com o IfcOpenShell e confere cada `Pset_*`/`Qto_*` contra os modelos oficiais (existência, aplicabilidade, tipo de valor, enumeração), tipos, materiais e coincidência das portas conectadas; `ifcopenshell.validate` com regras EXPRESS sem erros. E2E: `tests/e2e/bim.spec.ts`. **Não verificado:** o IDS exportado contra o XSD/`ifctester` e a abertura em ferramentas de terceiros.

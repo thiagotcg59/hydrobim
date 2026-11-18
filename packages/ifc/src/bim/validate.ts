@@ -81,7 +81,8 @@ function checkSets(sets: readonly IfcPropertySetInfo[], owner: Owner, issues: If
       level,
       severity,
       code,
-      message,
+      // O dono (elemento ou tipo) identifica o problema na lista geral do modelo.
+      message: `${owner.label.charAt(0).toUpperCase()}${owner.label.slice(1)}: ${message}`,
       elementId: owner.elementId,
       typeKey: owner.typeKey,
       property,

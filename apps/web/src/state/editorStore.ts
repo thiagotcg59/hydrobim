@@ -1,6 +1,7 @@
 import {
   BUILTIN_FAMILIES,
   defaultPipeSpec,
+  FLANGED_PIPE_FAMILIES,
   getSpecification,
   flangedPipeFamiliesFor,
   TANK_FAMILIES,
@@ -115,6 +116,12 @@ import {
   type ValveType,
   type Vec3,
 } from '@hydrobim/core';
+import {
+  setIfcValue as applyIfcValue,
+  type IfcModelOptions,
+  type IfcScope,
+  type IfcValue,
+} from '@hydrobim/ifc';
 import { create } from 'zustand';
 import { distanceAlongPipe, type SnapKind } from '../editor/picking';
 
@@ -127,7 +134,8 @@ export type ToolId = ModelToolId | AnnotationToolId;
 export const isAnnotationTool = (tool: ToolId): tool is AnnotationToolId =>
   (ANNOTATION_TOOLS as readonly string[]).includes(tool);
 /** Área de trabalho: modelo 3D ou planta baixa (documentação técnica). */
-export type ViewMode = '3d' | 'plan';
+/** `bim` = aba BIM / IFC: visualizador 3D, árvore de elementos e painel de propriedades IFC. */
+export type ViewMode = '3d' | 'plan' | 'bim';
 
 /** Pontos já informados da anotação em criação na planta. */
 /**
@@ -273,6 +281,10 @@ interface EditorState {
   /** Elementos selecionados; o primeiro é o principal (painel de propriedades). */
   selection: string[];
   viewMode: ViewMode;
+  /** Aba BIM / IFC: elementos ocultos no visualizador (estado de exibição, não persistido). */
+  bimHidden: string[];
+  /** Aba BIM / IFC: entidade IFC a exibir (`null` = todas). */
+  bimClassFilter: string | null;
   /** Anotação selecionada na planta. */
   annotationSelection: string | null;
   planDraft: PlanDraft;
@@ -312,6 +324,14 @@ interface EditorState {
   setDiscipline: (discipline: Discipline) => void;
   setTool: (tool: ToolId) => void;
   setViewMode: (mode: ViewMode) => void;
+  /** Oculta ou volta a exibir elementos no visualizador da aba BIM / IFC. */
+  setBimHidden: (ids: readonly string[], hidden: boolean) => void;
+  /** Isola os elementos indicados (oculta os demais). */
+  isolateBim: (ids: readonly string[]) => void;
+  showAllBim: () => void;
+  setBimClassFilter: (entity: string | null) => void;
+  /** Informa (ou limpa, com `null`) uma propriedade IFC editável do tipo ou da ocorrência. */
+  setIfcValue: (elementId: string, scope: IfcScope, key: string, value: IfcValue | null) => boolean;
   selectAnnotation: (id: string | null) => void;
   setPlanDraft: (draft: PlanDraft) => void;
   setDimensionMode: (mode: DimensionMode) => void;
@@ -416,6 +436,17 @@ export function familiesOf(project: Project): FittingFamily[] {
 }
 
 /** Deflexões (rad) com joelho de catálogo para a especificação; vazio = ângulo livre. */
+/**
+ * Famílias (catálogo + projeto) que alimentam a camada IFC: os tipos, a referência do
+ * catálogo e a origem dos parâmetros. Usadas pela aba BIM / IFC e pela exportação.
+ */
+export function ifcOptionsOf(project: Project): Required<IfcModelOptions> {
+  return {
+    families: [...familiesOf(project), ...FLANGED_PIPE_FAMILIES],
+    tankFamilies: tankFamiliesOf(project),
+  };
+}
+
 export function elbowAnglesOf(project: Project, spec: PipeSpec): number[] {
   return availableElbowAngles(familiesOf(project), spec);
 }
@@ -661,6 +692,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     future: [],
     selection: [],
     viewMode: '3d',
+    bimHidden: [],
+    bimClassFilter: null,
     annotationSelection: null,
     planDraft: EMPTY_DRAFT,
     dimensionMode: 'aligned',
@@ -701,6 +734,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         past: [],
         future: [],
         selection: [],
+        bimHidden: [],
+        bimClassFilter: null,
         annotationSelection: null,
         planDraft: EMPTY_DRAFT,
         anchor: null,
@@ -754,7 +789,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     // duas vistas e mantêm a que estiver aberta.
     setTool: (tool) =>
       set((state) => {
-        const viewMode: ViewMode = isAnnotationTool(tool) ? 'plan' : state.viewMode;
+        // A aba BIM / IFC é de consulta e cadastro: modelar leva de volta ao modelo 3D.
+        const viewMode: ViewMode = isAnnotationTool(tool)
+          ? 'plan'
+          : state.viewMode === 'bim' && tool !== 'select'
+            ? '3d'
+            : state.viewMode;
         return {
           tool,
           anchor: null,
@@ -777,6 +817,31 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         cursor: null,
         viewRequest: { preset: 'fit', nonce: (state.viewRequest?.nonce ?? 0) + 1 },
       })),
+
+    setBimHidden: (ids, hidden) =>
+      set((state) => {
+        const target = new Set(ids);
+        return {
+          bimHidden: hidden
+            ? [...new Set([...state.bimHidden, ...ids])]
+            : state.bimHidden.filter((id) => !target.has(id)),
+        };
+      }),
+    isolateBim: (ids) =>
+      set((state) => {
+        const keep = new Set(ids);
+        return {
+          bimHidden: state.project.elements.map((e) => e.id).filter((id) => !keep.has(id)),
+        };
+      }),
+    showAllBim: () => set({ bimHidden: [], bimClassFilter: null }),
+    setBimClassFilter: (entity) => set({ bimClassFilter: entity }),
+    setIfcValue: (elementId, scope, key, value) => {
+      const { project } = get();
+      return commit(
+        applyIfcValue(project, { elementId, scope }, key, value, ifcOptionsOf(project).families),
+      );
+    },
 
     selectAnnotation: (id) =>
       set((state) => ({ annotationSelection: id, selection: id ? [] : state.selection })),

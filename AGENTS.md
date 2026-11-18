@@ -12,10 +12,10 @@ Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md
 | --- | --- | --- |
 | `packages/core` | Esquema, matemática, portas, conectividade, operações, validação, serialização | apenas `zod` |
 | `packages/catalog` | Especificações de tubos e famílias de conexões (com fontes) | `core` |
-| `packages/ifc` | Exportação IFC 4.3 (escritor IFC-SPF puro) | `core`, `geometry` |
+| `packages/ifc` | Camada BIM (`src/bim`: modelo de informação, registro de propriedades, validação, IDS) e exportação IFC 4.3 (escritor IFC-SPF puro) | `core`, `geometry` |
 | `packages/dxf` | Exportação DXF (planta anotada em R2000 e modelo 3D em R12), escritor ASCII puro | `core`, `geometry` |
 | `packages/geometry` | Malhas paramétricas (sem motor gráfico) | `core` |
-| `apps/web` | Editor React/Three.js: `ui/`, `viewport/`, `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
+| `apps/web` | Editor React/Three.js: `ui/`, `viewport/`, `plan/`, `bim/` (aba BIM / IFC), `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
 | `services/api` | API FastAPI (validação; verificação do IFC com IfcOpenShell nos testes) | contrato JSON do projeto |
 | `tests/integration`, `tests/e2e` | Integração entre pacotes e testes no navegador | — |
 | `examples/` | Projetos de exemplo, gerados por `npm run examples:generate` | — |
@@ -67,7 +67,7 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 7. **Identificadores são persistentes**: uma operação nunca troca o `id` de um elemento existente.
 8. **Nada de geometria fictícia apresentada como produto real**; dimensões genéricas devem estar identificadas como tal.
 9. **Nenhum EPSG ou coordenada geográfica arbitrária.**
-10. **IFC**: não confundir classe interna, entidade IFC e tipo predefinido; verificar no esquema antes de mapear (`docs/IFC_MAPPING.md`).
+10. **IFC**: não confundir classe interna, entidade IFC e tipo predefinido; verificar no esquema antes de mapear (`docs/IFC_MAPPING.md`). Propriedades IFC entram pelo registro central (`packages/ifc/src/bim/definitions.ts`); as dos conjuntos padronizados têm de existir em `schemaData.ts` (gerado do esquema — nunca editado à mão); conjuntos próprios usam o prefixo `HydroBIM_`. Valor desconhecido fica sem valor (pendente), nunca preenchido.
 11. Recursos não implementados aparecem desabilitados e identificados (com a fase), nunca com ações simuladas.
 12. **Dados de catálogo só de fontes identificadas**: todo valor de família vem de um documento citado em `source` (fabricante, edição, página, URL); valores derivados são declarados; nada é inventado ou interpolado. Ver `docs/CATALOGS.md`.
 13. **A porta fica no fundo da bolsa ou na face do flange**; a bolsa é geometria sobre o tubo.
