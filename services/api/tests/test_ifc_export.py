@@ -120,11 +120,19 @@ def test_ifc_schema_and_model(example):
             assert port.Nests[0].RelatingObject.GlobalId == global_id(ref["elementId"])
 
     units = model.by_type("IfcProject")[0].UnitsInContext.Units
-    assert {(u.UnitType, u.Name, u.Prefix) for u in units} == {
+    assert {(u.UnitType, u.Name, u.Prefix) for u in units if u.is_a("IfcSIUnit")} == {
         ("LENGTHUNIT", "METRE", None),
         ("AREAUNIT", "SQUARE_METRE", None),
         ("VOLUMEUNIT", "CUBIC_METRE", None),
         ("PLANEANGLEUNIT", "RADIAN", None),
+        ("TIMEUNIT", "SECOND", None),
+        ("PRESSUREUNIT", "PASCAL", None),
+        ("POWERUNIT", "WATT", None),
+    }
+    # Unidades derivadas das propriedades de vazão (m³/s) e de rotação (s⁻¹).
+    assert {u.UnitType for u in units if u.is_a("IfcDerivedUnit")} == {
+        "VOLUMETRICFLOWRATEUNIT",
+        "ROTATIONALFREQUENCYUNIT",
     }
     for element in elements:
         entity = model.by_guid(global_id(element["id"]))

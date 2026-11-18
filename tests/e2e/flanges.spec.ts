@@ -119,7 +119,7 @@ test('flanges do catálogo e tubo de ferro fundido com flanges', async ({ page }
       ends?: Record<string, { type: string; outerDiameter: number; boltCount?: number }>;
     }[];
   };
-  expect(exported.schemaVersion).toBe(8);
+  expect(exported.schemaVersion).toBe(10);
   const [pipe] = exported.elements;
   expect(pipe?.familyId).toBe('tubo-fofo-flanges-pn40');
   expect(Object.keys(pipe?.ends ?? {}).sort()).toEqual(['end', 'start']);

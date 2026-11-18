@@ -55,11 +55,17 @@ export interface SizeMm {
   dn: number;
   dn2?: number;
   centerToEnd?: number;
+  /** Curvas ponta e bolsa: vértice à porta `b` (ponta). */
+  centerToEnd2?: number;
+  /** Curvas com trechos retos: raio da linha de centro. */
+  bendRadius?: number;
   centerToBranch?: number;
   length?: number;
   height?: number;
   handwheelDiameter?: number;
   width?: number;
+  /** Gavetas de castelo retangular: dimensão do castelo ao longo do eixo do tubo. */
+  bonnetLength?: number;
   end?: EndMm;
   end2?: EndMm;
 }
@@ -68,11 +74,14 @@ function size(row: SizeMm): FamilySize {
   const out: FamilySize = { dn: row.dn };
   if (row.dn2 !== undefined) out.dn2 = row.dn2;
   if (row.centerToEnd !== undefined) out.centerToEnd = mmToM(row.centerToEnd);
+  if (row.centerToEnd2 !== undefined) out.centerToEnd2 = mmToM(row.centerToEnd2);
+  if (row.bendRadius !== undefined) out.bendRadius = mmToM(row.bendRadius);
   if (row.centerToBranch !== undefined) out.centerToBranch = mmToM(row.centerToBranch);
   if (row.length !== undefined) out.length = mmToM(row.length);
   if (row.height !== undefined) out.height = mmToM(row.height);
   if (row.handwheelDiameter !== undefined) out.handwheelDiameter = mmToM(row.handwheelDiameter);
   if (row.width !== undefined) out.width = mmToM(row.width);
+  if (row.bonnetLength !== undefined) out.bonnetLength = mmToM(row.bonnetLength);
   const e1 = end(row.end);
   const e2 = end(row.end2);
   if (e1) out.end = e1;

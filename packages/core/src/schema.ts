@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 8 as const;
+export const SCHEMA_VERSION = 10 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -115,6 +115,13 @@ const elementBase = {
   /** Propriedades BIM livres definidas pelo usuário. */
   properties: z.record(z.string(), PropertyValueSchema),
   manufacturing: ManufacturingSchema,
+  /**
+   * Valores IFC informados pelo usuário para ESTA ocorrência, por `Conjunto.Propriedade`
+   * (ex.: `Pset_PipeSegmentOccurrence.InteriorRoughnessCoefficient`), em unidades SI. A
+   * chave `Description` substitui a descrição gerada. Só guarda o que o usuário digitou:
+   * os demais valores são derivados do modelo a cada exportação. Ausente = nenhum.
+   */
+  ifc: z.record(z.string(), PropertyValueSchema).optional(),
   meta: ElementMetaSchema,
 };
 
@@ -150,6 +157,11 @@ export const ElbowSchema = z.object({
   angle: positive,
   /** Raio de curvatura na linha de centro (m). */
   bendRadius: positive,
+  /**
+   * Trechos retos (m) entre o arco e as portas `a` e `b` — curvas ponta e bolsa, em que as
+   * duas portas ficam a distâncias diferentes do vértice. Ausente = arco de porta a porta.
+   */
+  straight: z.object({ a: nonNegative, b: nonNegative }).optional(),
 });
 export type Elbow = z.infer<typeof ElbowSchema>;
 
@@ -203,8 +215,16 @@ export const ValveSchema = z.object({
   height: positive.optional(),
   /** Diâmetro do volante (m), quando informado pelo catálogo. */
   handwheelDiameter: positive.optional(),
-  /** Largura máxima / diâmetro da tampa do atuador (m), quando informada pelo catálogo. */
+  /**
+   * Largura máxima / diâmetro da tampa do atuador (m), quando informada pelo catálogo. Na
+   * gaveta de castelo retangular: dimensão do castelo transversal ao eixo do tubo.
+   */
   width: positive.optional(),
+  /**
+   * Dimensão do castelo ao longo do eixo do tubo (m), quando informada pelo catálogo. Com
+   * `width`, define o castelo retangular das gavetas de cunha de borracha.
+   */
+  bonnetLength: positive.optional(),
 });
 export type Valve = z.infer<typeof ValveSchema>;
 
@@ -478,7 +498,10 @@ export type FamilyEnd = z.infer<typeof FamilyEndSchema>;
 
 /**
  * Linha dimensional de uma família. Significado por tipo:
- *  - joelho: `centerToEnd` = vértice teórico à porta;
+ *  - joelho: `centerToEnd` = vértice teórico à porta; em curvas ponta e bolsa, `centerToEnd`
+ *    vale para a porta `a` (bolsa), `centerToEnd2` para a porta `b` (ponta) e `bendRadius` é
+ *    o raio da linha de centro (o restante de cada lado é trecho reto); `end` descreve só a
+ *    porta `a` e `end2`, se houver, a porta `b`;
  *  - tê: `centerToEnd` = centro à porta da passagem; `centerToBranch` = centro à derivação;
  *    `dn2` = DN da derivação (tê de redução);
  *  - redução: `length` = porta a porta; `dn` = maior, `dn2` = menor;
@@ -489,11 +512,14 @@ export const FamilySizeSchema = z.object({
   dn: positive,
   dn2: positive.optional(),
   centerToEnd: positive.optional(),
+  centerToEnd2: positive.optional(),
+  bendRadius: positive.optional(),
   centerToBranch: positive.optional(),
   length: positive.optional(),
   height: positive.optional(),
   handwheelDiameter: positive.optional(),
   width: positive.optional(),
+  bonnetLength: positive.optional(),
   end: FamilyEndSchema.optional(),
   end2: FamilyEndSchema.optional(),
 });
@@ -626,6 +652,12 @@ export const ProjectSchema = z.object({
   families: z.array(FittingFamilySchema),
   /** Famílias de reservatórios personalizadas neste projeto (somam-se ao catálogo embutido). */
   tankFamilies: z.array(TankFamilySchema),
+  /**
+   * Valores IFC informados pelo usuário para os TIPOS (`Ifc…Type`), por chave do tipo e
+   * `Conjunto.Propriedade`. Valem para todas as ocorrências do mesmo tipo — inclusive as
+   * criadas depois. As chaves dos tipos são geradas por `@hydrobim/ifc`.
+   */
+  ifcTypes: z.record(z.string(), z.record(z.string(), PropertyValueSchema)),
   georeference: GeoreferenceSchema.nullable(),
   terrain: TerrainSchema.nullable(),
   elements: z.array(ElementSchema),

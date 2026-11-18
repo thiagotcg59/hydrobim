@@ -34,7 +34,7 @@ A Krona foi usada por ser o único catálogo que tabula profundidade e diâmetro
 | Tê, tê de redução, redução ponta e bolsa | Amanco Wavin — FT Linha PBA, jan/2025 (p. 24–25) |
 | Tubos classes 12, 15 e 20 | Amanco Wavin — FT Linha PBA, jan/2025 (p. 14–15); classes 15 e 20 também em Tigre — Catálogo Infraestrutura 07/2025 |
 
-O centro à porta dos tês é **derivado** das cotas totais do catálogo (`L/2 − C` e `L1 − A/2 − C`). As curvas PBA ainda não têm família de conexão (ver a biblioteca de produtos, abaixo): são peças ponta e bolsa, e as famílias só descrevem um tipo de extremidade por peça.
+O centro à porta dos tês é **derivado** das cotas totais do catálogo (`L/2 − C` e `L1 − A/2 − C`). As curvas PBA de 90°, 45°, 22°30′ e 11°15′ (DN 50, 75 e 100) são famílias de joelho **ponta e bolsa**: a porta `a` fica no fundo da bolsa e a porta `b` na extremidade da ponta (que entra na bolsa do tubo seguinte), a distâncias diferentes do vértice — `centerToEnd` = S + R·tg(θ/2) e `centerToEnd2` = F + R·tg(θ/2), com `bendRadius` = R. O raio R e o trecho reto S **não são tabulados**: vêm da hipótese descrita na biblioteca de produtos, abaixo (a 90°, o vértice ao fundo da bolsa é `L − C − D/2`, independente do raio). A ressalva está no campo `source` de cada família.
 
 ### PVC DEFoFo (`pvc-defofo-nbr7665`)
 
@@ -89,6 +89,7 @@ Uso: ferramenta **Tubo** → "Extremidades do tubo" (configuração e classe do 
 | Ventosa flangeada | AVK, série 701/70 |
 | Redutora de pressão pilotada, corpo em Y — Modelo 720, série 700 SIGMA EN (DN 40–400) e ES (DN 65–600) | BERMAD, *700 Series Engineering Data*, p. 10 e 12 |
 | Filtro Y de ferro fundido cinzento, flangeado ASME B16.1 classe 125 — modelo CI, 2" a 16" (aço-carbono) | Spirax Sarco, TI-D245-01 BR Rev. 00, p. 2; flange: ASME B16.1-1998 conforme amesweb.info |
+| Gaveta com cunha de borracha, linha EURO 20: EURO 21 (flanges, corpo longo, DN 50–300), EURO 22 (flanges ANSI, DN 80–300), EURO 23 (flanges, corpo curto, DN 50–400), EURO 24 (bolsas PVC PBA, DN 50–100) e EURO 25 (bolsas ferro dúctil/DEFoFo, DN 80–300) | Catálogo Geral (CATÁLOGO GERAL - VALVULA GAVETAS.pdf), cap. 6, p. 344–348 — fabricante não identificado nas páginas recebidas |
 
 A altura é do eixo ao topo da haste (o volante é acessório). Não foi possível obter tabelas de fabricantes brasileiros de válvulas. As páginas da AVK e da BERMAD não tabulam o flange: usa-se o PN 10 da tabela única.
 
@@ -98,7 +99,7 @@ Curvas 90° e 45° de raio longo, tê reto e redução concêntrica: ASME B16.9,
 
 ### Sem família (dimensões genéricas)
 
-Conexões de PEAD, curvas de PVC PBA (quando inseridas na rede), joelhos de ângulo não padronizado, válvulas em PVC que não sejam o registro de esfera, bombas e o reservatório cilíndrico genérico (os reservatórios metálicos de catálogo estão descritos adiante). O editor identifica essas peças como "dimensões genéricas (fora de catálogo)" e as conta no resumo do projeto.
+Conexões de PEAD, joelhos de ângulo não padronizado, válvulas em PVC que não sejam o registro de esfera, bombas e o reservatório cilíndrico genérico (os reservatórios metálicos de catálogo estão descritos adiante). O editor identifica essas peças como "dimensões genéricas (fora de catálogo)" e as conta no resumo do projeto.
 
 ## Geometria
 
@@ -107,6 +108,8 @@ A geometria 3D (`packages/geometry`) é gerada por perfis de revolução ao long
 **Vem do catálogo:** posição das portas (centro ao fundo da bolsa ou à face do flange), raio de curvatura da linha de centro, profundidade e diâmetro externo das bolsas, diâmetro, espessura, furação e ressalto dos flanges, face a face, altura e volante/alavanca das válvulas, diâmetros externo e interno do tubo. As bolsas têm o furo com o diâmetro externo do tubo e o batente no fundo; o furo do corpo tem o diâmetro interno do tubo.
 
 **É representação (não tabulado nas fontes usadas):** a parede do corpo das conexões (adota-se o diâmetro externo do tubo), a concordância entre corpo e bolsa, o cubo dos flanges, o bojo, o castelo e o acionamento das válvulas. Parafusos, anéis de vedação, nervuras e detalhes de fundição não são modelados. Todas as peças usam o mesmo disco de flange (`flangeDisc`: furos e ressalto quando tabulados) e o mesmo cubo de representação.
+
+**Gavetas EURO 20 (EURO 21 a 25):** as tabelas dão L (face a face), H1 (do eixo ao topo da haste), H (altura total com o cabeçote), D e a (flange) e K × K1 (castelo). Usam-se L → `length`, H1 → `height`, K → `bonnetLength` (ao longo do eixo do tubo) e K1 → `width` (transversal). A família é a versão "com cabeçote", de haste nua: H, o cabeçote e o volante não entram (o diâmetro do volante não é tabulado), nem o número de voltas e as massas. Flanges PN: pela regra 14, o flange inteiro vem da tabela única, na classe da família — há famílias PN 10/16 (PN 16 a partir de DN 200), PN 10 (DN 200 em diante) e PN 25, como na tabela de abreviaturas; os D e a impressos na página da válvula coincidem com a tabela, exceto no DN 100 (página da válvula: 225; tabela: 220 — vale a tabela). EURO 22 (ANSI): D e a da própria página e furação ASME B16.1 classe 125 pela fonte secundária do filtro Y; oferecida ao aço-carbono. EURO 24: a bolsa não é tabulada — profundidade derivada (L − L1)/2 e diâmetro externo adotado 2·h. EURO 25: Lu, P e D1 da tabela; em DN 200 e 300 o Lt impresso excede Lu + 2·P em 17 e 23 mm (usado o Lu impresso); no DN 100, K impresso "11" foi adotado como 111. O DN 50 consta das tabelas, mas o ferro dúctil embutido começa em DN 80. A geometria (`gateValve.ts`) segue a fotografia de referência e os cortes do catálogo: corpo passante, flanges furados ou bolsas, castelo retangular de cantos arredondados com a seção K × K1, preme-gaxeta, haste nua com quadrado de manobra e plaqueta, tudo com o revestimento epóxi azul (substituído pela cor do sistema, quando definida). No corpo curto, em que K supera o face a face, o castelo só atinge a seção cheia acima dos flanges. A altura em que o castelo atinge K × K1, o preme-gaxeta, a haste e a plaqueta são representação; nervura, orelhas de içamento e marcações não são modeladas. As gavetas AVK continuam com o castelo genérico e volante.
 
 **Filtro Y Spirax Sarco CI:** a folha TI-D245-01 dá A (face a face), B (do eixo ao ponto mais baixo do bojo) e C (distância para manutenção). A e B viram `length` e `height` — no filtro, `height` é medida para BAIXO; C é folga para retirar a tela e não entra na peça; os pesos não são registrados. O flange não é tabulado ("Flangeado ASME B16.1 125#"): diâmetro externo, espessura e furação (círculo, número e diâmetro dos furos) vêm da ASME B16.1-1998 classe 125, pela tabela de [amesweb.info](https://amesweb.info/Piping/Class-125-Cast-Iron-Flanges-Dimensions-Chart.aspx) — fonte secundária, convertida de polegadas; a norma não foi consultada. A família é oferecida ao aço-carbono ASME B36.10, cujo flange B16.5 classe 150 tem a mesma furação; não é oferecida ao ferro dúctil (flanges EN 1092-2 PN). 14" e 16" constam da tabela, mas a especificação de tubo embutida vai até DN 300. A geometria (`strainer.ts`) segue o desenho e a fotografia do fabricante, escalados pelo diâmetro do tubo: corpo cilíndrico com cubos, bojo a 45° para jusante, flange do bojo, junta, tampa aparafusada e bujão sextavado; o ponto mais baixo do conjunto fica exatamente na cota B. Essas proporções, a quantidade de parafusos da tampa e o bujão são representação; a tela interna e a nervura do corpo não são modeladas. A cor é o cinza-azulado da pintura do fabricante (substituída pela cor do sistema, quando definida). Os flanges saem com os furos da norma (`flange.ts`) — recurso disponível a qualquer família que informe a furação.
 
@@ -123,7 +126,7 @@ Além das famílias de conexões — que alimentam as operações de domínio �
 | Produto | Página | Na rede |
 | --- | --- | --- |
 | Tubo classes 12, 15 e 20 (DN 50, 75, 100) | 14–15 | tubo da especificação correspondente (trecho de comprimento livre, sem a bolsa) |
-| Curvas ponta e bolsa 11°15′, 22°30′, 45° e 90° | 20–22 | ainda não (Fase 2) |
+| Curvas ponta e bolsa 11°15′, 22°30′, 45° e 90° | 20–22 | sim, como joelho (raio derivado por hipótese) |
 | Tê e tê de redução | 24–25 | ferramenta Tê, com a mesma geometria |
 | Cruzeta e cruzeta de redução | 18, 20 | ainda não (Fase 2) |
 | Redução ponta e bolsa | 24 | ferramenta Redução (comprimento da ponta proporcional) |

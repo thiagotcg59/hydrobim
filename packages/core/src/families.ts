@@ -31,6 +31,8 @@ interface ResolvedBase {
 }
 export interface ElbowDimensions extends ResolvedBase {
   bendRadius: number;
+  /** Trechos retos entre o arco e as portas (curvas ponta e bolsa). */
+  straight?: { a: number; b: number };
 }
 export interface TeeDimensions extends ResolvedBase {
   runLength: number;
@@ -44,6 +46,7 @@ export interface ValveDimensions extends ResolvedBase {
   height?: number;
   handwheelDiameter?: number;
   width?: number;
+  bonnetLength?: number;
 }
 
 export interface FittingCatalog {
@@ -151,9 +154,27 @@ export function createFamilyCatalog(
       );
       if (!hit?.size.centerToEnd) return GENERIC_CATALOG.elbow(spec, angle);
       const end = toEnd(hit.family, hit.size.end);
+      const { centerToEnd, centerToEnd2, bendRadius } = hit.size;
+      if (bendRadius !== undefined) {
+        // Curva com trechos retos: cada porta fica a uma distância própria do vértice e
+        // `end` descreve só a porta `a` (ponta e bolsa).
+        const leg = bendRadius * Math.tan(angle / 2);
+        return {
+          familyId: hit.family.id,
+          bendRadius,
+          straight: {
+            a: Math.max(0, centerToEnd - leg),
+            b: Math.max(0, (centerToEnd2 ?? centerToEnd) - leg),
+          },
+          ends: buildEnds([
+            ['a', end],
+            ['b', toEnd(hit.family, hit.size.end2)],
+          ]),
+        };
+      }
       return {
         familyId: hit.family.id,
-        bendRadius: hit.size.centerToEnd / Math.tan(angle / 2),
+        bendRadius: centerToEnd / Math.tan(angle / 2),
         ends: buildEnds([
           ['a', end],
           ['b', end],
@@ -214,6 +235,7 @@ export function createFamilyCatalog(
         height: hit.size.height,
         handwheelDiameter: hit.size.handwheelDiameter,
         width: hit.size.width,
+        bonnetLength: hit.size.bonnetLength,
         ends: buildEnds(
           valveType === 'airRelease'
             ? [['a', end]]

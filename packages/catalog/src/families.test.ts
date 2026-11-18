@@ -1,4 +1,12 @@
-import { createFamilyCatalog, FittingFamilySchema, type FittingFamily } from '@hydrobim/core';
+import {
+  availableElbowAngles,
+  createFamilyCatalog,
+  degToRad,
+  elbowPortDistances,
+  FittingFamilySchema,
+  radToDeg,
+  type FittingFamily,
+} from '@hydrobim/core';
 import { describe, expect, it } from 'vitest';
 import { BUILTIN_FAMILIES, getSpecification, resolvePipeSpec } from './index';
 
@@ -120,6 +128,41 @@ describe('famílias embutidas', () => {
     expect(catalog.valve(di150, 'gate').length).toBeCloseTo(0.21);
     expect(catalog.valve(di150, 'check').length).toBeCloseTo(0.4);
     expect(Object.keys(catalog.valve(di150, 'airRelease').ends)).toEqual(['a']);
+  });
+
+  it('curvas PBA ponta e bolsa: 90°, 45°, 22°30′ e 11°15′ com portas a distâncias próprias', () => {
+    const catalog = createFamilyCatalog(BUILTIN_FAMILIES);
+    for (const pressureClass of [12, 15, 20]) {
+      const id = `pvc-pba-nbr5647-cl${pressureClass}`;
+      const spec = resolvePipeSpec(id, 50)!;
+      expect(
+        availableElbowAngles(BUILTIN_FAMILIES, spec).map(
+          (a) => Math.round(radToDeg(a) * 100) / 100,
+        ),
+      ).toEqual([11.25, 22.5, 45, 90]);
+
+      const bend = catalog.elbow(spec, Math.PI / 2);
+      expect(bend.familyId).toBe(`wavin-curva-90-pba@${id}`);
+      // Só a porta `a` tem bolsa (C = 70 mm, A = 81 mm); a porta `b` é a ponta.
+      expect(mm(bend.ends.a?.length)).toBe(70);
+      expect(mm(bend.ends.a?.outerDiameter)).toBe(81);
+      expect(bend.ends.b).toBeUndefined();
+      // A 90°, vértice ao fundo da bolsa = L − C − D/2 (252 − 70 − 30), sem depender do raio.
+      const legs = elbowPortDistances({ angle: Math.PI / 2, ...bend });
+      expect(mm(legs.a)).toBeCloseTo(152, 1);
+      // Vértice à ponta = raio + F (122,2 mm).
+      expect(mm(legs.b)).toBeCloseTo(mm(bend.bendRadius) + 122.2, 1);
+      expect(bend.straight?.a).toBeGreaterThan(0);
+    }
+    // DN fora da tabela (as curvas PBA vão até DN 100): sem peça de catálogo.
+    for (const angle of [11.25, 22.5, 45, 90]) {
+      for (const size of [50, 75, 100]) {
+        const dims = catalog.elbow(resolvePipeSpec('pvc-pba-nbr5647-cl15', size)!, degToRad(angle));
+        expect(dims.familyId).not.toBeNull();
+        expect(dims.straight?.a).toBeGreaterThan(0);
+        expect(dims.straight?.b).toBeGreaterThan(0);
+      }
+    }
   });
 
   it('redutora de pressão BERMAD 720: todos os diâmetros das tabelas SIGMA EN e ES', () => {

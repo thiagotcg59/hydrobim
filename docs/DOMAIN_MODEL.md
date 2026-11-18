@@ -18,7 +18,7 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 6
+  schemaVersion: 10
   id, name
   discipline: 'mep' | 'infra'
   units: { length: 'm', angle: 'rad' }
@@ -27,6 +27,7 @@ Project {
   levels: Level[]                 // níveis/pavimentos
   families: FittingFamily[]       // famílias personalizadas (sobrepõem o catálogo)
   tankFamilies: TankFamily[]      // famílias de reservatórios personalizadas (somam-se ao catálogo)
+  ifcTypes: { [chaveDoTipo]: { [Conjunto.Propriedade]: valor } }  // valores IFC do usuário por tipo
   georeference: Georeference | null   // informada pelo usuário; nunca presumida
   terrain: Terrain | null         // TIN em coordenadas locais
   elements: HydroElement[]
@@ -73,7 +74,7 @@ Parâmetros específicos:
 | Tipo | Parâmetros | Portas |
 | --- | --- | --- |
 | Tubo (`pipe`) | `start`, `end` (o comprimento é calculado); `ends` opcional (tubo com flanges) | `start`, `end` |
-| Joelho (`elbow`) | `placement`, `angle` (deflexão), `bendRadius` | `a`, `b` |
+| Joelho (`elbow`) | `placement`, `angle` (deflexão), `bendRadius`, `straight` opcional (trechos retos entre o arco e as portas `a`/`b`, nas curvas ponta e bolsa) | `a`, `b` |
 | Tê (`tee`) | `placement`, `runLength`, `branchLength`, `branchSpec` (tê de redução) | `a`, `b` (passagem), `branch` |
 | Redução (`reducer`) | `placement`, `outletSpec`, `length` | `a` (`spec`), `b` (`outletSpec`) |
 | Válvula (`valve`) | `placement`, `valveType`, `length`, `height`, `handwheelDiameter`, `width` | `a`, `b` (ventosa: só `a`; redutora de pressão: `a` = montante) |
@@ -135,6 +136,22 @@ Em flanges, a extremidade pode trazer a furação (`boltCircle`, `boltCount`, `b
 | Comprimento do tubo | `pipeLength` | É geométrico |
 | Geometria 3D | `buildElementGeometry` | É função dos parâmetros |
 | Estado de validação | `validateProject` | Não pode ficar desatualizado |
+| Classificação IFC, tipos, conjuntos de propriedades e quantidades | `buildIfcModel` (`@hydrobim/ifc`) | São função do modelo; só os valores digitados pelo usuário são guardados |
+| Conformidade IFC e pendências de informação | `validateIfcModel` (`@hydrobim/ifc`) | Não pode ficar desatualizada |
+
+## Informação IFC (`@hydrobim/ifc`)
+
+A classificação IFC, os tipos (`Ifc…Type`), os conjuntos de propriedades e as quantidades **não são persistidos**: `buildIfcModel(project)` os deriva do modelo a cada consulta ou exportação (ver [mapeamento IFC](IFC_MAPPING.md)). O projeto guarda apenas o que o usuário informou na aba BIM / IFC:
+
+| Onde | Conteúdo | Vale para |
+| --- | --- | --- |
+| `element.ifc` (opcional) | `{ 'Conjunto.Propriedade': valor }` em SI; a chave `Description` substitui a descrição gerada | Esta ocorrência |
+| `project.ifcTypes` | `{ chaveDoTipo: { 'Conjunto.Propriedade': valor } }` | Todas as ocorrências do mesmo tipo, inclusive as criadas depois |
+
+- A **chave do tipo** (`ifcTypeKey`) reúne o que define o produto — família, especificação, diâmetros, dimensões e dados de fabricação — e nada da ocorrência (posição, nome, sistema). Mudar a dimensão de um elemento muda o seu tipo.
+- Só propriedades cadastrais são editáveis. As ligadas à geometria ou ao catálogo (`binding`) são recalculadas do modelo; editar um valor IFC nunca altera a geometria.
+- Operações: `setIfcValue` (`@hydrobim/ifc`, confere a propriedade e o valor contra o esquema IFC 4.3) sobre `setElementIfcValue` e `setIfcTypeValue` (`operations.ts`).
+- Um valor guardado que deixe de se aplicar (o elemento mudou de tipo, por exemplo) não é exportado e aparece como aviso na validação IFC.
 
 ## Conectividade
 
@@ -174,6 +191,7 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 | `setPipeEndpoint`, `setPipeLength` | Edição de extremidades livres |
 | `setElementElevation` | Define a cota Z do elemento (`elementElevation`: eixo no início do tubo; origem da conexão; base do reservatório). Em tubo ou conexão, todos os elementos conectados sobem/descem juntos, rigidamente; em bomba ou reservatório, só o equipamento se move e os tubos vizinhos se ajustam quando o acoplamento permite |
 | `deleteElements`, `disconnect`, `renameElement`, `setElementProperty` | Edição geral |
+| `setElementIfcValue`, `setIfcTypeValue` | Guardam ou removem um valor IFC informado pelo usuário, na ocorrência ou no tipo |
 
 ## Catálogo (`packages/catalog`)
 
@@ -183,7 +201,7 @@ As dimensões padrão das conexões (`dimensions.ts`) são proporções genéric
 
 ## Evolução do esquema
 
-Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). Documentos de versões anteriores são migrados ao abrir.
+Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. **v10** — trechos retos do joelho (`straight: { a, b }`) e, nos tamanhos de família, `centerToEnd2` e `bendRadius` (curvas ponta e bolsa); em válvulas e nos tamanhos de família, `bonnetLength` (dimensão do castelo ao longo do eixo do tubo, que com `width` define o castelo retangular das gavetas). Todos opcionais (documentos v9 já são válidos). Documentos de versões anteriores são migrados ao abrir.
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
 
@@ -193,6 +211,7 @@ Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `M
 | --- | --- |
 | `computeQuantities`, `quantitiesToCsv` | Quantitativo por sistema, especificação, diâmetro e família |
 | `exportEpanet` | Rede em formato INP, com a lista de pendências a revisar |
+| `buildIfcModel`, `validateIfcModel`, `exportIfc`, `exportIds` (`@hydrobim/ifc`) | Modelo de informação IFC 4.3, sua validação, o arquivo IFC e o perfil de requisitos em IDS |
 | `detectClashes` | Tubos cujas paredes externas se interpenetram |
 | `parseTerrainPoints`, `createTerrain`, `terrainElevationAt` | Terreno triangulado (TIN) |
 | `buildProfile` | Perfil longitudinal com cota do terreno e recobrimento |

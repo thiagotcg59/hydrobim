@@ -79,8 +79,10 @@ function withSpec(
           };
     case 'elbow': {
       const dims = catalog.elbow(spec, element.angle, element.familyId);
+      const { straight: _previous, ...rest } = element;
       return {
-        ...element,
+        ...rest,
+        ...(dims.straight ? { straight: dims.straight } : {}),
         spec,
         familyId: dims.familyId,
         ends: dims.ends,
@@ -105,7 +107,7 @@ function withSpec(
     }
     case 'valve': {
       const dims = catalog.valve(spec, element.valveType, element.familyId);
-      const { height: _h, handwheelDiameter: _d, width: _w, ...rest } = element;
+      const { height: _h, handwheelDiameter: _d, width: _w, bonnetLength: _b, ...rest } = element;
       return {
         ...rest,
         spec,
@@ -117,6 +119,7 @@ function withSpec(
           ? { handwheelDiameter: dims.handwheelDiameter }
           : {}),
         ...(dims.width !== undefined ? { width: dims.width } : {}),
+        ...(dims.bonnetLength !== undefined ? { bonnetLength: dims.bonnetLength } : {}),
       };
     }
     case 'reducer': {

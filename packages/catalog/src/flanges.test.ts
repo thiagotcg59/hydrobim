@@ -107,7 +107,9 @@ describe('tabela única de flanges (Catálogo Geral, p. 246–249)', () => {
 describe('famílias flangeadas existentes padronizadas no PN 10', () => {
   it('conexões PAM, válvulas AVK e redutora BERMAD usam o flange da tabela única', () => {
     const flanged = BUILTIN_FAMILIES.filter(
-      (f) => f.endType === 'flange' && !f.id.startsWith('spirax-'),
+      // As gavetas EURO 20 têm famílias em PN 16 e PN 25 e uma ANSI: são conferidas, cada uma
+      // na sua classe, em euro20.test.ts.
+      (f) => f.endType === 'flange' && !f.id.startsWith('spirax-') && !f.id.startsWith('euro2'),
     );
     expect(flanged.length).toBeGreaterThan(10);
     let checked = 0;

@@ -73,7 +73,11 @@ test('biblioteca de produtos PBA: tabelas e modelos 3D de todos os produtos', as
   await dialog.getByTestId('families-tab-fittings').click();
   await expect(library).toHaveCount(0);
   await dialog.getByTestId('families-specification').selectOption('pvc-pba-nbr5647-cl12');
-  await expect(dialog.getByTestId('family-item')).toHaveCount(3);
+  // Curvas ponta e bolsa (90°, 45°, 22°30′ e 11°15′), tês e redução da ficha PBA.
+  const pbaItems = dialog.getByTestId('family-item');
+  await expect(pbaItems.filter({ hasText: 'Curva' })).toHaveCount(4);
+  await expect(pbaItems.filter({ hasText: 'Tê' })).toHaveCount(2);
+  await expect(pbaItems.filter({ hasText: /Redução PBA ponta e bolsa/ })).toHaveCount(1);
   await dialog.getByTestId('family-item').first().click();
   await expect(dialog.getByTestId('family-preview')).toHaveAttribute('data-state', 'model');
   await dialog.getByTestId('family-preview').screenshot({

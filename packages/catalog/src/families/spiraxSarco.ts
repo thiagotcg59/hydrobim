@@ -49,7 +49,7 @@ const CI = [
 
 // ASME B16.1 classe 125 — [espessura, Ø externo, círculo de furação, nº de furos, Ø do furo].
 // Em polegadas na fonte: O / Q / círculo / furos / furo.
-const B16_1_CLASS_125_MM: Record<number, EndMm> = {
+export const B16_1_CLASS_125_MM: Record<number, EndMm> = {
   50: [15.7, 152.4, 120.65, 4, 19.05], // 6.00 / 0.62 / 4.75 / 4 / 0.75
   65: [17.5, 177.8, 139.7, 4, 19.05], // 7.00 / 0.69 / 5.50 / 4 / 0.75
   80: [19.1, 190.5, 152.4, 4, 19.05], // 7.50 / 0.75 / 6.00 / 4 / 0.75

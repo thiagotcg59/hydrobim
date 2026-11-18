@@ -15,6 +15,7 @@ import {
 } from '@hydrobim/core';
 import { buildElementGeometry } from '@hydrobim/geometry';
 import { describe, expect, it } from 'vitest';
+import { buildIfcModel } from './bim/model';
 import { exportIfc } from './export';
 import { derivedGuid, toIfcGuid } from './guid';
 
@@ -161,9 +162,16 @@ describe('exportação IFC 4.3', () => {
     expect(byType(all, 'IfcGeometricRepresentationSubContext')[0]?.args[8]).toBe('.MODEL_VIEW.');
     expect(byType(all, 'IfcSIUnit').map((e) => e.args[3])).toEqual([
       '.METRE.',
-      '.SQUARE_METRE.',
       '.CUBIC_METRE.',
+      '.SECOND.',
+      '.SQUARE_METRE.',
       '.RADIAN.',
+      '.PASCAL.',
+      '.WATT.',
+    ]);
+    expect(byType(all, 'IfcDerivedUnit').map((e) => e.args[1])).toEqual([
+      '.VOLUMETRICFLOWRATEUNIT.',
+      '.ROTATIONALFREQUENCYUNIT.',
     ]);
   });
 
@@ -197,8 +205,18 @@ describe('exportação IFC 4.3', () => {
     expect(byType(all, 'IfcRelAssignsToGroup')).toHaveLength(1);
     expect(byType(all, 'IfcMaterial')[0]?.args[0]).toBe("'PVC'");
     expect(byType(all, 'IfcRelAssociatesMaterial')).toHaveLength(1);
-    // Um conjunto por elemento, as propriedades livres do 1º e dois por bocal do reservatório.
-    expect(byType(all, 'IfcPropertySet')).toHaveLength(project.elements.length + 1 + 4);
+    // O arquivo grava exatamente os conjuntos do modelo de informação (ocorrências, portas e tipos).
+    const model = buildIfcModel(project);
+    const sets = [
+      ...model.elements.flatMap((e) => [...e.psets, ...e.ports.flatMap((port) => port.psets)]),
+      ...model.types.flatMap((type) => type.psets),
+    ];
+    expect(byType(all, 'IfcPropertySet')).toHaveLength(
+      sets.filter((s) => s.kind === 'pset').length,
+    );
+    expect(byType(all, 'IfcElementQuantity')).toHaveLength(
+      sets.filter((s) => s.kind === 'qto').length,
+    );
     const props = byType(all, 'IfcPropertySingleValue');
     expect(props.find((p) => p.args[0] === "'texto'")?.args[2]).toContain('IFCTEXT(');
     expect(props.find((p) => p.args[0] === "'real'")?.args[2]).toBe('IFCREAL(2.5)');

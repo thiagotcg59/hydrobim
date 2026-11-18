@@ -12,6 +12,9 @@ const text = exportIfc(project, {
   author: 'Responsável pelo projeto',
   organization: 'Organização',
   application: 'HydroBIM',
+  // Famílias do catálogo e do projeto: alimentam os tipos IFC (fabricante, fonte, modelo).
+  families,
+  tankFamilies,
 });
 const blob = new Blob([text], { type: 'application/x-step' });
 ```
@@ -27,6 +30,26 @@ caracteres IFC; entradas inválidas geram erro. `derivedGuid(seed)` usa UUID v5
 UUIDs dos projetos e elementos são preservados; IDs textuais legados usam a semente
 `${id}:legacy`. Entidades derivadas usam papéis estáveis, como `${id}:site`,
 `${id}:storey`, `${id}:port:${portId}` e `${id}:connection`.
+
+## Camada BIM (`src/bim`)
+
+| Função | O que faz |
+| --- | --- |
+| `buildIfcModel(project, options)` | Modelo de informação: classificação, `Ifc…Type`, conjuntos de propriedades e quantidades, portas, materiais e sistemas. É o que a aba BIM / IFC mostra e o que `exportIfc` grava |
+| `validateIfcModel(project, model)` | Problemas normativos do IFC 4.3 (`schema`) e do perfil do projeto (`project`) |
+| `setIfcValue(project, alvo, chave, valor)` | Informa ou limpa uma propriedade editável, no tipo ou na ocorrência (`Result<Project>`) |
+| `exportIds()` | Perfil de requisitos do projeto em IDS 1.0 |
+| `classifyLibrary(...)` | Entidade, tipo predefinido e tipo IFC de cada família da biblioteca |
+| `IFC_PROPERTY_DEFINITIONS` | Registro central das propriedades |
+
+`src/bim/schemaData.ts` é gerado do esquema IFC 4.3 do IfcOpenShell — não edite à mão:
+
+```powershell
+cd services/api
+uv run python scripts/generate_ifc_schema_data.py
+```
+
+Detalhes do mapeamento: `docs/IFC_MAPPING.md`; decisão: ADR-033.
 
 ## Conteúdo exportado
 
@@ -44,7 +67,8 @@ UUIDs dos projetos e elementos são preservados; IDs textuais legados usam a sem
 | Reservatório | `IfcTank` | `STORAGE` |
 | Reservatório de catálogo | `IfcTank` + `IfcTankType`, material, `Pset_<Fabricante>_Reservatorio`, conjuntos padrão e portas com função (ver `docs/IFC_MAPPING.md`) | `STORAGE` |
 
-- Projeto, contexto Model/Body e unidades metro, metro quadrado, metro cúbico e radiano.
+- Projeto, contexto Model/Body e unidades metro, metro quadrado, metro cúbico, radiano, segundo, pascal, watt, m³/s e s⁻¹.
+- Um `Ifc…Type` por produto, ligado às ocorrências por `IfcRelDefinesByType`, com os conjuntos de propriedades do tipo; conjuntos e quantidades padronizados (`Pset_*`, `Qto_*`) e próprios (`HydroBIM_*`) nas ocorrências e nas portas.
 - MEP: site → edifício → pavimentos. Cada elemento usa o pavimento mais alto cuja
   cota não exceda a menor cota de suas portas, ou o pavimento mais baixo quando
   todas as cotas forem superiores. Sem níveis, a contenção é no edifício.
@@ -70,10 +94,10 @@ UUIDs dos projetos e elementos são preservados; IDs textuais legados usam a sem
 Conexões e equipamentos são tesselações da geometria compartilhada, com corpos
 simplificados e possíveis partes sobrepostas; não são sólidos paramétricos IFC
 editáveis. Dimensões genéricas são identificadas na descrição, sem alegar
-correspondência com um produto comercial. Não há `IfcTypeObject` nem conjuntos
-padrão `Pset_*` nesta fase. O sentido de escoamento é `NOTDEFINED`, pois ainda não
-é modelado no domínio. Terreno, cores de visualização, dados de fabricação e
-parâmetros hidráulicos específicos dos equipamentos não são exportados.
+correspondência com um produto comercial. O sentido de escoamento é `NOTDEFINED`
+(exceto nos bocais de reservatório), pois ainda não é modelado no domínio. Pesos
+não são exportados (as famílias não os trazem); terreno e cores de visualização
+também não. O IDS exportado ainda não foi conferido com uma ferramenta externa.
 
 O cabeçalho declara `ReferenceView_V1.2`, conforme o contrato de exportação;
 a validação EXPRESS não representa certificação MVD ou certificação de
