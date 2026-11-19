@@ -98,6 +98,7 @@ import {
   type FittingPatch,
   type Georeference,
   type HydraulicSystem,
+  type Pipe,
   type PipeSpec,
   type Point2,
   type Port,
@@ -178,6 +179,12 @@ export interface CursorInfo {
   readonly point: Vec3;
   readonly snap: SnapKind;
   readonly port: PortRef | null;
+  /** Elemento capturado: dono da porta ou tubo que receberá o tê automático. */
+  readonly elementId?: string | null;
+  /** Portas livres sob o cursor (mais de uma: Tab alterna). */
+  readonly stacked?: number;
+  /** Aviso da captura, ex.: tubo em outra cota tratado só como referência. */
+  readonly note?: string | null;
 }
 
 /** Reservatório a inserir: família de catálogo e modelo comercial ou dimensões próprias. */
@@ -505,23 +512,65 @@ function catalogValveType(project: Project, spec: PipeSpec, current: ValveType):
  * Trecho em criação apontado para um tubo existente: ponto onde o tê automático será inserido
  * (pé da perpendicular da âncora sobre o eixo do tubo). `null` quando não se aplica.
  */
-export function pipeJunctionOf(
-  state: { project: Project; tool: ToolId; anchor: DrawAnchor | null },
+export function pipeJunctionOf(state: JunctionState, elementId: string | null): Vec3 | null {
+  const candidate = junctionCandidate(state, elementId);
+  return candidate && !candidate.offLevel ? candidate.point : null;
+}
+
+/**
+ * Desnível máximo (m) entre a cota do traçado e o pé da perpendicular para que, na planta,
+ * o tubo sob o cursor seja destino de um tê automático.
+ */
+export const LEVEL_TOLERANCE = 1e-3;
+
+type JunctionState = {
+  project: Project;
+  tool: ToolId;
+  anchor: DrawAnchor | null;
+  /** Ausente = modelo 3D (o tubo é apontado em três dimensões). */
+  viewMode?: ViewMode;
+};
+
+/**
+ * Pé da perpendicular da âncora sobre o tubo indicado. Na planta o cursor só informa X e Y:
+ * um tubo em outra cota que apenas cruza o traçado em projeção é referência geométrica, não
+ * destino de conexão (`offLevel`) — senão o clique criaria um tê e um trecho inclinado que
+ * ninguém pediu. No modelo 3D o tubo é apontado diretamente e a ligação é sempre intencional.
+ */
+function junctionCandidate(
+  state: JunctionState,
   elementId: string | null,
-): Vec3 | null {
+): { pipe: Pipe; point: Vec3; offLevel: boolean } | null {
   const { anchor } = state;
   if (state.tool !== 'pipe' || !anchor || !elementId) return null;
   // O tubo de onde o trecho parte não pode ser também o destino.
   if (anchor.port?.elementId === elementId || anchor.pipeId === elementId) return null;
   const target = getElement(state.project, elementId);
   if (!target || target.kind !== 'pipe') return null;
-  return pipeBranchPoint(target, anchor.point).point;
+  const point = pipeBranchPoint(target, anchor.point).point;
+  const offLevel =
+    state.viewMode === 'plan' && Math.abs(point.z - anchor.point.z) > LEVEL_TOLERANCE;
+  return { pipe: target, point, offLevel };
+}
+
+/**
+ * Tubo sob o cursor, na planta, que o traçado cruza em outra cota: é só referência e não
+ * recebe conexão. Devolve o aviso a mostrar junto ao cursor; `null` quando não se aplica.
+ */
+export function pipeCrossingOf(state: JunctionState, elementId: string | null): string | null {
+  const candidate = junctionCandidate(state, elementId);
+  if (!candidate?.offLevel || !state.anchor) return null;
+  const dz = candidate.point.z - state.anchor.point.z;
+  return `"${candidate.pipe.name}" está ${formatMeters(Math.abs(dz), 2)} ${
+    dz > 0 ? 'acima' : 'abaixo'
+  } do traçado — cruzamento sem conexão`;
 }
 
 type PipeSnapState = {
   project: Project;
   tool: ToolId;
   anchor: DrawAnchor | null;
+  viewMode?: ViewMode;
   snapToGrid: boolean;
   gridStep: number;
 };

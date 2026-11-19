@@ -1,6 +1,6 @@
 import { addPipe, createProject, getFreePorts, vec3, type PipeSpec } from '@hydrobim/core';
 import { describe, expect, it } from 'vitest';
-import { distanceAlongPipe, pickPoint, type PickContext } from './picking';
+import { distanceAlongPipe, pickPoint, pickPort, SNAP_PX, type PickContext } from './picking';
 
 const spec: PipeSpec = {
   specificationId: 'test',
@@ -18,6 +18,8 @@ const spec: PipeSpec = {
 const base: PickContext = {
   ray: { origin: vec3(1.23, 2.38, 10), direction: vec3(0, 0, -1) },
   freePorts: [],
+  // 5 mm por pixel: o raio de captura (10 px) vale 5 cm.
+  pixelScale: { constant: 0.005, perDistance: 0 },
   workPlaneZ: 0,
   gridStep: 0.1,
   anchor: null,
@@ -89,5 +91,54 @@ describe('pickPoint', () => {
 
   it('mede a posição ao longo do tubo', () => {
     expect(distanceAlongPipe(vec3(0, 0, 0), vec3(0, 0, 4), vec3(0.03, 0, 1.5))).toBeCloseTo(1.5);
+  });
+});
+
+describe('pickPort: tolerância em pixels', () => {
+  const created = addPipe(createProject('t'), { start: vec3(0, 0, 0), end: vec3(2, 0, 0), spec });
+  if (!created.ok) throw new Error(created.error.message);
+  const ports = getFreePorts(created.value.project);
+  const down = (x: number, y: number, z = 10) => ({
+    origin: vec3(x, y, z),
+    direction: vec3(0, 0, -1),
+  });
+
+  it('na ortográfica, o raio de captura acompanha o zoom e não a distância da câmera', () => {
+    // Câmera a 500 m (como na vista ortográfica), 1 mm por pixel: raio de 10 px = 1 cm,
+    // menor que o marcador da porta — vale o marcador (0,62 × DE = 3,72 cm).
+    const zoomedIn = { constant: 0.001, perDistance: 0 };
+    expect(pickPort(down(2.03, 0, 500), ports, zoomedIn)?.port.ref.portId).toBe('end');
+    expect(pickPort(down(2.05, 0, 500), ports, zoomedIn)).toBeNull();
+    // Afastando o zoom (2 cm por pixel), os mesmos 10 px cobrem 20 cm.
+    const zoomedOut = { constant: 0.02, perDistance: 0 };
+    expect(pickPort(down(2.19, 0, 500), ports, zoomedOut)?.port.ref.portId).toBe('end');
+    expect(pickPort(down(2.21, 0, 500), ports, zoomedOut)).toBeNull();
+  });
+
+  it('na perspectiva, o raio em metros cresce com a distância e é constante na tela', () => {
+    const scale = { constant: 0, perDistance: 0.001 };
+    const tolerance = (z: number): number => SNAP_PX * scale.perDistance * z;
+    for (const z of [50, 200]) {
+      expect(pickPort(down(2 + tolerance(z) * 0.95, 0, z), ports, scale)).not.toBeNull();
+      expect(pickPort(down(2 + tolerance(z) * 1.05, 0, z), ports, scale)).toBeNull();
+    }
+  });
+
+  it('alterna entre as portas sob o cursor e informa quantas são', () => {
+    const upper = addPipe(created.value.project, {
+      start: vec3(0, 0, 3),
+      end: vec3(2, 0, 3),
+      spec,
+    });
+    if (!upper.ok) throw new Error(upper.error.message);
+    const all = getFreePorts(upper.value.project);
+    const scale = { constant: 0.005, perDistance: 0 };
+    const first = pickPort(down(2, 0), all, scale);
+    // Empate na tela: prefere a mais próxima da câmera (cota 3).
+    expect(first?.stacked).toBe(2);
+    expect(first?.port.position.z).toBe(3);
+    expect(pickPort(down(2, 0), all, scale, 1)?.port.position.z).toBe(0);
+    expect(pickPort(down(2, 0), all, scale, -1)?.port.position.z).toBe(0);
+    expect(pickPort(down(2, 0), all, scale, 2)?.port.position.z).toBe(3);
   });
 });

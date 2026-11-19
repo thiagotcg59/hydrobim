@@ -7,7 +7,6 @@ import {
   formatMeters,
   getAnnotation,
   getElement,
-  getFreePorts,
   ok,
   planSnapPoints,
   resolvePort,
@@ -32,13 +31,16 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import type { SnapKind } from '../editor/picking';
+import { SNAP_PX, type SnapKind } from '../editor/picking';
+import { describeSnap } from '../editor/snapLabel';
+import { visibleElementsOf, visibleFreePortsOf } from '../editor/visibility';
 import { pickPlanPoint, planPipeHit, type PlanPick } from '../editor/planPicking';
 import { downloadText, projectFileBase } from '../persistence/fileIO';
 import {
   deflectionConstraintOf,
   drawElevationOf,
   isAnnotationTool,
+  pipeCrossingOf,
   pipeSnapOf,
   useEditorStore,
   type PlanTheme,
@@ -81,14 +83,8 @@ interface Drag {
   moved: boolean;
 }
 
-const SNAP_PX = 10;
 const CLICK_TOLERANCE_PX = 4;
 const DEFAULT_TEXT = 'TEXTO';
-
-function visibleElements({ elements, systems }: Pick<Project, 'elements' | 'systems'>) {
-  const hidden = new Set(systems.filter((s) => s.visible === false).map((s) => s.id));
-  return elements.filter((e) => !hidden.has(e.systemId));
-}
 
 /** Envoltória do desenho: elementos visíveis e anotações. */
 function planBounds(project: Project): Bounds | null {
@@ -99,7 +95,7 @@ function planBounds(project: Project): Bounds | null {
     bounds.minY = Math.min(bounds.minY, y);
     bounds.maxY = Math.max(bounds.maxY, y);
   };
-  for (const element of visibleElements(project)) {
+  for (const element of visibleElementsOf(project)) {
     const { outline } = outlineOf(element);
     include(outline.minX, outline.minY);
     include(outline.maxX, outline.maxY);
@@ -173,6 +169,8 @@ export function PlanView() {
     snap: SnapKind;
     /** Ponto 3D resolvido para as ferramentas de modelagem. */
     pick?: PlanPick;
+    /** Identificação da captura (elemento, porta, cota) ou aviso de cruzamento. */
+    info?: string | null;
   } | null>(null);
   const [preview, setPreview] = useState<{ id: string; patch: AnnotationPatch } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -248,12 +246,12 @@ export function PlanView() {
     return () => node.removeEventListener('wheel', onWheel);
   }, []);
 
-  const snapPoints = useMemo(() => planSnapPoints(project), [project]);
   // Elementos de sistemas ocultos não são desenhados nem capturados.
-  const freePorts = useMemo(() => {
-    const shown = new Set(visibleElements(project).map((element) => element.id));
-    return getFreePorts(project).filter((port) => shown.has(port.ref.elementId));
-  }, [project]);
+  const snapPoints = useMemo(
+    () => planSnapPoints({ ...project, elements: visibleElementsOf(project) }),
+    [project],
+  );
+  const freePorts = useMemo(() => visibleFreePortsOf(project), [project]);
 
   const toModel = (event: { clientX: number; clientY: number }): Point2 => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -446,14 +444,34 @@ export function PlanView() {
       picked = pickModel(raw, elementId);
     }
     const pick = picked.ok ? picked.value : null;
+    const store = useEditorStore.getState();
+    // Tubo em outra cota sob o cursor: só referência — o aviso evita a dúvida sobre a conexão.
+    const note = pick && !pick.port ? pipeCrossingOf(store, elementId) : null;
+    const captured = pick
+      ? {
+          point: pick.point,
+          snap: pick.snap,
+          port: pick.port?.ref ?? null,
+          elementId: pick.port?.ref.elementId ?? (pick.snap === 'pipe' ? elementId : null),
+          stacked: pick.stacked,
+          note,
+        }
+      : null;
     setPointer(
-      pick ? { point: { x: pick.point.x, y: pick.point.y }, snap: pick.snap, pick } : null,
+      pick && captured
+        ? {
+            point: { x: pick.point.x, y: pick.point.y },
+            snap: pick.snap,
+            pick,
+            info:
+              note ??
+              (pick.snap === 'port' || pick.snap === 'pipe'
+                ? describeSnap(store.project, captured)
+                : null),
+          }
+        : null,
     );
-    useEditorStore
-      .getState()
-      .setCursor(
-        pick ? { point: pick.point, snap: pick.snap, port: pick.port?.ref ?? null } : null,
-      );
+    store.setCursor(captured);
   };
   const hoverRef = useRef(hoverModel);
   hoverRef.current = hoverModel;
@@ -619,7 +637,7 @@ export function PlanView() {
   // Algoritmo do pintor: os elementos mais altos são desenhados por último.
   const ordered = useMemo(
     () =>
-      visibleElements({ elements, systems: systemList })
+      visibleElementsOf({ elements, systems: systemList })
         .map((element) => ({ element, z: outlineOf(element).outline.maxZ }))
         .sort((a, b) => a.z - b.z)
         .map((entry) => entry.element),
@@ -822,18 +840,15 @@ export function PlanView() {
             </>
           )}
           {/* Portas sobrepostas em planta: informa a cota da que foi capturada. */}
-          {capturedPort && pointer?.pick && (
+          {modeling && pointer?.pick && pointer.info && (
             <text
-              data-testid="plan-port-info"
+              data-testid={capturedPort ? 'plan-port-info' : 'plan-snap-info'}
               data-stacked={pointer.pick.stacked}
-              x={capturedPort.position.x + 10 * view.mpp}
-              y={-capturedPort.position.y + 16 * view.mpp}
+              x={pointer.point.x + 10 * view.mpp}
+              y={-pointer.point.y + 16 * view.mpp}
               {...label}
             >
-              {`Z ${formatMeters(capturedPort.position.z, 2)}`}
-              {pointer.pick.stacked > 1
-                ? ` · ${pointer.pick.stacked} extremidades sobrepostas — Tab alterna`
-                : ''}
+              {pointer.info}
             </text>
           )}
           {drafting && pointer && (
