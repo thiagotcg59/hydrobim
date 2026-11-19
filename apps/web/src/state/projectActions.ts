@@ -8,7 +8,7 @@ import {
   quantitiesToCsv,
 } from '@hydrobim/core';
 import { encodeDxf, exportModelDxf } from '@hydrobim/dxf';
-import { exportIfc } from '@hydrobim/ifc';
+import { exportIds, exportIfc } from '@hydrobim/ifc';
 import { createDemoProject } from '../demo/demoProject';
 import {
   downloadProject,
@@ -18,7 +18,7 @@ import {
 } from '../persistence/fileIO';
 import { createDefaultRepository } from '../persistence/LocalStorageProjectRepository';
 import type { ProjectRepository } from '../persistence/ProjectRepository';
-import { familiesOf, selectIsDirty, tankFamiliesOf, useEditorStore } from './editorStore';
+import { familiesOf, ifcOptionsOf, selectIsDirty, useEditorStore } from './editorStore';
 
 /**
  * Casos de uso de projeto (novo, abrir, salvar, exportar), ligando a store do editor
@@ -99,16 +99,33 @@ export function exportIfcFile(): void {
     return;
   }
   try {
+    // As mesmas famílias da aba BIM / IFC: o arquivo grava o que o painel mostra.
     const text = exportIfc(project, {
       timestamp: new Date(),
       application: 'HydroBIM',
-      tankFamilies: tankFamiliesOf(project),
+      ...ifcOptionsOf(project),
     });
     downloadText(`${projectFileBase(project)}.ifc`, text, 'application/x-step');
     store().notify('success', `IFC 4.3 exportado (${project.elements.length} elementos).`);
   } catch (error) {
     console.error('[HydroBIM] Falha na exportação IFC.', error);
     store().notify('error', 'Não foi possível exportar o IFC.');
+  }
+}
+
+/** Exporta o perfil de requisitos de informação do projeto em IDS 1.0 (buildingSMART). */
+export function exportIdsFile(): void {
+  const { project } = store();
+  try {
+    downloadText(
+      `${projectFileBase(project)}-requisitos.ids`,
+      exportIds({ date: new Date().toISOString().slice(0, 10) }),
+      'application/xml',
+    );
+    store().notify('success', 'Requisitos de informação exportados em IDS 1.0.');
+  } catch (error) {
+    console.error('[HydroBIM] Falha na exportação IDS.', error);
+    store().notify('error', 'Não foi possível exportar o IDS.');
   }
 }
 

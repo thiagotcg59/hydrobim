@@ -1,6 +1,6 @@
 # Mapeamento IFC
 
-> **Estado: exportação implementada** em `packages/ifc` (escritor IFC-SPF em TypeScript, executado no navegador) e verificada com IfcOpenShell nos testes do backend (`services/api/tests/test_ifc_export.py`). A importação IFC não está implementada. Detalhes do que é emitido: `packages/ifc/README.md`. Este documento registra o mapeamento adotado e o que foi conferido no esquema.
+> **Estado: exportação e camada BIM implementadas** em `packages/ifc` (escritor IFC-SPF em TypeScript, executado no navegador) e verificada com IfcOpenShell nos testes do backend (`services/api/tests/test_ifc_export.py`). A importação IFC não está implementada. Detalhes do que é emitido: `packages/ifc/README.md`. Este documento registra o mapeamento adotado e o que foi conferido no esquema.
 
 ## Esquema alvo
 
@@ -75,6 +75,83 @@ Sistemas:
 
 Os elementos serão associados ao sistema por `IfcRelAssignsToGroup`.
 
+## Modelo de informação IFC (camada BIM)
+
+`buildIfcModel(project, { families, tankFamilies })` deriva do projeto tudo o que a aba **BIM / IFC** mostra e o que `exportIfc` grava: classificação, `Ifc…Type`, conjuntos de propriedades e de quantidades, portas, materiais e sistemas. As definições ficam no registro central `packages/ifc/src/bim/definitions.ts`.
+
+### De onde vêm as definições oficiais
+
+`packages/ifc/src/bim/schemaData.ts` é **gerado** por `services/api/scripts/generate_ifc_schema_data.py` a partir do esquema `IFC4X3_ADD2` e dos modelos de conjuntos de propriedades (`ifcopenshell.util.pset`) do IfcOpenShell 0.9.0.post1: entidades, supertipos, tipos predefinidos e, para cada `Pset_*`/`Qto_*`, a aplicabilidade e o tipo de valor e a enumeração de cada propriedade. O registro não declara o tipo de uma propriedade padronizada — lê-o dessa tabela — e referir uma propriedade que o esquema não tem faz o módulo falhar ao carregar. As descrições dos tipos predefinidos usadas na classificação foram lidas em `ifcopenshell.util.doc` (a documentação online da buildingSMART respondeu 403 na data da implementação).
+
+### Tipos (`Ifc…Type`)
+
+Todo elemento tem um tipo, ligado por `IfcRelDefinesByType`: `IfcPipeSegmentType`, `IfcPipeFittingType`, `IfcValveType`, `IfcFilterType`, `IfcPumpType`, `IfcTankType`, com o mesmo `PredefinedType` da ocorrência e o tipo interno em `ElementType`. Ocorrências do mesmo produto (mesma família, especificação, diâmetros, dimensões e dados de fabricação) compartilham o tipo. Os conjuntos do tipo ficam em `HasPropertySets`; o material é associado às ocorrências e aos tipos.
+
+### Conjuntos por categoria
+
+`T` = no tipo; `O` = na ocorrência. Sem indicação de origem, o valor é derivado do modelo; "usuário" = campo editável, sem valor até ser informado; **exigida** = requisito do perfil do projeto (aparece como *Pendente*).
+
+| Categoria | Conjunto | Propriedades |
+| --- | --- | --- |
+| Todos (exceto reservatório de catálogo) | `Pset_ManufacturerTypeInformation` (T) | `Manufacturer` (**exigida**), `ModelLabel`, `ModelReference`, `ArticleNumber` — do cadastro (`manufacturing`) ou da família; editáveis |
+| Todos | `HydroBIM_Especificacao` (O) | Designação, DN, diâmetros, parede, norma, classe de pressão (designação), junta, material, família; comprimento e flanges (tubo); ângulo e raio (joelho); saída (redução) |
+| Todos | `HydroBIM_Propriedades` (O) | Propriedades livres do usuário |
+| Tubo | `Pset_PipeSegmentTypeCommon` (T) | `Reference`, `NominalDiameter`, `OuterDiameter`, `InnerDiameter`, `WorkingPressure` (usuário, **exigida**) |
+| Tubo | `Pset_PipeSegmentTypeCommon` (O) | `Status` (usuário), `Length` |
+| Tubo com flange | `Pset_PipeConnectionFlanged` (T) | `FlangeStandard`, `FlangeDiameter`, `FlangeThickness`, `NumberOfBoltholes`, `BoltholePitch` |
+| Tubo | `Pset_PipeSegmentOccurrence` (O) | `InteriorRoughnessCoefficient` (usuário), `Gradient` (só trechos inclinados), `InvertElevation` (geratriz inferior interna no ponto mais baixo) |
+| Tubo | `HydroBIM_Tracado` (O) | `StartX/Y`, `StartElevation`, `EndX/Y`, `EndElevation`, `Slope` (com sinal) |
+| Tubo | `Qto_PipeSegmentBaseQuantities` (O) | `Length`, `GrossCrossSectionArea`, `NetCrossSectionArea`, `OuterSurfaceArea` (corpo cilíndrico) |
+| Conexão | `Pset_PipeFittingTypeCommon` (T) | `Reference`, `PressureClass` (usuário, **exigida**), `FittingLossFactor` (usuário) |
+| Conexão | `Pset_PipeFittingTypeCommon` (O), `Pset_PipeFittingOccurrence` (O) | `Status`, `InteriorRoughnessCoefficient` (usuário) |
+| Conexão | `HydroBIM_Conexao` (T) | `FittingType`, `EndTypes`, `NumberOfPorts`, `BranchNominalDiameter`, `CenterToEnd`, `RunLength`, `BranchLength`, `Length` |
+| Conexão | `Qto_PipeFittingBaseQuantities` (O) | `Length` (eixo de porta a porta), áreas da seção da porta A |
+| Válvula | `Pset_ValveTypeCommon` (T) | `Reference`, `ValvePattern`, `ValveMechanism`, `ValveOperation` (**exigida**, exceto retenção), `Size`, `WorkingPressure` (usuário, **exigida**), `TestPressure`, `FlowCoefficient`, `CloseOffRating` (usuário) |
+| Válvula | `Pset_ValveTypeCommon` (O) | `Status` (usuário) |
+| Válvula de bloqueio | `Pset_ValveTypeIsolating` (O) | `IsNormallyOpen` (usuário) |
+| Ventosa | `Pset_ValveTypeAirRelease` (T) | `IsAutomatic` (usuário) |
+| Redutora de pressão | `Pset_ValveTypePressureReducing` (O) | `UpstreamPressure`, `DownstreamPressure` (usuário; a de jusante é **exigida**) |
+| Válvula, filtro, bomba | `Pset_ElementSize` (T) | `NominalLength`, `NominalHeight`, `NominalWidth` (o que a família tabula) |
+| Válvula | `HydroBIM_Valvula` (T) | `ValveType`, `EndTypes`, `HandwheelDiameter` |
+| Filtro Y | `Pset_FilterTypeCommon` (T/O), `HydroBIM_Filtro` (T) | `Reference`, `NominalFlowrate`, `NominalPressureDrop`, `Status` (usuário); tipo, extremidades e diâmetro |
+| Bomba | `Pset_PumpTypeCommon` (T/O) | `ConnectionSize`, `NominalRotationSpeed` (usuário, **exigida**), `NetPositiveSuctionHead`, `Status` (usuário) |
+| Bomba | `Pset_PumpOccurrence` (O) | `BaseType`, `DriveConnectionType`, `ImpellerDiameter` (usuário) |
+| Bomba | `HydroBIM_Bomba` (T) | `PumpType`, diâmetros de sucção e recalque, `RatedFlow` e `RatedHead` (do cadastro, **exigidas**), `RatedPower` (usuário, **exigida**), `Efficiency`, `CasingMaterial` (usuário) |
+| Reservatório genérico | `Pset_TankTypeCommon` (T) | `PatternType`, `NominalLengthOrDiameter`, `NominalWidthOrDiameter`, `NominalDepth`, `TankNominalCapacity` (**exigida**) |
+| Todos, exceto tubo | `HydroBIM_Posicao` (O) | `X`, `Y`, `Z` da origem do elemento |
+| Porta | `Pset_DistributionPortCommon`, `Pset_DistributionPortTypePipe` | `PortNumber`; `ConnectionType`, `ConnectionSubtype`, `NominalDiameter`, `InnerDiameter`, `OuterDiameter` |
+
+Observações:
+
+- **Pressões não são derivadas da classe.** "PN 10", "Classe 15 (0,75 MPa)" e "K9" são designações e ficam em `HydroBIM_Especificacao.PressureClass` (`IfcLabel`). `WorkingPressure` e `PressureClass` do conjunto padrão são `IfcPressureMeasure` (Pa) e só recebem valor informado pelo usuário.
+- **`ConnectionType`** usa `PEnum_PipeEndStyleTreatment`: flange → `FLANGED`; rosca → `THREADED`; solda de topo e termofusão → `WELDED`; junta soldável (adesivo) e ponta e bolsa com junta elástica não têm item próprio → `OTHER`, com a descrição em `ConnectionSubtype`.
+- **Mecanismo da válvula de gaveta**: o esquema distingue `WEDGEGATE`, `PARALLELSLIDE` e `CONFIGUREDGATE`; o cadastro não — o campo fica a informar. `ValveOperation = WHEEL` só quando a família tabula o diâmetro do volante.
+- **O IFC 4.3 não tem** `Pset_PipeFittingTypeBend`/`Junction` (existiam no IFC 4): ângulo, raio e dimensões das conexões vão em conjuntos próprios.
+- **Pesos** (`GrossWeight`, `NetWeight`) não são emitidos: as famílias não os trazem. Por isso `Qto_ValveBaseQuantities`, `Qto_PumpBaseQuantities` e `Qto_FilterBaseQuantities` (que só têm peso) não aparecem.
+- **Unidades**: metro, m², m³, radiano, segundo, pascal, watt, m³/s (`VOLUMETRICFLOWRATEUNIT`) e s⁻¹ (`ROTATIONALFREQUENCYUNIT`).
+- A origem de cada valor (geometria, cadastro, catálogo, usuário, não informado) é mostrada na aba BIM / IFC; no arquivo só é gravada para os reservatórios (`HydroBIM_Reservatorio_OrigemDosParametros`).
+
+### Biblioteca
+
+`classifyLibrary` atribui entidade, tipo predefinido e entidade de tipo a todas as famílias: conexões e válvulas, tubos com flanges, reservatórios e a biblioteca de produtos PBA.
+
+| Produto | Entidade / tipo predefinido | Justificativa (texto do IFC 4.3) |
+| --- | --- | --- |
+| Curva | `IfcPipeFitting` / `BEND` | Duas portas; muda a direção do escoamento |
+| Tê, cruzeta, colar de tomada | `IfcPipeFitting` / `JUNCTION` | Mais de duas portas; redistribui o escoamento |
+| Luvas | `IfcPipeFitting` / `CONNECTOR` | Une duas portas (ex.: luva entre dois tubos) |
+| Redução, adaptador DEFoFo × PBA | `IfcPipeFitting` / `TRANSITION` | Duas portas de formas ou tamanhos diferentes |
+| Cap | `IfcPipeFitting` / `USERDEFINED` (`CAP`) | `OBSTRUCTION` descreve peças de duas portas (crivo, placa perfurada); não há valor para tampão |
+| Anéis de vedação | `IfcDiscreteAccessory` / `USERDEFINED` (`SEALINGRING`) | Acessório incluído em outro elemento; a enumeração não tem valor para anel de vedação |
+
+Medidores, sensores, atuadores e caixas de válvulas ainda não existem como elementos nem como famílias: não há o que classificar. As entidades correspondentes (`IfcFlowMeter`, `IfcSensor`, `IfcActuator`, `IfcDistributionChamberElement`) já estão na tabela do esquema para quando existirem.
+
+### Validação e IDS
+
+`validateIfcModel` separa os requisitos **normativos** do IFC 4.3 (`schema`: entidade e tipo predefinido existentes, `USERDEFINED` com `ObjectType`, conjunto padronizado aplicável à entidade, propriedade e tipo de valor do esquema, valores coerentes com o tipo, GlobalIds válidos e únicos, portas conectadas coincidentes e opostas) dos requisitos **do projeto** (`project`: propriedades exigidas não informadas → *pendente*; valores do usuário que deixaram de se aplicar; coerência entre capacidade nominal e volume geométrico; comprimento × distância entre portas).
+
+`exportIds` publica o perfil de requisitos em IDS 1.0 (uma especificação por classe e por restrição de tipo predefinido, com as propriedades exigidas). O perfil é o do registro de propriedades; ainda não é editável pelo usuário.
+
 ## Reservatórios de catálogo
 
 Entidades e atributos conferidos no esquema `IFC4X3_ADD2` do IfcOpenShell 0.9.0; nomes e tipos das propriedades padrão conferidos nos modelos de conjuntos de propriedades do IFC 4.3 (`ifcopenshell.util.pset`).
@@ -133,7 +210,9 @@ Os testes do backend abrem os arquivos IFC de `examples/` (gerados por `npm run 
 
 - As anotações da planta baixa (cotas, textos, chamadas e etiquetas) não são exportadas; o mapeamento para `IfcAnnotation` não foi verificado no esquema e fica para uma fase posterior.
 - Conexões, válvulas e equipamentos são exportados como malhas trianguladas (`IfcTriangulatedFaceSet`); apenas os tubos são sólidos paramétricos.
-- `IfcTypeObject` e conjuntos de propriedades padrão (`Pset_*`) só existem para os reservatórios de catálogo; nos demais elementos as propriedades estão em `HydroBIM_Especificacao` e `HydroBIM_Propriedades`. No reservatório, `HydroBIM_Especificacao` descreve a tubulação dos bocais de entrada e saída.
+- No reservatório, `HydroBIM_Especificacao` descreve a tubulação dos bocais de entrada e saída.
+- O IDS exportado não foi conferido contra o XSD da buildingSMART nem com o `ifctester`; o perfil de requisitos é fixo (não editável) e não há importação de IDS.
+- `Pset_DistributionSystemCommon` não é emitido; os sistemas trazem nome e tipo predefinido.
 - `FlowDirection` das portas é `NOTDEFINED`, exceto nos bocais de reservatório.
 - Não há importação IFC: a "reimportação" dos reservatórios é verificada pelos testes do backend, que reabrem o arquivo com IfcOpenShell e conferem classe, tipo, material, propriedades, portas e a malha tesselada contra o projeto.
 - O arquivo foi validado com `ifcopenshell.validate` e tesselado com `ifcopenshell.geom`; ainda não foi testado em visualizadores e ferramentas de autoria de terceiros.

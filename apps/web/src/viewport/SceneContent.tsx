@@ -6,6 +6,7 @@ import {
   lerp,
   type Vec3,
 } from '@hydrobim/core';
+import { classifyElement } from '@hydrobim/ifc';
 import {
   GizmoHelper,
   GizmoViewport,
@@ -36,10 +37,21 @@ function Elements({ hoveredId }: { hoveredId: string | null }) {
   const systems = useEditorStore((s) => s.project.systems);
   const bySystem = useMemo(() => new Map(systems.map((s) => [s.id, s])), [systems]);
   const selection = useEditorStore((s) => s.selection);
+  // Aba BIM / IFC: ocultar/isolar e filtro pela classe IFC valem só no seu visualizador.
+  const bim = useEditorStore((s) => s.viewMode === 'bim');
+  const hiddenIds = useEditorStore((s) => s.bimHidden);
+  const classFilter = useEditorStore((s) => s.bimClassFilter);
+  const hidden = useMemo(() => new Set(hiddenIds), [hiddenIds]);
   return (
     <>
       {elements
         .filter((element) => bySystem.get(element.systemId)?.visible !== false)
+        .filter(
+          (element) =>
+            !bim ||
+            (!hidden.has(element.id) &&
+              (classFilter === null || classifyElement(element).entity === classFilter)),
+        )
         .map((element) => (
           <ElementMesh
             key={element.id}

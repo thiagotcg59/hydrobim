@@ -26,6 +26,19 @@ export const defaultBendRadius = (spec: PipeSpec): number => 1.5 * spec.outerDia
 export const elbowLegLength = (angle: number, bendRadius: number): number =>
   bendRadius * Math.tan(angle / 2);
 
+/**
+ * Distância do vértice teórico a cada porta do joelho: o trecho tangente do arco mais o
+ * trecho reto daquele lado (curvas ponta e bolsa têm lados diferentes).
+ */
+export function elbowPortDistances(elbow: {
+  angle: number;
+  bendRadius: number;
+  straight?: { a: number; b: number } | undefined;
+}): { a: number; b: number } {
+  const leg = elbowLegLength(elbow.angle, elbow.bendRadius);
+  return { a: leg + (elbow.straight?.a ?? 0), b: leg + (elbow.straight?.b ?? 0) };
+}
+
 export const defaultTeeDimensions = (
   spec: PipeSpec,
 ): { runLength: number; branchLength: number } => ({

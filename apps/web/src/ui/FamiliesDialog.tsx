@@ -84,11 +84,36 @@ function columnsFor(family: FittingFamily): Column[] {
   const dn: Column = { path: 'dn', label: 'DN', title: 'Diâmetro nominal', raw: true };
   switch (family.kind) {
     case 'elbow':
-      return [
-        dn,
-        { path: 'centerToEnd', label: 'Centro à porta', title: 'Do vértice teórico à porta (mm)' },
-        ...end,
-      ];
+      // Curvas ponta e bolsa: cada porta tem a sua distância ao vértice, e o raio é próprio.
+      return family.sizes.some((size) => size.bendRadius !== undefined)
+        ? [
+            dn,
+            {
+              path: 'centerToEnd',
+              label: 'Centro à bolsa',
+              title: 'Do vértice teórico ao fundo da bolsa, porta A (mm)',
+            },
+            {
+              path: 'centerToEnd2',
+              label: 'Centro à ponta',
+              title: 'Do vértice teórico à extremidade da ponta, porta B (mm)',
+            },
+            {
+              path: 'bendRadius',
+              label: 'Raio',
+              title: 'Raio de curvatura da linha de centro (mm)',
+            },
+            ...end,
+          ]
+        : [
+            dn,
+            {
+              path: 'centerToEnd',
+              label: 'Centro à porta',
+              title: 'Do vértice teórico à porta (mm)',
+            },
+            ...end,
+          ];
     case 'tee':
       return [
         dn,
@@ -143,8 +168,18 @@ function columnsFor(family: FittingFamily): Column[] {
         {
           path: 'width',
           label: 'Largura',
-          title: 'Largura máxima / diâmetro da tampa do atuador (mm)',
+          title: 'Largura máxima / diâmetro da tampa do atuador; na gaveta, castelo K1 (mm)',
         },
+        // Só as famílias que tabulam o castelo mostram a coluna.
+        ...(family.sizes.some((size) => size.bonnetLength !== undefined)
+          ? [
+              {
+                path: 'bonnetLength' as const,
+                label: 'Castelo K',
+                title: 'Dimensão do castelo ao longo do eixo do tubo (mm)',
+              },
+            ]
+          : []),
         ...end,
       ];
   }

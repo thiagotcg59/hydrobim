@@ -1,11 +1,19 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { TANK_FAMILIES } from '@hydrobim/catalog';
-import { serializeProject } from '@hydrobim/core';
+import { BUILTIN_FAMILIES, FLANGED_PIPE_FAMILIES, TANK_FAMILIES } from '@hydrobim/catalog';
+import { mergeFamilies, serializeProject, type Project } from '@hydrobim/core';
 import { exportIfc } from '@hydrobim/ifc';
 import { it } from 'vitest';
 import { createDemoProject } from '../../apps/web/src/demo/demoProject';
 import { createTankDemoProject } from '../../apps/web/src/demo/tankDemo';
+
+/** Famílias do catálogo e do projeto: alimentam os tipos IFC (fabricante, fonte, modelo). */
+const ifcOptions = (project: Project) => ({
+  // Data fixa no cabeçalho: o arquivo só muda quando o projeto muda.
+  timestamp: new Date('2026-01-01T00:00:00Z'),
+  families: [...mergeFamilies(BUILTIN_FAMILIES, project.families), ...FLANGED_PIPE_FAMILIES],
+  tankFamilies: [...TANK_FAMILIES, ...project.tankFamilies],
+});
 
 /**
  * Gerador dos arquivos de `examples/` (executado por `npm run examples:generate`).
@@ -24,8 +32,7 @@ it('gera examples/demo-barrilete (.hydrobim.json e .ifc)', () => {
   );
   writeFileSync(
     join(directory, 'demo-barrilete.ifc'),
-    // Data fixa no cabeçalho: o arquivo só muda quando o projeto muda.
-    exportIfc(project, { timestamp: new Date('2026-01-01T00:00:00Z') }),
+    exportIfc(project, ifcOptions(project)),
     'utf8',
   );
 });
@@ -40,10 +47,7 @@ it('gera examples/reservatorios-tramec (.hydrobim.json e .ifc)', () => {
   );
   writeFileSync(
     join(directory, 'reservatorios-tramec.ifc'),
-    exportIfc(project, {
-      timestamp: new Date('2026-01-01T00:00:00Z'),
-      tankFamilies: TANK_FAMILIES,
-    }),
+    exportIfc(project, ifcOptions(project)),
     'utf8',
   );
 });

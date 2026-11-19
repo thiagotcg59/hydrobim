@@ -16,6 +16,7 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 
 - ✅ Catálogo dimensional de conexões por fabricante/norma, com fontes (`docs/CATALOGS.md`).
 - ✅ Famílias editáveis por projeto, com reaplicação às peças existentes.
+- ✅ Válvulas de gaveta com cunha de borracha EURO 21 a 25 (flanges PN e ANSI, bolsas PBA e ferro dúctil), com castelo retangular K × K1.
 - ✅ Filtro Y de ferro fundido (Spirax Sarco CI, ASME 125) e flanges com a furação da norma na geometria.
 - ✅ Flanges padronizados: tabela única PN 10/16/25/40 (Catálogo Geral, p. 246–249) usada por todas as peças flangeadas PN, com furação e ressalto na geometria; aba "Flanges e tubos flangeados" no Catálogo. Esquema v7.
 - ✅ Tubos de ferro fundido dúctil com flanges (flange e flange, flange e ponta em qualquer extremidade, ponta e ponta), com comprimento livre e classe PN 10/16/25/40.
@@ -36,8 +37,14 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ✅ Estrutura espacial, portas, `IfcRelConnectsPorts`, sistemas, materiais, propriedades.
 - ✅ Georreferência (`IfcProjectedCRS` + `IfcMapConversion`) somente quando informada.
 - ✅ Verificação automática: IfcOpenShell abre o arquivo, `validate` sem erros, geometria tesselada.
-- ⬜ Testes em visualizadores e ferramentas de autoria de terceiros.
-- ⬜ `IfcTypeObject`, conjuntos de propriedades padrão (`Pset_*`), sentido de escoamento.
+- ✅ Camada BIM (esquema v9): `Ifc…Type` para todos os elementos (um por produto, compartilhado pelas ocorrências), conjuntos de propriedades e de quantidades padronizados (`Pset_*`/`Qto_*`) conferidos contra os modelos do IFC 4.3, conjuntos próprios `HydroBIM_*`, portas com `Pset_DistributionPortTypePipe` e materiais associados a ocorrências e tipos. O arquivo grava exatamente o modelo de informação mostrado no editor.
+- ✅ Aba **BIM / IFC**: visualizador 3D, árvore por sistema › entidade › tipo › ocorrência (localizar, ocultar, isolar, filtrar por classe IFC), painel de propriedades IFC com origem de cada valor (geometria, cadastro, catálogo, usuário, não informado), edição de propriedades cadastrais por tipo e por ocorrência, pendências e conformidade.
+- ✅ Validação IFC: requisitos normativos do esquema (entidades, tipos predefinidos, aplicabilidade e tipos de valor dos conjuntos, GlobalIds, conectividade das portas) separados dos requisitos do perfil do projeto; exportação do perfil em IDS 1.0.
+- ✅ Classificação IFC de toda a biblioteca (famílias de conexões e válvulas, tubos com flanges, reservatórios e produtos PBA).
+- ⬜ Testes em visualizadores e ferramentas de autoria de terceiros; conferência do IDS exportado com uma ferramenta externa (`ifctester`).
+- ⬜ Sentido de escoamento nas portas; pesos (`GrossWeight`/`NetWeight`) quando os catálogos os trouxerem; `Pset_DistributionSystemCommon`.
+- ⬜ Perfil de requisitos editável pelo usuário e importação de IDS de terceiros (hoje o perfil é o do registro de propriedades).
+- ⬜ Elementos ainda sem modelagem na rede — medidores (`IfcFlowMeter`), sensores, atuadores, caixas de válvulas: só serão classificados quando existirem como elementos.
 - ⬜ Sólidos paramétricos para conexões (hoje malhas trianguladas); compatibilidade IFC 4.
 - ⬜ Importação IFC.
 
@@ -83,4 +90,5 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 
 1. Conferir as famílias com os catálogos vigentes dos fornecedores do projeto e completar o que ficou genérico (PEAD, curvas PBA, ferro dúctil e válvulas de fabricantes brasileiros).
 2. Peças de transição e verificação do tipo de extremidade, para que flange e ponta não se conectem sem a peça adequada.
-3. Abrir o IFC exportado em visualizadores de terceiros e ajustar o que for necessário.
+3. Abrir o IFC exportado em visualizadores de terceiros e ajustar o que for necessário; conferir o IDS com o `ifctester`.
+4. Completar na aba BIM / IFC os dados que o catálogo não traz (pressões de serviço, acionamento das válvulas, dados das bombas) e, havendo fonte, levá-los às famílias do catálogo.

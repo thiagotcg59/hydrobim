@@ -68,5 +68,13 @@ export function setElbowCatalogAngle(
   if (!updated.ok) return updated;
   const current = getElement(updated.value, id);
   if (!current || current.kind !== 'elbow') return updated;
-  return ok(putElement(updated.value, { ...current, familyId: dims.familyId, ends: dims.ends }));
+  const { straight: _previous, ...rest } = current;
+  return ok(
+    putElement(updated.value, {
+      ...rest,
+      familyId: dims.familyId,
+      ends: dims.ends,
+      ...(dims.straight ? { straight: dims.straight } : {}),
+    }),
+  );
 }

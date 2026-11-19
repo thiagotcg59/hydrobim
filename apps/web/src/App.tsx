@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { BimTree } from './bim/BimTree';
+import { IfcLibraryDialog } from './bim/IfcLibraryDialog';
+import { IfcPanel } from './bim/IfcPanel';
 import { isAnnotationTool, selectIsDirty, useEditorStore } from './state/editorStore';
 import { restoreSession, saveCurrentProject } from './state/projectActions';
 import { ErrorBoundary } from './ui/ErrorBoundary';
@@ -35,6 +38,8 @@ function useKeyboardShortcuts(): void {
         return;
       }
       if (isTyping(event.target)) return;
+      // A aba BIM / IFC é de consulta e cadastro: atalhos de modelagem e Delete não valem nela.
+      const viewer = state.viewMode === 'bim';
       if (modifier && key === 'z') {
         event.preventDefault();
         if (event.shiftKey) state.redo();
@@ -45,8 +50,8 @@ function useKeyboardShortcuts(): void {
       } else if (event.key === 'Escape') {
         state.cancelInteraction();
       } else if (event.key === 'Delete') {
-        state.deleteSelected();
-      } else if (!modifier && !event.altKey) {
+        if (!viewer) state.deleteSelected();
+      } else if (!modifier && !event.altKey && !viewer) {
         const tool = TOOL_SHORTCUTS[key];
         if (tool) state.setTool(tool);
       }
@@ -73,6 +78,7 @@ export function App() {
   const [openDialog, setOpenDialog] = useState(false);
   const [familiesDialog, setFamiliesDialog] = useState(false);
   const [projectDialog, setProjectDialog] = useState(false);
+  const [libraryDialog, setLibraryDialog] = useState(false);
   const tool = useEditorStore((s) => s.tool);
   const viewMode = useEditorStore((s) => s.viewMode);
   useKeyboardShortcuts();
@@ -98,13 +104,18 @@ export function App() {
       title="O HydroBIM encontrou um erro inesperado"
       hint="Tente novamente. Se o problema persistir, recarregue a página."
     >
-      <div className="app" data-ready={ready} data-testid="app">
+      <div
+        className={viewMode === 'bim' ? 'app app--bim' : 'app'}
+        data-ready={ready}
+        data-view-mode={viewMode}
+        data-testid="app"
+      >
         <TopBar
           onOpen={() => setOpenDialog(true)}
           onFamilies={() => setFamiliesDialog(true)}
           onProject={() => setProjectDialog(true)}
         />
-        <ToolBar />
+        {viewMode === 'bim' ? <BimTree /> : <ToolBar />}
         <main className="workspace">
           {!ready ? (
             <div className="viewport-fallback">Carregando projeto…</div>
@@ -115,7 +126,7 @@ export function App() {
           )}
           {tool !== 'select' && !isAnnotationTool(tool) && <ToolOptions />}
           <div className="segmented viewmode" role="group" aria-label="Área de trabalho">
-            {(['3d', 'plan'] as const).map((mode) => (
+            {(['3d', 'plan', 'bim'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -126,19 +137,26 @@ export function App() {
                 title={
                   mode === '3d'
                     ? 'Modelo 3D: modelagem da rede'
-                    : 'Planta baixa: documentação técnica com cotas, textos e etiquetas'
+                    : mode === 'plan'
+                      ? 'Planta baixa: documentação técnica com cotas, textos e etiquetas'
+                      : 'BIM / IFC: classificação, propriedades, quantidades, portas e validação IFC 4.3'
                 }
               >
-                {mode === '3d' ? 'Modelo 3D' : 'Planta baixa'}
+                {mode === '3d' ? 'Modelo 3D' : mode === 'plan' ? 'Planta baixa' : 'BIM / IFC'}
               </button>
             ))}
           </div>
         </main>
-        <PropertiesPanel />
+        {viewMode === 'bim' ? (
+          <IfcPanel onLibrary={() => setLibraryDialog(true)} />
+        ) : (
+          <PropertiesPanel />
+        )}
         <StatusBar />
         <OpenProjectDialog open={openDialog} onClose={() => setOpenDialog(false)} />
         <FamiliesDialog open={familiesDialog} onClose={() => setFamiliesDialog(false)} />
         <ProjectDialog open={projectDialog} onClose={() => setProjectDialog(false)} />
+        <IfcLibraryDialog open={libraryDialog} onClose={() => setLibraryDialog(false)} />
       </div>
     </ErrorBoundary>
   );

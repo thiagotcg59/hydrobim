@@ -25,7 +25,7 @@ def test_capabilities(client):
     response = client.get("/api/v1/capabilities")
     assert response.status_code == 200
     assert response.json() == {
-        "projectSchemaVersion": 8,
+        "projectSchemaVersion": 10,
         "validation": True,
         "ifcExport": False,
         "ifcVerification": True,

@@ -18,6 +18,7 @@ import { box, loft, type ProfilePoint } from './loft';
 import { buildPbaParts, teeIsBuildable, type JeSocket, type PbaShape } from './pba';
 import { mapMesh } from './skin';
 import { flangeDisc, flangeHubRadius } from './flange';
+import { gateValveParts } from './gateValve';
 import { pilotValveParts } from './pilotValve';
 import { accent, body, coated, cylinder, ORIGIN, torus, turned, upFor, X, Z } from './primitives';
 import { strainerParts } from './strainer';
@@ -104,23 +105,33 @@ function linePath(from: Vec3, to: Vec3): Path {
 }
 
 /**
- * Linha de centro do joelho: arco de raio `bendRadius` tangente às duas portas, com
- * prolongamentos retos além delas (onde ficam as bolsas).
+ * Linha de centro do joelho, de porta a porta: trecho reto `a` (se houver), arco de raio
+ * `bendRadius` e trecho reto `b`, com prolongamentos retos além das portas (onde ficam as
+ * bolsas). Sem trechos retos, o arco é tangente às duas portas.
  */
-function elbowPath(angle: number, bendRadius: number): Path {
+function elbowPath(
+  angle: number,
+  bendRadius: number,
+  straight: { a: number; b: number } = { a: 0, b: 0 },
+): Path {
   const leg = elbowLegLength(angle, bendRadius);
-  const length = bendRadius * angle;
+  const arc = bendRadius * angle;
+  const length = straight.a + arc + straight.b;
   const steps = Math.max(8, Math.ceil((angle / (Math.PI / 2)) * 24));
   const out = vec3(Math.cos(angle), Math.sin(angle), 0);
-  const portB = scale(out, leg);
+  const portA = vec3(-leg - straight.a, 0, 0);
+  const arcEnd = scale(out, leg);
+  const samples = Array.from({ length: steps + 1 }, (_, i) => straight.a + (arc * i) / steps);
   return {
     length,
     up: Z,
-    samples: Array.from({ length: steps + 1 }, (_, i) => (length * i) / steps),
+    samples: [...(straight.a > 0 ? [0] : []), ...samples, ...(straight.b > 0 ? [length] : [])],
     at: (s) => {
-      if (s <= 0) return { center: vec3(-leg + s, 0, 0), tangent: X };
-      if (s >= length) return { center: add(portB, scale(out, s - length)), tangent: out };
-      const phi = s / bendRadius;
+      if (s <= straight.a) return { center: add(portA, scale(X, s)), tangent: X };
+      if (s >= straight.a + arc) {
+        return { center: add(arcEnd, scale(out, s - straight.a - arc)), tangent: out };
+      }
+      const phi = (s - straight.a) / bendRadius;
       return {
         center: vec3(-leg + bendRadius * Math.sin(phi), bendRadius - bendRadius * Math.cos(phi), 0),
         tangent: vec3(Math.cos(phi), Math.sin(phi), 0),
@@ -452,6 +463,26 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
       ];
     case 'gate':
     case 'globe': {
+      if (
+        element.valveType === 'gate' &&
+        element.width !== undefined &&
+        element.bonnetLength !== undefined
+      ) {
+        // Gaveta de castelo retangular (catálogo com K × K1): corpo, extremidades e
+        // castelo com o revestimento epóxi azul; haste nua, sem volante.
+        return [
+          ...parts.map((part) => (part.role === 'body' ? coated(part.mesh) : part)),
+          ...gateValveParts({
+            pipeDiameter: d,
+            length,
+            top,
+            width: element.width,
+            bonnetLength: element.bonnetLength,
+            endRadius: (a.end?.outerDiameter ?? 0) / 2,
+            flangeThickness: a.end?.type === 'flange' ? a.end.length : 0,
+          }),
+        ];
+      }
       // Castelo: pescoço, flange do castelo, tampa cônica, preme-gaxeta e haste.
       const neck = top * 0.38;
       const plate = Math.min(top * 0.05, d * 0.25);
@@ -627,7 +658,7 @@ function localParts(element: HydroElement): MeshPart[] {
       return [
         body(
           conduit({
-            path: elbowPath(element.angle, element.bendRadius),
+            path: elbowPath(element.angle, element.bendRadius, element.straight),
             start: endOf(a),
             end: endOf(b),
             bodyStart: outer,

@@ -111,8 +111,11 @@ describe('biblioteca de produtos', () => {
   it('as conexões PBA da rede atendem às três classes de tubo', () => {
     for (const pressureClass of [12, 15, 20]) {
       const spec = `pvc-pba-nbr5647-cl${pressureClass}`;
-      const kinds = BUILTIN_FAMILIES.filter((f) => f.specificationId === spec).map((f) => f.kind);
-      expect(kinds.sort()).toEqual(['reducer', 'tee', 'tee']);
+      // Conexões da ficha PBA; as válvulas vêm de outros catálogos e têm testes próprios.
+      const kinds = BUILTIN_FAMILIES.filter(
+        (f) => f.specificationId === spec && f.kind !== 'valve',
+      ).map((f) => f.kind);
+      expect(kinds.sort()).toEqual(['elbow', 'elbow', 'elbow', 'elbow', 'reducer', 'tee', 'tee']);
     }
   });
 

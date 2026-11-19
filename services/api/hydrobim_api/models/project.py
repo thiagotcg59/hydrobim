@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 10
 
 
 def _json_number(value: Any) -> int | float:
@@ -153,6 +153,9 @@ class ElementBase(CamelModel):
     family_id: str | None
     properties: dict[str, PropertyValue]
     manufacturing: Manufacturing
+    # Esquema v9: valores IFC informados pelo usuário para a ocorrência, por
+    # "Conjunto.Propriedade" (opcional).
+    ifc: dict[str, PropertyValue] = Field(default=None, validate_default=False)
     meta: ElementMeta
 
 
@@ -169,10 +172,17 @@ class FittingBase(ElementBase):
     ends: dict[str, EndTreatment]
 
 
+class ElbowStraight(CamelModel):
+    a: NonNegativeNumber
+    b: NonNegativeNumber
+
+
 class Elbow(FittingBase):
     kind: Literal["elbow"]
     angle: PositiveNumber
     bend_radius: PositiveNumber
+    # Esquema v10: trechos retos entre o arco e as portas (curvas ponta e bolsa).
+    straight: ElbowStraight = Field(default=None, validate_default=False)
 
 
 class Tee(FittingBase):
@@ -195,6 +205,7 @@ class Valve(FittingBase):
     height: PositiveNumber = Field(default=None, validate_default=False)
     handwheel_diameter: PositiveNumber = Field(default=None, validate_default=False)
     width: PositiveNumber = Field(default=None, validate_default=False)
+    bonnet_length: PositiveNumber = Field(default=None, validate_default=False)
 
 
 class Pump(FittingBase):
@@ -341,11 +352,14 @@ class FamilySize(CamelModel):
     dn: PositiveNumber
     dn2: PositiveNumber = Field(default=None, validate_default=False)
     center_to_end: PositiveNumber = Field(default=None, validate_default=False)
+    center_to_end2: PositiveNumber = Field(default=None, validate_default=False)
+    bend_radius: PositiveNumber = Field(default=None, validate_default=False)
     center_to_branch: PositiveNumber = Field(default=None, validate_default=False)
     length: PositiveNumber = Field(default=None, validate_default=False)
     height: PositiveNumber = Field(default=None, validate_default=False)
     handwheel_diameter: PositiveNumber = Field(default=None, validate_default=False)
     width: PositiveNumber = Field(default=None, validate_default=False)
+    bonnet_length: PositiveNumber = Field(default=None, validate_default=False)
     end: FamilyEnd = Field(default=None, validate_default=False)
     end2: FamilyEnd = Field(default=None, validate_default=False)
 
@@ -430,7 +444,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[8], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[10], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -441,6 +455,8 @@ class Project(CamelModel):
     levels: list[Level]
     families: list[FittingFamily]
     tank_families: list[TankFamily]
+    # Esquema v9: valores IFC do usuário por tipo: {chave: {"Conjunto.Propriedade": valor}}.
+    ifc_types: dict[str, dict[str, PropertyValue]]
     georeference: Georeference | None
     terrain: Terrain | None
     elements: list[HydroElement]
@@ -451,19 +467,21 @@ class Project(CamelModel):
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v8), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v10), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7):
+        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7, 8, 9):
             return document
+        # v9 → v10: trechos retos do joelho e cotas das curvas ponta e bolsa (opcionais).
+        # v8 → v9: valores IFC informados pelo usuário, por tipo e por ocorrência.
         # v7 → v8: famílias de reservatórios personalizadas no projeto.
         # v6 → v7: ressalto dos flanges e extremidades dos tubos (opcionais).
         # v5 → v6: forma construtiva, bocais e acessórios dos reservatórios (opcionais).
         # v4 → v5: filtro Y e furação opcional dos flanges. Nos dois casos o documento
         # já era válido.
-        document = {"tankFamilies": [], **document, "schemaVersion": 8}
-        if version in (4, 5, 6, 7):
+        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 10}
+        if version in (4, 5, 6, 7, 8, 9):
             return document
         # v3 → v4: anotações da planta baixa e escala do desenho.
         document = {**document, "annotations": [], "drawingScale": 50}

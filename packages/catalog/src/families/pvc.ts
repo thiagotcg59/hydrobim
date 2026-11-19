@@ -1,5 +1,6 @@
 import type { FittingFamily } from '@hydrobim/core';
-import { family, forSpecifications, type EndMm } from './builders';
+import { pbaBendPortsMm } from '../products/wavinPba';
+import { family, forSpecifications, type EndMm, type SizeMm } from './builders';
 
 /**
  * Conexões de PVC para água fria — dimensões transcritas de catálogos de fabricantes.
@@ -263,7 +264,44 @@ const WAVIN_PBA =
 const PBA_SOCKET: Record<number, EndMm> = { 50: [60.5, 82.9], 75: [71, 116.7], 100: [76, 144.9] };
 const pbaSocket = (size: number): EndMm => PBA_SOCKET[size] ?? [60, size * 1.5];
 
+/**
+ * Curva PBA ponta e bolsa (conformada). Porta `a` = fundo da bolsa; porta `b` = extremidade
+ * da ponta, que entra na bolsa do tubo seguinte.
+ */
+const pbaBend = (angleDeg: number, label: string, pages: string, note = ''): FittingFamily[] =>
+  forSpecifications(PBA, {
+    id: `wavin-curva-${String(angleDeg).replace('.', '-')}-pba`,
+    name: `Curva ${label} PBA ponta e bolsa`,
+    kind: 'elbow',
+    endType: 'socket',
+    angleDeg,
+    manufacturer: 'Amanco Wavin',
+    standard: 'ABNT NBR 5647',
+    source: `${WAVIN_PBA}, p. ${pages} — cotas C, D, F e L tabuladas. Raio de curvatura e trecho reto após a bolsa NÃO são tabulados: derivados das cotas L das curvas de 45° e 90°, supondo o mesmo raio nas duas (docs/CATALOGS.md); o vértice às portas decorre dessa hipótese — confirmar com o fabricante.${note}`,
+    sizes: [50, 75, 100].flatMap((size): SizeMm[] => {
+      const ports = pbaBendPortsMm(angleDeg, size);
+      return ports
+        ? [
+            {
+              dn: size,
+              centerToEnd: ports.toSocket,
+              centerToEnd2: ports.toSpigot,
+              bendRadius: ports.bendRadius,
+              end: ports.socket,
+            },
+          ]
+        : [];
+    }),
+  });
+
+const PBA_SAME_TABLE =
+  ' As tabelas das curvas de 11°15′ e 22°30′ são impressas idênticas no catálogo (provável repetição).';
+
 const pba: FittingFamily[] = [
+  ...pbaBend(90, '90°', '22'),
+  ...pbaBend(45, '45°', '21–22'),
+  ...pbaBend(22.5, '22°30′', '21', PBA_SAME_TABLE),
+  ...pbaBend(11.25, '11°15′', '20–21', PBA_SAME_TABLE),
   ...forSpecifications(PBA, {
     id: 'wavin-te-pba',
     name: 'Tê PBA junta elástica',

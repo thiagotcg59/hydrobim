@@ -426,6 +426,12 @@ function FittingGeometry({
             label="Raio de curvatura"
             testId="prop-bend-radius"
           />
+          {element.straight && (
+            <ReadOnlyRow
+              label="Trechos retos (bolsa / ponta)"
+              value={`${formatMillimeters(element.straight.a, 1)} / ${formatMillimeters(element.straight.b, 1)}`}
+            />
+          )}
         </>
       )}
       {element.kind === 'tee' && (
@@ -483,6 +489,14 @@ function FittingGeometry({
             label="Largura / tampa do atuador"
             testId="prop-valve-width"
           />
+          {element.bonnetLength !== undefined && (
+            <Dimension
+              element={element}
+              field="bonnetLength"
+              label="Castelo ao longo do eixo"
+              testId="prop-valve-bonnet-length"
+            />
+          )}
         </>
       )}
       {element.kind === 'reducer' && (

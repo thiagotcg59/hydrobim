@@ -42,6 +42,7 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Interface | `apps/web/src/ui` |
 | Persistência | `apps/web/src/persistence`, `packages/core/src/serialization.ts` |
 | Exportação IFC | `packages/ifc` (cliente); verificação em `services/api/tests` |
+| Informação IFC (classificação, tipos, propriedades, quantidades, validação, IDS) | `packages/ifc/src/bim`; aba BIM / IFC em `apps/web/src/bim` |
 | Exportação DXF (planta anotada e modelo 3D) | `packages/dxf` (cliente) |
 | Quantitativo, EPANET, interferências, terreno, perfil | `packages/core/src/quantities.ts`, `epanet.ts`, `analysis.ts` |
 

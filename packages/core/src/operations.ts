@@ -9,7 +9,7 @@ import {
 } from './connectivity';
 import {
   ANGLE_TOLERANCE,
-  elbowLegLength,
+  elbowPortDistances,
   MAX_ELBOW_ANGLE,
   MIN_ELBOW_ANGLE,
   MIN_PIPE_LENGTH,
@@ -103,6 +103,7 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     levels: [{ id: newId(), name: discipline === 'infra' ? 'Referência' : 'Térreo', elevation: 0 }],
     families: [],
     tankFamilies: [],
+    ifcTypes: {},
     georeference: null,
     terrain: null,
     elements: [],
@@ -301,16 +302,18 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
   }
 
   const dims = (input.catalog ?? GENERIC_CATALOG).elbow(spec, deflection);
-  const leg = elbowLegLength(deflection, dims.bendRadius);
-  if (pipeLength(host) < leg + MIN_PIPE_LENGTH) {
+  const legs = elbowPortDistances({ angle: deflection, ...dims });
+  if (pipeLength(host) < legs.a + MIN_PIPE_LENGTH) {
     return fail('PIPE_TOO_SHORT', `"${host.name}" é curto demais para receber o joelho.`);
   }
-  if (distance(input.end, corner) < leg + MIN_PIPE_LENGTH) {
+  if (distance(input.end, corner) < legs.b + MIN_PIPE_LENGTH) {
     return fail('PIPE_TOO_SHORT', 'O novo trecho é curto demais para o joelho necessário.');
   }
 
   // Apara o tubo existente e posiciona o joelho com o vértice no ponto original.
-  const trimmed = touch(setPipeEnd(host, port.ref.portId, sub(corner, scale(port.direction, leg))));
+  const trimmed = touch(
+    setPipeEnd(host, port.ref.portId, sub(corner, scale(port.direction, legs.a))),
+  );
   const bx = port.direction;
   const by = normalize(sub(direction, scale(bx, dot(direction, bx))));
   const bz = cross(bx, by);
@@ -322,12 +325,13 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
     placement: { position: corner, rotation: quatFromBasis(bx, by, bz) },
     angle: deflection,
     bendRadius: dims.bendRadius,
+    ...(dims.straight ? { straight: dims.straight } : {}),
   };
   let next = putElement(putElement(project, trimmed), elbow);
   const pipe = buildPipe(
     next,
     {
-      start: add(corner, scale(direction, leg)),
+      start: add(corner, scale(direction, legs.b)),
       end: input.end,
       spec,
       name: input.name,
@@ -480,6 +484,8 @@ export function buildFitting(
         ends: dims.ends,
         angle,
         bendRadius,
+        // Raio informado à mão: a peça é genérica, sem os trechos retos da família.
+        ...(!custom && dims.straight ? { straight: dims.straight } : {}),
       };
       return ok(elbow);
     }
@@ -525,6 +531,7 @@ export function buildFitting(
           ? { handwheelDiameter: dims.handwheelDiameter }
           : {}),
         ...(dims.width !== undefined ? { width: dims.width } : {}),
+        ...(dims.bonnetLength !== undefined ? { bonnetLength: dims.bonnetLength } : {}),
       };
       return ok(valve);
     }
@@ -1010,7 +1017,7 @@ const EDITABLE: Record<FittingKind, readonly string[]> = {
   elbow: ['angle', 'bendRadius'],
   tee: ['runLength', 'branchLength'],
   reducer: ['length'],
-  valve: ['length', 'height', 'handwheelDiameter', 'width'],
+  valve: ['length', 'height', 'handwheelDiameter', 'width', 'bonnetLength'],
   pump: ['length', 'dischargeOffset', 'dischargeHeight', 'ratedFlow', 'ratedHead'],
   tank: [
     'diameter',
@@ -1064,6 +1071,7 @@ export type FittingPatch = {
   height?: number;
   handwheelDiameter?: number;
   width?: number;
+  bonnetLength?: number;
   dischargeOffset?: number;
   dischargeHeight?: number;
   ratedFlow?: number;
@@ -1305,6 +1313,57 @@ export function setElementProperty(
   );
   if (value !== undefined) properties[name] = value;
   return ok(putElement(project, touch({ ...element, properties })));
+}
+
+/**
+ * Guarda (ou remove, com `undefined`) um valor IFC informado pelo usuário para a ocorrência.
+ * A chave é `Conjunto.Propriedade`; a validade do valor frente ao esquema IFC é conferida
+ * por `@hydrobim/ifc` (`setIfcValue`), que é quem chama esta operação.
+ */
+export function setElementIfcValue(
+  project: Project,
+  id: string,
+  key: string,
+  value: PropertyValue | undefined,
+): Result<Project> {
+  const element = getElement(project, id);
+  if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
+  if (key.trim().length === 0)
+    return fail('INVALID_NAME', 'O nome da propriedade não pode ser vazio.');
+  const values = Object.fromEntries(
+    Object.entries(element.ifc ?? {}).filter(([existing]) => existing !== key),
+  );
+  if (value !== undefined) values[key] = value;
+  const { ifc: _previous, ...rest } = element;
+  return ok(
+    putElement(
+      project,
+      touch((Object.keys(values).length ? { ...rest, ifc: values } : rest) as HydroElement),
+    ),
+  );
+}
+
+/**
+ * Guarda (ou remove, com `undefined`) um valor IFC informado pelo usuário para um TIPO: vale
+ * para todas as ocorrências com a mesma chave de tipo, inclusive as criadas depois.
+ */
+export function setIfcTypeValue(
+  project: Project,
+  typeKey: string,
+  key: string,
+  value: PropertyValue | undefined,
+): Result<Project> {
+  if (typeKey.trim().length === 0 || key.trim().length === 0)
+    return fail('INVALID_NAME', 'O tipo e o nome da propriedade não podem ser vazios.');
+  const values = Object.fromEntries(
+    Object.entries(project.ifcTypes[typeKey] ?? {}).filter(([existing]) => existing !== key),
+  );
+  if (value !== undefined) values[key] = value;
+  const ifcTypes = Object.fromEntries(
+    Object.entries(project.ifcTypes).filter(([existing]) => existing !== typeKey),
+  );
+  if (Object.keys(values).length) ifcTypes[typeKey] = values;
+  return ok({ ...project, updatedAt: now(), ifcTypes });
 }
 
 /** Exclui elementos e todas as conexões que os referenciam. */
