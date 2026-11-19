@@ -1,5 +1,4 @@
 import type { SystemKind, ValveType } from '@hydrobim/core';
-import type { SnapKind } from '../editor/picking';
 import type { ToolId } from '../state/editorStore';
 
 export const VALVE_TYPE_LABELS: Record<ValveType, string> = {
@@ -19,16 +18,6 @@ export const SYSTEM_KIND_LABELS: Record<SystemKind, string> = {
   fireProtection: 'Combate a incêndio',
   waterSupply: 'Abastecimento de água',
   other: 'Outro',
-};
-
-export const SNAP_LABELS: Record<SnapKind, string> = {
-  port: 'Extremidade livre',
-  grid: 'Grade',
-  plane: 'Plano de trabalho',
-  axis: 'Eixo da porta',
-  vertical: 'Vertical',
-  angle: 'Ângulo de catálogo',
-  pipe: 'Tê automático no tubo',
 };
 
 export const TOOL_LABELS: Record<ToolId, string> = {

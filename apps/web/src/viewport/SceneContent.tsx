@@ -1,11 +1,4 @@
-import {
-  computeBounds,
-  formatMeters,
-  getFreePorts,
-  distance,
-  lerp,
-  type Vec3,
-} from '@hydrobim/core';
+import { computeBounds, formatMeters, distance, lerp, type Vec3 } from '@hydrobim/core';
 import { classifyElement } from '@hydrobim/ifc';
 import {
   GizmoHelper,
@@ -20,6 +13,9 @@ import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Group, OrthographicCamera as OrthoImpl, PerspectiveCamera } from 'three';
 import { BufferAttribute, BufferGeometry, DoubleSide, MOUSE, Vector3 } from 'three';
+import { portMarkerRadius } from '../editor/picking';
+import { describeSnap } from '../editor/snapLabel';
+import { visibleElementsOf, visibleFreePortsOf } from '../editor/visibility';
 import { drawElevationOf, useEditorStore, type ViewPreset } from '../state/editorStore';
 import { ElementMesh } from './ElementMesh';
 import { InteractionController } from './InteractionController';
@@ -103,14 +99,15 @@ function FreePortMarkers() {
   const project = useEditorStore((s) => s.project);
   const tool = useEditorStore((s) => s.tool);
   const snappedPort = useEditorStore((s) => s.cursor?.port ?? null);
-  const ports = useMemo(() => getFreePorts(project), [project]);
+  // Portas de sistemas ocultos não são oferecidas como alvo de conexão.
+  const ports = useMemo(() => visibleFreePortsOf(project), [project]);
   if (tool === 'select' || tool === 'measure') return null;
   return (
     <>
       {ports.map((port) => {
         const active =
           snappedPort?.elementId === port.ref.elementId && snappedPort.portId === port.ref.portId;
-        const radius = Math.max(port.spec.outerDiameter * 0.62, 0.02) * (active ? 1.5 : 1);
+        const radius = portMarkerRadius(port) * (active ? 1.5 : 1);
         return (
           <mesh key={`${port.ref.elementId}#${port.ref.portId}`} position={tuple(port.position)}>
             <sphereGeometry args={[radius, 16, 12]} />
@@ -132,7 +129,13 @@ function DrawingOverlay() {
   const cursor = useEditorStore((s) => s.cursor);
   const tool = useEditorStore((s) => s.tool);
   const measure = useEditorStore((s) => s.measure);
+  const project = useEditorStore((s) => s.project);
   const showCursor = cursor && tool !== 'select';
+  // Identifica o que foi capturado quando o ponto vem de um elemento (porta ou tubo).
+  const snapLabel =
+    showCursor && (cursor.snap === 'port' || cursor.snap === 'pipe')
+      ? describeSnap(project, cursor)
+      : null;
 
   const measureEnd = measure.b ?? (measure.a && tool === 'measure' ? cursor?.point : null) ?? null;
 
@@ -143,6 +146,13 @@ function DrawingOverlay() {
           <sphereGeometry args={[0.025, 12, 8]} />
           <meshBasicMaterial color={DRAW_COLOR} depthTest={false} />
         </mesh>
+      )}
+      {showCursor && snapLabel && (
+        <Html position={tuple(cursor.point)} pointerEvents="none" style={{ pointerEvents: 'none' }}>
+          <span className="viewport-label viewport-label--snap" data-testid="viewport-snap-label">
+            {snapLabel}
+          </span>
+        </Html>
       )}
       {tool === 'pipe' && anchor && cursor && distance(anchor.point, cursor.point) > 1e-6 && (
         <>
@@ -204,7 +214,8 @@ function CameraRig() {
   useEffect(() => {
     if (!viewRequest || !controls) return;
     const { project } = useEditorStore.getState();
-    const bounds = computeBounds(project.elements);
+    // O enquadramento considera só o que está visível.
+    const bounds = computeBounds(visibleElementsOf(project));
     const center = bounds
       ? new Vector3(
           (bounds.min.x + bounds.max.x) / 2,

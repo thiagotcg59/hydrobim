@@ -2,7 +2,8 @@ import { formatMeters, validateProject } from '@hydrobim/core';
 import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useEditorStore } from '../state/editorStore';
-import { SNAP_LABELS, TOOL_LABELS } from './labels';
+import { describeSnap } from '../editor/snapLabel';
+import { TOOL_LABELS } from './labels';
 
 export function StatusBar() {
   const cursor = useEditorStore((s) => s.cursor);
@@ -26,7 +27,9 @@ export function StatusBar() {
           ? `X ${formatMeters(cursor.point.x)}   Y ${formatMeters(cursor.point.y)}   Z ${formatMeters(cursor.point.z)}`
           : 'X —   Y —   Z —'}
       </span>
-      <span className="statusbar__item">{cursor ? SNAP_LABELS[cursor.snap] : '—'}</span>
+      <span className="statusbar__item" data-testid="status-snap">
+        {cursor ? (cursor.note ?? describeSnap(project, cursor)) : '—'}
+      </span>
       <span className="statusbar__item" data-testid="status-mode">
         {TOOL_LABELS[tool]}: {mode}
       </span>

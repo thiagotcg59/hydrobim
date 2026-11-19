@@ -15,6 +15,7 @@ import {
   deflectionConstraintOf,
   drawElevationOf,
   elbowAnglesOf,
+  pipeCrossingOf,
   pipeJunctionOf,
   pipeSnapOf,
   useEditorStore,
@@ -222,6 +223,39 @@ describe('modelagem pela planta baixa', () => {
     state().undo();
     expect(count('tee')).toBe(0);
     expect(count('pipe')).toBe(1);
+  });
+
+  it('na planta, tubo em outra cota é só referência: o cruzamento não cria conexão', () => {
+    state().setTool('pipe');
+    state().commitPoint(vec3(0, 2, 0));
+    state().commitPoint(vec3(4, 2, 0));
+    state().cancelInteraction();
+    const main = state().project.elements[0] as Pipe;
+
+    // Traçado 1 m acima do tubo existente.
+    state().commitPoint(vec3(1.5, 0, 1));
+    expect(pipeJunctionOf(state(), main.id)).toBeNull();
+    expect(pipeSnapOf(state(), { elementId: main.id, point: vec3(1.5, 2, 0) }, null)).toBeNull();
+    expect(pipeCrossingOf(state(), main.id)).toContain('1,00 m abaixo do traçado');
+    // O clique sobre o tubo vale como ponto livre na cota do traçado.
+    state().handleViewportClick({
+      point: vec3(1.5, 2, 1),
+      port: null,
+      hit: { elementId: main.id, point: vec3(1.5, 2, 0) },
+    });
+    expect(count('tee')).toBe(0);
+    expect(count('pipe')).toBe(2);
+    expect(state().project.connections).toHaveLength(0);
+    const crossing = state().project.elements.at(-1) as Pipe;
+    expect(crossing.end).toEqual(vec3(1.5, 2, 1));
+    expect(validateProject(state().project)).toEqual([]);
+
+    // No modelo 3D o tubo é apontado diretamente: a ligação continua disponível.
+    state().setViewMode('3d');
+    state().setTool('pipe');
+    state().commitPoint(vec3(3, 0, 1));
+    expect(pipeJunctionOf(state(), main.id)).toEqual(vec3(3, 2, 0));
+    expect(pipeCrossingOf(state(), main.id)).toBeNull();
   });
 
   it('recusa terminar sobre um tubo sem perpendicular e mantém o trecho em andamento', () => {
