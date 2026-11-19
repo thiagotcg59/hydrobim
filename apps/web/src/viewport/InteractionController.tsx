@@ -1,9 +1,20 @@
-import { constrainDeflection, getFreePorts, vec3, type Vec3 } from '@hydrobim/core';
+import { constrainDeflection, degToRad, vec3, type Vec3 } from '@hydrobim/core';
 import { useThree } from '@react-three/fiber';
 import { useEffect, type RefObject } from 'react';
-import { Matrix4, Mesh, MOUSE, Raycaster, Vector2, type Group, type Object3D } from 'three';
+import {
+  Matrix4,
+  Mesh,
+  MOUSE,
+  Raycaster,
+  Vector2,
+  type Group,
+  type Object3D,
+  type OrthographicCamera,
+  type PerspectiveCamera,
+} from 'three';
 import { ndcRectFromPixels, verticesInsideRect } from '../editor/boxSelection';
-import { pickPoint, type PickResult, type Ray } from '../editor/picking';
+import { pickPoint, type PickResult, type PixelScale, type Ray } from '../editor/picking';
+import { visibleFreePortsOf } from '../editor/visibility';
 import {
   deflectionConstraintOf,
   drawElevationOf,
@@ -52,6 +63,20 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     const mvp = new Matrix4();
     let frame = 0;
     let lastEvent: PointerEvent | null = null;
+    /** Escolha manual entre portas sob o cursor (tecla Tab). */
+    let cycle = 0;
+    let stacked = 1;
+
+    /** Tamanho do pixel no modelo, para que a captura tenha o mesmo raio na tela em qualquer zoom. */
+    const pixelScale = (): PixelScale => {
+      const height = canvas.clientHeight || 1;
+      if ('isOrthographicCamera' in camera) {
+        const ortho = camera as OrthographicCamera;
+        return { constant: (ortho.top - ortho.bottom) / ortho.zoom / height, perDistance: 0 };
+      }
+      const fov = degToRad((camera as PerspectiveCamera).fov);
+      return { constant: 0, perDistance: (2 * Math.tan(fov / 2)) / height };
+    };
 
     const resolve = (
       event: PointerEvent,
@@ -86,7 +111,10 @@ export function InteractionController({ elementsRef, onHover }: Props) {
         ? pickPoint({
             ray,
             // Na medição não há conexão: as portas servem apenas como pontos notáveis.
-            freePorts: getFreePorts(state.project),
+            // Sistemas ocultos não são desenhados nem capturados.
+            freePorts: visibleFreePortsOf(state.project),
+            pixelScale: pixelScale(),
+            cycle,
             workPlaneZ: drawElevationOf(state),
             gridStep,
             anchor:
@@ -100,7 +128,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       const constraint = deflectionConstraintOf(state);
       // Junto a um tubo existente, o cursor mostra onde o tê automático ficará.
       const onPipe = picked?.port ? null : pipeSnapOf(state, hit, picked?.point ?? null);
-      if (onPipe) return { pick: { point: onPipe, snap: 'pipe', port: null }, hit };
+      if (onPipe) return { pick: { point: onPipe, snap: 'pipe', port: null, stacked: 1 }, hit };
       const pick: PickResult | null =
         picked && constraint && !picked.port
           ? {
@@ -113,9 +141,33 @@ export function InteractionController({ elementsRef, onHover }: Props) {
               ),
               snap: 'angle',
               port: null,
+              stacked: 1,
             }
           : picked;
       return { pick, hit };
+    };
+
+    const hover = (event: PointerEvent): void => {
+      let { pick, hit } = resolve(event);
+      // Fora de um empilhamento de portas, a escolha manual é esquecida.
+      if (cycle !== 0 && (pick?.stacked ?? 1) <= 1) {
+        cycle = 0;
+        ({ pick, hit } = resolve(event));
+      }
+      stacked = pick?.stacked ?? 1;
+      const state = useEditorStore.getState();
+      onHover(hit?.elementId ?? null);
+      state.setCursor(
+        pick
+          ? {
+              point: pick.point,
+              snap: pick.snap,
+              port: pick.port?.ref ?? null,
+              elementId: pick.port?.ref.elementId ?? (pick.snap === 'pipe' ? hit?.elementId : null),
+              stacked: pick.stacked,
+            }
+          : null,
+      );
     };
 
     const onPointerMove = (event: PointerEvent): void => {
@@ -124,13 +176,18 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       frame = requestAnimationFrame(() => {
         frame = 0;
         if (!lastEvent || lastEvent.buttons !== 0) return;
-        const { pick, hit } = resolve(lastEvent);
-        const state = useEditorStore.getState();
-        onHover(hit?.elementId ?? null);
-        state.setCursor(
-          pick ? { point: pick.point, snap: pick.snap, port: pick.port?.ref ?? null } : null,
-        );
+        hover(lastEvent);
       });
+    };
+
+    // Tab alterna entre as portas sob o cursor (como na planta); fora disso, o Tab é do navegador.
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Tab' || stacked <= 1 || !lastEvent) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return;
+      event.preventDefault();
+      cycle += event.shiftKey ? -1 : 1;
+      hover(lastEvent);
     };
 
     const isAdditive = (event: PointerEvent): boolean =>
@@ -252,6 +309,8 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     };
 
     const onPointerLeave = (): void => {
+      stacked = 1;
+      cycle = 0;
       onHover(null);
       useEditorStore.getState().setCursor(null);
     };
@@ -260,6 +319,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointerleave', onPointerLeave);
+    window.addEventListener('keydown', onKeyDown);
     return () => {
       if (frame) cancelAnimationFrame(frame);
       stopBox();
@@ -267,6 +327,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointerleave', onPointerLeave);
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, [gl, camera, getThree, elementsRef, onHover]);
 

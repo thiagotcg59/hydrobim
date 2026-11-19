@@ -347,6 +347,15 @@ code {
   background: rgba(62, 143, 255, 0.14);
 }
 
+.viewport-label--snap {
+  display: inline-block;
+  margin: 14px 0 0 14px;
+  border-color: #7fd4e2;
+  color: #c9f1f7;
+  font-family: var(--font);
+  pointer-events: none;
+}
+
 .viewport-label--measure {
   border-color: #7ee0c3;
   color: #7ee0c3;
