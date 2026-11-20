@@ -28,6 +28,8 @@ export function classifyFittingFamily(
       return { entity: 'IfcPipeFitting', predefinedType: 'BEND', objectType: 'elbow' };
     case 'tee':
       return { entity: 'IfcPipeFitting', predefinedType: 'JUNCTION', objectType: 'tee' };
+    case 'cross':
+      return { entity: 'IfcPipeFitting', predefinedType: 'JUNCTION', objectType: 'cross' };
     case 'reducer':
       return { entity: 'IfcPipeFitting', predefinedType: 'TRANSITION', objectType: 'reducer' };
     case 'valve': {

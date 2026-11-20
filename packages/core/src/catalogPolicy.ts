@@ -13,7 +13,7 @@ import { formatDegrees } from './units';
  * recusada. Bombas e o reservatório genérico são equipamentos e ficam fora da política.
  */
 
-const CATALOG_KINDS: ReadonlySet<string> = new Set(['elbow', 'tee', 'reducer', 'valve']);
+const CATALOG_KINDS: ReadonlySet<string> = new Set(['elbow', 'tee', 'cross', 'reducer', 'valve']);
 
 /**
  * Conexões que a passagem de `before` para `after` deixaria fora de catálogo: as criadas

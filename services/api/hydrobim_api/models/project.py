@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 
 def _json_number(value: Any) -> int | float:
@@ -205,6 +205,15 @@ class Tee(FittingBase):
     branch_spec: PipeSpec = Field(default=None, validate_default=False)
 
 
+class Cross(FittingBase):
+    """Esquema v14: cruzeta — passagem `a`/`b` e derivações opostas `branch` e `branch2`."""
+
+    kind: Literal["cross"]
+    run_length: PositiveNumber
+    branch_length: PositiveNumber
+    branch_spec: PipeSpec = Field(default=None, validate_default=False)
+
+
 class Reducer(FittingBase):
     kind: Literal["reducer"]
     outlet_spec: PipeSpec
@@ -386,7 +395,7 @@ class PumpFamily(CamelModel):
 
 
 HydroElement = Annotated[
-    Pipe | Elbow | Tee | Reducer | Valve | Pump | Tank, Field(discriminator="kind")
+    Pipe | Elbow | Tee | Cross | Reducer | Valve | Pump | Tank, Field(discriminator="kind")
 ]
 
 
@@ -442,7 +451,7 @@ class FamilySize(CamelModel):
 class FittingFamily(CamelModel):
     id: NonEmptyString
     name: str
-    kind: Literal["elbow", "tee", "reducer", "valve"]
+    kind: Literal["elbow", "tee", "cross", "reducer", "valve"]
     specification_id: NonEmptyString
     end_type: EndType
     angle: PositiveNumber = Field(default=None, validate_default=False)
@@ -604,7 +613,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[13], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[14], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -630,17 +639,20 @@ class Project(CamelModel):
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v13), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v14), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
             return document
+        # v13 → v14: cruzeta como elemento e famílias de cruzetas; só acrescenta tipos.
+        if version == 13:
+            return {**document, "schemaVersion": 14}
         # v12 → v13: famílias de bombas — campos opcionais na bomba e a lista de famílias
         # personalizadas, vazia nos documentos antigos.
         document = {"pumpFamilies": [], **document}
         if version == 12:
-            return {**document, "schemaVersion": 13}
+            return {**document, "schemaVersion": 14}
         # v11 → v12: limite, linhas de quebra e procedência da superfície do terreno. Um
         # terreno antigo é um levantamento por pontos, sem limite informado.
         terrain = document.get("terrain")
@@ -651,7 +663,7 @@ class Project(CamelModel):
             else terrain,
         }
         if version == 11:
-            return {**document, "schemaVersion": 13}
+            return {**document, "schemaVersion": 14}
         # v10 → v11: configuração do ambiente Infra e referência altimétrica (não informada).
         # A escala que um projeto Infra usava na planta passa a ser a da Planta Infra.
         # v9 → v10: trechos retos do joelho e cotas das curvas ponta e bolsa (opcionais).
@@ -661,7 +673,7 @@ class Project(CamelModel):
         # v5 → v6: forma construtiva, bocais e acessórios dos reservatórios (opcionais).
         # v4 → v5: filtro Y e furação opcional dos flanges. Nos dois casos o documento
         # já era válido.
-        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 13}
+        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 14}
         if version != 1 and version != 2 and version != 3:
             return cls._migrate_v10(document)
         # v3 → v4: anotações da planta baixa e escala do desenho.

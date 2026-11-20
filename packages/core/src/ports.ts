@@ -115,6 +115,30 @@ function getLocalPorts(element: HydroElement): LocalPort[] {
         ),
       ];
     }
+    case 'cross': {
+      const half = element.runLength / 2;
+      const branchSpec = element.branchSpec ?? spec;
+      return [
+        port('a', 'Passagem A', 'run', vec3(-half, 0, 0), MINUS_X, spec),
+        port('b', 'Passagem B', 'run', vec3(half, 0, 0), PLUS_X, spec),
+        port(
+          'branch',
+          'Derivação 1',
+          'branch',
+          vec3(0, element.branchLength, 0),
+          vec3(0, 1, 0),
+          branchSpec,
+        ),
+        port(
+          'branch2',
+          'Derivação 2',
+          'branch',
+          vec3(0, -element.branchLength, 0),
+          vec3(0, -1, 0),
+          branchSpec,
+        ),
+      ];
+    }
     case 'reducer': {
       const half = element.length / 2;
       return [

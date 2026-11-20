@@ -826,6 +826,8 @@ export function catalogOf(
   return createFamilyCatalog(familiesOf(project), preferred, {
     pipeFlange: pipeFlangeEnd,
     flange: flangeForClass,
+    flangedPipeFamilies: (specificationId) =>
+      flangedPipeFamiliesFor(specificationId).map((family) => family.id),
   });
 }
 
@@ -886,8 +888,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           angle: degToRad(toolOptions.elbowAngleDeg),
           familyId: toolOptions.families.elbow,
         });
-      case 'tee': {
-        const familyId = toolOptions.families.tee;
+      case 'tee':
+      case 'cross': {
+        const familyId = toolOptions.families[kind];
         const dn = toolOptions.teeBranchDn;
         if (dn === null || dn === port.spec.dn) return success({ kind, familyId });
         const branchSpec = resolvePipeSpec(port.spec.specificationId, dn);

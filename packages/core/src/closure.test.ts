@@ -38,16 +38,17 @@ function two(bStart: Vec3, bEnd: Vec3): { project: Project; a: PortRef; b: PortR
 }
 
 describe('closePorts', () => {
-  it('eixos colineares e opostos: fecha com um tubo', () => {
+  it('eixos colineares e opostos: prolonga o tubo de partida até a outra extremidade', () => {
     const { project, a, b } = two(vec3(3, 0, 0), vec3(4, 0, 0));
     const closed = closePorts(project, { a, b });
     expect(closed.ok).toBe(true);
     if (!closed.ok) return;
     expect(closed.value.kind).toBe('straight');
-    expect(closed.value.summary).toBe('1 tubo');
+    expect(closed.value.summary).toMatch(/^prolongamento de "Tubo 1" em 2,000 m$/);
     const after = closed.value.project;
-    expect(kinds(after.elements, 'pipe')).toHaveLength(3);
-    expect(after.connections).toHaveLength(2);
+    // Sem tubo intermediário (nem junta a mais): o próprio tubo chega à outra extremidade.
+    expect(kinds(after.elements, 'pipe')).toHaveLength(2);
+    expect(after.connections).toHaveLength(1);
     expect(findConnection(after, a)).toBeDefined();
     expect(findConnection(after, b)).toBeDefined();
     expect(validateProject(after)).toEqual([]);
@@ -63,7 +64,7 @@ describe('closePorts', () => {
     if (!closed.ok) return;
     expect(closed.value.kind).toBe('elbow');
     expect(radToDeg(closed.value.angle ?? 0)).toBeCloseTo(90);
-    expect(closed.value.summary).toBe('1 joelho de 90° e 1 tubo');
+    expect(closed.value.summary).toMatch(/^1 joelho de 90° e 1 tubo e prolongamento de "Tubo 1"/);
     const after = closed.value.project;
     const elbow = kinds(after.elements, 'elbow')[0];
     if (elbow?.kind !== 'elbow') throw new Error('sem joelho');
@@ -103,7 +104,7 @@ describe('closePorts', () => {
       expect(getFreePorts(closure.project)).toHaveLength(2);
       expect(validateProject(closure.project)).toEqual([]);
     }
-    expect(options.value[1]?.summary).toBe('2 joelhos de 45° e 2 tubos');
+    expect(options.value[1]?.summary).toMatch(/^2 joelhos de 45° e 2 tubos/);
 
     // Com o catálogo restrito, só os ângulos existentes; o pedido fora dele é recusado.
     const only45 = closureCandidates(project, { a, b, elbowAngles: [degToRad(45)] });

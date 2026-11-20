@@ -7,7 +7,7 @@ import {
   vec3,
 } from '@hydrobim/core';
 import { describe, expect, it } from 'vitest';
-import { flangeEnd } from '../flanges';
+import { flangedPipeFamiliesFor, flangeEnd, pipeFlangeEnd } from '../flanges';
 import { BUILTIN_FAMILIES, resolvePipeSpec } from '../index';
 
 const mm = (m: number | undefined): number => Math.round((m ?? NaN) * 1e5) / 100;
@@ -71,7 +71,17 @@ describe('macromedidor eletromagnético SANECOM (catálogo, p. 4)', () => {
   it('é inserido em linha no ferro fundido dúctil, sem pendências de validação', () => {
     const spec = resolvePipeSpec('ferro-ductil-nbr7675-k9', 150);
     if (!spec) throw new Error('especificação ausente');
-    const catalog = createFamilyCatalog(BUILTIN_FAMILIES);
+    // Com as famílias de tubos com flanges: as faces do corte recebem o flange PN 10.
+    const catalog = createFamilyCatalog(
+      BUILTIN_FAMILIES,
+      {},
+      {
+        pipeFlange: pipeFlangeEnd,
+        flangedPipeFamilies: (id) => flangedPipeFamiliesFor(id).map((f) => f.id),
+      },
+    );
+    // Sem elas, um flange encostaria na ponta lisa do corte: a inserção é recusada.
+    const bare = createFamilyCatalog(BUILTIN_FAMILIES);
     const pipe = addPipe(createProject('Macromedição'), {
       start: vec3(0, 0, 0),
       end: vec3(4, 0, 0),
@@ -85,6 +95,18 @@ describe('macromedidor eletromagnético SANECOM (catálogo, p. 4)', () => {
       catalog,
     });
     if (!inserted.ok) throw new Error(inserted.error.message);
+    const refused = insertInline(pipe.value.project, {
+      pipeId: pipe.value.elementId,
+      distanceFromStart: 2,
+      fitting: { kind: 'valve', valveType: 'flowMeter' },
+      catalog: bare,
+    });
+    expect(refused.ok ? 'ok' : refused.error.code).toBe('NO_PIPE_FLANGE');
+    const pipes = inserted.value.project.elements.filter((e) => e.kind === 'pipe');
+    expect(pipes.map((p) => (p.kind === 'pipe' ? Object.keys(p.ends ?? {}) : []))).toEqual([
+      ['end'],
+      ['start'],
+    ]);
     const meter = inserted.value.project.elements.find((e) => e.kind === 'valve');
     if (meter?.kind !== 'valve') throw new Error('medidor ausente');
     expect(meter.name).toBe('Medidor de vazão 1');

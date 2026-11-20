@@ -243,6 +243,37 @@ const FLANGED_TAPERS = [
   [600, 500, 600],
 ] as const;
 
+/**
+ * Cruzeta com flanges — AVK 712 (EN 545, furação EN 1092 PN 10/16), linhas PN 10 e PN 10/16
+ * do datasheet. [DN, dn, L (face a face da passagem), H (eixo à face do flange da derivação)].
+ * O catálogo da PAM (ed. 2010) não traz cruzeta; as linhas ilegíveis do datasheet (DN 400 de
+ * redução) ficaram de fora, e DN 350 não consta.
+ */
+const AVK_CROSS =
+  'AVK — datasheet "AVK CROSS, PN16, 712/1510-001" (©2024 AVK Group, 13-set-2024), p. 2–3 (https://files.avkvalves.com/updated-ftp/downloads/712-1510-001_avkcms_en%202437_429015.pdf)';
+const FLANGED_CROSSES = [
+  [80, 80, 330, 165],
+  [100, 80, 360, 175],
+  [100, 100, 360, 180],
+  [150, 100, 440, 210],
+  [150, 150, 440, 220],
+  [200, 100, 520, 240],
+  [200, 150, 520, 250],
+  [200, 200, 520, 260],
+  [250, 100, 700, 275],
+  [250, 150, 700, 300],
+  [250, 200, 700, 325],
+  [250, 250, 700, 350],
+  [300, 100, 800, 300],
+  [300, 150, 800, 325],
+  [300, 200, 800, 350],
+  [300, 250, 800, 375],
+  [300, 300, 800, 400],
+  [400, 400, 900, 450],
+  [500, 500, 1000, 500],
+  [600, 600, 1100, 550],
+] as const;
+
 const PN10_NOTE = flangeSourceNote('PN 10');
 
 const common = { manufacturer: 'Saint-Gobain PAM', standard: 'EN 545 / ISO 2531 (ABNT NBR 7675)' };
@@ -302,6 +333,23 @@ export const DUCTILE_IRON_FAMILIES: FittingFamily[] = [
       ...(branch !== dn ? { dn2: branch } : {}),
       centerToEnd: lu / 2,
       centerToBranch: hu,
+      end: flange(dn),
+      end2: flange(branch),
+    })),
+  }),
+  ...forSpecifications(SPECIFICATIONS, {
+    manufacturer: 'AVK',
+    standard: 'EN 545 (furação EN 1092 PN 10)',
+    id: 'avk-cruzeta-flanges',
+    name: 'Cruzeta com flanges PN 10',
+    kind: 'cross',
+    endType: 'flange',
+    source: `${AVK_CROSS} — centro à face da passagem = L/2 (derivado); H (eixo à face das derivações, iguais nos dois lados). O desenho não indica se L inclui o ressalto. ${PN10_NOTE}`,
+    sizes: FLANGED_CROSSES.map(([dn, branch, l, h]) => ({
+      dn,
+      ...(branch !== dn ? { dn2: branch } : {}),
+      centerToEnd: l / 2,
+      centerToBranch: h,
       end: flange(dn),
       end2: flange(branch),
     })),

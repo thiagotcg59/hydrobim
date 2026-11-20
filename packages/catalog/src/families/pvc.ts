@@ -356,6 +356,53 @@ const pba: FittingFamily[] = [
     }),
   }),
   ...forSpecifications(PBA, {
+    id: 'wavin-cruzeta-pba',
+    name: 'Cruzeta PBA junta elástica',
+    kind: 'cross',
+    endType: 'socket',
+    manufacturer: 'Amanco Wavin',
+    standard: 'ABNT NBR 5647',
+    source: `${WAVIN_PBA}, p. 18 — centro à porta derivado: L/2 − C. A tabela traz uma única cota L (de boca a boca), adotada para a passagem e para as derivações (peça simétrica no desenho).`,
+    // DN: L (comprimento total, de boca a boca)
+    sizes: (
+      [
+        [50, 198],
+        [75, 248],
+        [100, 288],
+      ] as const
+    ).map(([size, l]) => {
+      const [depth, od] = pbaSocket(size);
+      return {
+        dn: size,
+        centerToEnd: l / 2 - depth,
+        centerToBranch: l / 2 - depth,
+        end: [depth, od] as EndMm,
+      };
+    }),
+  }),
+  ...forSpecifications(PBA, {
+    id: 'wavin-cruzeta-reducao-pba',
+    name: 'Cruzeta de redução PBA junta elástica',
+    kind: 'cross',
+    endType: 'socket',
+    manufacturer: 'Amanco Wavin',
+    standard: 'ABNT NBR 5647',
+    source: `${WAVIN_PBA}, p. 20 — centro à porta derivado: L/2 − C (passagem) e L1/2 − C1 (derivações; L1 = comprimento total das derivações, de boca a boca).`,
+    // [DN passagem, DN derivações, L, L1]
+    sizes: ([[75, 50, 248, 226]] as const).map(([size, branch, l, l1]) => {
+      const run = pbaSocket(size);
+      const out = pbaSocket(branch);
+      return {
+        dn: size,
+        dn2: branch,
+        centerToEnd: l / 2 - run[0],
+        centerToBranch: l1 / 2 - out[0],
+        end: run,
+        end2: out,
+      };
+    }),
+  }),
+  ...forSpecifications(PBA, {
     id: 'wavin-reducao-pba',
     name: 'Redução PBA ponta e bolsa',
     kind: 'reducer',
