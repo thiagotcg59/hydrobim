@@ -66,6 +66,7 @@ import { downloadText, projectFileBase } from '../persistence/fileIO';
 import {
   deflectionConstraintOf,
   drawElevationOf,
+  equipmentGroundElevation,
   isAnnotationTool,
   pipeCrossingOf,
   pipeSnapOf,
@@ -448,6 +449,14 @@ export function PlanView() {
         );
       }
       return ok({ ...picked.value, point: vec3(point.x, point.y, Math.round(z * 1000) / 1000) });
+    }
+    // Equipamento sobre o terreno: a prévia já mostra a cota do terreno no ponto.
+    if (picked.ok) {
+      const { point } = picked.value;
+      const ground = equipmentGroundElevation(state, point.x, point.y);
+      if (ground !== null) {
+        return ok({ ...picked.value, point: vec3(point.x, point.y, ground), snap: 'terrain' });
+      }
     }
     return picked;
   };

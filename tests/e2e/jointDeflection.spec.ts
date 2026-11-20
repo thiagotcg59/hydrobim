@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { ctl } from './ui';
 
 /**
- * Deflexão na junta: tubos de junta elástica mudam de direção sem peça até o limite que o
- * fabricante admite para o material e o diâmetro; acima dele, o traçado exige joelho.
+ * Mudança de direção sem peça: até o limite que o fabricante admite para o material e o
+ * diâmetro — deflexão da junta elástica ou curvatura a frio do tubo; acima dele, joelho.
  */
 
 function trackErrors(page: Page): string[] {
@@ -28,7 +28,9 @@ async function addPoint(page: Page, x: string, y: string, z: string): Promise<vo
   await (await ctl(page, 'coord-add')).click();
 }
 
-test('ferro dúctil deflete até 5° na junta; PVC soldável não deflete', async ({ page }) => {
+test('ferro dúctil deflete na junta, PEAD curva a frio e PVC soldável não muda de direção sem peça', async ({
+  page,
+}) => {
   const errors = trackErrors(page);
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
@@ -67,6 +69,17 @@ test('ferro dúctil deflete até 5° na junta; PVC soldável não deflete', asyn
   await expect(page.getByTestId('element-count')).toHaveText('2');
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
 
+  // Sem peça entre eles, os dois trechos são selecionados como um tubo só.
+  await page.getByTestId('element-item').first().click();
+  await expect(page.getByTestId('properties-title')).toHaveText('Tubo · 2 trechos');
+  const run = page.getByTestId('pipe-run-properties');
+  await expect(run).toHaveAttribute('data-count', '2');
+  await expect(page.getByTestId('pipe-run-length')).toHaveText('12,01 m');
+  await expect(page.getByTestId('pipe-run-turns')).toContainText('maior desvio 2,86°');
+  // Um trecho isolado é aberto pela lista do painel.
+  await page.getByTestId('pipe-run-segment-1').click();
+  await expect(page.getByTestId('properties-scope')).toContainText('Seleção única');
+  await page.keyboard.press('Escape');
   // PVC soldável: junta rígida, a mesma deflexão pequena é recusada.
   await (await ctl(page, 'tool-pipe')).click();
   await (await ctl(page, 'active-specification')).selectOption('pvc-soldavel-nbr5648');
@@ -77,6 +90,24 @@ test('ferro dúctil deflete até 5° na junta; PVC soldável não deflete', asyn
   await expect(page.getByTestId('status-message')).toContainText('Não há joelho de');
   for (let i = 0; i < 3; i += 1) await page.keyboard.press('Escape');
   await expect(page.getByTestId('element-count')).toHaveText('3');
+
+  // PEAD: a junta não deflete, mas o tubo curva a frio (raio de 30 × DE = 3,30 m em DE 110).
+  await (await ctl(page, 'tool-pipe')).click();
+  await (await ctl(page, 'active-specification')).selectOption('pead-pe100-sdr11');
+  await (await ctl(page, 'active-dn')).selectOption('110');
+  const bend = await ctl(page, 'option-joint-deflection');
+  await expect(bend).toHaveAttribute('data-kind', 'bend');
+  await expect(bend).toContainText('raio mínimo de 3,30 m');
+  await expect(bend).toHaveAttribute('title', /Corr Plastik.*p\. 24/);
+  await addPoint(page, '0', '10', '0');
+  await addPoint(page, '3', '10', '0');
+  // Trecho de 1,02 m com 11,31° de desvio: cabe em 1,02 / 3,30 rad = 17,7°.
+  await addPoint(page, '4', '10,2', '0');
+  await expect(page.getByTestId('status-message')).toContainText(
+    'Tubo criado com curvatura a frio de 11,31° no vértice',
+  );
+  for (let i = 0; i < 3; i += 1) await page.keyboard.press('Escape');
+  await expect(page.getByTestId('element-count')).toHaveText('5');
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
   expect(errors).toEqual([]);
 });

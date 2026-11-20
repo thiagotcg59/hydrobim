@@ -12,7 +12,8 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 
 - Sistema destro com **Z para cima**. A elevação de um ponto é a sua coordenada Z (eixo da tubulação).
 - **DN não é diâmetro físico.** `PipeSpec` guarda separadamente `dn`, `outerDiameter`, `innerDiameter` e `wallThickness`, todos resolvidos a partir do catálogo.
-- **Deflexão na junta.** Duas portas acopladas têm de estar opostas, admitido o desvio angular que a junta permite: `jointDeflectionLimit` devolve o menor `PipeSpec.jointDeflection` dos dois lados (0 com flange ou sem o dado). Dentro do limite, `drawPipe` conecta o tubo direto, sem joelho; a validação acusa `DIRECTION_MISMATCH` acima dele. Sem o dado, vale só a tolerância geométrica de 0,5°.
+- **Mudança de direção sem peça.** Duas portas acopladas têm de estar opostas, admitido o desvio que o fabricante permite: `deflectionAllowance` devolve o maior entre a deflexão da junta elástica (menor `PipeSpec.jointDeflection` dos dois lados) e a curvatura a frio do tubo (só entre dois tubos: trecho mais curto, limitado a `coldBendSpan`, dividido por `coldBendRadius`, até 22,5° por vértice). Com flange ou sem o dado, o limite é 0. Dentro do limite, `drawPipe` conecta o tubo direto, sem joelho; a validação acusa `DIRECTION_MISMATCH` acima dele. A porta de tubo informa o comprimento do trecho (`run`, derivado).
+- **Tubulação contínua.** `pipeRunOf(project, pipeId)` devolve, em ordem de percurso, os tubos ligados direto uns aos outros (porta de tubo com porta de tubo); qualquer peça interrompe a sequência. É derivada do grafo — nada é persistido e cada trecho mantém o seu `id`. A interface seleciona e apresenta a sequência como um tubo só; quantitativos e exportações continuam por trecho.
 
 ## Projeto
 
@@ -224,7 +225,7 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 
 ## Catálogo (`packages/catalog`)
 
-`PipeSpecification` descreve material, norma, tipo de junta, classe de pressão e a tabela de diâmetros (`dn`, rótulo, diâmetro externo e espessura em mm). `resolvePipeSpec(id, dn)` converte para `PipeSpec` em SI. Especificações de junta elástica trazem ainda a deflexão admitida em cada junta, por faixa de DN e com a fonte (`jointDeflection`), que segue para `PipeSpec.jointDeflection` (rad, opcional).
+`PipeSpecification` descreve material, norma, tipo de junta, classe de pressão e a tabela de diâmetros (`dn`, rótulo, diâmetro externo e espessura em mm). `resolvePipeSpec(id, dn)` converte para `PipeSpec` em SI. Especificações de junta elástica trazem ainda a deflexão admitida em cada junta, por faixa de DN e com a fonte (`jointDeflection`), que segue para `PipeSpec.jointDeflection` (rad, opcional); e, quando o tubo pode ser curvado a frio, o dado de curvatura (`coldBending`), que segue para `PipeSpec.coldBendRadius` e `coldBendSpan` (m, opcionais).
 
 As dimensões padrão das conexões (`dimensions.ts`) são proporções genéricas do diâmetro externo, usadas até existir um catálogo dimensional de conexões por norma/fabricante (Fase 2).
 

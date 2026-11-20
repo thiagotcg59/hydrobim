@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { createTerrain } from '../analysis';
 import { georeferenceStatus } from '../geo/transform';
 import { geographicToTile } from '../geo/webMercator';
-import { vec3, type Vec3 } from '../math';
+import { sub, vec3, type Vec3 } from '../math';
 import { createProject } from '../operations';
 import { setTerrain } from '../projectOps';
 import type { Result } from '../result';
 import { surveySource, type Georeference, type Point2, type Terrain } from '../schema';
 import { parseProject, serializeProject } from '../serialization';
 import { validateProject } from '../validation';
-import { suggestContourInterval, terrainContours } from './contours';
+import { smoothContourLine, suggestContourInterval, terrainContours } from './contours';
 import { axisElevationForCover, coverAlongSegment } from './cover';
 import {
   constrainedDelaunay,
@@ -27,7 +27,13 @@ import {
 } from './polygon';
 import { terrainProfile } from './profile';
 import { buildSurveySurface, parseBreaklines, terrainExchange } from './survey';
-import { buildTerrainSurface, terrainElevationAt, terrainHitAt, terrainStats } from './surface';
+import {
+  buildTerrainSurface,
+  terrainElevationAt,
+  terrainHitAt,
+  terrainRayHit,
+  terrainStats,
+} from './surface';
 
 function unwrap<T>(result: Result<T>): T {
   if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`);
@@ -327,6 +333,23 @@ describe('superfície do terreno', () => {
     expect(terrainElevationAt(terrain, 37.5, 62.5)).toBeCloseTo(100 + 0.75 + 0.625, 9);
     expect(terrainElevationAt(terrain, 100, 100)).toBeCloseTo(103, 9);
     expect(terrainElevationAt(terrain, 100.01, 50)).toBeNull();
+
+    // Raio do cursor: oblíquo, vertical, por baixo e fora da superfície.
+    const ground = (x: number, y: number): number => 100 + 0.02 * x + 0.01 * y;
+    const target = vec3(40, 30, ground(40, 30));
+    const from = vec3(-60, -90, 180);
+    const oblique = terrainRayHit(terrain, from, sub(target, from))!;
+    expect(oblique.x).toBeCloseTo(40, 6);
+    expect(oblique.y).toBeCloseTo(30, 6);
+    expect(oblique.z).toBeCloseTo(ground(40, 30), 6);
+    expect(terrainRayHit(terrain, vec3(25, 75, 500), vec3(0, 0, -1))).toEqual(
+      vec3(25, 75, terrainElevationAt(terrain, 25, 75)!),
+    );
+    const below = terrainRayHit(terrain, vec3(10, 10, 0), sub(target, vec3(10, 10, 0)))!;
+    expect(below.x).toBeCloseTo(40, 6);
+    expect(terrainRayHit(terrain, from, vec3(-1, 0, -1))).toBeNull();
+    expect(terrainRayHit(terrain, vec3(150, 50, 300), vec3(0, 0, -1))).toBeNull();
+
     const hit = terrainHitAt(terrain, 33, 71)!;
     expect(hit.slope).toBeCloseTo(Math.hypot(0.02, 0.01), 9);
     // Desce para −X e −Y: azimute (a partir de +Y, horário) no terceiro quadrante.
@@ -460,6 +483,38 @@ describe('curvas de nível', () => {
     expect(ring.lines).toHaveLength(1);
     const line = ring.lines[0]!;
     expect(line[0]).toEqual(line[line.length - 1]);
+    // Suavização visual: mais pontos, curva ainda fechada e dentro do polígono original.
+    const smooth = smoothContourLine(line);
+    expect(smooth.length).toBeGreaterThan(line.length * 2);
+    expect(smooth[0]).toEqual(smooth[smooth.length - 1]);
+    for (const p of smooth) {
+      expect(Math.hypot(p.x, p.y)).toBeGreaterThan(14.5);
+      expect(Math.hypot(p.x, p.y)).toBeLessThan(16.7);
+    }
+    // Curva aberta: as pontas (no limite da superfície) não se movem.
+    const open = smoothContourLine([
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+    ]);
+    expect(open[0]).toEqual({ x: 0, y: 0 });
+    expect(open[open.length - 1]).toEqual({ x: 10, y: 10 });
+    expect(open.some((p) => p.x === 10 && p.y === 0)).toBe(false);
+    // Degraus de célula (curva em escada ao longo da diagonal): a suavização os remove, não só
+    // arredonda os cantos.
+    const stair: { x: number; y: number }[] = [{ x: 0, y: 0 }];
+    for (let k = 0; k < 20; k += 1) {
+      stair.push({ x: 5 * k + 5, y: 5 * k }, { x: 5 * k + 5, y: 5 * k + 5 });
+    }
+    const flat = smoothContourLine(stair);
+    // O eixo médio da escada é x - y = 2,5 (meio degrau abaixo da diagonal).
+    const offDiagonal = (p: { x: number; y: number }): number =>
+      Math.abs(p.x - p.y - 2.5) / Math.SQRT2;
+    expect(Math.max(...stair.map(offDiagonal))).toBeCloseTo(1.77, 1);
+    const middle = flat.filter((p) => p.x > 25 && p.x < 75);
+    expect(Math.max(...middle.map(offDiagonal))).toBeLessThan(0.3);
+    expect(flat[0]).toEqual({ x: 0, y: 0 });
+    expect(flat[flat.length - 1]).toEqual({ x: 100, y: 100 });
     // Cone de 0,3 m/m: a curva de 15 m fica a 16,67 m do cume (a malha a aproxima por dentro).
     for (const p of line) {
       expect(Math.hypot(p.x, p.y)).toBeGreaterThan(15);

@@ -23,7 +23,8 @@ import {
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Group, OrthographicCamera as OrthoImpl, PerspectiveCamera } from 'three';
-import { MOUSE, Vector3 } from 'three';
+import { Matrix4, MOUSE, Quaternion, Vector3 } from 'three';
+import { orbitPivotShift, targetAtPivotDepth } from '../editor/orbitPivot';
 import { portMarkerRadius } from '../editor/picking';
 import { toCanonical, toRender } from '../editor/renderOrigin';
 import { formatSegment } from '../editor/segment';
@@ -191,8 +192,8 @@ function DrawingOverlay() {
 interface OrbitLike {
   target: Vector3;
   update: () => void;
-  addEventListener: (type: 'change', listener: () => void) => void;
-  removeEventListener: (type: 'change', listener: () => void) => void;
+  addEventListener: (type: 'change' | 'start' | 'end', listener: () => void) => void;
+  removeEventListener: (type: 'change' | 'start' | 'end', listener: () => void) => void;
 }
 
 type SceneCamera = PerspectiveCamera | OrthoImpl;
@@ -301,9 +302,91 @@ function CameraRig() {
         viewport.height,
       );
     }
-    const onChange = (): void => rememberFocus(camera, controls);
+    // Navegação focada na seleção: com algo selecionado, o giro é em torno do centro da seleção
+    // (que fica parado na tela), o zoom aproxima em direção a ela e o pan a acompanha no cursor.
+    // Vale só entre `start` e `end` — vistas predefinidas e enquadramentos não passam por aqui.
+    let pivot: Vec3 | null = null;
+    let dragging = false;
+    /** O zoom só é centrado na seleção quando ela está à vista; fora da tela, vale o da câmera. */
+    let zoomOnPivot = false;
+    const previous = {
+      world: new Matrix4(),
+      rotation: new Quaternion(),
+      target: new Vector3(),
+      range: 1,
+      zoom: 1,
+    };
+    const keepPose = (): void => {
+      camera.updateMatrixWorld();
+      previous.world.copy(camera.matrixWorld);
+      previous.rotation.copy(camera.quaternion);
+      previous.target.copy(controls.target);
+      previous.range = camera.position.distanceTo(controls.target);
+      previous.zoom = camera.zoom;
+    };
+    const pivotInScene = (point: Vec3): Vector3 => {
+      const { x, y, z } = toRender(point, appliedOrigin.current);
+      return new Vector3(x, y, z);
+    };
+    const onStart = (): void => {
+      const { project, selection } = useEditorStore.getState();
+      const chosen =
+        selection.length > 0
+          ? visibleElementsOf(project).filter((element) => selection.includes(element.id))
+          : [];
+      const bounds = chosen.length > 0 ? computeBounds(chosen) : null;
+      pivot = bounds ? lerp(bounds.min, bounds.max, 0.5) : null;
+      dragging = true;
+      zoomOnPivot = false;
+      if (pivot) {
+        camera.updateMatrixWorld();
+        const point = pivotInScene(pivot);
+        // Alvo na profundidade da seleção: o pan e o zoom passam a ser medidos em relação a ela.
+        const forward = camera.getWorldDirection(new Vector3());
+        const target = targetAtPivotDepth(camera.position, forward, point);
+        if (target) controls.target.copy(target);
+        const screen = point.clone().project(camera);
+        zoomOnPivot = target !== null && Math.abs(screen.x) <= 1 && Math.abs(screen.y) <= 1;
+      }
+      keepPose();
+    };
+    const onEnd = (): void => {
+      dragging = false;
+    };
+    const onChange = (): void => {
+      if (dragging && pivot) {
+        // No pan o alvo dos controles anda junto com a câmera: nada a compensar.
+        const panned = !controls.target.equals(previous.target);
+        const rotated = camera.quaternion.angleTo(previous.rotation) > 1e-9;
+        if (!panned && (rotated || zoomOnPivot)) {
+          camera.updateMatrixWorld();
+          const ortho = isOrtho(camera);
+          const range = camera.position.distanceTo(controls.target);
+          const lateral = ortho
+            ? previous.zoom / camera.zoom
+            : range / Math.max(previous.range, 1e-9);
+          const shift = orbitPivotShift(
+            previous.world,
+            camera.matrixWorld,
+            pivotInScene(pivot),
+            lateral,
+            ortho ? 1 : lateral,
+          );
+          camera.position.add(shift);
+          controls.target.add(shift);
+        }
+        keepPose();
+      }
+      rememberFocus(camera, controls);
+    };
+    controls.addEventListener('start', onStart);
+    controls.addEventListener('end', onEnd);
     controls.addEventListener('change', onChange);
-    return () => controls.removeEventListener('change', onChange);
+    return () => {
+      controls.removeEventListener('start', onStart);
+      controls.removeEventListener('end', onEnd);
+      controls.removeEventListener('change', onChange);
+    };
     // A altura do viewport só importa no momento da troca de câmera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camera, controls]);
@@ -436,6 +519,8 @@ export function SceneContent() {
         makeDefault
         enableDamping={false}
         maxPolarAngle={Math.PI}
+        // Cada passo da roda aproxima ~10 % (o padrão, 5 %, exige girar demais em redes longas).
+        zoomSpeed={2}
         mouseButtons={mouseButtons}
       />
       <CameraRig />

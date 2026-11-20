@@ -37,6 +37,8 @@ export interface Port {
   readonly spec: PipeSpec;
   /** Acabamento da extremidade (bolsa, flange); `null` = ponta lisa. */
   readonly end: EndTreatment | null;
+  /** Portas de tubo: comprimento (m) do trecho reto atrás da porta. Ausente nas conexões. */
+  readonly run?: number;
 }
 
 interface LocalPort {
@@ -164,6 +166,7 @@ export function getPorts(element: HydroElement): Port[] {
     direction: rotate(frame.rotation, p.direction),
     spec: p.spec,
     end: ends?.[p.id] ?? null,
+    ...(element.kind === 'pipe' ? { run: pipeLength(element) } : {}),
   }));
 }
 
