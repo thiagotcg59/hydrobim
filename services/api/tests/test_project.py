@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 13
+    assert project.schema_version == 14
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 14),
+        (("schemaVersion",), 15),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 13.0
+    project_document["schemaVersion"] = 14.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -239,7 +239,7 @@ def test_migrates_v11_terrain_as_survey_without_presumed_data(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump()
     assert legacy == before
-    assert migrated["schemaVersion"] == 13
+    assert migrated["schemaVersion"] == 14
     terrain = migrated["terrain"]
     assert terrain["points"] == TERRAIN_V11["points"]
     assert terrain["boundary"] is None
@@ -691,7 +691,7 @@ def test_migrates_v12_adding_empty_pump_families(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated == {**project_document, "schemaVersion": 13}
+    assert migrated == {**project_document, "schemaVersion": 14}
 
 
 def _custom_pump_family():
@@ -818,3 +818,19 @@ def test_equipment_and_single_port_air_release(client, project_document, kind):
     assert response.json()["valid"] is (kind != "valve")
     if kind == "valve":
         assert {issue["code"] for issue in response.json()["issues"]} == {"DANGLING_CONNECTION"}
+
+
+def test_migrates_v13_and_accepts_cross(project_document):
+    """Esquema v14: a cruzeta (quatro portas) é um elemento; documentos v13 migram sem mudança."""
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 13
+    migrated = Project.model_validate(legacy).model_dump(by_alias=True)
+    assert migrated == project_document
+    tee = next((e for e in project_document["elements"] if e["kind"] == "tee"), None)
+    if tee is None:
+        return
+    cross = {**deepcopy(tee), "id": "cruzeta-1", "kind": "cross", "name": "Cruzeta 1"}
+    document = deepcopy(project_document)
+    document["elements"].append(cross)
+    parsed = Project.model_validate(document)
+    assert parsed.elements[-1].kind == "cross"

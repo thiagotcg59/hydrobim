@@ -29,6 +29,13 @@ export const TeeIcon = createLucideIcon('HydroTee', [
   ['path', { d: 'M4 6.5v8M20 6.5v8M8 19h8', key: 'flanges' }],
 ]);
 
+/** Cruzeta: passagem horizontal e duas derivações opostas. */
+export const CrossIcon = createLucideIcon('HydroCross', [
+  ['path', { d: 'M4 9.5h5.5V4M20 9.5h-5.5V4', key: 'top' }],
+  ['path', { d: 'M4 14.5h5.5V20M20 14.5h-5.5V20', key: 'bottom' }],
+  ['path', { d: 'M2.5 8v8M21.5 8v8M8 2.5h8M8 21.5h8', key: 'flanges' }],
+]);
+
 /** Redução concêntrica: boca maior à esquerda. */
 export const ReducerIcon = createLucideIcon('HydroReducer', [
   ['path', { d: 'M4 6.5h3l10 3h3', key: 'top' }],
@@ -66,6 +73,7 @@ export const ELEMENT_ICONS: Readonly<Record<HydroElement['kind'], LucideIcon>> =
   pipe: PipeIcon,
   elbow: ElbowIcon,
   tee: TeeIcon,
+  cross: CrossIcon,
   reducer: ReducerIcon,
   valve: ValveIcon,
   pump: PumpIcon,

@@ -9,7 +9,8 @@ import {
 } from './connectivity';
 import { ANGLE_TOLERANCE, MIN_PIPE_LENGTH, POSITION_TOLERANCE } from './dimensions';
 import { formatAngleList, matchElbowAngle } from './elbowAngles';
-import type { FittingCatalog } from './families';
+import { GENERIC_CATALOG, type FittingCatalog } from './families';
+import { newPipeFlange } from './flangeMatch';
 import {
   add,
   angleBetween,
@@ -22,7 +23,13 @@ import {
   sub,
   type Vec3,
 } from './math';
-import { drawPipe, setPipeEndpoint } from './operations';
+import {
+  drawPipe,
+  endMismatch,
+  runToPort,
+  setPipeEndpoint,
+  type PipeEndsInput,
+} from './operations';
 import type { Port } from './ports';
 import { fail, ok, type Result } from './result';
 import type { PortRef, Project } from './schema';
@@ -106,6 +113,45 @@ const plainCompatible = (project: Project, port: Port): Result<true> => {
 };
 
 /**
+ * Tubo novo saindo de uma porta flangeada: a face de partida recebe o flange de uma família de
+ * tubos com flanges que case com ela (`undefined` = porta sem flange, tubo de ponta lisa).
+ */
+function flangedStart(port: Port, input: ClosureInput): Result<PipeEndsInput | undefined> {
+  if (port.end?.type !== 'flange') return ok(undefined);
+  const flange = newPipeFlange(input.catalog ?? GENERIC_CATALOG, port.spec, [port.end]);
+  if (!flange.ok) return flange;
+  return ok({ start: flange.value.end, end: null, familyId: flange.value.familyId });
+}
+
+/** Último trecho: chega à porta de destino pelo eixo dela, com o flange que ela exigir. */
+function arriveAt(
+  project: Project,
+  from: PortRef,
+  target: PortRef,
+  input: ClosureInput,
+): Result<{ project: Project; ref: PortRef; createdIds: string[] }> {
+  const port = resolvePort(project, from);
+  if (!port) return fail('PORT_NOT_FOUND', 'Porta de conexão inexistente.');
+  const run = runToPort(
+    project,
+    {
+      fromPort: from,
+      start: port.position,
+      spec: port.spec,
+      catalog: input.catalog,
+      elbowAngles: input.elbowAngles,
+    },
+    target,
+  );
+  if (!run.ok) return run;
+  const last: PortRef =
+    run.value.extendedId !== null || run.value.createdIds.length === 0
+      ? from
+      : { elementId: run.value.elementId, portId: 'end' };
+  return ok({ project: run.value.project, ref: last, createdIds: run.value.createdIds });
+}
+
+/**
  * Leva a porta `ref` até `point`, ao longo do seu eixo: prolonga o tubo dono da porta ou,
  * saindo de uma conexão, cria o trecho reto. Devolve a porta que passa a estar em `point`.
  */
@@ -125,12 +171,15 @@ function extendTo(
     const moved = setPipeEndpoint(project, host.id, ref.portId, point);
     return moved.ok ? ok({ project: moved.value, ref, createdIds: [] }) : moved;
   }
+  const ends = flangedStart(port, input);
+  if (!ends.ok) return ends;
   const drawn = drawPipe(project, {
     fromPort: ref,
     start: port.position,
     end: point,
     spec: port.spec,
     catalog: input.catalog,
+    ...(ends.value ? { ends: ends.value } : {}),
   });
   if (!drawn.ok) return drawn;
   return ok({
@@ -149,6 +198,8 @@ function runTo(
 ): Result<{ project: Project; ref: PortRef; createdIds: string[] }> {
   const port = resolvePort(project, from);
   if (!port) return fail('PORT_NOT_FOUND', 'Porta de conexão inexistente.');
+  const ends = flangedStart(port, input);
+  if (!ends.ok) return ends;
   const drawn = drawPipe(project, {
     fromPort: from,
     start: port.position,
@@ -156,6 +207,7 @@ function runTo(
     spec: port.spec,
     catalog: input.catalog,
     elbowAngles: input.elbowAngles,
+    ...(ends.value ? { ends: ends.value } : {}),
   });
   if (!drawn.ok) return drawn;
   return ok({
@@ -187,6 +239,15 @@ function describe(project: Project, before: Project, createdIds: readonly string
     );
   }
   if (pipes > 0) parts.push(`${pipes} tubo${pipes > 1 ? 's' : ''}`);
+  // Tubos existentes prolongados (o fechamento prefere prolongar a acrescentar um trecho).
+  for (const old of before.elements) {
+    const now = getElement(project, old.id);
+    if (old.kind !== 'pipe' || now?.kind !== 'pipe') continue;
+    const grown = distance(now.start, now.end) - distance(old.start, old.end);
+    if (grown > POSITION_TOLERANCE) {
+      parts.push(`prolongamento de "${old.name}" em ${formatMeters(grown, 3)}`);
+    }
+  }
   return parts.length > 0 ? parts.join(' e ') : 'sem peças novas';
 }
 
@@ -219,7 +280,6 @@ function closeOffset(
   project: Project,
   input: ClosureInput,
   pa: Port,
-  pb: Port,
   along: number,
   lateral: Vec3,
   angle: number,
@@ -244,7 +304,7 @@ function closeOffset(
   if (!first.ok) return first;
   const second = runTo(first.value.project, first.value.ref, corner2, input);
   if (!second.ok) return second;
-  const third = runTo(second.value.project, second.value.ref, pb.position, input);
+  const third = arriveAt(second.value.project, second.value.ref, input.b, input);
   if (!third.ok) return third;
   return finish(project, third.value.project, third.value.ref, input.b, 'offset', angle, [
     ...first.value.createdIds,
@@ -335,6 +395,8 @@ function rigidClosures(project: Project, input: ClosureInput): Result<Closure[]>
 
   // Portas já encostadas e opostas: basta conectar (flange com flange inclusive).
   if (distance(pa.position, pb.position) <= POSITION_TOLERANCE && facing <= ANGLE_TOLERANCE) {
+    const mismatch = endMismatch(pa.end, pb.end);
+    if (mismatch) return fail('END_MISMATCH', mismatch);
     const joined = connectPorts(project, input.a, input.b);
     if (!joined.ok) return joined;
     return ok([
@@ -348,11 +410,8 @@ function rigidClosures(project: Project, input: ClosureInput): Result<Closure[]>
     ]);
   }
 
-  for (const port of [pa, pb]) {
-    const plain = plainCompatible(project, port);
-    if (!plain.ok) return plain;
-  }
-
+  // Extremidades flangeadas: os tubos que encostam nelas recebem flange de uma família de
+  // tubos com flanges que case (`runToPort`/`flangedStart`); sem ela, a recusa explica.
   if (facing <= ANGLE_TOLERANCE) {
     const along = dot(gap, pa.direction);
     const lateral = sub(gap, scale(pa.direction, along));
@@ -364,7 +423,8 @@ function rigidClosures(project: Project, input: ClosureInput): Result<Closure[]>
       );
     }
     if (offset <= POSITION_TOLERANCE) {
-      const run = runTo(project, input.a, pb.position, { ...input, elbowAngles: undefined });
+      // Alinhadas: prolonga o tubo de partida (ou um tubo novo saindo da peça).
+      const run = arriveAt(project, input.a, input.b, { ...input, elbowAngles: undefined });
       if (!run.ok) return run;
       const closed = finish(
         project,
@@ -393,7 +453,7 @@ function rigidClosures(project: Project, input: ClosureInput): Result<Closure[]>
     let firstError: Result<Closure> | null = null;
     // Do joelho mais aberto ao mais fechado: 90° usa o menor avanço axial.
     for (const angle of [...angles].sort((x, y) => y - x)) {
-      const closed = closeOffset(project, input, pa, pb, along, lateral, angle);
+      const closed = closeOffset(project, input, pa, along, lateral, angle);
       if (closed.ok) closures.push(closed.value);
       else firstError ??= closed;
     }
@@ -436,7 +496,7 @@ function rigidClosures(project: Project, input: ClosureInput): Result<Closure[]>
   }
   const first = extendTo(project, input.a, crossing.p1, input);
   if (!first.ok) return first;
-  const second = runTo(first.value.project, first.value.ref, pb.position, input);
+  const second = arriveAt(first.value.project, first.value.ref, input.b, input);
   if (!second.ok) return second;
   const closed = finish(
     project,

@@ -11,6 +11,7 @@ VALID_PORTS = {
     "pipe": frozenset({"start", "end"}),
     "elbow": frozenset({"a", "b"}),
     "tee": frozenset({"a", "b", "branch"}),
+    "cross": frozenset({"a", "b", "branch", "branch2"}),
     "reducer": frozenset({"a", "b"}),
     "valve": frozenset({"a", "b"}),
     "pump": frozenset({"a", "b"}),

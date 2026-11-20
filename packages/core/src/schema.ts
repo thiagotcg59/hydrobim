@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 13 as const;
+export const SCHEMA_VERSION = 14 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -190,6 +190,23 @@ export const TeeSchema = z.object({
   branchSpec: PipeSpecSchema.optional(),
 });
 export type Tee = z.infer<typeof TeeSchema>;
+
+/**
+ * Cruzeta: passagem ao longo de X (portas `a` e `b`) e duas derivações opostas, `branch` em +Y
+ * e `branch2` em −Y, no mesmo diâmetro (`branchSpec` na cruzeta de redução). As quatro portas
+ * são reais: uma derivação sem tubo fica livre — só um acessório (cap, flange cego) a fecharia.
+ */
+export const CrossSchema = z.object({
+  ...fittingBase,
+  kind: z.literal('cross'),
+  /** Comprimento total da passagem direta, de porta a porta (m). */
+  runLength: positive,
+  /** Distância do centro à porta de cada derivação (m). */
+  branchLength: positive,
+  /** Especificação das derivações na cruzeta de redução; ausente = igual à passagem. */
+  branchSpec: PipeSpecSchema.optional(),
+});
+export type Cross = z.infer<typeof CrossSchema>;
 
 export const ReducerSchema = z.object({
   ...fittingBase,
@@ -568,13 +585,14 @@ export const ElementSchema = z.discriminatedUnion('kind', [
   PipeSchema,
   ElbowSchema,
   TeeSchema,
+  CrossSchema,
   ReducerSchema,
   ValveSchema,
   PumpSchema,
   TankSchema,
 ]);
 export type HydroElement = z.infer<typeof ElementSchema>;
-export type Fitting = Elbow | Tee | Reducer | Valve | Pump | Tank;
+export type Fitting = Elbow | Tee | Cross | Reducer | Valve | Pump | Tank;
 export type ElementKind = HydroElement['kind'];
 export type FittingKind = Fitting['kind'];
 
@@ -620,7 +638,7 @@ export type HydraulicSystem = z.infer<typeof HydraulicSystemSchema>;
 // Famílias de conexões (catálogo dimensional editável)
 // ---------------------------------------------------------------------------
 
-export const FAMILY_KINDS = ['elbow', 'tee', 'reducer', 'valve'] as const;
+export const FAMILY_KINDS = ['elbow', 'tee', 'cross', 'reducer', 'valve'] as const;
 export const FamilyKindSchema = z.enum(FAMILY_KINDS);
 export type FamilyKind = z.infer<typeof FamilyKindSchema>;
 
@@ -639,6 +657,7 @@ export type FamilyEnd = z.infer<typeof FamilyEndSchema>;
  *    porta `a` e `end2`, se houver, a porta `b`;
  *  - tê: `centerToEnd` = centro à porta da passagem; `centerToBranch` = centro à derivação;
  *    `dn2` = DN da derivação (tê de redução);
+ *  - cruzeta: como o tê, com `centerToBranch` valendo para as duas derivações;
  *  - redução: `length` = porta a porta; `dn` = maior, `dn2` = menor;
  *  - válvula: `length` = face a face; `height`/`handwheelDiameter` opcionais.
  * `end` descreve a extremidade do lado `dn`; `end2`, a do lado `dn2`.

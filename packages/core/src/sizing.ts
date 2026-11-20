@@ -36,6 +36,14 @@ function portGroups(element: HydroElement): string[][] {
       return [['a'], ['b']];
     case 'tee':
       return element.branchSpec ? [['a', 'b'], ['branch']] : [['a', 'b', 'branch']];
+    case 'cross':
+      // As duas derivações da cruzeta têm sempre o mesmo diâmetro.
+      return element.branchSpec
+        ? [
+            ['a', 'b'],
+            ['branch', 'branch2'],
+          ]
+        : [['a', 'b', 'branch', 'branch2']];
     case 'tank':
       // Entrada e saída compartilham a especificação; cada bocal adicional tem a sua.
       return [['a', 'b'], ...(element.nozzles ?? []).map((nozzle) => [nozzle.id])];
@@ -102,11 +110,17 @@ function withSpec(
         bendRadius: dims.bendRadius,
       };
     }
-    case 'tee': {
-      const branchOnly = group.length === 1 && group[0] === 'branch';
+    case 'tee':
+    case 'cross': {
+      const branchOnly = !group.includes('a') && group.includes('branch');
       const runSpec = branchOnly ? element.spec : spec;
       const branchSpec = branchOnly ? spec : (element.branchSpec ?? spec);
-      const dims = catalog.tee(runSpec, branchSpec, element.familyId, keepFlange(element));
+      const dims = catalog[element.kind](
+        runSpec,
+        branchSpec,
+        element.familyId,
+        keepFlange(element),
+      );
       const { branchSpec: _previous, ...rest } = element;
       return {
         ...rest,

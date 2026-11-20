@@ -10,6 +10,7 @@ O HydroBIM traz **famílias de conexões** com dimensões transcritas de catálo
 | --- | --- |
 | Joelho/curva | centro (vértice teórico) à porta; bolsa ou flange |
 | Tê | centro à porta da passagem; eixo à porta da derivação; DN da derivação |
+| Cruzeta | como o tê; `centerToBranch` vale para as duas derivações (opostas, mesmo DN) |
 | Redução | distância entre as portas; DN maior e menor |
 | Válvula | face a face; altura do eixo ao topo; volante/alavanca |
 
@@ -32,9 +33,10 @@ A Krona foi usada por ser o único catálogo que tabula profundidade e diâmetro
 | Família | Fonte |
 | --- | --- |
 | Tê, tê de redução, redução ponta e bolsa | Amanco Wavin — FT Linha PBA, jan/2025 (p. 24–25) |
+| Cruzeta (DN 50, 75, 100) e cruzeta de redução (DN 75 × 50) | idem (p. 18 e 20) |
 | Tubos classes 12, 15 e 20 | Amanco Wavin — FT Linha PBA, jan/2025 (p. 14–15); classes 15 e 20 também em Tigre — Catálogo Infraestrutura 07/2025 |
 
-O centro à porta dos tês é **derivado** das cotas totais do catálogo (`L/2 − C` e `L1 − A/2 − C`). As curvas PBA de 90°, 45°, 22°30′ e 11°15′ (DN 50, 75 e 100) são famílias de joelho **ponta e bolsa**: a porta `a` fica no fundo da bolsa e a porta `b` na extremidade da ponta (que entra na bolsa do tubo seguinte), a distâncias diferentes do vértice — `centerToEnd` = S + R·tg(θ/2) e `centerToEnd2` = F + R·tg(θ/2), com `bendRadius` = R. O raio R e o trecho reto S **não são tabulados**: vêm da hipótese descrita na biblioteca de produtos, abaixo (a 90°, o vértice ao fundo da bolsa é `L − C − D/2`, independente do raio). A ressalva está no campo `source` de cada família.
+O centro à porta dos tês é **derivado** das cotas totais do catálogo (`L/2 − C` e `L1 − A/2 − C`). Na cruzeta, a tabela traz uma única cota `L` (de boca a boca): o centro à porta `L/2 − C` é adotado para a passagem e para as derivações (peça simétrica no desenho — declarado no `source`); na cruzeta de redução, as derivações usam `L1/2 − C1`. As curvas PBA de 90°, 45°, 22°30′ e 11°15′ (DN 50, 75 e 100) são famílias de joelho **ponta e bolsa**: a porta `a` fica no fundo da bolsa e a porta `b` na extremidade da ponta (que entra na bolsa do tubo seguinte), a distâncias diferentes do vértice — `centerToEnd` = S + R·tg(θ/2) e `centerToEnd2` = F + R·tg(θ/2), com `bendRadius` = R. O raio R e o trecho reto S **não são tabulados**: vêm da hipótese descrita na biblioteca de produtos, abaixo (a 90°, o vértice ao fundo da bolsa é `L − C − D/2`, independente do raio). A ressalva está no campo `source` de cada família.
 
 ### PVC DEFoFo (`pvc-defofo-nbr7665`)
 
@@ -46,7 +48,12 @@ Tubos: Tigre MPVC DEFoFo (Catálogo Infraestrutura 07/2025, p. 15). Usa as conex
 | --- | --- |
 | Curvas 90°, 45°, 22°30' e 11°15' com bolsas e com flanges PN 10 | Saint-Gobain PAM — Water supply and distribution, ed. 2010 |
 | Tê e redução com bolsas e com flanges PN 10 | idem (p. 411–419, 535–561) |
+| Cruzeta com flanges PN 10 (`avk-cruzeta-flanges`, DN 80 a 600, iguais e de redução) | AVK — datasheet "AVK CROSS, PN16, 712/1510-001" (©2024, 13-set-2024), p. 2–3 — <https://files.avkvalves.com/updated-ftp/downloads/712-1510-001_avkcms_en%202437_429015.pdf> |
 | Flange PN 10 das peças flangeadas | tabela única de flanges (ver abaixo) |
+
+**Cruzeta flangeada:** o catálogo da PAM (ed. 2010, p. 499–572) não traz cruzeta. A família vem do datasheet AVK 712 (EN 545, furação EN 1092 PN 10/16): `L` (face a face da passagem) e `H` (eixo à face das derivações), só as linhas PN 10 e PN 10/16; centro à face da passagem = `L/2` (derivado). As linhas ilegíveis do datasheet (DN 400 de redução) ficaram de fora; DN 350 não consta. O desenho não indica se `L` inclui o ressalto. Para DN iguais, os valores coincidem com os do tê flangeado da PAM. O flange é o da tabela única PN 10.
+
+**Sem cruzeta de catálogo** (a conversão e a escolha "Cruzeta" são recusadas com o motivo): PVC soldável (o catálogo Krona usado não traz cruzeta; a ficha Tigre "Cruzeta Soldável", jul/2025, p. 8, só tabula DE 20 e 50 e tem a cota D incoerente — não cadastrada), cruzeta de ferro dúctil com bolsas (o "Catálogo Geral" Saint-Gobain Canalização 2023.2, p. 269–270, tabula `L` e `H`, mas o desenho não permite confirmar o significado das cotas — pendente de conferência), aço-carbono e PEAD.
 
 **Ressalvas:** é a edição **internacional** de 2010 (EN 545 / ISO 2531); o catálogo brasileiro da PAM não pôde ser consultado. A equivalência entre a junta STANDARD e a JGS/JE2GS brasileira é uma suposição. Valores copiados como impressos, inclusive os que parecem erros do catálogo (curvas flangeadas de 22°30' e 11°15' em DN 500/600 repetem os valores da de 45°).
 
@@ -166,7 +173,7 @@ Além das famílias de conexões — que alimentam as operações de domínio �
 | Tubo classes 12, 15 e 20 (DN 50, 75, 100) | 14–15 | tubo da especificação correspondente (trecho de comprimento livre, sem a bolsa) |
 | Curvas ponta e bolsa 11°15′, 22°30′, 45° e 90° | 20–22 | sim, como joelho (raio derivado por hipótese) |
 | Tê e tê de redução | 24–25 | ferramenta Tê, com a mesma geometria |
-| Cruzeta e cruzeta de redução | 18, 20 | ainda não (Fase 2) |
+| Cruzeta e cruzeta de redução | 18, 20 | Tubulação (Conexão da derivação: Cruzeta) e "Converter em cruzeta", com a mesma geometria |
 | Redução ponta e bolsa | 24 | ferramenta Redução (comprimento da ponta proporcional) |
 | Luva de correr, luva simples, cap | 17–18, 23–24 | ainda não (Fase 2) |
 | Adaptador DEFoFo × PBA | 17 | ainda não (Fase 2) |

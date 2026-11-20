@@ -32,12 +32,13 @@ export function buildFamilyPreview(
       if (family.angle === undefined) return unavailable('A família não tem ângulo definido.');
       input = { kind: 'elbow', angle: family.angle, familyId: family.id };
       break;
-    case 'tee': {
+    case 'tee':
+    case 'cross': {
       const branchSpec = resolvePipeSpec(family.specificationId, size.dn2 ?? size.dn);
       if (!branchSpec) {
         return unavailable(`O DN ${size.dn2} da derivação não existe na especificação de tubo.`);
       }
-      input = { kind: 'tee', branchSpec, familyId: family.id };
+      input = { kind: family.kind, branchSpec, familyId: family.id };
       break;
     }
     case 'reducer': {

@@ -42,6 +42,7 @@ import { drawElevationOf, useEditorStore } from '../state/editorStore';
 import { ElementMesh } from './ElementMesh';
 import { InteractionController } from './InteractionController';
 import { PipeGrips } from './PipeGrips';
+import { PreviewGhosts } from './PreviewGhosts';
 import { SceneLighting } from './SceneLighting';
 import { TerrainSurface } from './TerrainSurface';
 
@@ -513,6 +514,7 @@ export function SceneContent() {
         <FreePortMarkers />
         <PipeGrips />
         <DrawingOverlay />
+        <PreviewGhosts />
       </group>
 
       <OrbitControls

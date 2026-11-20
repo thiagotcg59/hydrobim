@@ -442,7 +442,10 @@ const tees: ProductFamily[] = [
       'A tabela traz uma única cota L: adotada para os dois eixos (peça simétrica no desenho).',
     ],
     remarks: [],
-    network: { inserted: false, note: PLANNED },
+    network: {
+      inserted: true,
+      note: 'Inserida pela Tubulação (Conexão da derivação: Cruzeta) e por "Converter em cruzeta" (família "Cruzeta PBA junta elástica").',
+    },
     columns: [...SOCKET_COLUMNS, col('L', 'Comprimento total, de boca a boca')],
     sizes: sizes(
       DN_LABELS,
@@ -469,7 +472,10 @@ const tees: ProductFamily[] = [
     source: source('20'),
     approximations: [WALL_NOTE, GROOVE_NOTE],
     remarks: [],
-    network: { inserted: false, note: PLANNED },
+    network: {
+      inserted: true,
+      note: 'Inserida com derivações de diâmetro menor (família "Cruzeta de redução PBA junta elástica").',
+    },
     columns: [
       ...SOCKET_COLUMNS,
       ...BRANCH_COLUMNS,

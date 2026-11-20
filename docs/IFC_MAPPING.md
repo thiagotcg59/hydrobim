@@ -53,6 +53,7 @@ Um joelho **não** é uma entidade `IfcElbow` (inexistente): é um `IfcPipeFitti
 | `pipe` | `IfcPipeSegment` | `RIGIDSEGMENT` | Tubo liso: sólido extrudado. Tubo com flanges: malha (`Tessellation`); os flanges não são entidades separadas |
 | `elbow` | `IfcPipeFitting` | `BEND` | Ângulo e raio em propriedades |
 | `tee` | `IfcPipeFitting` | `JUNCTION` | Três portas |
+| `cross` | `IfcPipeFitting` | `JUNCTION` | Quatro portas (`IfcDistributionPort` cada), `ObjectType` = `cross`; `HydroBIM_Conexao.NumberOfPorts` = 4. Mesma junção do tê no esquema: a enumeração não distingue tê de cruzeta (conferido em `schemaData.ts`). Derivação livre exportada como porta sem `IfcRelConnectsPorts` |
 | `reducer` | `IfcPipeFitting` | `TRANSITION` | Diâmetros distintos por porta |
 | `valve` (`gate`, `ball`, `butterfly`) | `IfcValve` | `ISOLATING` | O mecanismo não tem valor na enumeração: registrar em propriedade/`ObjectType` |
 | `valve` (`globe`) | `IfcValve` | `REGULATING` | A confirmar com a prática de projeto |

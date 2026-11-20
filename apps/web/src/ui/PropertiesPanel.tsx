@@ -50,6 +50,7 @@ import {
 } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { CloseEnds } from './CloseEnds';
+import { JunctionConvert } from './JunctionConvert';
 import { ELEMENT_ICONS } from './EngineeringIcons';
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
 import { PipeRunPanel } from './PipeRunPanel';
@@ -114,11 +115,11 @@ function SpecificationSection({ element, project }: { element: HydroElement; pro
                 ? 'B — diâmetro da descarga'
                 : 'Diâmetro — recalque',
           }
-        : element.kind === 'tee'
+        : element.kind === 'tee' || element.kind === 'cross'
           ? {
               spec: element.branchSpec ?? element.spec,
               portId: 'branch',
-              label: 'Diâmetro — derivação',
+              label: element.kind === 'cross' ? 'Diâmetro — derivações' : 'Diâmetro — derivação',
             }
           : null;
 
@@ -134,7 +135,7 @@ function SpecificationSection({ element, project }: { element: HydroElement; pro
               ? element.pumpType === 'amphibious'
                 ? 'A — diâmetro da sucção'
                 : 'Diâmetro — sucção'
-              : element.kind === 'tee'
+              : element.kind === 'tee' || element.kind === 'cross'
                 ? 'Diâmetro — passagem'
                 : 'Diâmetro'
         }
@@ -575,7 +576,7 @@ function FittingGeometry({
           )}
         </>
       )}
-      {element.kind === 'tee' && (
+      {(element.kind === 'tee' || element.kind === 'cross') && (
         <>
           <Dimension
             element={element}
@@ -993,6 +994,9 @@ function ElementProperties({ element, project }: { element: HydroElement; projec
       </Section>
 
       {element.kind === 'pipe' && <InlineInsert key={element.id} pipe={element} />}
+      {(element.kind === 'tee' || element.kind === 'cross') && (
+        <JunctionConvert key={`junction-${element.id}`} element={element} project={project} />
+      )}
       <MoveCopy />
       <BimProperties key={`bim-${element.id}`} element={element} />
 

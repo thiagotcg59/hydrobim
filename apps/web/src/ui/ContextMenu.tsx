@@ -1,7 +1,8 @@
 import { getElement, resolvePort } from '@hydrobim/core';
-import { Spline } from 'lucide-react';
+import { Crosshair, Spline } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useEditorStore } from '../state/editorStore';
+import { useUiStore } from '../state/uiStore';
 
 /**
  * Menu do botão direito junto a uma extremidade de tubo ou a uma conexão. "Criar tubo" aciona
@@ -49,7 +50,7 @@ export function ContextMenu() {
       // Mantém o menu dentro da janela quando o clique é junto à borda.
       style={{
         left: Math.min(menu.x, window.innerWidth - 240),
-        top: Math.min(menu.y, window.innerHeight - 70),
+        top: Math.min(menu.y, window.innerHeight - 130),
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
@@ -69,6 +70,28 @@ export function ContextMenu() {
           <small data-testid="context-create-pipe-hint">{hint}</small>
         </span>
       </button>
+      {(element.kind === 'tee' || element.kind === 'cross') && (
+        <button
+          type="button"
+          role="menuitem"
+          className="context-menu__item"
+          data-testid="context-convert-junction"
+          onClick={() => {
+            // A conversão abre com a prévia no painel; só a confirmação grava.
+            const state = useEditorStore.getState();
+            state.select(element.id);
+            state.previewJunction(element.id, null);
+            state.closeContextMenu();
+            useUiStore.getState().revealProperty('section-junction');
+          }}
+        >
+          <Crosshair size={14} />
+          <span>
+            <strong>{element.kind === 'tee' ? 'Converter em cruzeta' : 'Converter em tê'}</strong>
+            <small>Prévia no painel de propriedades antes de confirmar</small>
+          </span>
+        </button>
+      )}
     </div>
   );
 }

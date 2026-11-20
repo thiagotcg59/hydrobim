@@ -577,11 +577,12 @@ const jeSocket = (port: Port): JeSocket | null =>
  */
 function elasticJointParts(element: HydroElement, ports: Port[]): MeshPart[] | null {
   if (!isElasticJointPvc(element)) return null;
-  if (element.kind === 'tee') {
-    const [a, b, branch] = ports;
+  if (element.kind === 'tee' || element.kind === 'cross') {
+    const [a, b, branch, branch2] = ports;
     const run = a && jeSocket(a);
     const out = branch && jeSocket(branch);
     if (!a || !b || !branch || !run || !out || !jeSocket(b)) return null;
+    if (element.kind === 'cross' && (!branch2 || !jeSocket(branch2))) return null;
     const shape: Extract<PbaShape, { type: 'tee' }> = {
       type: 'tee',
       socket: run,
@@ -593,7 +594,7 @@ function elasticJointParts(element: HydroElement, ports: Port[]): MeshPart[] | n
         bore: branch.spec.innerDiameter,
         reach: element.branchLength + out.depth,
       },
-      branches: 1,
+      branches: element.kind === 'cross' ? 2 : 1,
     };
     return teeIsBuildable(shape) ? buildPbaParts(shape) : null;
   }
@@ -711,6 +712,29 @@ function localParts(element: HydroElement): MeshPart[] {
         ...flangeParts(a),
         ...flangeParts(b),
         ...stub(ORIGIN, branch),
+      ];
+    }
+
+    case 'cross': {
+      // Passagem com as duas derivações opostas, cada uma com o acabamento da sua porta.
+      const [a, b, branch, branch2] = ports;
+      if (!a || !b || !branch || !branch2) return [];
+      return [
+        body(
+          conduit({
+            path: linePath(a.localPosition, b.localPosition),
+            start: endOf(a),
+            end: endOf(b),
+            bodyStart: outer,
+            bodyEnd: outer,
+            boreStart: inner,
+            boreEnd: inner,
+          }),
+        ),
+        ...flangeParts(a),
+        ...flangeParts(b),
+        ...stub(ORIGIN, branch),
+        ...stub(ORIGIN, branch2),
       ];
     }
 

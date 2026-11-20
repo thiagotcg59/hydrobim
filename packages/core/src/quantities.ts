@@ -65,6 +65,14 @@ function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'descri
             size: `${size} × ${element.branchSpec.sizeLabel}`,
           }
         : { category: 'Conexão', description: 'Tê', size };
+    case 'cross':
+      return element.branchSpec
+        ? {
+            category: 'Conexão',
+            description: 'Cruzeta de redução',
+            size: `${size} × ${element.branchSpec.sizeLabel}`,
+          }
+        : { category: 'Conexão', description: 'Cruzeta', size };
     case 'reducer':
       return {
         category: 'Conexão',

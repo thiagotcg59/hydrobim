@@ -115,6 +115,8 @@ export function classifyElement(element: HydroElement): IfcClassification {
       return { entity: 'IfcPipeFitting', predefinedType: 'BEND', objectType: 'elbow' };
     case 'tee':
       return { entity: 'IfcPipeFitting', predefinedType: 'JUNCTION', objectType: 'tee' };
+    case 'cross':
+      return { entity: 'IfcPipeFitting', predefinedType: 'JUNCTION', objectType: 'cross' };
     case 'reducer':
       return { entity: 'IfcPipeFitting', predefinedType: 'TRANSITION', objectType: 'reducer' };
     case 'pump':
@@ -289,6 +291,7 @@ const KIND_LABELS: Record<HydroElement['kind'], string> = {
   pipe: 'Tubo',
   elbow: 'Joelho/curva',
   tee: 'Tê',
+  cross: 'Cruzeta',
   reducer: 'Redução',
   valve: 'Válvula',
   pump: 'Conjunto motobomba',
