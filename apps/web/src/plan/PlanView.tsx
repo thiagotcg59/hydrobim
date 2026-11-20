@@ -73,7 +73,9 @@ import {
   useEditorStore,
 } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
+import { cursorElementOf } from '../state/viewPreview';
 import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
+import { PlanPreviewLayer } from './PlanPreviewLayer';
 import { TerrainPanel } from '../terrain/TerrainPanel';
 import { TerrainProfilePanel } from '../terrain/TerrainProfilePanel';
 import { useTerrainStore } from '../terrain/terrainStore';
@@ -482,6 +484,14 @@ export function PlanView() {
       // Mesmo ponto sobre o eixo usado na prévia (início do trecho sobre o tubo).
       const onAxis = planHit(store.project, target.id, raw)?.point;
       hit = { elementId: target.id, point: onAxis ?? pick.point };
+    } else if (
+      target &&
+      !pick.port &&
+      tool === 'pipe' &&
+      (target.kind === 'tee' || target.kind === 'cross')
+    ) {
+      // Tê ou cruzeta como início ou fim do ramal (a cota é conferida pela operação).
+      hit = { elementId: target.id, point: target.placement.position };
     } else if (target && !pick.port && (tool === 'tee' || tool === 'valve')) {
       if (target.kind === 'pipe') {
         // A posição em linha é medida sobre o eixo real do tubo, não sobre a projeção.
@@ -720,7 +730,13 @@ export function PlanView() {
           point: pick.point,
           snap: pick.snap,
           port: pick.port?.ref ?? null,
-          elementId: pick.port?.ref.elementId ?? (pick.snap === 'pipe' ? elementId : null),
+          elementId: cursorElementOf(
+            store.project,
+            store.tool,
+            pick.port?.ref.elementId ?? null,
+            pick.snap,
+            elementId,
+          ),
           stacked: pick.stacked,
           note,
         }
@@ -1146,6 +1162,7 @@ export function PlanView() {
               />
             ))}
         </g>
+        <PlanPreviewLayer origin={origin} mpp={view.mpp} unit={unit} />
         {labels.length > 0 && <NetworkLabels labels={labels} origin={origin} mpp={view.mpp} />}
         {/* Fora da seleção, as anotações não interceptam o clique sobre os elementos. */}
         <g data-layer="annotations" pointerEvents={tool === 'select' ? undefined : 'none'}>

@@ -1,10 +1,7 @@
 import {
   catalogViolation,
   closureCandidates,
-  drawPipe,
-  drawPipeFromPipe,
   fail,
-  getElement,
   getFreePorts,
   ok,
   resolvePort,
@@ -15,12 +12,13 @@ import {
   type Result,
   type Vec3,
 } from '@hydrobim/core';
-import { distanceAlongPipe } from '../editor/picking';
 import {
   catalogOf,
   elbowAnglesOf,
-  pipeEndsInputOf,
+  pipeSegmentOperation,
+  pipeTargetOperation,
   type DrawAnchor,
+  type PipeOperationState,
   type ToolOptions,
 } from './editorStore';
 import type { PipeSpec } from '@hydrobim/core';
@@ -49,34 +47,21 @@ function policy(state: PipePlanState, after: Project): Result<Project> {
  * Recusa pelos mesmos motivos da confirmação: ângulo sem joelho, tubo curto, peça genérica.
  */
 export function planPipeSegment(state: PipePlanState, point: Vec3): Result<Project> {
-  const { project, anchor } = state;
-  if (!anchor) return fail('NO_ANCHOR', 'Indique primeiro o ponto inicial do trecho.');
-  const origin = anchor.port ? resolvePort(project, anchor.port) : undefined;
-  const source = anchor.pipeId ? getElement(project, anchor.pipeId) : undefined;
-  const catalog = catalogOf(project, state.toolOptions.families);
-  const result =
-    source?.kind === 'pipe'
-      ? drawPipeFromPipe(project, {
-          sourcePipeId: source.id,
-          distanceFromStart: distanceAlongPipe(source.start, source.end, anchor.point),
-          end: point,
-          spec: state.activeSpec,
-          catalog,
-          teeFamilyId: state.toolOptions.families.tee,
-        })
-      : drawPipe(project, {
-          fromPort: anchor.port ?? undefined,
-          start: anchor.point,
-          end: point,
-          spec: state.activeSpec,
-          ends: pipeEndsInputOf(state.toolOptions.pipeEnds, origin?.spec ?? state.activeSpec),
-          catalog,
-          elbowFamilyId: state.toolOptions.families.elbow,
-          elbowAngles:
-            origin && state.toolOptions.lockElbowAngles
-              ? elbowAnglesOf(project, origin.spec, origin.end)
-              : undefined,
-        });
+  if (!state.anchor) return fail('NO_ANCHOR', 'Indique primeiro o ponto inicial do trecho.');
+  const result = pipeSegmentOperation(state, point);
+  return result.ok ? policy(state, result.value.project) : result;
+}
+
+/**
+ * Projeto resultante de terminar o trecho sobre o tubo, tê ou cruzeta `elementId` — a mesma
+ * operação da confirmação (tê automático, cruzeta, prolongamento do ramal, flanges).
+ */
+export function planPipeTarget(
+  state: PipePlanState & { viewMode?: PipeOperationState['viewMode'] },
+  elementId: string,
+): Result<Project> {
+  if (!state.anchor) return fail('NO_ANCHOR', 'Indique primeiro o ponto inicial do trecho.');
+  const result = pipeTargetOperation(state, elementId);
   return result.ok ? policy(state, result.value.project) : result;
 }
 

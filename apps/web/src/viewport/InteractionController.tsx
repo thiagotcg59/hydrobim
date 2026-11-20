@@ -32,6 +32,7 @@ import {
   type PixelScale,
   type Ray,
 } from '../editor/picking';
+import { cursorElementOf } from '../state/viewPreview';
 import { visibleFreePortsOf } from '../editor/visibility';
 import {
   deflectionConstraintOf,
@@ -221,7 +222,13 @@ export function InteractionController({ elementsRef, onHover }: Props) {
               point: pick.point,
               snap: pick.snap,
               port: pick.port?.ref ?? null,
-              elementId: pick.port?.ref.elementId ?? (pick.snap === 'pipe' ? hit?.elementId : null),
+              elementId: cursorElementOf(
+                state.project,
+                state.tool,
+                pick.port?.ref.elementId ?? null,
+                pick.snap,
+                hit?.elementId ?? null,
+              ),
               stacked: pick.stacked,
             }
           : null,

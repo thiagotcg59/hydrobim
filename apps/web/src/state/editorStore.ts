@@ -36,7 +36,16 @@ import {
   availableElbowAngles,
   catalogViolation,
   closePorts,
+  convertCrossToTee,
+  convertTeeToCross,
   copyElements,
+  drawPipeFromJunction,
+  drawPipeToJunction,
+  planConnection,
+  type ConnectionCandidate,
+  type ConnectionPlan,
+  type JunctionChange,
+  type JunctionChoice,
   createFamilyCatalog,
   createProject,
   degToRad,
@@ -168,7 +177,16 @@ export type { ViewPreset };
 export const ANNOTATION_TOOLS = ['dimension', 'text', 'leader', 'tag'] as const;
 export type AnnotationToolId = (typeof ANNOTATION_TOOLS)[number];
 export type ModelToolId =
-  'select' | 'pipe' | 'elbow' | 'tee' | 'reducer' | 'valve' | 'pump' | 'tank' | 'measure';
+  | 'select'
+  | 'pipe'
+  | 'elbow'
+  | 'tee'
+  | 'reducer'
+  | 'valve'
+  | 'pump'
+  | 'tank'
+  | 'measure'
+  | 'connect';
 export type ToolId = ModelToolId | AnnotationToolId;
 export const isAnnotationTool = (tool: ToolId): tool is AnnotationToolId =>
   (ANNOTATION_TOOLS as readonly string[]).includes(tool);
@@ -213,6 +231,31 @@ export interface DrawAnchor {
    * ali quando o ponto seguinte define o lado da derivação.
    */
   readonly pipeId: string | null;
+  /**
+   * Tê ou cruzeta existentes de onde o trecho parte: o ramal sai pela porta voltada para o
+   * ponto seguinte (no lado oposto à derivação de um tê, com a conversão em cruzeta).
+   */
+  readonly junctionId?: string | null;
+}
+
+/** "Alinhar e conectar": extremidade de partida, porta de referência e alternativa escolhida. */
+export interface ConnectState {
+  readonly from: PortRef | null;
+  readonly to: PortRef | null;
+  /** Chave da alternativa escolhida; `null` = a primeira. */
+  readonly choice: string | null;
+  /** Alternativas calculadas sobre `base`; a confirmação grava exatamente a escolhida. */
+  readonly plan: { readonly base: Project; readonly result: Result<ConnectionPlan> } | null;
+}
+const EMPTY_CONNECT: ConnectState = { from: null, to: null, choice: null, plan: null };
+
+/** Conversão tê ⇄ cruzeta aguardando confirmação (prévia no painel e nas vistas). */
+export interface JunctionPreview {
+  readonly elementId: string;
+  readonly target: 'cross' | 'tee';
+  readonly familyId: string | null;
+  readonly base: Project;
+  readonly result: Result<JunctionChange>;
 }
 
 export interface CursorInfo {
@@ -334,6 +377,11 @@ export interface ToolOptions {
   /** DN da derivação do tê; `null` = igual à passagem. */
   readonly teeBranchDn: number | null;
   /**
+   * Peça da derivação criada pela Tubulação: `auto` (tê sobre tubo simples; no lado oposto à
+   * derivação de um tê, converte-o em cruzeta), `tee` ou `cross` (quarta porta livre).
+   */
+  readonly junction: JunctionChoice;
+  /**
    * `reducers`: altera só o elemento e insere/ajusta reduções junto aos vizinhos;
    * `propagate`: aplica a todo o trecho conectado.
    */
@@ -433,6 +481,8 @@ interface EditorState {
   snapToGrid: boolean;
   orthographic: boolean;
   anchor: DrawAnchor | null;
+  connect: ConnectState;
+  junctionPreview: JunctionPreview | null;
   measure: { a: Vec3 | null; b: Vec3 | null };
   cursor: CursorInfo | null;
   stretch: PipeStretch | null;
@@ -569,6 +619,18 @@ interface EditorState {
 ull = primeira solução disponível.
    */
   closeFreeEnds: (a: PortRef, b: PortRef, angle: number | null) => boolean;
+  /** "Alinhar e conectar": indica a extremidade de partida e, depois, a porta de referência. */
+  pickConnectPort: (ref: PortRef) => void;
+  setConnectChoice: (key: string) => void;
+  /** Grava a alternativa escolhida, exatamente como na prévia; devolve se gravou. */
+  confirmConnection: () => boolean;
+  resetConnection: () => void;
+  /** Prévia da troca tê ⇄ cruzeta (a peça alvo decorre do tipo atual). */
+  previewJunction: (elementId: string, familyId: string | null) => void;
+  confirmJunction: () => boolean;
+  cancelJunction: () => void;
+  /** Termina o trecho em andamento num tê ou cruzeta existentes. */
+  finishPipeOnJunction: (junctionId: string) => void;
   assignSystem: (systemId: string) => void;
 
   addLevel: (name: string, elevation: number) => void;
@@ -831,6 +893,216 @@ export function catalogOf(
   });
 }
 
+/** O que as operações do traçado leem do estado (confirmação e prévia usam o mesmo). */
+export interface PipeOperationState {
+  readonly project: Project;
+  readonly anchor: DrawAnchor | null;
+  readonly activeSpec: PipeSpec;
+  readonly toolOptions: ToolOptions;
+  /** Ausente = modelo 3D. */
+  readonly viewMode?: ViewMode;
+}
+
+/** Resultado de uma operação do traçado, com a mensagem de sucesso. */
+export interface PipeOperation {
+  readonly project: Project;
+  /** Elemento a selecionar (o trecho criado ou prolongado). */
+  readonly elementId: string;
+  readonly message: string;
+  /** O trecho terminou acoplado: a polilinha se encerra. */
+  readonly closes: boolean;
+}
+
+const junctionOptions = (state: PipeOperationState) => ({
+  catalog: catalogOf(state.project, state.toolOptions.families),
+  teeFamilyId: state.toolOptions.families.tee,
+  crossFamilyId: state.toolOptions.families.cross,
+  junction: state.toolOptions.junction,
+});
+
+const junctionLabel = (choice: JunctionChoice): string => (choice === 'cross' ? 'cruzeta' : 'tê');
+
+/**
+ * Termina o trecho em andamento sobre o tubo, tê ou cruzeta `elementId`. Na planta, uma peça em
+ * outra cota não recebe a ligação (é só cruzamento em projeção).
+ */
+export function pipeTargetOperation(
+  state: PipeOperationState,
+  elementId: string,
+): Result<PipeOperation> {
+  const { project, anchor } = state;
+  const target = getElement(project, elementId);
+  if (!anchor || !target)
+    return { ok: false, error: { code: 'NO_ANCHOR', message: 'Indique o ponto inicial.' } };
+  const origin = anchor.port ? resolvePort(project, anchor.port) : undefined;
+  const elbowAngles =
+    origin && state.toolOptions.lockElbowAngles
+      ? elbowAnglesOf(project, origin.spec, origin.end)
+      : undefined;
+  const options = junctionOptions(state);
+  if (target.kind === 'tee' || target.kind === 'cross') {
+    if (
+      state.viewMode === 'plan' &&
+      Math.abs(target.placement.position.z - anchor.point.z) > LEVEL_TOLERANCE
+    ) {
+      const dz = target.placement.position.z - anchor.point.z;
+      return {
+        ok: false,
+        error: {
+          code: 'OFF_LEVEL',
+          message: `"${target.name}" está ${formatMeters(Math.abs(dz), 2)} ${dz > 0 ? 'acima' : 'abaixo'} do traçado — cruzamento sem conexão.`,
+        },
+      };
+    }
+    const drawn = drawPipeToJunction(project, {
+      fromPort: anchor.port ?? undefined,
+      start: anchor.point,
+      spec: state.activeSpec,
+      junctionId: target.id,
+      elbowAngles,
+      catalog: options.catalog,
+      familyId: target.kind === 'tee' ? options.crossFamilyId : undefined,
+      // "Tê" não converte: o lado oposto à derivação é recusado com o motivo.
+      convert: state.toolOptions.junction !== 'tee',
+    });
+    if (!drawn.ok) return drawn;
+    return {
+      ok: true,
+      value: {
+        project: drawn.value.project,
+        elementId: drawn.value.elementId,
+        closes: true,
+        message: drawn.value.converted
+          ? `"${target.name}" convertido em cruzeta (mesmo elemento) e ramal ligado à quarta porta.`
+          : `Ramal ligado a "${target.name}".`,
+      },
+    };
+  }
+  if (target.kind !== 'pipe') {
+    return {
+      ok: false,
+      error: { code: 'NOT_A_PIPE', message: 'Termine o trecho sobre um tubo, tê ou cruzeta.' },
+    };
+  }
+  const source = anchor.pipeId ? getElement(project, anchor.pipeId) : undefined;
+  const piece = junctionLabel(state.toolOptions.junction);
+  const result =
+    source?.kind === 'pipe'
+      ? drawPipeFromPipe(project, {
+          sourcePipeId: source.id,
+          distanceFromStart: distanceAlongPipe(source.start, source.end, anchor.point),
+          end: pipeBranchPoint(target, anchor.point).point,
+          targetPipeId: target.id,
+          spec: state.activeSpec,
+          ...options,
+        })
+      : drawPipeToPipe(project, {
+          fromPort: anchor.port ?? undefined,
+          start: anchor.point,
+          targetPipeId: target.id,
+          spec: state.activeSpec,
+          elbowAngles,
+          ...options,
+        });
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    value: {
+      project: result.value.project,
+      elementId: result.value.elementId,
+      closes: true,
+      message: source
+        ? `Tubo ligado de "${source.name}" a "${target.name}" com ${piece}s automáticos; os dois tubos foram divididos.`
+        : `Tubo ligado a "${target.name}" com ${piece} automático(a); o tubo foi dividido em dois trechos.`,
+    },
+  };
+}
+
+/**
+ * Trecho em andamento até o ponto livre `point`: a partir de porta ou ponto (`drawPipe`), de um
+ * tubo existente (derivação com tê ou cruzeta) ou de um tê/cruzeta existentes.
+ */
+export function pipeSegmentOperation(
+  state: PipeOperationState,
+  point: Vec3,
+): Result<{ project: Project; elementId: string; createdIds: readonly string[] }> {
+  const { project, anchor } = state;
+  if (!anchor)
+    return { ok: false, error: { code: 'NO_ANCHOR', message: 'Indique o ponto inicial.' } };
+  const origin = anchor.port ? resolvePort(project, anchor.port) : undefined;
+  const source = anchor.pipeId ? getElement(project, anchor.pipeId) : undefined;
+  const options = junctionOptions(state);
+  if (anchor.junctionId) {
+    const junction = getElement(project, anchor.junctionId);
+    return drawPipeFromJunction(project, {
+      junctionId: anchor.junctionId,
+      end: point,
+      catalog: options.catalog,
+      familyId: junction?.kind === 'tee' ? options.crossFamilyId : undefined,
+      convert: state.toolOptions.junction !== 'tee',
+    });
+  }
+  return source?.kind === 'pipe'
+    ? drawPipeFromPipe(project, {
+        sourcePipeId: source.id,
+        distanceFromStart: distanceAlongPipe(source.start, source.end, anchor.point),
+        end: point,
+        spec: state.activeSpec,
+        ...options,
+      })
+    : drawPipe(project, {
+        fromPort: anchor.port ?? undefined,
+        start: anchor.point,
+        end: point,
+        spec: state.activeSpec,
+        // A partir de uma porta, o tubo herda a especificação dela.
+        ends: pipeEndsInputOf(state.toolOptions.pipeEnds, origin?.spec ?? state.activeSpec),
+        catalog: options.catalog,
+        elbowFamilyId: state.toolOptions.families.elbow,
+        elbowAngles:
+          origin && state.toolOptions.lockElbowAngles
+            ? elbowAnglesOf(project, origin.spec, origin.end)
+            : undefined,
+      });
+}
+
+/** Alternativas de "Alinhar e conectar", sem as que violam "somente peças de catálogo". */
+export function connectionPlanOf(
+  state: Pick<PipeOperationState, 'project' | 'toolOptions'>,
+  from: PortRef,
+  to: PortRef,
+): Result<ConnectionPlan> {
+  const port = resolvePort(state.project, from);
+  const planned = planConnection(state.project, {
+    from,
+    to,
+    catalog: catalogOf(state.project, state.toolOptions.families),
+    elbowAngles:
+      port && state.toolOptions.lockElbowAngles
+        ? elbowAnglesOf(state.project, port.spec, port.end)
+        : undefined,
+  });
+  if (!planned.ok || !state.toolOptions.lockElbowAngles) return planned;
+  const refusals = [...planned.value.refusals];
+  const candidates = planned.value.candidates.filter((candidate) => {
+    const problem = catalogViolation(state.project, candidate.project);
+    if (problem && !refusals.includes(problem)) refusals.push(problem);
+    return !problem;
+  });
+  return { ok: true, value: { ...planned.value, candidates, refusals } };
+}
+
+/** Alternativa escolhida no plano (a primeira, sem escolha). */
+export function chosenCandidate(connect: ConnectState): ConnectionCandidate | null {
+  const result = connect.plan?.result;
+  if (!result?.ok) return null;
+  return (
+    result.value.candidates.find((candidate) => candidate.key === connect.choice) ??
+    result.value.candidates[0] ??
+    null
+  );
+}
+
 const initialProject = createProject('Projeto sem título', 'mep');
 const success = <T>(value: T): Result<T> => ({ ok: true, value });
 
@@ -976,6 +1248,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       valveType: catalogValveType(initialProject, defaultPipeSpec('mep'), 'gate'),
       reducerDn: null,
       teeBranchDn: null,
+      junction: 'auto',
       sizeMode: 'reducers',
       families: {},
       lockElbowAngles: true,
@@ -988,6 +1261,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     snapToGrid: true,
     orthographic: false,
     anchor: null,
+    connect: EMPTY_CONNECT,
+    junctionPreview: null,
     measure: { a: null, b: null },
     cursor: null,
     stretch: null,
@@ -1020,6 +1295,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         planDraft: EMPTY_DRAFT,
         anchor: null,
         stretch: null,
+        connect: EMPTY_CONNECT,
+        junctionPreview: null,
         contextMenu: null,
         measure: { a: null, b: null },
         tool: 'select',
@@ -1081,6 +1358,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         return {
           tool,
           anchor: null,
+          connect: EMPTY_CONNECT,
           contextMenu: null,
           measure: { a: null, b: null },
           planDraft: EMPTY_DRAFT,
@@ -1270,6 +1548,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       if (contextMenu) set({ contextMenu: null });
       else if (stretch) get().endStretch(false);
       else if (planDraft.points.length > 0 || planDraft.elementId) set({ planDraft: EMPTY_DRAFT });
+      else if (get().junctionPreview) set({ junctionPreview: null });
+      else if (get().connect.from) set({ connect: EMPTY_CONNECT });
       else if (anchor || measure.a) set({ anchor: null, measure: { a: null, b: null } });
       else if (tool !== 'select') set({ tool: 'select' });
       else set({ selection: [], annotationSelection: null });
@@ -1284,6 +1564,42 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       if (isAnnotationTool(tool)) return;
       if (tool === 'select') {
         state.select(click.hit?.elementId ?? null, click.additive);
+        return;
+      }
+      if (tool === 'connect') {
+        if (port && isPortFree(project, port.ref)) state.pickConnectPort(port.ref);
+        else {
+          state.notify(
+            'info',
+            state.connect.from
+              ? 'Indique a porta de referência (bocal do equipamento ou porta de outro elemento), nos marcadores ciano.'
+              : 'Indique a extremidade livre do trecho a ligar (marcadores ciano).',
+          );
+        }
+        return;
+      }
+      // Tê ou cruzeta existentes como início ou fim do trecho: o ramal usa a porta livre
+      // voltada para ele (no lado oposto à derivação de um tê, com a conversão em cruzeta).
+      const junction = click.hit ? getElement(project, click.hit.elementId) : undefined;
+      if (
+        tool === 'pipe' &&
+        !click.port &&
+        (junction?.kind === 'tee' || junction?.kind === 'cross')
+      ) {
+        if (state.anchor) {
+          state.finishPipeOnJunction(junction.id);
+          return;
+        }
+        set({
+          anchor: {
+            point: junction.placement.position,
+            port: null,
+            lockAxis: null,
+            pipeId: null,
+            junctionId: junction.id,
+          },
+          pipeElevation: roundElevation(junction.placement.position.z - state.workPlaneZ),
+        });
         return;
       }
       if (tool === 'pipe' || tool === 'measure') {
@@ -1404,30 +1720,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
       const origin = state.anchor.port ? resolvePort(project, state.anchor.port) : undefined;
       const source = state.anchor.pipeId ? getElement(project, state.anchor.pipeId) : undefined;
-      const result =
-        source?.kind === 'pipe'
-          ? drawPipeFromPipe(project, {
-              sourcePipeId: source.id,
-              distanceFromStart: distanceAlongPipe(source.start, source.end, state.anchor.point),
-              end: point,
-              spec: state.activeSpec,
-              catalog: catalog(),
-              teeFamilyId: state.toolOptions.families.tee,
-            })
-          : drawPipe(project, {
-              fromPort: state.anchor.port ?? undefined,
-              start: state.anchor.point,
-              end: point,
-              spec: state.activeSpec,
-              // A partir de uma porta, o tubo herda a especificação dela.
-              ends: pipeEndsInputOf(state.toolOptions.pipeEnds, origin?.spec ?? state.activeSpec),
-              catalog: catalog(),
-              elbowFamilyId: state.toolOptions.families.elbow,
-              elbowAngles:
-                origin && state.toolOptions.lockElbowAngles
-                  ? elbowAnglesOf(project, origin.spec, origin.end)
-                  : undefined,
-            });
+      const junction = state.anchor.junctionId
+        ? getElement(project, state.anchor.junctionId)
+        : undefined;
+      const result = pipeSegmentOperation(state, point);
       if (!result.ok) {
         state.notify('error', result.error.message);
         return;
@@ -1467,13 +1763,19 @@ export const useEditorStore = create<EditorState>()((set, get) => {
               allowance.kind === 'bend' ? 'no vértice' : 'na junta'
             } (admitida: ${formatDegrees(allowance.limit, 2)}).`
           : null;
+      const converted =
+        junction?.kind === 'tee' && getElement(created.project, junction.id)?.kind === 'cross';
       commit(
         success(created.project),
-        source
-          ? `Tubo derivado de "${source.name}" com tê automático; o tubo foi dividido em dois trechos.`
-          : withElbow
-            ? 'Tubo criado com joelho automático.'
-            : (deflected ?? 'Tubo criado.'),
+        junction
+          ? converted
+            ? `"${junction.name}" convertido em cruzeta (mesmo elemento); o ramal sai da quarta porta.`
+            : `Ramal criado a partir de "${junction.name}".`
+          : source
+            ? `Tubo derivado de "${source.name}" com ${junctionLabel(state.toolOptions.junction)} automático(a); o tubo foi dividido em dois trechos.`
+            : withElbow
+              ? 'Tubo criado com joelho automático.'
+              : (deflected ?? 'Tubo criado.'),
       );
       // Continua a polilinha a partir da extremidade final, se ela permanecer livre.
       const next = resolvePort(created.project, { elementId: created.elementId, portId: 'end' });
@@ -1490,34 +1792,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
 
     finishPipeOnPipe: (pipeId) => {
       const state = get();
-      const { project, anchor } = state;
-      const target = getElement(project, pipeId);
-      if (!anchor || !target) return;
-      const origin = anchor.port ? resolvePort(project, anchor.port) : undefined;
-      const source = anchor.pipeId ? getElement(project, anchor.pipeId) : undefined;
-      const result =
-        source?.kind === 'pipe' && target.kind === 'pipe'
-          ? drawPipeFromPipe(project, {
-              sourcePipeId: source.id,
-              distanceFromStart: distanceAlongPipe(source.start, source.end, anchor.point),
-              end: pipeBranchPoint(target, anchor.point).point,
-              targetPipeId: pipeId,
-              spec: state.activeSpec,
-              catalog: catalog(),
-              teeFamilyId: state.toolOptions.families.tee,
-            })
-          : drawPipeToPipe(project, {
-              fromPort: anchor.port ?? undefined,
-              start: anchor.point,
-              targetPipeId: pipeId,
-              spec: state.activeSpec,
-              catalog: catalog(),
-              teeFamilyId: state.toolOptions.families.tee,
-              elbowAngles:
-                origin && state.toolOptions.lockElbowAngles
-                  ? elbowAnglesOf(project, origin.spec, origin.end)
-                  : undefined,
-            });
+      if (!state.anchor || !getElement(state.project, pipeId)) return;
+      const result = pipeTargetOperation(state, pipeId);
       if (!result.ok) {
         state.notify('error', result.error.message);
         return;
@@ -1527,15 +1803,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         state.notify('error', problem);
         return;
       }
-      commit(
-        success(result.value.project),
-        source
-          ? `Tubo ligado de "${source.name}" a "${target.name}" com tês automáticos; os dois tubos foram divididos.`
-          : `Tubo ligado a "${target.name}" com tê automático; o tubo foi dividido em dois trechos.`,
-      );
+      commit(success(result.value.project), result.value.message);
       // O trecho termina acoplado à derivação: a polilinha se encerra.
       set({ selection: [result.value.elementId], anchor: null });
     },
+
+    finishPipeOnJunction: (junctionId) => get().finishPipeOnPipe(junctionId),
 
     insertFittingAtPort: (kind, target) => {
       const { project } = get();
@@ -2055,6 +2328,107 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       return true;
     },
 
+    pickConnectPort: (ref) => {
+      const state = get();
+      const { connect, project } = state;
+      // Sem partida (ou recomeçando depois de uma escolha completa), a porta é a partida.
+      if (!connect.from || connect.to) {
+        set({ connect: { ...EMPTY_CONNECT, from: ref } });
+        return;
+      }
+      if (connect.from.elementId === ref.elementId) {
+        state.notify('info', 'A porta de referência deve ser de outro elemento.');
+        return;
+      }
+      const result = connectionPlanOf(state, connect.from, ref);
+      set({
+        connect: { from: connect.from, to: ref, choice: null, plan: { base: project, result } },
+      });
+      if (!result.ok) state.notify('error', result.error.message);
+      else if (result.value.candidates.length === 0) {
+        state.notify(
+          'error',
+          `Não há montagem possível: ${result.value.refusals[0] ?? 'sem peças compatíveis.'}`,
+        );
+      }
+    },
+
+    setConnectChoice: (key) => set((state) => ({ connect: { ...state.connect, choice: key } })),
+
+    confirmConnection: () => {
+      const state = get();
+      const { connect, project } = state;
+      const candidate = chosenCandidate(connect);
+      // A prévia foi calculada sobre este projeto: grava-se exatamente o que foi mostrado.
+      if (!candidate || connect.plan?.base !== project) {
+        state.notify('error', 'Escolha novamente a extremidade e a porta: o projeto mudou.');
+        set({ connect: EMPTY_CONNECT });
+        return false;
+      }
+      commit(
+        success(candidate.project),
+        `${candidate.label}${candidate.connects ? '' : ' (sem ligação)'}: ${candidate.summary}.`,
+      );
+      set({
+        connect: EMPTY_CONNECT,
+        selection:
+          candidate.createdIds.length > 0
+            ? [...candidate.createdIds]
+            : [connect.from?.elementId ?? ''].filter(Boolean),
+      });
+      return true;
+    },
+
+    resetConnection: () => set({ connect: EMPTY_CONNECT }),
+
+    previewJunction: (elementId, familyId) => {
+      const { project, toolOptions } = get();
+      const element = getElement(project, elementId);
+      if (!element || (element.kind !== 'tee' && element.kind !== 'cross')) return;
+      const input = {
+        catalog: catalogOf(project, toolOptions.families),
+        familyId,
+        allowGeneric: !toolOptions.lockElbowAngles,
+      };
+      const result =
+        element.kind === 'tee'
+          ? convertTeeToCross(project, elementId, input)
+          : convertCrossToTee(project, elementId, input);
+      set({
+        junctionPreview: {
+          elementId,
+          target: element.kind === 'tee' ? 'cross' : 'tee',
+          familyId,
+          base: project,
+          result,
+        },
+      });
+    },
+
+    confirmJunction: () => {
+      const state = get();
+      const preview = state.junctionPreview;
+      if (!preview) return false;
+      if (preview.base !== state.project) {
+        state.notify('error', 'O projeto mudou desde a prévia: gere a prévia novamente.');
+        set({ junctionPreview: null });
+        return false;
+      }
+      if (!preview.result.ok) {
+        state.notify('error', preview.result.error.message);
+        return false;
+      }
+      const notes = preview.result.value.notes;
+      const ok = commit(
+        success(preview.result.value.project),
+        `${preview.target === 'cross' ? 'Tê convertido em cruzeta' : 'Cruzeta convertida em tê'} (mesmo elemento, ligações mantidas).${notes.length ? ` ${notes.join(' ')}` : ''}`,
+      );
+      set({ junctionPreview: null });
+      return ok;
+    },
+
+    cancelJunction: () => set({ junctionPreview: null }),
+
     assignSystem: (systemId) => {
       const { project, selection } = get();
       commit(setElementsSystem(project, selection, systemId), 'Sistema alterado.');
@@ -2132,6 +2506,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         past: past.slice(0, -1),
         future: [project, ...future],
         anchor: null,
+        connect: EMPTY_CONNECT,
+        junctionPreview: null,
         annotationSelection: null,
         planDraft: EMPTY_DRAFT,
       });
@@ -2146,6 +2522,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         past: [...past, project],
         future: future.slice(1),
         anchor: null,
+        connect: EMPTY_CONNECT,
+        junctionPreview: null,
         annotationSelection: null,
         planDraft: EMPTY_DRAFT,
       });

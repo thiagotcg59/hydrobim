@@ -199,8 +199,10 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       id: 'connect',
       label: 'Conectar',
       items: [
+        { command: 'tool.connect', compact: true },
         { command: 'connect.pipe', compact: true },
         { command: 'connect.close', compact: true },
+        { command: 'connect.junction', compact: true },
         { command: 'connect.disconnect', compact: true },
       ],
     },

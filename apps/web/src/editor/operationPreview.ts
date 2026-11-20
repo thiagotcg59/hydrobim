@@ -1,7 +1,9 @@
 import {
   distance,
   elementKindLabel,
+  formatDegrees,
   formatMeters,
+  getElement,
   type HydroElement,
   type Project,
   type Result,
@@ -100,6 +102,69 @@ export function diffProjects(before: Project, after: Project): OperationPreview 
     error: null,
     summary: text ? text.charAt(0).toUpperCase() + text.slice(1) : 'Nada a alterar.',
   };
+}
+
+const END_SHORT: Record<string, string> = { flange: 'flange', socket: 'bolsa', plain: 'ponta' };
+
+/** Linha de uma peça: tipo, nome, dimensão principal, família e extremidades. */
+function describePiece(element: HydroElement): string {
+  const family = element.familyId ? ` · ${element.familyId.split('@')[0]}` : ' · genérica';
+  switch (element.kind) {
+    case 'pipe': {
+      const ends = [element.ends?.start?.type ?? 'plain', element.ends?.end?.type ?? 'plain']
+        .map((type) => END_SHORT[type])
+        .join(' × ');
+      return `${element.name} — ${element.spec.sizeLabel}, ${formatMeters(distance(element.start, element.end), 3)} (${ends})`;
+    }
+    case 'elbow':
+      return `${element.name} — ${element.spec.sizeLabel}, ${formatDegrees(element.angle, 2)}${family}`;
+    case 'tee':
+    case 'cross': {
+      const branch = element.branchSpec ? ` × ${element.branchSpec.sizeLabel}` : '';
+      return `${element.name} — ${element.spec.sizeLabel}${branch}, passagem ${formatMeters(element.runLength, 3)}${family}`;
+    }
+    default:
+      return `${element.name} — ${element.spec.sizeLabel}${family}`;
+  }
+}
+
+/**
+ * Peças da operação, para conferência antes de confirmar: as criadas (com dimensões e
+ * família), os tubos existentes que mudam de comprimento ou de extremidades e as peças que
+ * mudam de tipo (tê ⇄ cruzeta).
+ */
+export function describeChanges(
+  before: Project,
+  after: Project,
+): {
+  readonly created: readonly string[];
+  readonly changed: readonly string[];
+} {
+  const diff = diffProjects(before, after);
+  const changed = diff.modified.flatMap((element) => {
+    const old = getElement(before, element.id);
+    if (!old) return [];
+    if (old.kind !== element.kind) {
+      return [
+        `${element.name}: ${elementKindLabel(old.kind)} → ${elementKindLabel(element.kind)} (${describePiece(element)})`,
+      ];
+    }
+    if (old.kind === 'pipe' && element.kind === 'pipe') {
+      const from = distance(old.start, old.end);
+      const to = distance(element.start, element.end);
+      const endsChanged = JSON.stringify(old.ends ?? {}) !== JSON.stringify(element.ends ?? {});
+      if (Math.abs(from - to) > 1e-6 || endsChanged) {
+        return [
+          `${element.name}: ${formatMeters(from, 3)} → ${describePiece(element).split(' — ')[1]}`,
+        ];
+      }
+      return [`${element.name}: deslocado`];
+    }
+    return [
+      `${element.name}: ${old.familyId === element.familyId ? 'deslocado' : describePiece(element)}`,
+    ];
+  });
+  return { created: diff.created.map(describePiece), changed };
 }
 
 /**
