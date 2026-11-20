@@ -1,21 +1,33 @@
 :root {
-  --bg-0: #0c1118;
-  --bg-1: #121a25;
-  --bg-2: #18222f;
-  --bg-3: #212d3d;
-  --line: #2a3748;
-  --line-strong: #3a4b61;
-  --text: #dbe4ee;
-  --text-dim: #8b9bb0;
-  --accent: #3ea6ff;
-  --accent-strong: #1f7fe0;
-  --ok: #4cc38a;
-  --warning: #f5b84c;
-  --error: #f2695f;
+  /* Superfícies: cinza muito claro (fundo), branco (painéis), cinzas de apoio. */
+  --bg-0: #f3f5f8;
+  --bg-1: #ffffff;
+  --bg-2: #f7f9fb;
+  --bg-3: #e9eff7;
+  --line: #dfe4ea;
+  --line-strong: #c5cdd8;
+  --text: #1c2733;
+  --text-dim: #5d6b7c;
+  --accent: #1565c0;
+  --accent-strong: #1976d2;
+  --ok: #1b7f4b;
+  --warning: #9a5b00;
+  --error: #c62828;
+  /* Seleção de ferramentas e itens (azul-claro) e destaque no desenho (ciano). */
+  --select-bg: #dcebfb;
+  --select-line: #8fbcee;
+  --select-text: #0d3c78;
+  --highlight: #00a6c0;
+  --confirm: #0f8f7e;
+  /* Cabeçalho e barra de status. */
+  --navy: #12274a;
+  --navy-text: #e8eef7;
+  --navy-line: rgba(255, 255, 255, 0.22);
+  --shadow: 0 8px 24px rgba(16, 32, 64, 0.18);
   --radius: 6px;
   --font: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   --mono: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * {
@@ -186,8 +198,8 @@ code {
 .btn--danger {
   align-self: flex-start;
   margin: 4px 12px 16px;
-  border-color: #7a3a36;
-  color: #ffb4ad;
+  border-color: #e0a8a3;
+  color: var(--error);
 }
 
 .badge {
@@ -260,9 +272,9 @@ code {
 }
 
 .tool.is-active {
-  background: rgba(62, 166, 255, 0.16);
-  border-color: var(--accent-strong);
-  color: #fff;
+  background: var(--select-bg);
+  border-color: var(--select-line);
+  color: var(--select-text);
 }
 
 .tool:disabled {
@@ -290,7 +302,7 @@ code {
   position: relative;
   min-width: 0;
   min-height: 0;
-  background: #10161f;
+  background: var(--bg-0);
 }
 
 .workspace canvas {
@@ -371,10 +383,10 @@ code {
   min-width: 200px;
   max-width: 240px;
   padding: 4px;
-  border: 1px solid #2c3644;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: #161d27;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  background: var(--bg-1);
+  box-shadow: 0 8px 24px rgba(16, 32, 64, 0.18);
 }
 
 .context-menu__item {
@@ -438,10 +450,10 @@ code {
   flex-direction: column;
   gap: 10px;
   padding: 10px 12px 12px;
-  background: rgba(18, 26, 37, 0.94);
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid var(--line-strong);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 30px rgba(16, 32, 64, 0.18);
 }
 
 .options__header {
@@ -711,8 +723,8 @@ code {
 }
 
 .status--free {
-  background: rgba(53, 208, 224, 0.14);
-  color: #6fe0ec;
+  background: rgba(0, 166, 192, 0.14);
+  color: #0b7285;
 }
 
 .status--connected {
@@ -847,7 +859,7 @@ code {
   background: var(--bg-2);
   border: 1px solid var(--line-strong);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px rgba(16, 32, 64, 0.18);
   z-index: 10;
 }
 
@@ -878,7 +890,7 @@ code {
 }
 
 .dialog::backdrop {
-  background: rgba(5, 8, 12, 0.6);
+  background: rgba(18, 39, 74, 0.38);
 }
 
 .dialog__header,
@@ -1078,7 +1090,7 @@ code {
   justify-content: center;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #10161f;
+  background: var(--bg-0);
   overflow: hidden;
 }
 
@@ -1144,6 +1156,33 @@ code {
 
 .cell--invalid {
   border-color: var(--error);
+}
+
+/* Tabela da família de bombas personalizada: muitas colunas; rola na horizontal em vez de
+   espremer as células. */
+.families__table table.pump-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.pump-table .cell {
+  width: 64px;
+  min-width: 0;
+}
+
+.pump-table .cell--text {
+  width: 170px;
+  text-align: left;
+}
+
+.pump-table .cell--frame {
+  width: 58px;
+  text-align: left;
+}
+
+.pump-table .cell--select {
+  width: 74px;
+  text-align: left;
 }
 
 .families__actions {
@@ -1280,7 +1319,7 @@ code {
   top: 10px;
   right: 10px;
   z-index: 6;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 10px rgba(16, 32, 64, 0.18);
 }
 
 .plan {
@@ -1306,10 +1345,10 @@ code {
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  background: rgba(18, 26, 37, 0.94);
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 10px rgba(16, 32, 64, 0.18);
 }
 
 /*
@@ -1378,10 +1417,10 @@ code {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  background: rgba(18, 26, 37, 0.96);
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 10px rgba(16, 32, 64, 0.18);
 }
 
 .plan__inspector header {
@@ -1883,10 +1922,10 @@ code {
   flex-direction: column;
   gap: 6px;
   padding: 10px 12px;
-  background: rgba(18, 26, 37, 0.98);
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 18px rgba(16, 32, 64, 0.18);
 }
 
 .infra__geo--pending,
@@ -2081,10 +2120,10 @@ code {
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(18, 26, 37, 0.96);
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 18px rgba(16, 32, 64, 0.18);
 }
 
 .geopicker__panel header {
@@ -2152,7 +2191,7 @@ code {
   background: var(--bg-1);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  box-shadow: var(--shadow);
   font-size: 12px;
 }
 
@@ -2312,7 +2351,7 @@ code {
   background: var(--bg-1);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  box-shadow: var(--shadow);
   font-size: 12px;
 }
 

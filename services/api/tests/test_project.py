@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 12
+    assert project.schema_version == 13
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 13),
+        (("schemaVersion",), 14),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 12.0
+    project_document["schemaVersion"] = 13.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -239,7 +239,7 @@ def test_migrates_v11_terrain_as_survey_without_presumed_data(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump()
     assert legacy == before
-    assert migrated["schemaVersion"] == 12
+    assert migrated["schemaVersion"] == 13
     terrain = migrated["terrain"]
     assert terrain["points"] == TERRAIN_V11["points"]
     assert terrain["boundary"] is None
@@ -682,6 +682,125 @@ def test_pressure_reducing_valve_with_width(project_document):
     valve["width"] = 0.255
     project = Project.model_validate(project_document)
     assert project.model_dump(by_alias=True) == project_document
+
+
+def test_migrates_v12_adding_empty_pump_families(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 12
+    del legacy["pumpFamilies"]
+    before = deepcopy(legacy)
+    migrated = Project.model_validate(legacy).model_dump(by_alias=True)
+    assert legacy == before
+    assert migrated == {**project_document, "schemaVersion": 13}
+
+
+def _custom_pump_family():
+    return {
+        "id": "custom-pump-1",
+        "name": "Bomba anfíbia (personalizado)",
+        "pumpType": "amphibious",
+        "manufacturer": "Personalizado",
+        "frequencyHz": 60,
+        "source": "Família personalizada neste projeto.",
+        "page": 42,
+        "description": "",
+        "variants": [
+            {
+                "id": "custom-pump-1/r1-260-160l",
+                "models": ["R1-260/20B", "R1-260/40B"],
+                "frame": "160L",
+                "suction": {"dn": 200, "pressureClass": "PN 40"},
+                "discharge": {"dn": 200, "pressureClass": "PN 40"},
+                "dimensions": {
+                    "footOffset": 0.266,
+                    "footSpan": 0.581,
+                    "rearLength": 0.151,
+                    "length": 0.998,
+                    "footWidth": 0.34,
+                    "footHoleDiameter": 0.027,
+                    "axisHeight": 0.283,
+                    "totalHeight": 0.543,
+                },
+                "stages": 1,
+            }
+        ],
+        "approximations": [],
+        "remarks": [],
+        "origin": "custom",
+        "basedOn": "higra-anfibia-estagio-unico-60hz",
+    }
+
+
+def test_custom_pump_family_round_trips(project_document):
+    project_document["pumpFamilies"] = [_custom_pump_family()]
+    project = Project.model_validate(project_document)
+    assert project.pump_families[0].variants[0].dimensions.length == 0.998
+    assert project.model_dump(by_alias=True)["pumpFamilies"] == [_custom_pump_family()]
+    for path, value in (
+        (("variants", 0, "models"), []),
+        (("variants", 0, "stages"), 0),
+        (("variants", 0, "dimensions", "footSpan"), -1),
+        (("pumpType",), "generic"),
+    ):
+        family = _custom_pump_family()
+        target = family
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = value
+        project_document["pumpFamilies"] = [family]
+        with pytest.raises(ValidationError):
+            Project.model_validate(project_document)
+
+
+def test_catalog_amphibious_pump_round_trips(client, project_document):
+    """Esquema v13: bomba de catálogo, em linha, sem a posição do recalque da genérica."""
+    element = project_document["elements"][3]
+    element.update(
+        kind="pump",
+        dischargeSpec=element["spec"],
+        familyId="higra-anfibia-estagio-unico-60hz",
+        pumpType="amphibious",
+        variantId="higra-anfibia-estagio-unico-60hz/r1-260-160l",
+        stages=1,
+        suctionFlangeClass="PN 40",
+        dischargeFlangeClass="PN 40",
+        length=0.998,
+        footOffset=0.266,
+        footSpan=0.581,
+        rearLength=0.151,
+        footWidth=0.34,
+        footHoleDiameter=0.027,
+        axisHeight=0.283,
+        totalHeight=0.543,
+    )
+    dumped = Project.model_validate(project_document).model_dump(by_alias=True)["elements"][3]
+    for field in (
+        "pumpType",
+        "variantId",
+        "stages",
+        "suctionFlangeClass",
+        "dischargeFlangeClass",
+        "length",
+        "footOffset",
+        "footSpan",
+        "rearLength",
+        "footWidth",
+        "footHoleDiameter",
+        "axisHeight",
+        "totalHeight",
+    ):
+        assert dumped[field] == element[field], field
+    assert "dischargeOffset" not in dumped
+    assert "dischargeHeight" not in dumped
+    response = client.post("/api/v1/projects/validate", json=project_document)
+    assert response.status_code == 200
+
+    # Tipo de bomba desconhecido e cota não positiva são recusados.
+    for field, value in (("pumpType", "turbine"), ("footSpan", 0), ("stages", 1.5)):
+        invalid = deepcopy(project_document)
+        invalid["elements"][3][field] = value
+        with pytest.raises(ValidationError):
+            Project.model_validate(invalid)
 
 
 @pytest.mark.parametrize("kind", ["pump", "tank", "valve"])

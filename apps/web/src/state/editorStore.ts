@@ -4,6 +4,10 @@ import {
   FLANGED_PIPE_FAMILIES,
   getSpecification,
   flangedPipeFamiliesFor,
+  flangeForClass,
+  PUMP_FAMILIES,
+  resolvePumpMouth,
+  resolvePumpPlacement,
   TANK_FAMILIES,
   pipeFlangeEnd,
   resolveNearestPipeSpec,
@@ -59,6 +63,12 @@ import {
   pipeBranchPoint,
   placeEquipment,
   removeTankNozzle,
+  setPumpFlange,
+  applyPumpFamilyToInstances,
+  duplicatePumpFamily,
+  pumpFamiliesOf as mergePumpFamilies,
+  removePumpFamily,
+  upsertPumpFamily,
   setTankModel,
   tankLayout,
   tankParametersFromFamily,
@@ -71,6 +81,7 @@ import {
   removeSystem,
   renameElement,
   resizeWithReducers,
+  requiredEndType,
   resolvePort,
   rollFitting,
   scale,
@@ -102,6 +113,7 @@ import {
   type AnnotationPatch,
   type DimensionMode,
   type Discipline,
+  type EndTreatment,
   type FamilyKind,
   type FittingCatalog,
   type FittingFamily,
@@ -120,6 +132,8 @@ import {
   type PropertyValue,
   type Result,
   type SystemKind,
+  type PumpCustomInput,
+  type PumpFamily,
   type TankCustomDimensions,
   type TankFamily,
   type TankNozzleInput,
@@ -247,6 +261,48 @@ export function tankFittingInput(project: Project, options: TankToolOptions): Re
     : parameters;
 }
 
+/** Famílias de bombas: catálogo embutido mais as personalizadas do projeto. */
+export function pumpFamiliesOf(project: Project): PumpFamily[] {
+  return mergePumpFamilies(project, PUMP_FAMILIES);
+}
+
+export function pumpFamilyOf(
+  project: Project,
+  id: string | null | undefined,
+): PumpFamily | undefined {
+  return id ? pumpFamiliesOf(project).find((family) => family.id === id) : undefined;
+}
+
+/** Bomba a inserir: família de catálogo e linha da tabela, ou cotas preenchidas à mão. */
+export interface PumpToolOptions {
+  /** `null` = conjunto motobomba genérico (sem catálogo). */
+  readonly familyId: string | null;
+  /** `null` = outro modelo: cotas preenchidas pelo usuário, com as letras do dimensional. */
+  readonly variantId: string | null;
+  readonly custom: PumpCustomInput;
+  /** Cotas preenchidas: DN da descarga (B); `null` = o mesmo da sucção. */
+  readonly dischargeDn: number | null;
+}
+
+/**
+ * Especificação da sucção e entrada da operação de inserção para as opções da ferramenta
+ * Bomba. `base` é a especificação de tubo ativa (ou a da extremidade a acoplar).
+ */
+export function pumpPlacementOf(
+  project: Project,
+  options: PumpToolOptions,
+  base: PipeSpec,
+): Result<{ spec: PipeSpec; fitting: FittingInput }> {
+  const family = pumpFamilyOf(project, options.familyId);
+  if (!family) return { ok: true, value: { spec: base, fitting: { kind: 'pump' } } };
+  return resolvePumpPlacement(
+    family,
+    options.variantId ? { variantId: options.variantId } : { custom: options.custom },
+    base,
+    options.dischargeDn ?? undefined,
+  );
+}
+
 /** Extremidades dos tubos novos: configuração e família de tubos flangeados (classe PN). */
 export interface PipeEndsToolOptions {
   readonly configuration: PipeEndConfiguration;
@@ -269,6 +325,7 @@ export function pipeEndsInputOf(options: PipeEndsToolOptions, spec: PipeSpec) {
 
 export interface ToolOptions {
   readonly tank: TankToolOptions;
+  readonly pump: PumpToolOptions;
   readonly pipeEnds: PipeEndsToolOptions;
   readonly elbowAngleDeg: number;
   readonly valveType: ValveType;
@@ -475,6 +532,12 @@ interface EditorState {
   /** Aplica outra família/modelo comercial (ou dimensões personalizadas) ao reservatório. */
   changeTankModel: (elementId: string, familyId: string, selection: TankSelection) => void;
   changeTankSettings: (elementId: string, patch: TankSettingsPatch) => void;
+  /** Duplica a família de bombas como personalizada do projeto; devolve o id da cópia. */
+  duplicatePumpFamily: (family: PumpFamily) => string | null;
+  savePumpFamily: (family: PumpFamily, applyToInstances: boolean) => boolean;
+  deletePumpFamily: (familyId: string) => void;
+  /** Troca a classe de pressão do flange de sucção (`a`) ou de descarga (`b`) da bomba. */
+  changePumpFlange: (elementId: string, portId: 'a' | 'b', pressureClass: string) => void;
   /** Acrescenta um bocal com a especificação ativa, em posição inicial editável. */
   addTankNozzle: (elementId: string, role: TankNozzleRole) => void;
   changeTankNozzle: (elementId: string, nozzleId: string, patch: Partial<TankNozzleInput>) => void;
@@ -560,8 +623,16 @@ export function ifcOptionsOf(project: Project): Required<IfcModelOptions> {
   };
 }
 
-export function elbowAnglesOf(project: Project, spec: PipeSpec): number[] {
-  return availableElbowAngles(familiesOf(project), spec);
+/**
+ * Ângulos de joelho de catálogo para a especificação. Com `ends` flangeado (a porta de onde
+ * o traçado sai), só contam as curvas flangeadas: flange liga com flange.
+ */
+export function elbowAnglesOf(
+  project: Project,
+  spec: PipeSpec,
+  ...ends: readonly (EndTreatment | null | undefined)[]
+): number[] {
+  return availableElbowAngles(familiesOf(project), spec, requiredEndType(...ends));
 }
 
 /** Cota Z (m) dos pontos livres da ferramenta: o eixo dos tubos fica acima do nível. */
@@ -610,7 +681,7 @@ export function deflectionConstraintOf(state: {
   return {
     origin: port.position,
     axis: port.direction,
-    angles: elbowAnglesOf(state.project, port.spec),
+    angles: elbowAnglesOf(state.project, port.spec, port.end),
     // Desvio admitido sem peça, pela junta ou pela curvatura a frio do tubo. O trecho novo
     // sai de ponta lisa e ainda não tem comprimento: o núcleo confere ao confirmar.
     jointLimit: jointDeflectionLimit(port, { spec: port.spec, end: null, run: Infinity }),
@@ -752,7 +823,10 @@ export function catalogOf(
   project: Project,
   preferred: ToolOptions['families'] = {},
 ): FittingCatalog {
-  return createFamilyCatalog(familiesOf(project), preferred, { pipeFlange: pipeFlangeEnd });
+  return createFamilyCatalog(familiesOf(project), preferred, {
+    pipeFlange: pipeFlangeEnd,
+    flange: flangeForClass,
+  });
 }
 
 const initialProject = createProject('Projeto sem título', 'mep');
@@ -834,7 +908,21 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           valveType: valveTypeFor(port.spec),
           familyId: toolOptions.families.valve,
         });
-      case 'pump':
+      case 'pump': {
+        // Acoplada a uma extremidade: a sucção tem de ter o diâmetro dessa extremidade.
+        const placement = pumpPlacementOf(get().project, toolOptions.pump, port.spec);
+        if (!placement.ok) return placement;
+        if (placement.value.spec.dn !== port.spec.dn) {
+          return {
+            ok: false,
+            error: {
+              code: 'PUMP_SUCTION_MISMATCH',
+              message: `A sucção (A) deste modelo é ${placement.value.spec.sizeLabel} e a extremidade é ${port.spec.sizeLabel}: use uma redução ou escolha outro modelo.`,
+            },
+          };
+        }
+        return success(placement.value.fitting);
+      }
       case 'tank':
         return success({ kind });
       case 'reducer': {
@@ -879,6 +967,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     activeSpec: defaultPipeSpec('mep'),
     toolOptions: {
       tank: { familyId: null, variantId: null, custom: {} },
+      pump: { familyId: null, variantId: null, custom: {}, dischargeDn: null },
       pipeEnds: { configuration: 'plainPlain', familyId: null },
       elbowAngleDeg: 90,
       valveType: catalogValveType(initialProject, defaultPipeSpec('mep'), 'gate'),
@@ -1256,10 +1345,18 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       }
 
       if (tool === 'pump' || tool === 'tank') {
-        const fitting =
-          tool === 'tank'
-            ? tankFittingInput(project, state.toolOptions.tank)
-            : success({ kind: tool });
+        // Bomba de catálogo: as bocas usam a especificação ativa, nos diâmetros do modelo.
+        const pump =
+          tool === 'pump'
+            ? pumpPlacementOf(project, state.toolOptions.pump, state.activeSpec)
+            : null;
+        if (pump && !pump.ok) {
+          state.notify('error', pump.error.message);
+          return;
+        }
+        const fitting = pump?.ok
+          ? success(pump.value.fitting)
+          : tankFittingInput(project, state.toolOptions.tank);
         if (!fitting.ok) {
           state.notify('error', fitting.error.message);
           return;
@@ -1269,7 +1366,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         const seated = state.toolOptions.terrainPlacement.enabled && project.terrain !== null;
         const result = placeEquipment(project, {
           fitting: fitting.value,
-          spec: state.activeSpec,
+          spec: pump?.ok ? pump.value.spec : state.activeSpec,
           position: ground === null ? point : vec3(point.x, point.y, ground),
         });
         if (!result.ok) {
@@ -1322,9 +1419,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
               // A partir de uma porta, o tubo herda a especificação dela.
               ends: pipeEndsInputOf(state.toolOptions.pipeEnds, origin?.spec ?? state.activeSpec),
               catalog: catalog(),
+              elbowFamilyId: state.toolOptions.families.elbow,
               elbowAngles:
                 origin && state.toolOptions.lockElbowAngles
-                  ? elbowAnglesOf(project, origin.spec)
+                  ? elbowAnglesOf(project, origin.spec, origin.end)
                   : undefined,
             });
       if (!result.ok) {
@@ -1414,7 +1512,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
               teeFamilyId: state.toolOptions.families.tee,
               elbowAngles:
                 origin && state.toolOptions.lockElbowAngles
-                  ? elbowAnglesOf(project, origin.spec)
+                  ? elbowAnglesOf(project, origin.spec, origin.end)
                   : undefined,
             });
       if (!result.ok) {
@@ -1450,7 +1548,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       }
       const { toolOptions } = get();
       if (kind === 'elbow' && toolOptions.lockElbowAngles) {
-        const angles = elbowAnglesOf(project, port.spec);
+        const angles = elbowAnglesOf(project, port.spec, port.end);
         const angle = degToRad(toolOptions.elbowAngleDeg);
         if (angles.length > 0 && matchElbowAngle(angles, angle) === null) {
           get().notify(
@@ -1652,6 +1750,56 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     changeTankSettings: (elementId, patch) => {
       commit(updateTankSettings(get().project, elementId, patch));
     },
+    duplicatePumpFamily: (family) => {
+      const result = duplicatePumpFamily(get().project, family);
+      if (!result.ok) {
+        get().notify('error', result.error.message);
+        return null;
+      }
+      commit(
+        success(result.value.project),
+        `Família "${family.name}" duplicada: a tabela da cópia pode ser editada.`,
+      );
+      return result.value.familyId;
+    },
+    savePumpFamily: (family, applyToInstances) => {
+      const saved = upsertPumpFamily(get().project, family);
+      if (!saved.ok) {
+        get().notify('error', saved.error.message);
+        return false;
+      }
+      if (!applyToInstances) {
+        return commit(saved, `Família "${family.name}" salva no projeto.`);
+      }
+      const applied = applyPumpFamilyToInstances(saved.value, family, resolvePumpMouth);
+      if (!applied.ok) {
+        get().notify('error', `Família não aplicada: ${applied.error.message}`);
+        return false;
+      }
+      return commit(
+        success(applied.value.project),
+        `Família "${family.name}" salva e aplicada a ${applied.value.updated} bomba(s) do projeto.`,
+      );
+    },
+    deletePumpFamily: (familyId) => {
+      commit(removePumpFamily(get().project, familyId), 'Família de bombas excluída.');
+    },
+    changePumpFlange: (elementId, portId, pressureClass) => {
+      const { project } = get();
+      const pump = getElement(project, elementId);
+      if (pump?.kind !== 'pump') return;
+      const spec = portId === 'a' ? pump.spec : pump.dischargeSpec;
+      commit(
+        setPumpFlange(
+          project,
+          elementId,
+          portId,
+          pressureClass,
+          flangeForClass(spec, pressureClass) ?? null,
+        ),
+        `Flange ${portId === 'a' ? 'de sucção (A)' : 'de descarga (B)'}: ${pressureClass}.`,
+      );
+    },
     addTankNozzle: (elementId, role) => {
       const { project, activeSpec } = get();
       const tank = getElement(project, elementId);
@@ -1686,7 +1834,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const element = getElement(project, elementId);
       // Alterar o ângulo de um joelho segue a mesma trava do traçado: só ângulos com peça.
       if (patch.angle !== undefined && element?.kind === 'elbow' && toolOptions.lockElbowAngles) {
-        const angles = elbowAnglesOf(project, element.spec);
+        const angles = elbowAnglesOf(project, element.spec, ...Object.values(element.ends));
         if (matchElbowAngle(angles, patch.angle) === null) {
           get().notify(
             'error',
@@ -1885,7 +2033,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         b,
         catalog: catalog(),
         elbowAngles:
-          port && toolOptions.lockElbowAngles ? elbowAnglesOf(project, port.spec) : undefined,
+          port && toolOptions.lockElbowAngles
+            ? elbowAnglesOf(project, port.spec, port.end)
+            : undefined,
         ...(angle === null ? {} : { offsetAngle: angle }),
       });
       if (!result.ok) {

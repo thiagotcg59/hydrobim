@@ -18,6 +18,8 @@ export * from './math';
 export * from './operations';
 export * from './ports';
 export * from './projectOps';
+export * from './pumpOps';
+export * from './pumps';
 export * from './quantities';
 export * from './reconcile';
 export * from './result';

@@ -82,7 +82,7 @@ A tela tem o cabeçalho (menu **Arquivo**, nome do projeto, salvar/desfazer/refa
 2. **Selecionar** (`S`): clique em um elemento ou escolha-o no navegador do projeto, à esquerda. Na vista 3D, arraste com o botão esquerdo para abrir uma janela e selecionar os elementos inteiramente dentro dela (`Ctrl`/`Shift` soma à seleção); nessa ferramenta a câmera orbita com o botão do meio ou `Alt` + arrastar.
 3. No painel **Propriedades**: altere diâmetro/material, comprimento e coordenadas de extremidades livres; em **Portas de conexão**, acople joelho, tê, válvula ou redução a uma extremidade livre; em **Inserir em linha**, divida o tubo com um tê ou uma válvula.
 4. **Joelho** (`J`), **Tê** (`E`), **Redução** (`R`), **Válvula** (`V`): clique em uma extremidade livre (marcadores ciano) ou, para tê e válvula, sobre um tubo.
-5. **Bomba** (`B`) e **Reservatório** (`Q`): clique um ponto ou informe as coordenadas.
+5. **Bomba** (`B`) e **Reservatório** (`Q`): clique um ponto ou informe as coordenadas. A bomba pode ser a genérica ou uma bomba anfíbia HIGRA do catálogo (Catálogo → Bombas), com as cotas do dimensional do fabricante.
 6. **Trocar diâmetro**: no painel, escolha o novo diâmetro. Com "Somente esta peça" as reduções são criadas automaticamente; com "Todo o trecho conectado" a alteração se propaga.
 7. **Catálogo** (Modelagem ou Gerenciar): abre as famílias de conexões (consulta e edição), os reservatórios e a biblioteca de produtos 3D.
 8. **Gerenciar**: níveis, sistemas, georreferência e terreno. **Análise**: pendências, interferências, quantitativo e perfil longitudinal.

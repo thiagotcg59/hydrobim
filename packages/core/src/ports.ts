@@ -134,13 +134,27 @@ function getLocalPorts(element: HydroElement): LocalPort[] {
       ];
     }
     case 'pump':
+      // Bomba anfíbia: em linha, com a descarga no mesmo eixo, a F da sucção.
+      if (element.pumpType === 'amphibious') {
+        return [
+          port('a', 'Sucção (A)', 'end', ZERO, MINUS_X, spec),
+          port(
+            'b',
+            'Descarga (B)',
+            'end',
+            vec3(element.length, 0, 0),
+            PLUS_X,
+            element.dischargeSpec,
+          ),
+        ];
+      }
       return [
         port('a', 'Sucção', 'end', ZERO, MINUS_X, spec),
         port(
           'b',
           'Recalque',
           'end',
-          vec3(element.dischargeOffset, 0, element.dischargeHeight),
+          vec3(element.dischargeOffset ?? 0, 0, element.dischargeHeight ?? 0),
           vec3(0, 0, 1),
           element.dischargeSpec,
         ),

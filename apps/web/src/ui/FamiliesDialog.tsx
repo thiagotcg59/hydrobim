@@ -20,6 +20,7 @@ import { FamilyPreview } from '../viewport/FamilyPreview';
 import { formatDecimal, parseDecimal } from './fields';
 import { FlangeLibrary } from './FlangeLibrary';
 import { ProductLibrary } from './ProductLibrary';
+import { PumpLibrary } from './PumpLibrary';
 import { TankLibrary } from './TankLibrary';
 
 /** Filtro de especificação que lista as famílias de todas as especificações. */
@@ -285,7 +286,9 @@ export function FamiliesDialog({ open, onClose }: Props) {
   /** Cotas de catálogo sobre o modelo 3D. */
   const [showDimensions, setShowDimensions] = useState(true);
   /** Aba: conexões (editáveis), reservatórios ou biblioteca de produtos (modelos 3D). */
-  const [tab, setTab] = useState<'fittings' | 'flanges' | 'tanks' | 'products'>('fittings');
+  const [tab, setTab] = useState<'fittings' | 'flanges' | 'tanks' | 'pumps' | 'products'>(
+    'fittings',
+  );
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -406,6 +409,16 @@ export function FamiliesDialog({ open, onClose }: Props) {
           <button
             type="button"
             role="tab"
+            aria-selected={tab === 'pumps'}
+            className={tab === 'pumps' ? 'tabs__item is-active' : 'tabs__item'}
+            data-testid="families-tab-pumps"
+            onClick={() => setTab('pumps')}
+          >
+            Bombas
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={tab === 'products'}
             className={tab === 'products' ? 'tabs__item is-active' : 'tabs__item'}
             data-testid="families-tab-products"
@@ -428,6 +441,7 @@ export function FamiliesDialog({ open, onClose }: Props) {
       {tab === 'flanges' && <FlangeLibrary open={open} onUse={onClose} />}
       {tab === 'products' && <ProductLibrary open={open} />}
       {tab === 'tanks' && <TankLibrary open={open} onUse={onClose} />}
+      {tab === 'pumps' && <PumpLibrary open={open} onUse={onClose} />}
       <div className="families" hidden={tab !== 'fittings'}>
         <aside className="families__list">
           <label className="stack">

@@ -112,6 +112,8 @@ Corpo: tubo da especificação `ferro-ductil-nbr7675-k9` (DN 80 a 600). Flanges:
 
 Uso: ferramenta **Tubo** → "Extremidades do tubo" (configuração e classe do flange) ou, para um tubo existente, painel de propriedades → **Extremidades**. Ao dividir um tubo flangeado (tê ou válvula em linha), cada trecho conserva só o flange da sua extremidade original; ao trocar o diâmetro, o flange acompanha o novo DN pela mesma família.
 
+**Flange liga com flange.** Na tubulação flangeada, as peças são flange × flange: o joelho automático do traçado, a peça colocada numa porta flangeada (joelho, tê, válvula, redução) e a troca de diâmetro ou de ângulo de uma peça flangeada só consultam famílias com `endType: 'flange'` — a família preferida de outro acabamento é ignorada nesse caso. A trava de ângulos, partindo de um flange, oferece só os ângulos das curvas flangeadas. Sem peça flangeada no catálogo para o diâmetro/ângulo, a operação é recusada (`NO_FLANGED_FITTING`) em vez de encostar uma bolsa, ponta ou peça genérica no flange.
+
 ### Válvulas flangeadas
 
 | Família | Fonte |
@@ -133,7 +135,7 @@ Curvas 90° e 45° de raio longo, tê reto e redução concêntrica: ASME B16.9,
 
 ### Sem família (dimensões genéricas)
 
-Conexões de PEAD, joelhos de ângulo não padronizado, válvulas em PVC que não sejam o registro de esfera, bombas e o reservatório cilíndrico genérico (os reservatórios metálicos de catálogo estão descritos adiante). O editor identifica essas peças como "dimensões genéricas (fora de catálogo)" e as conta no resumo do projeto.
+Conexões de PEAD, joelhos de ângulo não padronizado, válvulas em PVC que não sejam o registro de esfera, o conjunto motobomba genérico e o reservatório cilíndrico genérico (as bombas e os reservatórios metálicos de catálogo estão descritos adiante). O editor identifica essas peças como "dimensões genéricas (fora de catálogo)" e as conta no resumo do projeto.
 
 ## Geometria
 
@@ -223,6 +225,54 @@ O painel de propriedades mostra, em cada parâmetro, um selo com a **origem**: *
 **Leituras adotadas (hipóteses declaradas):** a altura total é a do topo do costado — nos cilindros simples, `π·D²/4·H` reproduz a capacidade nominal —, de modo que guarda-corpo e escada ficam acima dela; a "Altura Coluna" é a cota em que começa a transição cônica; as alturas 0,90/1,72 m do australiano são do costado, sem os pés.
 
 **Divergências do próprio catálogo (transcritas como impressas e mostradas no editor):** o texto fala em taças de 5.000 a 100.000 L, mas as tabelas vão de 2.000 a 80.000 L; a tabela com água na coluna traz Ø 2,22 e 2,54 m onde as demais trazem 2,23 e 2,55 m; oito linhas do tubular alto têm um asterisco sem legenda; o fundo cônico de 12.000 L é 0,40 m (e não 0,50 m) mais alto que o apoiado; há capacidades 12.500 e 30.500 L intercaladas.
+
+## Bombas (famílias de bombas)
+
+Dados em `packages/catalog/src/pumps/`; o tipo `PumpFamily` e o que é derivado ficam em `packages/core/src/pumps.ts`. Na seção **Catálogo**, a aba **Bombas** lista as famílias com a tabela do fabricante (colunas com as letras do dimensional), o modelo 3D de cada linha, o que não é tabulado e as observações da transcrição; **Inserir no modelo** abre a ferramenta Bomba com a família e a linha escolhidas.
+
+### HIGRA — Manual Técnico Bombas Anfíbias, Rev. 22 (arquivo `MANUAL-TECNICO-BOMBAS-ANFIBIAS-REV-22-PORTUGUES.pdf`, fornecido pelo responsável), item 2.7 "Dimensionais"
+
+| Família (`id`) | Tabela | Página | Linhas cadastradas |
+| --- | --- | --- | --- |
+| Estágio único, 60 Hz (`higra-anfibia-estagio-unico-60hz`) | 16 | 42 | R1-195, R1-260, M1-305, R1-430, S1-630 |
+| Múltiplos estágios, 60 Hz (`higra-anfibia-multiplos-estagios-60hz`) | 17 | 43 | R2-155, R2-265, R3-320, R2-360 (315S), R4-365 (315L) |
+| Estágio único, 50 Hz (`higra-anfibia-estagio-unico-50hz`) | 18 | 44 | R1-195, R1-320, M1-335, M1-400, S1-630 |
+| Múltiplos estágios, 50 Hz (`higra-anfibia-multiplos-estagios-50hz`) | 19 | 45 | R2-195, R3-265, R4-320, R2-360, R4-365 |
+
+**Seleção (decisão do responsável, 2026-11-19):** cinco linhas de portes diferentes por tabela, e não a tabela inteira. Cada linha vale para os vários modelos (potências) de uma mesma carcaça, listados como impressos. Para um modelo fora delas, a ferramenta Bomba oferece **Outro modelo (preencher as cotas)**: os campos levam as mesmas letras do dimensional, e os valores passam a ser do usuário (o modelo fica identificado como "cotas preenchidas pelo usuário").
+
+**Cotas (letras das Figuras 42 e 43) e parâmetros do elemento:**
+
+| Letra | O que mede | Parâmetro |
+| --- | --- | --- |
+| A | flange de sucção (DN e classe PN) | `spec` + `suctionFlangeClass` |
+| B | flange de descarga | `dischargeSpec` + `dischargeFlangeClass` |
+| C | da face do flange B ao primeiro par de pés | `footOffset` |
+| D | entre os dois pares de pés | `footSpan` |
+| E | do segundo par de pés à face do flange A | `rearLength` |
+| F | comprimento total, de face a face dos flanges | `length` |
+| G | entre os furos dos pés (transversal) | `footWidth` |
+| ØH | diâmetro dos furos dos pés | `footHoleDiameter` |
+| I | da base dos pés ao eixo | `axisHeight` |
+| J | altura total, da base ao topo | `totalHeight` |
+
+Também é registrado o peso (kg, com ±5 % segundo o manual). A coluna GD²/4 (momento de inércia das partes girantes) não é cadastrada.
+
+**No modelo:** a bomba é em linha — a porta `a` (sucção, A) fica na origem e a porta `b` (descarga, B) no mesmo eixo, a F de distância; a elevação do elemento é a do eixo. As bocas usam a **especificação de tubo ativa** nos DN das colunas A e B; se a especificação não tiver o diâmetro (ex.: PVC soldável e DN 200), a inserção é recusada com o motivo. Pelo painel do Catálogo, nesse caso, a ferramenta passa a usar o ferro fundido dúctil K9, que tem todos os diâmetros das linhas cadastradas. No painel de propriedades, as cotas aparecem com as letras; alterar uma cota, a classe de um flange ou um diâmetro mantém a forma da família e desfaz o vínculo com a linha da tabela.
+
+**Famílias personalizadas.** Como nos reservatórios, "Duplicar como família personalizável" cria, no projeto (`Project.pumpFamilies`), uma cópia da família com a mesma forma construtiva e a mesma tabela — agora editável: nome, modelos, carcaça, DN e classe PN das bocas A e B, as cotas C a J (em mm), peso e estágios, além de acrescentar e remover linhas (a linha nova parte da última, com o modelo "Novo modelo", para preencher com o dimensional do fabricante). Na família do catálogo, o botão **Nova linha (em cópia personalizável)** faz os dois passos de uma vez: cria a cópia e acrescenta nela a linha — a tabela do fabricante nunca é alterada. O modelo 3D acompanha o rascunho. Ao salvar, linhas incoerentes (pés que não cabem em F, eixo I acima de J, sem modelo, estágios não inteiros) são recusadas com a linha indicada; com "Aplicar às bombas do projeto" marcado, as bombas já inseridas que usam uma linha da família são recalculadas (os tubos conectados se reajustam; se uma boca conectada mudaria de diâmetro, ou se a especificação da bomba ou a tabela de flanges não tiver a nova boca, nada é alterado). A bomba cuja linha foi removida mantém as cotas e passa a "cotas preenchidas pelo usuário". A cópia **deixa de ser dado de fabricante**: o fabricante vira "Personalizado", a fonte registra de onde ela veio, e as cotas aparecem no painel e no IFC como definidas pelo usuário. Os flanges continuam vindo da tabela única, pela classe de cada boca. Excluir a família mantém a forma e as cotas das bombas, sem vínculo com família ou linha. As famílias personalizadas têm identificador com o prefixo `custom-pump-`.
+
+**Flanges (regra 14).** Os flanges A e B vêm da **tabela única de flanges**, na classe PN e no DN impressos, e acompanham o diâmetro quando ele é alterado. O manual traz a sua própria tabela (item 2.8, Tabela 20, p. 46), **não transcrita**. As suas 13 linhas conferem com a tabela única em diâmetro externo, espessura, círculo de furação, diâmetro e número de furos (`pumps.test.ts` faz a comparação). A diferença está no ressalto: a tabela única o traz, e o manual informa que os flanges da bomba saem **sem** ele (nota 4), além de admitir, em alguns PN 10, espessura reforçada ou menos furos (notas 2 e 3). O modelo mostra o ressalto da tabela única.
+
+**Leituras adotadas (hipóteses declaradas):**
+
+- **Estágios:** o manual não tabula o número de estágios; ele é lido do prefixo do modelo (R1/M1/S1 = 1; R2 a R5 = 2 a 5) e só muda a representação do corpo.
+- **Posição dos pés:** a partir da face do flange B, pelas cotas C e D. A cota E fica registrada e não entra na geometria.
+- **IFC:** `IfcPump` / `SUBMERSIBLEPUMP` (`docs/IFC_MAPPING.md`).
+
+**Divergências do próprio catálogo (transcritas como impressas e mostradas no editor):** em várias linhas a cota F não é a soma C + D + E (ex.: R2-265, 60 Hz: 385 + 657 + 373 = 1415, F = 1406). As portas usam F; a diferença aparece na aba Bombas e no painel de propriedades. Linhas com diferenças grandes (ex.: R1-365, R1-310) não estão entre as cinco cadastradas.
+
+**É representação (`packages/geometry/src/amphibiousPump.ts`):** raio da carcaça do motor e dos anéis (escalados pelas cotas I e J), cone da descarga, bocal da sucção e conjunto dos estágios, tirantes, forma dos pés e olhais de içamento — o topo dos olhais fica na cota J e a base dos pés, em −I. Furos dos pés, parafusos, cabo elétrico, placa e o interior da bomba não são modelados. O corpo e os flanges levam o revestimento epóxi azul (substituído pela cor do sistema, quando definida). O manual avisa que bombas com pistão equalizador ou sensoriamento (configurações Básico e Premium) podem ter outras dimensões.
 
 ## Editar famílias
 

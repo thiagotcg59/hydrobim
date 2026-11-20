@@ -262,6 +262,12 @@ export function PlanView() {
   const geoPicker = useEditorStore((s) => s.geoPicker);
   /** Operação do terreno em andamento (área, furo, corte ou consulta): ela recebe os cliques. */
   const terrainMode = useTerrainStore((s) => (infra ? s.mode : null));
+  /**
+   * Superfície do terreno à mostra na planta: no Infra é uma camada do ambiente (gravada no
+   * projeto); no MEP é opção de exibição da sessão, desligada por padrão.
+   */
+  const mepTerrainPlan = useTerrainStore((s) => s.display.mepPlan);
+  const showTerrainPlan = infra ? settings.layers.terrain : mepTerrainPlan;
   useTerrainKeys();
 
   /** Milímetro de papel em metros do modelo, na escala de documentação do ambiente. */
@@ -656,6 +662,8 @@ export function PlanView() {
       if (event.altKey) return;
       const preferences = arrowPreferences(event.key, AXIS_X, AXIS_Y, AXIS_Z);
       const store = useEditorStore.getState();
+      // Com as vistas lado a lado, as setas valem para a vista ativa (a planta, aqui).
+      if (store.viewMode !== 'plan') return;
       if (!preferences || store.selection.length === 0) return;
       event.preventDefault();
       store.nudgeSelection(preferences, nudgeStep(store.gridStep, event));
@@ -1095,7 +1103,7 @@ export function PlanView() {
             onStatus={setBasemapStatus}
           />
         )}
-        {infra && settings.layers.terrain && project.terrain && (
+        {showTerrainPlan && project.terrain && (
           <TerrainSurfacePlan terrain={project.terrain} origin={origin} mpp={view.mpp} />
         )}
         {infra && settings.layers.references && size.width > 0 && (

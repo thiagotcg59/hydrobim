@@ -28,6 +28,8 @@ export function useCommandContext(): CommandContext {
       panelOpen: s.panelOpen,
       ribbonCollapsed: s.ribbonCollapsed,
       validationOpen: s.validationOpen,
+      workspaceLayout: s.workspaceLayout,
+      maximizedView: s.maximizedView,
     })),
   );
   const terrainMode = useTerrainStore((s) => s.mode);

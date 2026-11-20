@@ -87,6 +87,8 @@ Fontes embutidas: satélite e ruas.
 
 **Fonte personalizada (alta resolução).** As fontes embutidas não passam de 10 m por pixel em imagem de satélite: os serviços de alta resolução (Esri, Google, Bing, Mapbox, MapTiler) exigem conta ou chave, que não podem estar no repositório. Para usá-los — ou para usar ortofotos servidas pela própria empresa — o usuário cadastra em *Camadas › Fonte de mapa própria* (ou no seletor de georreferência) o endereço de ladrilhos em Web Mercator (`https`, com `{z}`, `{x}` e `{y}`), a atribuição exigida e o nível máximo de zoom. O endereço, que pode conter a chave do usuário, fica só no `localStorage` do navegador (`map/customSource.ts`): o projeto guarda apenas `sourceId: "custom"`, e em outro navegador a planta avisa que a fonte não está cadastrada. Como o editor não conhece a licença dessa fonte, ela nunca entra em exportações; cabe ao usuário cumprir os termos do serviço.
 
+**Atalho Esri World Imagery.** O mesmo formulário tem um campo só para a chave de API da ArcGIS Location Platform (conta gratuita, com cota mensal de ladrilhos — conferir o valor vigente em <https://location.arcgis.com/pricing/>). Com a chave, `esriWorldImagerySource` monta o endereço documentado pela Esri (`https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=…`, ordem nível/linha/coluna), a atribuição ("Powered by Esri — Esri, Maxar, Earthstar Geographics, and the GIS User Community") e o nível máximo 19. A chave é do usuário e segue a regra da fonte personalizada: só no navegador, nunca no projeto, no repositório ou em exportações. Limitações: não foi testado com uma chave real nesta entrega; em áreas rurais a Esri pode não ter imagem nos níveis 18–19 (devolve um ladrilho de aviso) — nesse caso, reduzir o nível máximo no formulário.
+
 No seletor de georreferência, ampliar além da resolução da fonte mostra um aviso e sugere o tema Ruas ou uma fonte própria.
 
 Fontes avaliadas e **não** adotadas: camadas EOX de 2018 em diante (CC BY-NC-SA, incompatível com uso profissional); camada EOX de 2017 (CC BY 4.0, mas respondeu ladrilhos vazios sobre o Brasil na conferência); Esri World Imagery (regida pelo contrato da Esri, exige conta e proíbe exportar ladrilhos); NASA GIBS (dados abertos, mas produtos diários com nuvens, não um mosaico); mosaicos do INPE (serviço WMS aberto, licença e atribuição não confirmadas).
@@ -206,6 +208,11 @@ Nas ferramentas Bomba e Reservatório, o grupo **Assentamento no terreno** (aba 
 ### Transparência da superfície
 
 Visualizar › Terreno › **Transparência (3D)**, de 0 a 90 % (40 % por padrão). A superfície translúcida não grava profundidade, para que a rede enterrada apareça através dela; com 0 % ela volta a encobrir o que está abaixo. É opção de visualização da sessão.
+
+### Visibilidade da superfície
+
+O grupo Visualizar › **Terreno (planta e 3D)** aparece nos dois ambientes. **No 3D** mostra ou oculta a superfície no modelo 3D (ligado por padrão, MEP e Infra); oculta, ela nem é montada (sem malha, curvas nem download do mapa). **Na planta** existe só no MEP (desligado por padrão) e desenha na planta o limite, as curvas de nível e a triangulação; no Infra a planta segue a camada Terreno do ambiente. São opções de visualização da sessão: não entram no projeto, no histórico nem nas exportações.
+
 ### Mapa sobre o terreno (modelo 3D)
 
 Visualizar › Terreno › **Superfície (3D)** oferece, além de altitude, declividade e lisa, as fontes de mapa do ambiente Infra (ruas, satélite e a fonte própria): a imagem é estendida sobre a superfície e acompanha o relevo.
@@ -247,7 +254,7 @@ Visualizar › Terreno › **Superfície (3D)** oferece, além de altitude, decl
 | Zoom, centro, origem de renderização, estado do mapa, área do terreno em edição, corte, opções de visualização do terreno | Estado de sessão | Não entra no arquivo |
 | Chave de acesso de fonte de elevação | `localStorage` do navegador | Nunca entra no projeto |
 
-Esquema v12; documentos anteriores são migrados ao abrir (v10 → v11: configuração padrão, escala da planta levada para a Planta Infra nos projetos Infra, referência altimétrica não informada; v11 → v12: terreno existente vira levantamento por pontos, sem limite informado e sem datum, exatidão ou data presumidos).
+Esquema v12 (o projeto está hoje no v13, que só acrescenta as famílias de bombas); documentos anteriores são migrados ao abrir (v10 → v11: configuração padrão, escala da planta levada para a Planta Infra nos projetos Infra, referência altimétrica não informada; v11 → v12: terreno existente vira levantamento por pontos, sem limite informado e sem datum, exatidão ou data presumidos).
 
 ## Desempenho
 

@@ -1,39 +1,40 @@
 {
   "format": "hydrobim-project",
-  "schemaVersion": 12,
-  "id": "33ba55ad-8735-4c38-9278-75c4eebc21dd",
+  "schemaVersion": 13,
+  "id": "02a3925c-d1ce-46cd-9e9a-50a3ae7ee236",
   "name": "Barrilete de água fria — demonstração",
   "discipline": "mep",
   "units": {
     "length": "m",
     "angle": "rad"
   },
-  "createdAt": "2026-11-20T01:02:20.036Z",
-  "updatedAt": "2026-11-20T01:02:20.061Z",
+  "createdAt": "2026-11-20T02:59:51.565Z",
+  "updatedAt": "2026-11-20T02:59:51.576Z",
   "systems": [
     {
-      "id": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "id": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "name": "Água fria",
       "kind": "domesticColdWater"
     }
   ],
   "levels": [
     {
-      "id": "a91eedbf-785e-47b1-af09-f093e770aeb1",
+      "id": "57ad164c-e3f1-49aa-9af9-0d65a445be6b",
       "name": "Térreo",
       "elevation": 0
     }
   ],
   "families": [],
   "tankFamilies": [],
+  "pumpFamilies": [],
   "ifcTypes": {},
   "georeference": null,
   "terrain": null,
   "elements": [
     {
-      "id": "83402e24-8295-4c4f-8d6d-04cca150d4f5",
+      "id": "efc29592-7472-4bc9-a052-2656d60fa450",
       "name": "Tubo 1",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -50,8 +51,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.047Z",
-        "updatedAt": "2026-11-20T01:02:20.054Z",
+        "createdAt": "2026-11-20T02:59:51.569Z",
+        "updatedAt": "2026-11-20T02:59:51.574Z",
         "revision": 2
       },
       "kind": "pipe",
@@ -67,9 +68,9 @@
       }
     },
     {
-      "id": "b69b670b-6323-4a6c-91dc-62be9fd4ab32",
+      "id": "99dc4ed1-e6f7-4e2f-aec4-161f742c8f71",
       "name": "Joelho 1",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -86,8 +87,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.050Z",
-        "updatedAt": "2026-11-20T01:02:20.050Z",
+        "createdAt": "2026-11-20T02:59:51.571Z",
+        "updatedAt": "2026-11-20T02:59:51.571Z",
         "revision": 0
       },
       "kind": "elbow",
@@ -109,9 +110,9 @@
       "bendRadius": 0.09
     },
     {
-      "id": "c1fb93b3-58fa-4597-a4c1-320d60abf7dc",
+      "id": "c7796786-b08a-4e0a-94c1-500cb2a240e1",
       "name": "Tubo 2",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -128,8 +129,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.050Z",
-        "updatedAt": "2026-11-20T01:02:20.052Z",
+        "createdAt": "2026-11-20T02:59:51.572Z",
+        "updatedAt": "2026-11-20T02:59:51.573Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -145,9 +146,9 @@
       }
     },
     {
-      "id": "bf298053-fa55-42d2-a50e-06fbffdfeab0",
+      "id": "73e787f0-ac2a-40e7-af6f-f53dfe68eb74",
       "name": "Joelho 2",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -164,8 +165,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.052Z",
-        "updatedAt": "2026-11-20T01:02:20.052Z",
+        "createdAt": "2026-11-20T02:59:51.573Z",
+        "updatedAt": "2026-11-20T02:59:51.573Z",
         "revision": 0
       },
       "kind": "elbow",
@@ -187,9 +188,9 @@
       "bendRadius": 0.09
     },
     {
-      "id": "2b2d589e-00a9-4a21-9a6f-b5f56340b72a",
+      "id": "daa69517-5942-4b4a-9071-b0379a7fe797",
       "name": "Tubo 3",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -206,8 +207,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.052Z",
-        "updatedAt": "2026-11-20T01:02:20.052Z",
+        "createdAt": "2026-11-20T02:59:51.573Z",
+        "updatedAt": "2026-11-20T02:59:51.573Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -223,9 +224,9 @@
       }
     },
     {
-      "id": "3bdd9054-b758-4654-8468-f02fac471d2d",
+      "id": "08949c96-1e0c-48bf-8290-7ddea58db3a7",
       "name": "Tê 1",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -242,8 +243,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.053Z",
-        "updatedAt": "2026-11-20T01:02:20.053Z",
+        "createdAt": "2026-11-20T02:59:51.574Z",
+        "updatedAt": "2026-11-20T02:59:51.574Z",
         "revision": 0
       },
       "kind": "tee",
@@ -265,9 +266,9 @@
       "branchLength": 0.09
     },
     {
-      "id": "705d728d-73e3-4734-ade6-02c9f5f0cbe1",
+      "id": "916ca6b3-ab80-429e-96b1-778832f23ecd",
       "name": "Tubo 4",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -284,8 +285,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.054Z",
-        "updatedAt": "2026-11-20T01:02:20.061Z",
+        "createdAt": "2026-11-20T02:59:51.574Z",
+        "updatedAt": "2026-11-20T02:59:51.576Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -301,9 +302,9 @@
       }
     },
     {
-      "id": "9e780749-8bce-4d98-af48-4d8d84d705da",
+      "id": "837c3c60-78b9-4213-9699-a442601e9133",
       "name": "Tubo 5",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -320,8 +321,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.058Z",
-        "updatedAt": "2026-11-20T01:02:20.059Z",
+        "createdAt": "2026-11-20T02:59:51.574Z",
+        "updatedAt": "2026-11-20T02:59:51.575Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -337,9 +338,9 @@
       }
     },
     {
-      "id": "d06b2312-3252-4010-ab18-6cfe5b53b1cd",
+      "id": "5324e783-7db9-4e2c-af7a-eaa6503a3d6b",
       "name": "Válvula 1",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -356,8 +357,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.059Z",
-        "updatedAt": "2026-11-20T01:02:20.059Z",
+        "createdAt": "2026-11-20T02:59:51.575Z",
+        "updatedAt": "2026-11-20T02:59:51.575Z",
         "revision": 0
       },
       "kind": "valve",
@@ -379,9 +380,9 @@
       "length": 0.18
     },
     {
-      "id": "f34593a8-fba8-44e4-ae52-7eecad4b7ff9",
+      "id": "cdf51077-6650-4e86-8fb4-4f7e860ebdd5",
       "name": "Tubo 6",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -398,8 +399,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.059Z",
-        "updatedAt": "2026-11-20T01:02:20.059Z",
+        "createdAt": "2026-11-20T02:59:51.575Z",
+        "updatedAt": "2026-11-20T02:59:51.575Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -415,9 +416,9 @@
       }
     },
     {
-      "id": "1b48ebdd-d560-49ce-bf4e-77dc88718642",
+      "id": "b10807ff-1fb8-47ab-af5d-b0fce11a9f5a",
       "name": "Redução 1",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -434,8 +435,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.059Z",
-        "updatedAt": "2026-11-20T01:02:20.059Z",
+        "createdAt": "2026-11-20T02:59:51.575Z",
+        "updatedAt": "2026-11-20T02:59:51.575Z",
         "revision": 0
       },
       "kind": "reducer",
@@ -468,9 +469,9 @@
       "length": 0.12
     },
     {
-      "id": "ea01a0ab-9de9-44e2-9d76-30fde9d7e686",
+      "id": "0596ea27-5079-4b19-ba1f-4ec2edb225d5",
       "name": "Tubo 7",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -487,8 +488,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.060Z",
-        "updatedAt": "2026-11-20T01:02:20.060Z",
+        "createdAt": "2026-11-20T02:59:51.575Z",
+        "updatedAt": "2026-11-20T02:59:51.575Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -504,9 +505,9 @@
       }
     },
     {
-      "id": "8f575640-82c2-40dc-aaa4-0e035f0da191",
+      "id": "f44846b2-2311-4937-8334-b025211727c9",
       "name": "Válvula 2",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -523,8 +524,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.061Z",
-        "updatedAt": "2026-11-20T01:02:20.061Z",
+        "createdAt": "2026-11-20T02:59:51.576Z",
+        "updatedAt": "2026-11-20T02:59:51.576Z",
         "revision": 0
       },
       "kind": "valve",
@@ -546,9 +547,9 @@
       "length": 0.18
     },
     {
-      "id": "5e7f80e9-4bac-4472-89e4-2b9173eae24d",
+      "id": "ad5fb362-cc4b-4775-8fbe-d1d7da039f16",
       "name": "Tubo 8",
-      "systemId": "2555ed7f-1de1-4e12-9536-c29bcfd289f4",
+      "systemId": "07df8e18-3b28-49bf-861d-98471a0f6221",
       "spec": {
         "specificationId": "pvc-soldavel-nbr5648",
         "material": "pvc",
@@ -565,8 +566,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-20T01:02:20.061Z",
-        "updatedAt": "2026-11-20T01:02:20.061Z",
+        "createdAt": "2026-11-20T02:59:51.576Z",
+        "updatedAt": "2026-11-20T02:59:51.576Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -584,145 +585,145 @@
   ],
   "connections": [
     {
-      "id": "2032af55-99cf-4579-ba91-a4f48a2e28e1",
+      "id": "667f1a76-3b16-43de-b751-fd308b78cf00",
       "a": {
-        "elementId": "5e7f80e9-4bac-4472-89e4-2b9173eae24d",
+        "elementId": "ad5fb362-cc4b-4775-8fbe-d1d7da039f16",
         "portId": "end"
       },
       "b": {
-        "elementId": "b69b670b-6323-4a6c-91dc-62be9fd4ab32",
+        "elementId": "99dc4ed1-e6f7-4e2f-aec4-161f742c8f71",
         "portId": "a"
       }
     },
     {
-      "id": "8565d439-d144-429a-8620-1b468c26f6b4",
+      "id": "9809a148-c376-4059-b4f8-fe431f958b88",
       "a": {
-        "elementId": "b69b670b-6323-4a6c-91dc-62be9fd4ab32",
+        "elementId": "99dc4ed1-e6f7-4e2f-aec4-161f742c8f71",
         "portId": "b"
       },
       "b": {
-        "elementId": "c1fb93b3-58fa-4597-a4c1-320d60abf7dc",
+        "elementId": "c7796786-b08a-4e0a-94c1-500cb2a240e1",
         "portId": "start"
       }
     },
     {
-      "id": "7087bcff-ffec-4060-836d-88a5cd20ec7a",
+      "id": "09bf99c1-2186-4bba-a9b7-9f541052bdf4",
       "a": {
-        "elementId": "c1fb93b3-58fa-4597-a4c1-320d60abf7dc",
+        "elementId": "c7796786-b08a-4e0a-94c1-500cb2a240e1",
         "portId": "end"
       },
       "b": {
-        "elementId": "bf298053-fa55-42d2-a50e-06fbffdfeab0",
+        "elementId": "73e787f0-ac2a-40e7-af6f-f53dfe68eb74",
         "portId": "a"
       }
     },
     {
-      "id": "823e5c98-4b6b-4569-ba5d-a44f2d3a7e92",
+      "id": "676eaf52-64ad-4a2e-8841-c0c046f68f89",
       "a": {
-        "elementId": "bf298053-fa55-42d2-a50e-06fbffdfeab0",
+        "elementId": "73e787f0-ac2a-40e7-af6f-f53dfe68eb74",
         "portId": "b"
       },
       "b": {
-        "elementId": "2b2d589e-00a9-4a21-9a6f-b5f56340b72a",
+        "elementId": "daa69517-5942-4b4a-9071-b0379a7fe797",
         "portId": "start"
       }
     },
     {
-      "id": "2531abc0-1d62-4301-89a1-5b36c9af1fe0",
+      "id": "47236a94-0b39-4ce5-869d-c55ba0a917d1",
       "a": {
-        "elementId": "83402e24-8295-4c4f-8d6d-04cca150d4f5",
+        "elementId": "efc29592-7472-4bc9-a052-2656d60fa450",
         "portId": "end"
       },
       "b": {
-        "elementId": "3bdd9054-b758-4654-8468-f02fac471d2d",
+        "elementId": "08949c96-1e0c-48bf-8290-7ddea58db3a7",
         "portId": "a"
       }
     },
     {
-      "id": "b3a1c0de-6a8c-4aff-ab18-7184488cd96a",
+      "id": "0ba4b473-ad0c-4eae-8b92-8e6ca91d7fd1",
       "a": {
-        "elementId": "3bdd9054-b758-4654-8468-f02fac471d2d",
+        "elementId": "08949c96-1e0c-48bf-8290-7ddea58db3a7",
         "portId": "b"
       },
       "b": {
-        "elementId": "705d728d-73e3-4734-ade6-02c9f5f0cbe1",
+        "elementId": "916ca6b3-ab80-429e-96b1-778832f23ecd",
         "portId": "start"
       }
     },
     {
-      "id": "dc0f3f01-e96f-4d3e-bfac-c73fe1a29998",
+      "id": "7cd9739e-adda-4603-9136-bdfc8bb050f2",
       "a": {
-        "elementId": "9e780749-8bce-4d98-af48-4d8d84d705da",
+        "elementId": "837c3c60-78b9-4213-9699-a442601e9133",
         "portId": "start"
       },
       "b": {
-        "elementId": "3bdd9054-b758-4654-8468-f02fac471d2d",
+        "elementId": "08949c96-1e0c-48bf-8290-7ddea58db3a7",
         "portId": "branch"
       }
     },
     {
-      "id": "29acc3b3-007b-4f21-aaa7-9419dd2aceb4",
+      "id": "9601d4b3-70df-4877-9a3d-ca1a96cbce9a",
       "a": {
-        "elementId": "9e780749-8bce-4d98-af48-4d8d84d705da",
+        "elementId": "837c3c60-78b9-4213-9699-a442601e9133",
         "portId": "end"
       },
       "b": {
-        "elementId": "d06b2312-3252-4010-ab18-6cfe5b53b1cd",
+        "elementId": "5324e783-7db9-4e2c-af7a-eaa6503a3d6b",
         "portId": "a"
       }
     },
     {
-      "id": "388d757f-4caa-4789-9621-a06c044f79fb",
+      "id": "65d85248-2de9-4069-8219-33afe9d8f30a",
       "a": {
-        "elementId": "d06b2312-3252-4010-ab18-6cfe5b53b1cd",
+        "elementId": "5324e783-7db9-4e2c-af7a-eaa6503a3d6b",
         "portId": "b"
       },
       "b": {
-        "elementId": "f34593a8-fba8-44e4-ae52-7eecad4b7ff9",
+        "elementId": "cdf51077-6650-4e86-8fb4-4f7e860ebdd5",
         "portId": "start"
       }
     },
     {
-      "id": "bb133a2e-f081-4b4c-93c9-185de9682a4b",
+      "id": "e273b3b6-042d-41b9-9b70-2b0201fdb20a",
       "a": {
-        "elementId": "f34593a8-fba8-44e4-ae52-7eecad4b7ff9",
+        "elementId": "cdf51077-6650-4e86-8fb4-4f7e860ebdd5",
         "portId": "end"
       },
       "b": {
-        "elementId": "1b48ebdd-d560-49ce-bf4e-77dc88718642",
+        "elementId": "b10807ff-1fb8-47ab-af5d-b0fce11a9f5a",
         "portId": "a"
       }
     },
     {
-      "id": "f9795f16-5e74-431d-8318-4d1bc240ccc3",
+      "id": "ed5cf83d-6e74-4f9b-9433-2d01510a0da4",
       "a": {
-        "elementId": "ea01a0ab-9de9-44e2-9d76-30fde9d7e686",
+        "elementId": "0596ea27-5079-4b19-ba1f-4ec2edb225d5",
         "portId": "start"
       },
       "b": {
-        "elementId": "1b48ebdd-d560-49ce-bf4e-77dc88718642",
+        "elementId": "b10807ff-1fb8-47ab-af5d-b0fce11a9f5a",
         "portId": "b"
       }
     },
     {
-      "id": "90886133-fb13-42ba-9f61-7369e49a4c22",
+      "id": "c0f9dc3f-0dfe-40c7-a602-2c60400127fa",
       "a": {
-        "elementId": "705d728d-73e3-4734-ade6-02c9f5f0cbe1",
+        "elementId": "916ca6b3-ab80-429e-96b1-778832f23ecd",
         "portId": "end"
       },
       "b": {
-        "elementId": "8f575640-82c2-40dc-aaa4-0e035f0da191",
+        "elementId": "f44846b2-2311-4937-8334-b025211727c9",
         "portId": "a"
       }
     },
     {
-      "id": "062e95ba-864c-4b03-80a1-bd82a27cf340",
+      "id": "229d4a29-6da8-4697-9402-886fa1691645",
       "a": {
-        "elementId": "8f575640-82c2-40dc-aaa4-0e035f0da191",
+        "elementId": "f44846b2-2311-4937-8334-b025211727c9",
         "portId": "b"
       },
       "b": {
-        "elementId": "5e7f80e9-4bac-4472-89e4-2b9173eae24d",
+        "elementId": "ad5fb362-cc4b-4775-8fbe-d1d7da039f16",
         "portId": "start"
       }
     }

@@ -317,15 +317,6 @@ kbd {
   white-space: nowrap;
 }
 
-/* Comandos secundários: três linhas por coluna, como nas faixas de CAD. */
-.ribbon__stack {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(3, auto);
-  gap: 0 4px;
-  justify-items: start;
-}
-
 .ribbon__widget {
   display: flex;
   flex-wrap: wrap;
@@ -497,50 +488,6 @@ kbd {
   justify-content: flex-start;
 }
 
-.browser__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.browser__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  padding: 3px 8px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-
-.browser__row:hover {
-  background: var(--bg-3);
-}
-
-.browser__row.is-active {
-  background: rgba(62, 166, 255, 0.16);
-  border-color: var(--accent-strong);
-}
-
-.browser__name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.browser__name.is-hidden {
-  color: var(--text-dim);
-  text-decoration: line-through;
-}
-
 .browser__search {
   display: flex;
   align-items: center;
@@ -559,58 +506,6 @@ kbd {
   border: 0;
   background: transparent;
   outline: none;
-}
-
-.browser__system {
-  display: flex;
-  flex-direction: column;
-}
-
-.browser__system-head {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 0;
-  font-weight: 600;
-}
-
-.browser__system .browser__list {
-  padding-left: 14px;
-}
-
-.browser__toggle,
-.browser__icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  padding: 3px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.browser__toggle:hover,
-.browser__icon:hover:not(:disabled) {
-  border-color: var(--line-strong);
-  color: var(--text);
-}
-
-.browser__icon:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.browser__swatch {
-  flex-shrink: 0;
-  width: 10px;
-  height: 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 2px;
-}
-
-.browser__more {
-  padding: 4px 8px;
 }
 
 /* ----- Área central: abas de vista e navegação ----- */
@@ -820,26 +715,6 @@ kbd {
   padding: 0 10px;
 }
 
-.statusbar__instruction {
-  display: flex;
-  flex: 2 1 0;
-  gap: 8px;
-  min-width: 120px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.statusbar__instruction strong {
-  flex-shrink: 0;
-}
-
-.statusbar__instruction span {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-dim);
-  text-overflow: ellipsis;
-}
-
 .statusbar__coords {
   min-width: 270px;
 }
@@ -1036,9 +911,6 @@ kbd {
     gap: 0;
   }
   .topbar__caption {
-    display: none;
-  }
-  .statusbar__instruction span {
     display: none;
   }
 }

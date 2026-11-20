@@ -17,7 +17,7 @@ import {
   MIN_PIPE_LENGTH,
 } from './dimensions';
 import { formatAngleList, matchElbowAngle } from './elbowAngles';
-import { GENERIC_CATALOG, type FittingCatalog } from './families';
+import { GENERIC_CATALOG, requiredEndType, type Ends, type FittingCatalog } from './families';
 import { newId } from './ids';
 import { baseFields, elementKindLabel, nextName, now, putElement, touch } from './internal';
 import {
@@ -55,6 +55,7 @@ import {
   type Discipline,
   type Elbow,
   type EndTreatment,
+  type EndType,
   type Fitting,
   type FittingKind,
   type HydraulicSystem,
@@ -65,6 +66,7 @@ import {
   type Project,
   type PropertyValue,
   type Pump,
+  type PumpType,
   type Reducer,
   type Tank,
   type TankType,
@@ -72,10 +74,40 @@ import {
   type Valve,
   type ValveType,
 } from './schema';
+import {
+  PUMP_DIMENSION_KEYS,
+  pumpProblem,
+  pumpTypeOf,
+  unlinkPumpVariant,
+  type PumpParameters,
+} from './pumps';
 import { TANK_TYPE_LABELS, tankProblem, tankTypeOf, type TankParameters } from './tanks';
 import { degToRad, formatDegrees } from './units';
 
 export { elementKindLabel };
+
+/** Peças cujas extremidades vêm de família de conexões (equipamentos ficam de fora). */
+const CATALOG_FITTINGS: ReadonlySet<string> = new Set(['elbow', 'tee', 'valve', 'reducer']);
+
+/**
+ * Recusa a peça quando a porta exige flange e o catálogo não tem a peça flangeada no
+ * diâmetro: encostar bolsa, ponta ou peça genérica num flange presumiria um adaptador.
+ */
+function flangeMismatch(
+  piece: string,
+  spec: PipeSpec,
+  endType: EndType | undefined,
+  resolved: { familyId: string | null; ends: Readonly<Ends> },
+): Result<never> | null {
+  if (endType !== 'flange') return null;
+  // A busca já filtrou as famílias pelo acabamento: achar uma família basta.
+  if (resolved.familyId !== null) return null;
+  if (Object.values(resolved.ends).some((end) => end.type === 'flange')) return null;
+  return fail(
+    'NO_FLANGED_FITTING',
+    `A extremidade é flangeada e não há ${piece} flangeado(a) no catálogo para ${spec.standard}, ${spec.sizeLabel}: a ligação exige peça flange × flange.`,
+  );
+}
 
 /**
  * Operações paramétricas sobre o projeto. Todas são funções puras: recebem um projeto
@@ -106,6 +138,7 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     levels: [{ id: newId(), name: discipline === 'infra' ? 'Referência' : 'Térreo', elevation: 0 }],
     families: [],
     tankFamilies: [],
+    pumpFamilies: [],
     ifcTypes: {},
     georeference: null,
     terrain: null,
@@ -249,6 +282,8 @@ export interface DrawPipeInput extends AddPipeInput {
    * Ausente ou vazio: ângulo livre.
    */
   elbowAngles?: readonly number[];
+  /** Família preferida para o joelho automático. */
+  elbowFamilyId?: string | null;
 }
 
 /**
@@ -315,7 +350,17 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
     );
   }
 
-  const dims = (input.catalog ?? GENERIC_CATALOG).elbow(spec, deflection);
+  // Tubo flangeado muda de direção com curva flangeada (flange × flange), nunca com uma
+  // peça de bolsa ou de ponta encostada no flange.
+  const endType = requiredEndType(port.end, input.ends?.start);
+  const dims = (input.catalog ?? GENERIC_CATALOG).elbow(
+    spec,
+    deflection,
+    input.elbowFamilyId,
+    endType,
+  );
+  const unmatched = flangeMismatch('joelho', spec, endType, dims);
+  if (unmatched) return unmatched;
   const legs = elbowPortDistances({ angle: deflection, ...dims });
   if (pipeLength(host) < legs.a + MIN_PIPE_LENGTH) {
     return fail('PIPE_TOO_SHORT', `"${host.name}" é curto demais para receber o joelho.`);
@@ -453,7 +498,12 @@ export type FittingInput =
   | { kind: 'tee'; branchSpec?: PipeSpec; familyId?: string | null }
   | { kind: 'valve'; valveType?: ValveType; familyId?: string | null }
   | { kind: 'reducer'; outletSpec: PipeSpec; familyId?: string | null }
-  | { kind: 'pump'; dischargeSpec?: PipeSpec }
+  | {
+      kind: 'pump';
+      dischargeSpec?: PipeSpec;
+      /** Parâmetros de uma família de catálogo (`pumpParametersFromFamily`). */
+      parameters?: PumpParameters;
+    }
   | {
       kind: 'tank';
       diameter?: number;
@@ -479,13 +529,15 @@ export function buildFitting(
   spec: PipeSpec,
   systemId: string,
   catalog: FittingCatalog = GENERIC_CATALOG,
+  /** Acabamento exigido das extremidades (porta flangeada → peça flangeada). */
+  endType?: EndType,
 ): Result<Fitting> {
   const placement = { position: ZERO, rotation: QUAT_IDENTITY };
   const base = baseFields(project, input.kind, spec, systemId);
   switch (input.kind) {
     case 'elbow': {
       const angle = input.angle ?? degToRad(90);
-      const dims = catalog.elbow(spec, angle, input.familyId);
+      const dims = catalog.elbow(spec, angle, input.familyId, endType);
       const custom = input.bendRadius !== undefined;
       const bendRadius = input.bendRadius ?? dims.bendRadius;
       const check = validateElbow(angle, bendRadius);
@@ -514,7 +566,7 @@ export function buildFitting(
       if (branchSpec.dn > spec.dn) {
         return fail('INVALID_BRANCH', 'A derivação do tê não pode ser maior que a passagem.');
       }
-      const dims = catalog.tee(spec, branchSpec, input.familyId);
+      const dims = catalog.tee(spec, branchSpec, input.familyId, endType);
       const tee: Tee = {
         ...base,
         kind: 'tee',
@@ -529,7 +581,7 @@ export function buildFitting(
     }
     case 'valve': {
       const valveType = input.valveType ?? 'gate';
-      const dims = catalog.valve(spec, valveType, input.familyId);
+      const dims = catalog.valve(spec, valveType, input.familyId, endType);
       const valve: Valve = {
         ...base,
         // O filtro Y é uma peça em linha tratada como "válvula", mas não leva esse nome.
@@ -562,7 +614,7 @@ export function buildFitting(
       if (input.outletSpec.dn === spec.dn) {
         return fail('REDUCER_SAME_DN', 'A redução deve ter dois diâmetros nominais diferentes.');
       }
-      const dims = catalog.reducer(spec, input.outletSpec, input.familyId);
+      const dims = catalog.reducer(spec, input.outletSpec, input.familyId, endType);
       const reducer: Reducer = {
         ...base,
         kind: 'reducer',
@@ -576,6 +628,11 @@ export function buildFitting(
     }
     case 'pump': {
       const dischargeSpec = input.dischargeSpec ?? spec;
+      if (input.parameters) {
+        const pump: Pump = { ...base, kind: 'pump', placement, dischargeSpec, ...input.parameters };
+        const problem = pumpProblem(pump);
+        return problem ? fail('INVALID_VALUE', problem) : ok(pump);
+      }
       const length = Math.max(8 * spec.outerDiameter, 0.6);
       const pump: Pump = {
         ...base,
@@ -660,8 +717,25 @@ export function attachFitting(project: Project, input: AttachFittingInput): Resu
   if (!port || !host) return fail('PORT_NOT_FOUND', 'Porta de conexão inexistente.');
   if (!isPortFree(project, port.ref)) return fail('PORT_OCCUPIED', 'A porta já está conectada.');
 
-  const built = buildFitting(project, input.fitting, port.spec, host.systemId, input.catalog);
+  const endType = requiredEndType(port.end);
+  const built = buildFitting(
+    project,
+    input.fitting,
+    port.spec,
+    host.systemId,
+    input.catalog,
+    endType,
+  );
   if (!built.ok) return built;
+  if (CATALOG_FITTINGS.has(built.value.kind)) {
+    const unmatched = flangeMismatch(
+      elementKindLabel(built.value.kind).toLowerCase(),
+      port.spec,
+      endType,
+      built.value,
+    );
+    if (unmatched) return unmatched;
+  }
   const fitting = placeAtPort(built.value, port.position, port.direction, input.roll ?? 0);
   const connected = connectPorts(putElement(project, fitting), port.ref, {
     elementId: fitting.id,
@@ -1035,7 +1109,20 @@ const EDITABLE: Record<FittingKind, readonly string[]> = {
   tee: ['runLength', 'branchLength'],
   reducer: ['length'],
   valve: ['length', 'height', 'handwheelDiameter', 'width', 'bonnetLength'],
-  pump: ['length', 'dischargeOffset', 'dischargeHeight', 'ratedFlow', 'ratedHead'],
+  pump: [
+    'length',
+    'dischargeOffset',
+    'dischargeHeight',
+    'ratedFlow',
+    'ratedHead',
+    'footOffset',
+    'footSpan',
+    'rearLength',
+    'footWidth',
+    'footHoleDiameter',
+    'axisHeight',
+    'totalHeight',
+  ],
   tank: [
     'diameter',
     'height',
@@ -1069,6 +1156,12 @@ const TANK_SHAPE_FIELDS: Record<TankType, readonly string[]> = {
   horizontal: ['supportHeight', 'length'],
 };
 const TANK_SHAPE_KEYS = new Set(Object.values(TANK_SHAPE_FIELDS).flat());
+/** Bombas: parâmetros de forma aplicáveis a cada tipo construtivo. */
+const PUMP_SHAPE_FIELDS: Record<PumpType, readonly string[]> = {
+  generic: ['dischargeOffset', 'dischargeHeight'],
+  amphibious: PUMP_DIMENSION_KEYS.filter((key) => key !== 'length'),
+};
+const PUMP_SHAPE_KEYS = new Set(Object.values(PUMP_SHAPE_FIELDS).flat());
 /** Reservatórios: parâmetros que identificam o modelo comercial do catálogo. */
 const TANK_CATALOG_KEYS = new Set([
   'diameter',
@@ -1091,6 +1184,13 @@ export type FittingPatch = {
   bonnetLength?: number;
   dischargeOffset?: number;
   dischargeHeight?: number;
+  footOffset?: number;
+  footSpan?: number;
+  rearLength?: number;
+  footWidth?: number;
+  footHoleDiameter?: number;
+  axisHeight?: number;
+  totalHeight?: number;
   ratedFlow?: number;
   ratedHead?: number;
   diameter?: number;
@@ -1124,7 +1224,10 @@ export function updateFitting(project: Project, id: string, patch: FittingPatch)
       EDITABLE[element.kind].includes(key) &&
       (element.kind !== 'tank' ||
         !TANK_SHAPE_KEYS.has(key) ||
-        (TANK_SHAPE_FIELDS[tankTypeOf(element)] ?? []).includes(key));
+        (TANK_SHAPE_FIELDS[tankTypeOf(element)] ?? []).includes(key)) &&
+      (element.kind !== 'pump' ||
+        !PUMP_SHAPE_KEYS.has(key) ||
+        PUMP_SHAPE_FIELDS[pumpTypeOf(element)].includes(key));
     if (!applies) {
       return fail('INVALID_FIELD', `O parâmetro "${key}" não se aplica a este elemento.`);
     }
@@ -1152,7 +1255,14 @@ export function updateFitting(project: Project, id: string, patch: FittingPatch)
         },
       };
     }
+  } else if (updated.kind === 'pump' && pumpTypeOf(updated) !== 'generic') {
+    // A forma da família permanece; alterar uma cota desfaz o vínculo com a linha da tabela.
+    if (geometric) updated = unlinkPumpVariant(updated);
   } else if (geometric) updated = { ...updated, familyId: null };
+  if (updated.kind === 'pump') {
+    const problem = pumpProblem(updated);
+    if (problem) return fail('INVALID_VALUE', problem);
+  }
   if (updated.kind === 'elbow') {
     const check = validateElbow(updated.angle, updated.bendRadius);
     if (!check.ok) return check;

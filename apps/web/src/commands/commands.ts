@@ -4,16 +4,12 @@ import {
   ArrowUpDown,
   Box,
   Boxes,
-  ChevronsRight,
-  CircleDot,
   ClipboardList,
+  Columns2,
   Copy,
-  CornerDownRight,
   Crosshair,
-  Cylinder,
   Eye,
   EyeOff,
-  Fan,
   FileBox,
   FileCheck2,
   FileDown,
@@ -47,9 +43,7 @@ import {
   Save,
   ScanSearch,
   Search,
-  Slash,
   Spline,
-  Split,
   SquareArrowUp,
   Table2,
   Tag,
@@ -84,6 +78,7 @@ import {
 import { useUiStore, type TaskId } from '../state/uiStore';
 import { useTerrainStore, type TerrainMode } from '../terrain/terrainStore';
 import { TOOL_HINTS, TOOL_LABELS } from '../ui/labels';
+import { ELEMENT_ICONS } from '../ui/EngineeringIcons';
 
 /**
  * Registro único dos comandos da interface. A faixa de comandos, os atalhos de teclado, o
@@ -108,6 +103,10 @@ export interface CommandContext {
   readonly panelOpen: boolean;
   readonly ribbonCollapsed: boolean;
   readonly validationOpen: boolean;
+  /** Disposição da área de desenho: uma vista por vez ou planta e modelo 3D lado a lado. */
+  readonly workspaceLayout?: 'single' | 'split';
+  /** Vista que ocupa sozinha a área de desenho, quando uma delas está maximizada. */
+  readonly maximizedView?: 'plan' | '3d' | null;
   /** Operação do terreno em andamento na Planta Infra e painel do terreno aberto. */
   readonly terrainMode?: TerrainMode | null;
   readonly terrainPanelOpen?: boolean;
@@ -179,15 +178,16 @@ function freePortsOf(context: CommandContext) {
 const modeling = (context: CommandContext): CommandState | null =>
   context.viewMode === 'bim' ? off(BIM_REASON) : null;
 
+/**
+ * O modelo 3D está fora da tela: a planta ocupa a área de desenho (uma vista por vez ou
+ * maximizada). Lado a lado, os comandos de câmera valem mesmo com a planta ativa.
+ */
+const modelHidden = (context: CommandContext): boolean =>
+  context.viewMode === 'plan' && !(context.workspaceLayout === 'split' && !context.maximizedView);
+
 const TOOL_ICONS: Record<ToolId, LucideIcon> = {
   select: MousePointer2,
-  pipe: Slash,
-  elbow: CornerDownRight,
-  tee: Split,
-  reducer: ChevronsRight,
-  valve: CircleDot,
-  pump: Fan,
-  tank: Cylinder,
+  ...ELEMENT_ICONS,
   measure: Ruler,
   dimension: MoveHorizontal,
   text: Type,
@@ -243,7 +243,7 @@ function viewCommand(
     icon,
     testId,
     state: (context) =>
-      context.viewMode === 'plan'
+      modelHidden(context)
         ? off('Disponível no Modelo 3D: a planta é sempre vista de cima.')
         : ENABLED,
     run: () => editor().requestView(preset),
@@ -600,7 +600,7 @@ export const COMMANDS: readonly Command[] = [
     icon: Boxes,
     testId: 'view-isometric',
     state: (context) => {
-      if (context.viewMode === 'plan')
+      if (modelHidden(context))
         return off('Disponível no Modelo 3D: a planta é sempre vista de cima.');
       const quadrant =
         context.orthographic && isIsoQuadrant(context.viewPreset) ? context.viewPreset : null;
@@ -617,13 +617,26 @@ export const COMMANDS: readonly Command[] = [
     icon: Grid3x3,
     testId: 'view-ortho',
     state: (context) =>
-      context.viewMode === 'plan'
+      modelHidden(context)
         ? off('Disponível no Modelo 3D: a planta já é ortográfica.')
         : { enabled: true, active: context.orthographic },
     run: () => editor().setOrthographic(!editor().orthographic),
   },
 
   // ----- Painéis e layout -----
+  {
+    id: 'view.split',
+    label: 'Lado a lado',
+    description:
+      'Planta à esquerda e Modelo 3D à direita, com divisor ajustável: o mesmo projeto, a mesma seleção. Desligado, a área de desenho mostra uma vista por vez.',
+    icon: Columns2,
+    testId: 'view-split',
+    state: (context) =>
+      context.viewMode === 'bim'
+        ? off('A consulta BIM / IFC usa só o Modelo 3D.')
+        : { enabled: true, active: context.workspaceLayout === 'split' },
+    run: () => ui().setWorkspaceLayout(ui().workspaceLayout === 'split' ? 'single' : 'split'),
+  },
   {
     id: 'layout.nav',
     label: 'Navegador',
@@ -996,6 +1009,8 @@ export function commandContext(): CommandContext {
     panelOpen: layout.panelOpen,
     ribbonCollapsed: layout.ribbonCollapsed,
     validationOpen: layout.validationOpen,
+    workspaceLayout: layout.workspaceLayout,
+    maximizedView: layout.maximizedView,
     terrainMode: terrain().mode,
     terrainPanelOpen: terrain().panelOpen,
   };

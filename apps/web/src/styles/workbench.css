@@ -1,0 +1,1138 @@
+/*
+ * Aparência de bancada de modelagem: cabeçalho e barra de status em azul-marinho, painéis
+ * brancos sobre cinza muito claro, azul-claro para ferramentas e itens selecionados.
+ * Carregado depois de app.css e layout.css: redefine a aparência, não a estrutura dos dados.
+ */
+
+.app,
+.app--bim {
+  grid-template-rows: 44px auto minmax(0, 1fr) 28px;
+}
+
+/* Mesma espessura de traço em todos os ícones (biblioteca e símbolos próprios). */
+svg.lucide {
+  stroke-width: 1.6;
+  flex-shrink: 0;
+}
+
+input,
+select,
+textarea {
+  accent-color: var(--accent-strong);
+}
+
+/* ----- Cabeçalho ----- */
+
+.topbar {
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--navy);
+  border-bottom: 0;
+  color: var(--navy-text);
+}
+
+.topbar__brand {
+  gap: 9px;
+  color: #fff;
+  font-size: 17px;
+  letter-spacing: 0.01em;
+}
+
+.topbar__rule {
+  flex-shrink: 0;
+  width: 1px;
+  height: 22px;
+  background: var(--navy-line);
+}
+
+.topbar .menu__trigger {
+  padding: 5px 9px;
+  border-color: transparent;
+  background: transparent;
+  color: inherit;
+  font-weight: 500;
+}
+
+.topbar .menu__trigger:hover,
+.topbar .menu__trigger[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.topbar__project {
+  flex: 0 1 auto;
+  gap: 6px;
+  min-width: 0;
+  max-width: 46%;
+}
+
+.topbar__caption {
+  color: rgba(232, 238, 247, 0.78);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.topbar__project input {
+  flex: 0 1 auto;
+  padding: 4px 7px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.topbar__project input:hover,
+.topbar__project input:focus {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.topbar__dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--navy-text);
+  font-size: 12.5px;
+}
+
+/* Não salvo: fundo âmbar e ponto cheio (cor e forma mudam juntas). */
+.topbar__dirty--on {
+  background: #ffe2a0;
+  color: #4d3300;
+  font-weight: 600;
+}
+
+.topbar .segmented {
+  border-color: rgba(255, 255, 255, 0.5);
+  border-radius: 7px;
+}
+
+.topbar .segmented__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  background: transparent;
+  color: #d9e2ef;
+}
+
+.topbar .segmented__item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.topbar .segmented__item.is-active {
+  background: var(--accent-strong);
+  color: #fff;
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.75);
+}
+
+.topbar__group {
+  gap: 2px;
+}
+
+.topbar .cmd--icon {
+  width: 34px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  color: #fff;
+}
+
+.topbar .cmd--icon:hover:not(:disabled) {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.topbar :focus-visible {
+  outline-color: #9cc8ff;
+}
+
+.menu__list {
+  background: var(--bg-1);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+/* ----- Botões de comando: normal, apontado, ativo e indisponível ----- */
+
+.cmd {
+  color: var(--text);
+}
+
+.cmd:hover:not(:disabled) {
+  border-color: var(--line);
+  background: #edf2f8;
+}
+
+/* Ativo: fundo azul-claro, contorno, linha inferior e texto em negrito. */
+.cmd.is-active {
+  border-color: var(--select-line);
+  background: var(--select-bg);
+  box-shadow: inset 0 -2px 0 var(--accent-strong);
+  color: var(--select-text);
+  font-weight: 600;
+}
+
+.cmd:disabled {
+  opacity: 0.42;
+}
+
+.cmd--large,
+.cmd--compact {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 7px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 9px;
+  font-size: 13px;
+}
+
+.cmd__caret {
+  margin-left: -2px;
+  opacity: 0.75;
+}
+
+.cmd--icon {
+  justify-content: center;
+  min-width: 28px;
+  min-height: 26px;
+}
+
+.cmd--menu {
+  font-weight: 400;
+}
+
+.cmd--menu.is-active {
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+}
+
+/* Comandos secundários: o nome só aparece quando há largura; a dica sempre o traz. */
+@media (max-width: 1699px) {
+  .cmd--compact {
+    justify-content: center;
+    width: 32px;
+    padding: 0;
+  }
+  .cmd--compact .cmd__label {
+    display: none;
+  }
+}
+
+.btn--confirm {
+  border-color: var(--confirm);
+  background: var(--confirm);
+  color: #fff;
+}
+
+.btn--confirm:hover:not(:disabled) {
+  background: #0b7a6c;
+}
+
+/* ----- Abas de tarefa ----- */
+
+.ribbon {
+  background: var(--bg-1);
+}
+
+.ribbon__tabs {
+  align-items: stretch;
+  gap: 2px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-0);
+}
+
+.ribbon__tab {
+  height: auto;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 5px 5px 0 0;
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.ribbon__tab:hover {
+  background: #e6ecf3;
+}
+
+.ribbon__tab.is-active {
+  border-bottom-color: var(--accent-strong);
+  background: var(--select-bg);
+  box-shadow: none;
+  color: var(--select-text);
+}
+
+.ribbon__search {
+  height: 24px;
+  background: var(--bg-1);
+}
+
+/* ----- Barra de ferramentas: uma linha de comandos, agrupados e nomeados ----- */
+
+.ribbon__body {
+  min-height: 0;
+  padding: 3px 4px 2px;
+}
+
+.ribbon__group {
+  gap: 1px;
+  padding: 0 10px;
+}
+
+.ribbon__items {
+  gap: 2px;
+  min-height: 42px;
+}
+
+.ribbon__caption {
+  font-size: 9.5px;
+  letter-spacing: 0.09em;
+  line-height: 12px;
+}
+
+.ribbon__menu-list {
+  top: calc(100% + 4px);
+  width: 320px;
+}
+
+.ribbon__widget {
+  gap: 2px 10px;
+  max-width: 560px;
+  font-size: 12px;
+}
+
+.ribbon__widget--column {
+  gap: 2px;
+}
+
+.ribbon__widget .plan__field select,
+.ribbon__widget .plan__field input:not([type='range']),
+.ribbon__widget .btn--compact,
+.ribbon__widget .chip {
+  height: 20px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 12px;
+}
+
+.ribbon__widget .check {
+  color: var(--text);
+}
+
+.ribbon__info {
+  font-size: 11.5px;
+  line-height: 1.2;
+}
+
+.ribbon .btn.is-active {
+  border-color: var(--select-line);
+  background: var(--select-bg);
+  box-shadow: inset 0 -2px 0 var(--accent-strong);
+  color: var(--select-text);
+}
+
+/* ----- Painéis laterais ----- */
+
+.dock {
+  background: var(--bg-1);
+}
+
+.dock__collapse {
+  top: 7px;
+}
+
+.dock__rail {
+  background: var(--bg-0);
+}
+
+.dock .panel__header,
+.dock .bim-tree__header {
+  padding: 9px 34px 7px 12px;
+}
+
+.panel__header h2,
+.bim-tree__header h2 {
+  font-size: 15px;
+}
+
+/* ----- Navegador do projeto: árvore ----- */
+
+.browser__header {
+  border-bottom: 0;
+}
+
+.browser__search-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.browser__search,
+.bim-tree__search,
+.bim-tree__class {
+  min-height: 28px;
+  background: var(--bg-1);
+}
+
+.browser__search:focus-within {
+  border-color: var(--accent-strong);
+}
+
+.browser__results {
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+
+.browser__tree {
+  padding: 4px 0 8px;
+}
+
+.tree,
+.tree__children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tree__row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 6px 0 calc(8px + var(--level, 0) * 14px);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Folhas não têm seta: o recuo extra alinha o símbolo com o dos nós. */
+.tree__row--leaf {
+  padding-left: calc(27px + var(--level, 0) * 14px);
+}
+
+.tree__row:hover {
+  background: #eef3f9;
+}
+
+.tree__row--root,
+.tree__row--system {
+  cursor: default;
+}
+
+.tree__row--root {
+  font-weight: 600;
+}
+
+.tree__row--root:hover {
+  background: transparent;
+}
+
+/* Selecionado: fundo azul-claro, barra à esquerda e negrito. */
+.tree__row.is-active {
+  background: var(--select-bg);
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+  color: var(--select-text);
+  font-weight: 600;
+}
+
+/* Plano de trabalho atual: marcado sem competir com a seleção. */
+.tree__row.is-current {
+  box-shadow: inset 3px 0 0 var(--confirm);
+}
+
+.tree__row.is-current .tree__label {
+  font-weight: 600;
+}
+
+.tree__caret {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.tree__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #46607d;
+}
+
+.tree__row.is-active .tree__icon {
+  color: var(--select-text);
+}
+
+.tree__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree__label--button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tree__count,
+.tree__value {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.tree__action {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #46607d;
+  cursor: pointer;
+}
+
+.tree__action:hover:not(:disabled) {
+  background: #dbe5f1;
+  color: var(--text);
+}
+
+.tree__action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tree__action.is-off {
+  color: var(--warning);
+}
+
+.tree__branch.is-hidden .tree__label,
+.tree__row.is-hidden .tree__label {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.tree__more {
+  padding: 3px 8px 3px calc(27px + var(--level, 0) * 14px);
+  font-size: 11.5px;
+}
+
+.browser__discipline {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--select-bg);
+  color: var(--select-text);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.browser__views-section {
+  padding: 6px 6px 8px;
+  border-top: 1px solid var(--line);
+}
+
+.browser__heading {
+  margin: 0;
+  padding: 2px 6px 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.browser__views .cmd {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.browser__footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-0);
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+
+.bim-tree__row--item.is-active {
+  background: var(--select-bg);
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+}
+
+/* ----- Área de desenho: vistas lado a lado ----- */
+
+.workspace {
+  background: var(--bg-0);
+}
+
+.workspace__view {
+  display: flex;
+}
+
+.pane {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-1);
+}
+
+.workspace[data-layout='split'] .pane--plan:not(.is-solo):not(.is-hidden) {
+  flex: 0 0 calc(var(--split, 0.5) * 100% - 3px);
+}
+
+/* Vista encoberta pela maximização: continua montada, com tamanho, para conservar a câmera. */
+.pane.is-hidden {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 50%;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.pane__header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 30px;
+  padding: 0 4px 0 6px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.pane__tabs,
+.pane__nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pane__nav {
+  flex-shrink: 0;
+}
+
+.pane__tabs .cmd {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Lado a lado: o título é discreto; a vista ativa ganha a linha azul no topo. */
+.pane:not(.is-solo) .pane__tabs .cmd,
+.pane:not(.is-solo) .pane__tabs .cmd.is-active {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-dim);
+}
+
+.pane:not(.is-solo).is-active .pane__tabs .cmd {
+  color: var(--text);
+}
+
+.pane:not(.is-solo).is-active .pane__header {
+  box-shadow: inset 0 2px 0 var(--accent-strong);
+}
+
+.pane {
+  container-type: inline-size;
+}
+
+/* Vista estreita: fica o título; a informação complementar cede o lugar aos controles. */
+@container (max-width: 460px) {
+  .pane__info {
+    display: none;
+  }
+}
+
+.pane__info {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane__nav .cmd--icon {
+  width: 27px;
+  min-width: 27px;
+  height: 24px;
+  padding: 0;
+}
+
+.pane__sep {
+  flex-shrink: 0;
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--line-strong);
+}
+
+.pane__mode {
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border: 1px solid var(--warning);
+  border-radius: 99px;
+  color: var(--warning);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.pane__view {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  /* Os rótulos sobre o modelo 3D têm z-index próprio: ficam contidos na vista. */
+  isolation: isolate;
+}
+
+.workspace__divider {
+  flex: 0 0 6px;
+  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  background: var(--bg-0);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.workspace__divider:hover,
+.workspace__divider:focus-visible {
+  background: var(--accent-strong);
+  outline: none;
+}
+
+/* ----- Barra de referências (junto da área de desenho) ----- */
+
+.refbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  height: 30px;
+  min-width: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+  background: var(--bg-1);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.refbar__title {
+  font-size: 13px;
+}
+
+.switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.switch__track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 99px;
+  background: #aab5c2;
+  transition: background 0.12s;
+}
+
+.switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.12s;
+}
+
+/* Ligado: cor e posição do botão mudam juntas. */
+.switch.is-on .switch__track {
+  background: var(--confirm);
+}
+
+.switch.is-on .switch__thumb {
+  left: 14px;
+}
+
+.refbar__step select {
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--bg-1);
+  font-size: 12px;
+}
+
+.refbar__fixed,
+.refbar__planned {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.refbar__fixed svg {
+  color: var(--confirm);
+}
+
+.refbar__planned {
+  color: var(--text-dim);
+}
+
+.refbar__hint {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  color: var(--text-dim);
+}
+
+.refbar__hint span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1599px) {
+  .refbar__planned {
+    display: none;
+  }
+}
+
+/* ----- Painel de propriedades ----- */
+
+.rightpanel__tabs {
+  padding: 6px 34px 0 8px;
+  background: var(--bg-0);
+}
+
+.rightpanel__tab.is-active {
+  background: var(--bg-1);
+  box-shadow: inset 0 2px 0 var(--accent-strong);
+}
+
+.inspector__header {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.inspector__identity-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--select-bg);
+  color: var(--select-text);
+}
+
+.inspector__identity {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inspector__type {
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+
+.inspector__identity h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector__back {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.inspector__back:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+/* Seções recolhíveis: cabeçalho em faixa cinza, conteúdo alinhado em duas colunas. */
+.section {
+  gap: 6px;
+  padding: 0 0 10px;
+  border-bottom: 0;
+}
+
+.section > :not(.section__title) {
+  margin-right: 12px;
+  margin-left: 12px;
+}
+
+.section__title {
+  margin-bottom: 2px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #eef1f5;
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.section__toggle {
+  gap: 7px;
+  padding: 6px 10px;
+  font-weight: 600;
+}
+
+.section__caret {
+  width: auto;
+}
+
+.section__icon {
+  display: inline-flex;
+}
+
+.section.is-collapsed {
+  padding-bottom: 0;
+}
+
+.section.is-collapsed .section__title {
+  margin-bottom: 0;
+}
+
+.field,
+.row {
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  min-height: 26px;
+  align-items: center;
+}
+
+.field__label,
+.row__label {
+  color: #3f4e5f;
+}
+
+/* Editável: caixa branca com contorno. Somente leitura: texto simples, sem caixa. */
+.field__control {
+  min-height: 28px;
+  background: var(--bg-1);
+}
+
+.field__control:focus-within {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.18);
+}
+
+.field__control:has(input:disabled, select:disabled) {
+  border-style: dashed;
+  background: var(--bg-0);
+}
+
+.row__value {
+  color: var(--text);
+}
+
+.bim-add input,
+.stack select,
+.stack input,
+.cell,
+.plan__field select,
+.plan__field input,
+.plan__field textarea,
+.palette__input {
+  background: var(--bg-1);
+}
+
+.options__badge {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* ----- Barra de status ----- */
+
+.statusbar {
+  gap: 0;
+  padding: 0 4px;
+  border-top: 0;
+  background: var(--navy);
+  color: var(--navy-text);
+  font-size: 12.5px;
+}
+
+.statusbar__tool,
+.statusbar__item {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+  padding: 0 12px;
+  border-right: 1px solid var(--navy-line);
+  color: #d7e0ec;
+  white-space: nowrap;
+}
+
+.statusbar__tool {
+  color: #fff;
+}
+
+.statusbar__capture {
+  flex-shrink: 1;
+  min-width: 60px;
+  max-width: 300px;
+}
+
+.statusbar__capture span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statusbar__coords {
+  min-width: 0;
+}
+
+.statusbar__message {
+  flex: 1 1 0;
+  max-width: none;
+  padding: 0 12px;
+  color: #fff;
+}
+
+.statusbar__message--error {
+  color: #ffb9b0;
+  font-weight: 600;
+}
+
+.statusbar__message--success {
+  color: #9be8c0;
+}
+
+.statusbar__button {
+  color: inherit;
+}
+
+.statusbar__button:hover {
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.statusbar .icon--ok {
+  color: #86e2b1;
+}
+
+.statusbar .icon--warning {
+  color: #ffd27a;
+}
+
+.statusbar .icon--error {
+  color: #ffb9b0;
+}
+
+.issues {
+  bottom: 28px;
+  background: var(--bg-1);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.issue {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+/* ----- Telas menores ----- */
+
+@media (max-width: 1400px) {
+  .cmd--large {
+    gap: 6px;
+    min-width: 0;
+    padding: 0 6px;
+    font-size: 12.5px;
+  }
+  .ribbon__group {
+    padding: 0 5px;
+  }
+  .ribbon__tab {
+    padding: 0 11px;
+  }
+  .statusbar__tool,
+  .statusbar__item {
+    padding: 0 9px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .topbar__caption {
+    display: none;
+  }
+  .statusbar__capture {
+    display: none;
+  }
+}

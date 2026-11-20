@@ -32,12 +32,23 @@ function linesGeometry(positions: Float32Array): BufferGeometry {
  * partir da cota mínima, e a interface avisa que a rede deixa de coincidir com ele.
  */
 export function TerrainSurface() {
+  const visible = useTerrainStore((s) => s.display.show3d);
+  // Oculta, a superfície nem é montada: nada de malha, curvas nem download do mapa.
+  return visible ? <TerrainSurfaceMesh /> : null;
+}
+
+function TerrainSurfaceMesh() {
   const terrain = useEditorStore((s) => s.project.terrain);
   const display = useTerrainStore((s) => s.display);
 
   const georeference = useEditorStore((s) => s.project.georeference);
   const customBasemap = useEditorStore((s) => s.customBasemap);
-  const provider = findBasemapProvider(display.drapeSourceId, customBasemap);
+  // Memorizada: a fonte personalizada é um objeto novo a cada chamada, e uma identidade nova
+  // refaria o mosaico e o download a cada renderização (o aviso de carregamento não sairia).
+  const provider = useMemo(
+    () => findBasemapProvider(display.drapeSourceId, customBasemap),
+    [display.drapeSourceId, customBasemap],
+  );
   const geo = useMemo(() => georeferenceStatus(georeference), [georeference]);
   const transform = geo.state === 'ready' ? geo.transform : null;
 

@@ -6,6 +6,7 @@ import {
   type HydroElement,
   type Pipe,
   type Valve,
+  isCustomPumpFamilyId,
 } from '@hydrobim/core';
 import { IFC_PROPERTY_SETS } from './schemaData';
 import type {
@@ -247,7 +248,13 @@ const isValve = (e: HydroElement): e is Valve => e.kind === 'valve';
 
 /** Origem das dimensões de uma conexão: catálogo quando há família, senão cadastro livre. */
 const dimensional = (element: HydroElement): Origin =>
-  element.familyId === null ? 'model' : 'catalog';
+  // Bomba de catálogo sem linha da tabela, ou de família personalizada: a forma é da
+  // família, as cotas são do usuário.
+  element.familyId === null ||
+  (element.kind === 'pump' &&
+    (element.variantId === undefined || isCustomPumpFamilyId(element.familyId)))
+    ? 'model'
+    : 'catalog';
 
 /** Referência do tipo: família (ou especificação) e designação do diâmetro. */
 function typeReference({ element }: IfcDefinitionContext): IfcResolvedValue | null {
@@ -844,7 +851,10 @@ export const IFC_PROPERTY_DEFINITIONS: readonly IfcPropertyDefinition[] = [
     editable: true,
   }),
   own('HydroBIM_Bomba', 'PumpType', 'Tipo de bomba', 'type', ['pump'], 'IfcLabel', {
-    resolve: () => value('Conjunto motobomba — representação genérica', 'model'),
+    resolve: ({ element }) =>
+      element.kind === 'pump' && element.pumpType === 'amphibious'
+        ? value('Bomba anfíbia em linha', 'catalog')
+        : value('Conjunto motobomba — representação genérica', 'model'),
   }),
   own(
     'HydroBIM_Bomba',

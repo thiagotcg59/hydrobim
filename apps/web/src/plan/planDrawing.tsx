@@ -37,7 +37,7 @@ export const PAPER = {
 } as const;
 
 export const INK = '#111111';
-export const HIGHLIGHT = '#1f6fe0';
+export const HIGHLIGHT = '#00a6c0';
 const MONO_FILL = '#ffffff';
 /** Traço sobre partes escuras (PEAD, ferro com betume, borracha), onde o preto não aparece. */
 const LIGHT_INK = '#eef1f4';

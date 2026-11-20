@@ -1,4 +1,5 @@
 import {
+  FLANGE_PRESSURE_CLASSES,
   flangedPipeFamiliesFor,
   JOINT_TYPE_LABELS,
   MATERIAL_LABELS,
@@ -21,6 +22,10 @@ import {
   isPipeRun,
   pipeLength,
   pipeRunSummary,
+  PUMP_DIMENSION_KEYS,
+  PUMP_DIMENSION_LABELS,
+  pumpLengthMismatch,
+  pumpModelRange,
   radToDeg,
   VALVE_TYPES,
   terrainElevationAt,
@@ -31,13 +36,21 @@ import {
   type PipeSpec,
   type Port,
   type Project,
+  type Pump,
   type Vec3,
 } from '@hydrobim/core';
-import { Copy, Move, Trash2, Unlink } from 'lucide-react';
+import { ArrowLeft, Copy, FolderTree, Layers2, Move, Trash2, Unlink } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { familiesOf, selectPrimaryId, useEditorStore, type SizeMode } from '../state/editorStore';
+import {
+  familiesOf,
+  pumpFamilyOf,
+  selectPrimaryId,
+  useEditorStore,
+  type SizeMode,
+} from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { CloseEnds } from './CloseEnds';
+import { ELEMENT_ICONS } from './EngineeringIcons';
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
 import { PipeRunPanel } from './PipeRunPanel';
 import { SYSTEM_KIND_LABELS, VALVE_TYPE_LABELS } from './labels';
@@ -93,7 +106,14 @@ function SpecificationSection({ element, project }: { element: HydroElement; pro
     element.kind === 'reducer'
       ? { spec: element.outletSpec, portId: 'b', label: 'Diâmetro — porta B' }
       : element.kind === 'pump'
-        ? { spec: element.dischargeSpec, portId: 'b', label: 'Diâmetro — recalque' }
+        ? {
+            spec: element.dischargeSpec,
+            portId: 'b',
+            label:
+              element.pumpType === 'amphibious'
+                ? 'B — diâmetro da descarga'
+                : 'Diâmetro — recalque',
+          }
         : element.kind === 'tee'
           ? {
               spec: element.branchSpec ?? element.spec,
@@ -111,7 +131,9 @@ function SpecificationSection({ element, project }: { element: HydroElement; pro
           element.kind === 'reducer'
             ? 'Diâmetro — porta A'
             : element.kind === 'pump'
-              ? 'Diâmetro — sucção'
+              ? element.pumpType === 'amphibious'
+                ? 'A — diâmetro da sucção'
+                : 'Diâmetro — sucção'
               : element.kind === 'tee'
                 ? 'Diâmetro — passagem'
                 : 'Diâmetro'
@@ -404,6 +426,84 @@ function PipeGeometry({ pipe, project }: { pipe: Pipe; project: Project }) {
   );
 }
 
+/**
+ * Bomba de catálogo: família, linha da tabela, flanges A e B e as cotas do dimensional, com
+ * as letras do fabricante — é o que se transcreve do catálogo para o modelo usado.
+ */
+function CatalogPumpFields({ pump }: { pump: Pump }) {
+  const project = useEditorStore((s) => s.project);
+  const family = pumpFamilyOf(project, pump.familyId);
+  const variant = family?.variants.find((v) => v.id === pump.variantId);
+  const classes = FLANGE_PRESSURE_CLASSES.map((c) => ({ value: c as string, label: c }));
+  const mismatch = pumpLengthMismatch({
+    length: pump.length,
+    footOffset: pump.footOffset ?? 0,
+    footSpan: pump.footSpan ?? 0,
+    rearLength: pump.rearLength ?? 0,
+    footWidth: pump.footWidth ?? 0,
+    footHoleDiameter: pump.footHoleDiameter ?? 0,
+    axisHeight: pump.axisHeight ?? 0,
+    totalHeight: pump.totalHeight ?? 0,
+  });
+  return (
+    <>
+      <ReadOnlyRow
+        label="Família"
+        value={
+          <span data-testid="prop-pump-family" data-family-id={pump.familyId ?? ''}>
+            {family?.name ?? pump.manufacturing.model ?? '—'}
+          </span>
+        }
+      />
+      <ReadOnlyRow
+        label="Modelo"
+        value={
+          <span data-testid="prop-pump-variant" data-variant-id={pump.variantId ?? ''}>
+            {variant ? (
+              `${pumpModelRange(variant)} · carcaça ${variant.frame}`
+            ) : (
+              <span className="warn">Cotas preenchidas pelo usuário</span>
+            )}
+          </span>
+        }
+      />
+      {(['a', 'b'] as const).map((portId) => (
+        <SelectField
+          key={portId}
+          label={
+            portId === 'a' ? 'A — classe do flange de sucção' : 'B — classe do flange de descarga'
+          }
+          testId={`prop-pump-class-${portId}`}
+          value={(portId === 'a' ? pump.suctionFlangeClass : pump.dischargeFlangeClass) ?? ''}
+          options={classes}
+          onChange={(pressureClass) => actions().changePumpFlange(pump.id, portId, pressureClass)}
+        />
+      ))}
+      {PUMP_DIMENSION_KEYS.map((key) => (
+        <Dimension
+          key={key}
+          element={pump}
+          field={key}
+          label={`${PUMP_DIMENSION_LABELS[key].letter} — ${PUMP_DIMENSION_LABELS[key].description}`}
+          testId={`prop-pump-${key}`}
+        />
+      ))}
+      <ReadOnlyRow label="Estágios" value={String(pump.stages ?? 1)} />
+      {Math.abs(mismatch) > 0.0005 && (
+        <span className="warn" data-testid="prop-pump-mismatch">
+          F − (C + D + E) = {formatMillimeters(mismatch, 1)}: as portas usam F e os pés, C e D.
+        </span>
+      )}
+      <span className="muted" data-testid="prop-pump-note">
+        {variant
+          ? `Cotas da linha da tabela ${family?.origin === 'custom' ? 'da família personalizada (definidas pelo usuário)' : 'do fabricante'}. Alterar uma cota, um flange ou um diâmetro desfaz o vínculo com a linha.`
+          : 'Preencha com os valores do dimensional do fabricante (mesmas letras da tabela).'}{' '}
+        Carcaça, tirantes, pés e olhais são representação.
+      </span>
+    </>
+  );
+}
+
 /** Campo de dimensão em milímetros ligado a um parâmetro da conexão. */
 function Dimension({
   element,
@@ -548,14 +648,19 @@ function FittingGeometry({
           testId="prop-reducer-length"
         />
       )}
+      {element.kind === 'pump' && element.pumpType === 'amphibious' && (
+        <CatalogPumpFields pump={element} />
+      )}
       {element.kind === 'pump' && (
         <>
-          <Dimension
-            element={element}
-            field="length"
-            label="Comprimento do conjunto"
-            testId="prop-pump-length"
-          />
+          {element.pumpType !== 'amphibious' && (
+            <Dimension
+              element={element}
+              field="length"
+              label="Comprimento do conjunto"
+              testId="prop-pump-length"
+            />
+          )}
           <Dimension
             element={element}
             field="dischargeOffset"
@@ -584,9 +689,11 @@ function FittingGeometry({
             onCommit={(v) => change(element.id, { ratedHead: v })}
             testId="prop-pump-head"
           />
-          <span className="muted">
-            Representação genérica de conjunto motobomba; não corresponde a um modelo comercial.
-          </span>
+          {element.pumpType !== 'amphibious' && (
+            <span className="muted">
+              Representação genérica de conjunto motobomba; não corresponde a um modelo comercial.
+            </span>
+          )}
         </>
       )}
       {element.kind === 'tank' && <TankProperties tank={element} />}
@@ -808,7 +915,7 @@ function MoveCopy() {
       <div className="chips">
         <button
           type="button"
-          className="chip"
+          className="btn btn--compact btn--confirm"
           data-testid="move-apply"
           disabled={empty}
           onClick={() => actions().moveSelection(delta)}
@@ -817,7 +924,7 @@ function MoveCopy() {
         </button>
         <button
           type="button"
-          className="chip"
+          className="btn btn--compact"
           data-testid="copy-apply"
           disabled={empty}
           onClick={() => actions().copySelection(delta)}
@@ -856,7 +963,7 @@ function ElementProperties({ element, project }: { element: HydroElement; projec
       data-element-id={element.id}
       data-element-kind={element.kind}
     >
-      <Section title={elementKindLabel(element.kind)} testId="section-identity">
+      <Section title="Identificação" testId="section-identity">
         <TextField
           label="Nome"
           value={element.name}
@@ -1060,6 +1167,13 @@ export function PropertiesPanel() {
   const element = elements.length === 1 && primaryId ? elements[0] : undefined;
   // Tubos ligados direto uns aos outros, sem peça entre eles: apresentados como um tubo só.
   const run = isPipeRun(project, selection) ? pipeRunSummary(project, selection) : null;
+  const SelectionIcon = element
+    ? ELEMENT_ICONS[element.kind]
+    : run
+      ? ELEMENT_ICONS.pipe
+      : elements.length > 1
+        ? Layers2
+        : FolderTree;
 
   // Comandos da faixa (Mover, Comprimento, Elevação…) levam ao campo que os executa.
   useEffect(() => {
@@ -1074,26 +1188,46 @@ export function PropertiesPanel() {
   }, [reveal]);
 
   return (
-    <aside className="panel" aria-label="Propriedades" ref={rootRef} data-testid="properties-panel">
-      <header className="panel__header">
-        <h2 data-testid="properties-title">
-          {element
-            ? element.name
-            : run
-              ? `Tubo · ${run.pipes.length} trechos`
-              : elements.length > 1
-                ? `${elements.length} elementos selecionados`
-                : 'Projeto'}
-        </h2>
+    <aside
+      className="panel inspector"
+      aria-label="Propriedades"
+      ref={rootRef}
+      data-testid="properties-panel"
+    >
+      <header className="panel__header inspector__header">
+        <span className="inspector__identity-icon" aria-hidden>
+          <SelectionIcon size={23} strokeWidth={1.5} />
+        </span>
+        <div className="inspector__identity">
+          <span className="inspector__type" data-testid="properties-type">
+            {element
+              ? elementKindLabel(element.kind)
+              : run
+                ? 'Tubulação contínua'
+                : elements.length > 1
+                  ? 'Seleção múltipla'
+                  : 'Propriedades do projeto'}
+          </span>
+          <h2 data-testid="properties-title" title={element?.name ?? project.name}>
+            {element
+              ? element.name
+              : run
+                ? `Tubo · ${run.pipes.length} trechos`
+                : elements.length > 1
+                  ? `${elements.length} elementos selecionados`
+                  : 'Projeto'}
+          </h2>
+        </div>
         {elements.length > 0 && (
           <button
             type="button"
-            className="link"
+            className="inspector__back"
             data-testid="back-to-project"
+            aria-label="Ver projeto"
             title="Limpar a seleção e ver o resumo do projeto"
             onClick={() => actions().selectMany([])}
           >
-            ver projeto
+            <ArrowLeft size={15} aria-hidden />
           </button>
         )}
       </header>

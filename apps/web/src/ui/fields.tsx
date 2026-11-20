@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 
 /** Interpreta números digitados com vírgula ou ponto decimal. */
@@ -184,10 +185,12 @@ export function Section({
   title,
   children,
   testId,
+  icon,
 }: {
   title: string;
   children: ReactNode;
   testId?: string;
+  icon?: ReactNode;
 }) {
   // Recolher uma seção é preferência de leitura da sessão: não é dado do projeto.
   const [collapsed, setCollapsed] = useState(false);
@@ -201,14 +204,22 @@ export function Section({
         <button
           type="button"
           className="section__toggle"
+          data-testid={testId ? `${testId}-toggle` : undefined}
           aria-expanded={!collapsed}
           title={collapsed ? 'Expandir a seção' : 'Recolher a seção'}
           onClick={() => setCollapsed((value) => !value)}
         >
-          <span className="section__caret" aria-hidden>
-            {collapsed ? '▸' : '▾'}
-          </span>
-          {title}
+          {collapsed ? (
+            <ChevronRight className="section__caret" size={13} aria-hidden />
+          ) : (
+            <ChevronDown className="section__caret" size={13} aria-hidden />
+          )}
+          {icon && (
+            <span className="section__icon" aria-hidden>
+              {icon}
+            </span>
+          )}
+          <span>{title}</span>
         </button>
       </h3>
       {!collapsed && children}

@@ -1,7 +1,7 @@
 import { DRAWING_SCALES, type DimensionMode } from '@hydrobim/core';
-import { ChevronDown, ChevronUp, Minus, Search } from 'lucide-react';
-import type { ReactNode } from 'react';
-import type { CommandContext } from '../commands/commands';
+import { ChevronDown, ChevronUp, Minus, Search, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { commandState, getCommand, type CommandContext } from '../commands/commands';
 import { useCommandContext } from '../commands/useCommands';
 import { InfraControls } from '../infra/InfraPanel';
 import { DIMENSION_MODE_LABELS } from '../plan/AnnotationInspector';
@@ -10,6 +10,7 @@ import { useEditorStore, type PlanTheme } from '../state/editorStore';
 import { useIfcState } from '../state/ifcModel';
 import { TASK_LABELS, TASKS, useUiStore, type TaskId } from '../state/uiStore';
 import { CommandButton } from './CommandButton';
+import { ElbowIcon, PumpIcon } from './EngineeringIcons';
 
 /**
  * Faixa de comandos: uma aba por tarefa, com os comandos agrupados. Trocar de aba só muda os
@@ -20,9 +21,18 @@ import { CommandButton } from './CommandButton';
 type Item =
   | {
       readonly command: string;
-      readonly small?: boolean;
+      /** Comando secundário: só o ícone em telas estreitas (o nome fica na dica). */
+      readonly compact?: boolean;
       readonly label?: string;
       readonly testId?: string;
+    }
+  | {
+      /** Botão com seta: abre os comandos relacionados (ex.: tipos de conexão). */
+      readonly menu: string;
+      readonly label: string;
+      readonly description: string;
+      readonly icon: LucideIcon;
+      readonly commands: readonly string[];
     }
   | {
       readonly widget: (context: CommandContext) => ReactNode;
@@ -151,54 +161,60 @@ function BimSummary() {
 const RIBBON: Record<TaskId, readonly Group[]> = {
   model: [
     {
-      id: 'general',
-      label: 'Geral',
-      items: [{ command: 'tool.select' }, { command: 'tool.measure' }],
-    },
-    {
       id: 'create',
       label: 'Criar',
       items: [
-        { command: 'tool.pipe' },
-        { command: 'tool.elbow' },
-        { command: 'tool.tee' },
-        { command: 'tool.reducer' },
-        { command: 'tool.valve' },
-        { command: 'tool.pump' },
-        { command: 'tool.tank' },
+        { command: 'tool.pipe', label: 'Tubos' },
+        {
+          menu: 'fittings',
+          label: 'Conexões',
+          description: 'Joelho, tê e redução',
+          icon: ElbowIcon,
+          commands: ['tool.elbow', 'tool.tee', 'tool.reducer'],
+        },
+        { command: 'tool.valve', label: 'Válvulas' },
+        {
+          menu: 'equipment',
+          label: 'Equipamentos',
+          description: 'Bomba e reservatório',
+          icon: PumpIcon,
+          commands: ['tool.pump', 'tool.tank'],
+        },
       ],
     },
     {
       id: 'modify',
-      label: 'Modificar (seleção)',
+      label: 'Modificar',
       items: [
-        { command: 'modify.move', small: true },
-        { command: 'modify.copy', small: true },
-        { command: 'modify.delete', small: true },
-        { command: 'modify.length', small: true },
-        { command: 'modify.elevation', small: true },
-        { command: 'modify.rotate', small: true },
+        { command: 'tool.select' },
+        { command: 'modify.move' },
+        { command: 'modify.copy' },
+        { command: 'modify.elevation' },
+        { command: 'modify.length', compact: true },
+        { command: 'modify.rotate', compact: true },
+        { command: 'modify.delete', compact: true },
       ],
     },
     {
       id: 'connect',
       label: 'Conectar',
       items: [
-        { command: 'connect.pipe', small: true },
-        { command: 'connect.close', small: true },
-        { command: 'connect.disconnect', small: true },
+        { command: 'connect.pipe', compact: true },
+        { command: 'connect.close', compact: true },
+        { command: 'connect.disconnect', compact: true },
       ],
     },
-    { id: 'catalog', label: 'Catálogo', items: [{ command: 'catalog.open' }] },
+    { id: 'measure', label: 'Medir', items: [{ command: 'tool.measure', compact: true }] },
+    { id: 'catalog', label: 'Biblioteca', items: [{ command: 'catalog.open' }] },
     {
       id: 'terrain',
       label: 'Terreno (Planta Infra)',
       when: isInfra,
       items: [
-        { command: 'terrain.panel' },
-        { command: 'terrain.area', small: true },
-        { command: 'terrain.profile', small: true },
-        { command: 'terrain.query', small: true },
+        { command: 'terrain.panel', label: 'Superfície' },
+        { command: 'terrain.area', compact: true },
+        { command: 'terrain.profile', compact: true },
+        { command: 'terrain.query', compact: true },
       ],
     },
   ],
@@ -224,10 +240,7 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     {
       id: 'future',
       label: 'Previstos',
-      items: [
-        { command: 'doc.sheets', small: true },
-        { command: 'doc.levelDimensions', small: true },
-      ],
+      items: [{ command: 'doc.sheets' }, { command: 'doc.levelDimensions' }],
     },
   ],
   view: [
@@ -235,21 +248,21 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       id: 'camera',
       label: 'Câmera (Modelo 3D)',
       items: [
-        { command: 'view.iso', small: true, testId: 'ribbon-view-iso' },
-        { command: 'view.isometric', small: true, testId: 'ribbon-view-isometric' },
-        { command: 'view.ortho', small: true, testId: 'ribbon-view-ortho' },
-        { command: 'view.top', small: true, testId: 'ribbon-view-top' },
-        { command: 'view.front', small: true, testId: 'ribbon-view-front' },
+        { command: 'view.iso', compact: true, testId: 'ribbon-view-iso' },
+        { command: 'view.isometric', compact: true, testId: 'ribbon-view-isometric' },
+        { command: 'view.ortho', compact: true, testId: 'ribbon-view-ortho' },
+        { command: 'view.top', compact: true, testId: 'ribbon-view-top' },
+        { command: 'view.front', compact: true, testId: 'ribbon-view-front' },
       ],
     },
     {
       id: 'frame',
       label: 'Enquadrar',
       items: [
-        { command: 'view.fit', small: true, label: 'Projeto', testId: 'ribbon-view-fit' },
+        { command: 'view.fit', compact: true, label: 'Projeto', testId: 'ribbon-view-fit' },
         {
           command: 'view.fitSelection',
-          small: true,
+          compact: true,
           label: 'Seleção',
           testId: 'ribbon-view-fit-selection',
         },
@@ -281,16 +294,16 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     {
       id: 'terrain-display',
       label: 'Terreno (planta e 3D)',
-      when: isInfra,
       items: [{ key: 'terrain-display', widget: () => <TerrainDisplayControls /> }],
     },
     {
       id: 'panels',
-      label: 'Painéis',
+      label: 'Vistas e painéis',
       items: [
-        { command: 'layout.nav', small: true },
-        { command: 'layout.panel', small: true },
-        { command: 'layout.reset', small: true },
+        { command: 'view.split', compact: true },
+        { command: 'layout.nav', compact: true },
+        { command: 'layout.panel', compact: true },
+        { command: 'layout.reset', compact: true },
       ],
     },
   ],
@@ -326,10 +339,7 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     {
       id: 'visibility',
       label: 'Visibilidade',
-      items: [
-        { command: 'bim.isolate', small: true },
-        { command: 'bim.hide', small: true },
-      ],
+      items: [{ command: 'bim.isolate' }, { command: 'bim.hide' }],
     },
     { id: 'classification', label: 'Classificação', items: [{ command: 'bim.library' }] },
     {
@@ -379,9 +389,9 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       id: 'interface',
       label: 'Preferências da interface',
       items: [
-        { command: 'layout.nav', small: true },
-        { command: 'layout.panel', small: true },
-        { command: 'layout.ribbon', small: true },
+        { command: 'layout.nav', compact: true },
+        { command: 'layout.panel', compact: true },
+        { command: 'layout.ribbon', compact: true },
         { command: 'layout.reset' },
       ],
     },
@@ -394,63 +404,126 @@ export function ribbonLocationOf(commandId: string): string | null {
   const order: TaskId[] = [...TASKS.filter((task) => task !== 'bim'), 'bim'];
   for (const task of order) {
     for (const group of RIBBON[task]) {
-      if (group.items.some((item) => 'command' in item && item.command === commandId)) {
-        return `${TASK_LABELS[task]} › ${group.label}`;
+      for (const item of group.items) {
+        if ('command' in item && item.command === commandId) {
+          return `${TASK_LABELS[task]} › ${group.label}`;
+        }
+        if ('menu' in item && item.commands.includes(commandId)) {
+          return `${TASK_LABELS[task]} › ${group.label} › ${item.label}`;
+        }
       }
     }
   }
   return null;
 }
 
+/**
+ * Botão com seta da faixa: reúne comandos relacionados (tipos de conexão, de equipamento) em
+ * uma lista com nome, finalidade e atalho. O botão mostra o símbolo do comando em uso.
+ */
+function RibbonMenu({
+  item,
+  context,
+}: {
+  item: Extract<Item, { menu: string }>;
+  context: CommandContext;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const commands = item.commands.map(getCommand);
+  const states = commands.map((command) => commandState(command, context));
+  const activeIndex = states.findIndex((state) => state.active);
+  const active = activeIndex >= 0 ? commands[activeIndex] : undefined;
+  const enabled = states.some((state) => state.enabled);
+  const Icon = active?.icon ?? item.icon;
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: Event): void => {
+      if (event.target instanceof Node && ref.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      // Esc fecha só a lista: não cancela a operação em andamento nem limpa a seleção.
+      event.stopImmediatePropagation();
+      setOpen(false);
+    };
+    window.addEventListener('pointerdown', close, true);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('pointerdown', close, true);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [open]);
+
+  return (
+    <div className="menu ribbon__menu" ref={ref}>
+      <button
+        type="button"
+        className={`cmd cmd--large cmd--dropdown${active ? ' is-active' : ''}`}
+        data-testid={`ribbon-menu-${item.menu}`}
+        data-active-command={active?.id ?? ''}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={!enabled}
+        title={
+          enabled
+            ? `${item.label}: ${item.description}${active ? `\nEm uso: ${active.label}` : ''}`
+            : `${item.label}\nIndisponível: ${states[0]?.reason ?? ''}`
+        }
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon size={20} className="cmd__icon" aria-hidden />
+        <span className="cmd__label">{item.label}</span>
+        <ChevronDown size={12} className="cmd__caret" aria-hidden />
+      </button>
+      {open && (
+        <div
+          className="menu__list ribbon__menu-list"
+          role="menu"
+          aria-label={item.label}
+          data-testid={`ribbon-menu-${item.menu}-list`}
+        >
+          {item.commands.map((id) => (
+            <CommandButton
+              key={id}
+              id={id}
+              context={context}
+              variant="menu"
+              onRun={() => setOpen(false)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function renderItems(items: readonly Item[], context: CommandContext): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  let stack: ReactNode[] = [];
-  const flush = (): void => {
-    if (stack.length === 0) return;
-    nodes.push(
-      <div key={`stack-${nodes.length}`} className="ribbon__stack">
-        {stack}
-      </div>,
-    );
-    stack = [];
-  };
-  for (const item of items) {
+  return items.map((item) => {
     if ('widget' in item) {
-      flush();
-      nodes.push(
+      return (
         <div
           key={item.key}
           className={item.column ? 'ribbon__widget ribbon__widget--column' : 'ribbon__widget'}
         >
           {item.widget(context)}
-        </div>,
-      );
-    } else if (item.small) {
-      stack.push(
-        <CommandButton
-          key={item.command}
-          id={item.command}
-          context={context}
-          variant="small"
-          label={item.label}
-          testId={item.testId}
-        />,
-      );
-    } else {
-      flush();
-      nodes.push(
-        <CommandButton
-          key={item.command}
-          id={item.command}
-          context={context}
-          label={item.label}
-          testId={item.testId}
-        />,
+        </div>
       );
     }
-  }
-  flush();
-  return nodes;
+    if ('menu' in item) return <RibbonMenu key={item.menu} item={item} context={context} />;
+    return (
+      <CommandButton
+        key={item.command}
+        id={item.command}
+        context={context}
+        variant={item.compact ? 'compact' : 'large'}
+        label={item.label}
+        testId={item.testId}
+      />
+    );
+  });
 }
 
 export function ToolBar() {
@@ -471,9 +544,11 @@ export function ToolBar() {
         {TASKS.map((id) => (
           <button
             key={id}
+            id={`task-tab-${id}`}
             type="button"
             role="tab"
             aria-selected={task === id}
+            aria-controls={collapsed ? undefined : 'ribbon-panel'}
             data-testid={`task-${id}`}
             className={task === id ? 'ribbon__tab is-active' : 'ribbon__tab'}
             title={
@@ -514,12 +589,19 @@ export function ToolBar() {
         </button>
       </div>
       {!collapsed && (
-        <div className="ribbon__body" role="tabpanel" data-testid="ribbon-body">
+        <div
+          id="ribbon-panel"
+          className="ribbon__body"
+          role="tabpanel"
+          aria-labelledby={`task-tab-${task}`}
+          data-testid="ribbon-body"
+        >
           {groups.map((group) => (
             <section
               key={group.id}
               className="ribbon__group"
               data-testid={`ribbon-group-${group.id}`}
+              data-group={group.id}
               aria-label={group.label}
             >
               <div className="ribbon__items">{renderItems(group.items, context)}</div>
