@@ -32,6 +32,7 @@ const VALVE: Record<string, string> = {
   airRelease: 'ventosa',
   pressureReducing: 'redutora de pressão',
   strainer: 'filtro Y',
+  flowMeter: 'medidor de vazão',
 };
 
 function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'description' | 'size'> {
@@ -77,7 +78,9 @@ function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'descri
             ? 'Ventosa'
             : element.valveType === 'strainer'
               ? 'Filtro Y'
-              : `Válvula de ${VALVE[element.valveType]}`,
+              : element.valveType === 'flowMeter'
+                ? 'Medidor de vazão'
+                : `Válvula de ${VALVE[element.valveType]}`,
         size,
       };
     case 'pump':

@@ -1,40 +1,139 @@
-import {
-  Download,
-  FilePlus2,
-  FolderOpen,
-  Library,
-  Redo2,
-  Save,
-  Settings2,
-  Undo2,
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useCommandContext } from '../commands/useCommands';
+import type { ProjectSummary } from '../persistence/ProjectRepository';
 import { selectIsDirty, useEditorStore } from '../state/editorStore';
-import {
-  confirmDiscard,
-  exportCurrentProject,
-  exportEpanetFile,
-  exportIfcFile,
-  exportModelDxfFile,
-  exportQuantitiesFile,
-  saveCurrentProject,
-} from '../state/projectActions';
+import { confirmDiscard, openStoredProject, repository } from '../state/projectActions';
+import { CommandButton } from './CommandButton';
 
-interface Props {
-  onOpen: () => void;
-  onFamilies: () => void;
-  onProject: () => void;
+const RECENT_LIMIT = 5;
+
+/** Menu Arquivo: novo, abrir, recentes, salvar no navegador e baixar o arquivo nativo. */
+function FileMenu() {
+  const context = useCommandContext();
+  const [open, setOpen] = useState(false);
+  const [recent, setRecent] = useState<ProjectSummary[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    repository
+      .list()
+      .then((projects) => {
+        if (cancelled) return;
+        setRecent(
+          [...projects]
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .slice(0, RECENT_LIMIT),
+        );
+      })
+      .catch(() => setRecent([]));
+    const close = (event: Event): void => {
+      if (event.target instanceof Node && ref.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      // Esc fecha só o menu: não cancela a operação em andamento nem limpa a seleção.
+      event.stopImmediatePropagation();
+      setOpen(false);
+    };
+    window.addEventListener('pointerdown', close, true);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('pointerdown', close, true);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [open]);
+
+  const done = (): void => setOpen(false);
+
+  return (
+    <div className="menu" ref={ref}>
+      <button
+        type="button"
+        className="menu__trigger"
+        data-testid="menu-file"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        Arquivo <ChevronDown size={14} aria-hidden />
+      </button>
+      {open && (
+        <div
+          className="menu__list"
+          role="menu"
+          data-testid="menu-file-list"
+          // As teclas digitadas no menu não são atalhos de ferramenta.
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') event.stopPropagation();
+          }}
+        >
+          <CommandButton id="file.new" context={context} variant="menu" onRun={done} />
+          <CommandButton id="file.open" context={context} variant="menu" onRun={done} />
+          {recent.length > 0 && (
+            <>
+              <span className="menu__heading">Salvos neste navegador (recentes)</span>
+              {recent.map((project) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  role="menuitem"
+                  className="cmd cmd--menu"
+                  data-testid="recent-project"
+                  onClick={async () => {
+                    done();
+                    if (confirmDiscard()) await openStoredProject(project.id);
+                  }}
+                >
+                  <span className="cmd__text">
+                    <strong>{project.name}</strong>
+                    <small>
+                      {project.discipline === 'mep' ? 'MEP' : 'Infra'} · {project.elementCount}{' '}
+                      elementos · {new Date(project.updatedAt).toLocaleString('pt-BR')}
+                    </small>
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+          <span className="menu__heading">Guardar o trabalho</span>
+          <CommandButton
+            id="file.save"
+            context={context}
+            variant="menu"
+            label="Salvar no navegador"
+            testId="file-save"
+            onRun={done}
+          />
+          <CommandButton id="file.download" context={context} variant="menu" onRun={done} />
+          <p className="menu__note">
+            <strong>Salvar</strong> guarda o projeto só neste navegador (some se os dados do site
+            forem limpos). <strong>Baixar</strong> gera um arquivo seu, que pode ser copiado,
+            enviado e aberto em qualquer computador por Arquivo › Abrir. Os demais formatos (IFC,
+            DXF, CSV…) ficam na aba Exportação.
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
-export function TopBar({ onOpen, onFamilies, onProject }: Props) {
+/**
+ * Cabeçalho compacto: identidade, menu Arquivo, nome do projeto com o estado de salvamento,
+ * acesso rápido (salvar, desfazer, refazer) e o seletor de ambiente.
+ */
+export function TopBar() {
+  const context = useCommandContext();
   const name = useEditorStore((s) => s.project.name);
   const discipline = useEditorStore((s) => s.project.discipline);
   const dirty = useEditorStore(selectIsDirty);
   const persisted = useEditorStore((s) => s.persisted);
   const saveState = dirty || !persisted ? 'não salvo' : 'salvo';
-  const canUndo = useEditorStore((s) => s.past.length > 0);
-  const canRedo = useEditorStore((s) => s.future.length > 0);
-  const { setProjectName, setDiscipline, newProject, undo, redo } = useEditorStore.getState();
+  const { setProjectName, setDiscipline } = useEditorStore.getState();
   const [draft, setDraft] = useState(name);
   useEffect(() => setDraft(name), [name]);
 
@@ -42,15 +141,18 @@ export function TopBar({ onOpen, onFamilies, onProject }: Props) {
     <header className="topbar">
       <div className="topbar__brand" aria-label="HydroBIM">
         {/* BASE_URL: no GitHub Pages o editor fica em /hydrobim/, não na raiz. */}
-        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={22} height={22} />
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={20} height={20} />
         <span>HydroBIM</span>
       </div>
+
+      <FileMenu />
 
       <label className="topbar__project">
         <span className="visually-hidden">Nome do projeto</span>
         <input
           data-testid="project-name"
           value={draft}
+          title="Nome do projeto (clique para editar)"
           onChange={(event) => setDraft(event.target.value)}
           onBlur={() => setProjectName(draft.trim() || 'Projeto sem título')}
           onKeyDown={(event) => {
@@ -73,141 +175,35 @@ export function TopBar({ onOpen, onFamilies, onProject }: Props) {
         </span>
       </label>
 
-      <div className="topbar__group">
-        <button
-          type="button"
-          className="btn"
-          data-testid="action-new"
-          onClick={() => {
-            if (confirmDiscard()) newProject(discipline);
-          }}
-        >
-          <FilePlus2 size={16} /> Novo
-        </button>
-        <button type="button" className="btn" data-testid="action-open" onClick={onOpen}>
-          <FolderOpen size={16} /> Abrir
-        </button>
-        <button
-          type="button"
-          className="btn btn--primary"
-          data-testid="action-save"
-          onClick={() => void saveCurrentProject()}
-          title="Salvar no navegador (Ctrl+S)"
-        >
-          <Save size={16} /> Salvar
-        </button>
-        <button
-          type="button"
-          className="btn"
-          data-testid="action-families"
-          onClick={onFamilies}
-          title="Catálogo: famílias de conexões, reservatórios e biblioteca de produtos"
-        >
-          <Library size={16} /> Catálogo
-        </button>
-        <button
-          type="button"
-          className="btn"
-          data-testid="action-project"
-          onClick={onProject}
-          title="Níveis, sistemas, georreferência, terreno, perfil e interferências"
-        >
-          <Settings2 size={16} /> Projeto
-        </button>
+      <div className="topbar__group" role="group" aria-label="Acesso rápido">
+        <CommandButton id="file.save" context={context} variant="icon" />
+        <CommandButton id="edit.undo" context={context} variant="icon" />
+        <CommandButton id="edit.redo" context={context} variant="icon" />
       </div>
 
-      <div className="topbar__group" role="group" aria-label="Exportar">
-        <Download size={15} aria-hidden />
-        <button
-          type="button"
-          className="btn btn--compact"
-          data-testid="action-export"
-          onClick={exportCurrentProject}
-          title="Baixar o projeto como arquivo JSON (.hydrobim.json)"
-        >
-          JSON
-        </button>
-        <button
-          type="button"
-          className="btn btn--compact"
-          data-testid="action-export-ifc"
-          onClick={exportIfcFile}
-          title="Exportar o modelo em IFC 4.3"
-        >
-          IFC
-        </button>
-        <button
-          type="button"
-          className="btn btn--compact"
-          data-testid="action-export-dxf"
-          onClick={exportModelDxfFile}
-          title="Exportar o modelo 3D em DXF (malhas em metros, uma camada por sistema). A planta com cotas é exportada pela vista Planta."
-        >
-          DXF 3D
-        </button>
-        <button
-          type="button"
-          className="btn btn--compact"
-          data-testid="action-export-csv"
-          onClick={exportQuantitiesFile}
-          title="Exportar o quantitativo (lista de materiais) em CSV"
-        >
-          Quantitativo
-        </button>
-        <button
-          type="button"
-          className="btn btn--compact"
-          data-testid="action-export-epanet"
-          onClick={exportEpanetFile}
-          title="Exportar a rede no formato INP do EPANET"
-        >
-          EPANET
-        </button>
-      </div>
-
-      <div className="topbar__group">
-        <button
-          type="button"
-          className="btn btn--icon"
-          data-testid="action-undo"
-          disabled={!canUndo}
-          onClick={undo}
-          title="Desfazer (Ctrl+Z)"
-          aria-label="Desfazer"
-        >
-          <Undo2 size={16} />
-        </button>
-        <button
-          type="button"
-          className="btn btn--icon"
-          data-testid="action-redo"
-          disabled={!canRedo}
-          onClick={redo}
-          title="Refazer (Ctrl+Y)"
-          aria-label="Refazer"
-        >
-          <Redo2 size={16} />
-        </button>
-      </div>
-
-      <div className="segmented" role="group" aria-label="Ambiente de modelagem">
-        {(['mep', 'infra'] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            data-testid={`environment-${value}`}
-            className={discipline === value ? 'segmented__item is-active' : 'segmented__item'}
-            aria-pressed={discipline === value}
-            onClick={() => setDiscipline(value)}
-            title={
-              value === 'mep'
-                ? 'Instalações prediais, industriais e casas de bombas'
-                : 'Redes de distribuição e adutoras'
-            }
-          >
-            {value === 'mep' ? 'MEP' : 'Infra'}
-          </button>
-        ))}
+      <div className="topbar__environment">
+        <span className="topbar__caption" id="environment-caption">
+          Ambiente
+        </span>
+        <div className="segmented" role="group" aria-labelledby="environment-caption">
+          {(['mep', 'infra'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              data-testid={`environment-${value}`}
+              className={discipline === value ? 'segmented__item is-active' : 'segmented__item'}
+              aria-pressed={discipline === value}
+              onClick={() => setDiscipline(value)}
+              title={
+                value === 'mep'
+                  ? 'Ambiente MEP: instalações prediais, industriais e casas de bombas. Muda a disciplina do projeto (especificação e grade padrão).'
+                  : 'Ambiente Infra: redes de distribuição e adutoras. Muda a disciplina do projeto (especificação e grade padrão).'
+              }
+            >
+              {value === 'mep' ? 'MEP' : 'Infra'}
+            </button>
+          ))}
+        </div>
       </div>
     </header>
   );

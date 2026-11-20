@@ -1,4 +1,15 @@
-import { computeBounds, formatMeters, distance, lerp, type Vec3 } from '@hydrobim/core';
+import {
+  angleBetween,
+  computeBounds,
+  distance,
+  formatMeters,
+  lerp,
+  resolvePort,
+  sub,
+  terrainStats,
+  vec3,
+  type Vec3,
+} from '@hydrobim/core';
 import { classifyElement } from '@hydrobim/ifc';
 import {
   GizmoHelper,
@@ -12,14 +23,26 @@ import {
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Group, OrthographicCamera as OrthoImpl, PerspectiveCamera } from 'three';
-import { BufferAttribute, BufferGeometry, DoubleSide, MOUSE, Vector3 } from 'three';
+import { MOUSE, Vector3 } from 'three';
 import { portMarkerRadius } from '../editor/picking';
+import { toCanonical, toRender } from '../editor/renderOrigin';
+import { formatSegment } from '../editor/segment';
 import { describeSnap } from '../editor/snapLabel';
 import { visibleElementsOf, visibleFreePortsOf } from '../editor/visibility';
-import { drawElevationOf, useEditorStore, type ViewPreset } from '../state/editorStore';
+import {
+  getViewDirection,
+  getViewFocus,
+  orthographicZoomFor,
+  perspectiveDistanceFor,
+  setViewFocus,
+  VIEW_DIRECTIONS,
+} from '../editor/viewPresets';
+import { drawElevationOf, useEditorStore } from '../state/editorStore';
 import { ElementMesh } from './ElementMesh';
 import { InteractionController } from './InteractionController';
+import { PipeGrips } from './PipeGrips';
 import { SceneLighting } from './SceneLighting';
+import { TerrainSurface } from './TerrainSurface';
 
 /** Cores de apoio escolhidas para contrastar com o fundo branco. */
 const DRAW_COLOR = '#e8590c';
@@ -61,39 +84,6 @@ function Elements({ hoveredId }: { hoveredId: string | null }) {
   );
 }
 
-/** Superfície do terreno (TIN) importado. */
-function TerrainMesh() {
-  const terrain = useEditorStore((s) => s.project.terrain);
-  const geometry = useMemo(() => {
-    if (!terrain) return null;
-    const positions = new Float32Array(terrain.points.length * 3);
-    terrain.points.forEach((p, i) => positions.set([p.x, p.y, p.z], i * 3));
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(positions, 3));
-    g.setIndex(terrain.triangles);
-    g.computeVertexNormals();
-    return g;
-  }, [terrain]);
-  useEffect(() => () => geometry?.dispose(), [geometry]);
-  if (!geometry) return null;
-  return (
-    <>
-      <mesh geometry={geometry}>
-        <meshStandardMaterial
-          color="#6f8f5a"
-          transparent
-          opacity={0.45}
-          side={DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
-      <mesh geometry={geometry}>
-        <meshBasicMaterial color="#9fbf86" wireframe transparent opacity={0.35} />
-      </mesh>
-    </>
-  );
-}
-
 /** Marcadores dos terminais livres (alvos de conexão) nas ferramentas de modelagem. */
 function FreePortMarkers() {
   const project = useEditorStore((s) => s.project);
@@ -131,6 +121,8 @@ function DrawingOverlay() {
   const measure = useEditorStore((s) => s.measure);
   const project = useEditorStore((s) => s.project);
   const showCursor = cursor && tool !== 'select';
+  // Partindo de uma porta, a prévia informa a mudança de direção (o joelho necessário).
+  const origin = anchor?.port ? resolvePort(project, anchor.port) : undefined;
   // Identifica o que foi capturado quando o ponto vem de um elemento (porta ou tubo).
   const snapLabel =
     showCursor && (cursor.snap === 'port' || cursor.snap === 'pipe')
@@ -166,8 +158,12 @@ function DrawingOverlay() {
             depthTest={false}
           />
           <Html position={tuple(lerp(anchor.point, cursor.point, 0.5))} center pointerEvents="none">
-            <span className="viewport-label">
-              {formatMeters(distance(anchor.point, cursor.point))}
+            <span className="viewport-label" data-testid="viewport-pipe-preview-label">
+              {formatSegment(
+                anchor.point,
+                cursor.point,
+                origin ? angleBetween(origin.direction, sub(cursor.point, anchor.point)) : null,
+              )}
             </span>
           </Html>
         </>
@@ -191,44 +187,168 @@ function DrawingOverlay() {
   );
 }
 
-const VIEW_DIRECTIONS: Record<ViewPreset, [number, number, number]> = {
-  fit: [0, 0, 0],
-  iso: [1, -1.25, 0.9],
-  top: [0, -0.0001, 1],
-  front: [0, -1, 0],
-};
-
 /** Parte dos controles de órbita usada pelo enquadramento. */
 interface OrbitLike {
   target: Vector3;
   update: () => void;
+  addEventListener: (type: 'change', listener: () => void) => void;
+  removeEventListener: (type: 'change', listener: () => void) => void;
 }
 
-/** Enquadra o modelo e aplica as vistas predefinidas. */
+type SceneCamera = PerspectiveCamera | OrthoImpl;
+
+const isOrtho = (camera: SceneCamera): camera is OrthoImpl => 'isOrthographicCamera' in camera;
+const fovOf = (camera: PerspectiveCamera): number => (camera.fov * Math.PI) / 180;
+
+/**
+ * Último pedido de vista já aplicado. O viewport é desmontado ao abrir a planta: ao voltar,
+ * o pedido antigo não pode ser reaplicado (reenquadraria tudo e perderia o ponto de interesse).
+ */
+let appliedNonce = -1;
+
+/** Posiciona a câmera olhando `center` pela direção dada, mostrando `halfHeight` de altura. */
+function placeCamera(
+  camera: SceneCamera,
+  controls: OrbitLike,
+  center: Vector3,
+  direction: Vector3,
+  halfHeight: number,
+  viewportHeight: number,
+): void {
+  const ortho = isOrtho(camera);
+  // A câmera ortográfica fica afastada para não cortar o modelo; o zoom define a ampliação.
+  const range = ortho
+    ? Math.max(halfHeight * 8, 50)
+    : perspectiveDistanceFor(halfHeight, fovOf(camera));
+  controls.target.copy(center);
+  camera.position.copy(center).addScaledVector(direction, range);
+  if (ortho) {
+    camera.zoom = orthographicZoomFor(halfHeight, viewportHeight);
+    camera.near = 0.01;
+    camera.far = range * 20;
+  } else {
+    camera.near = Math.max(range / 1000, 0.005);
+    camera.far = Math.max(range * 100, 2000);
+  }
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+/**
+ * Registra o que a câmera está mostrando, para a planta e para a troca de projeção. A câmera
+ * vive em coordenadas de desenho; o ponto de interesse é guardado em coordenadas do projeto, e
+ * a origem de renderização acompanha-o quando ele se afasta.
+ */
+function rememberFocus(camera: SceneCamera, controls: OrbitLike): void {
+  const offset = camera.position.clone().sub(controls.target);
+  const range = offset.length();
+  if (range < 1e-9) return;
+  const halfHeight = isOrtho(camera)
+    ? (camera.top - camera.bottom) / (2 * camera.zoom)
+    : range * Math.tan(fovOf(camera) / 2);
+  const store = useEditorStore.getState();
+  const center = toCanonical(controls.target, store.renderOrigin);
+  offset.normalize();
+  setViewFocus({ center, halfHeight }, vec3(offset.x, offset.y, offset.z));
+  store.rebaseRenderOrigin(center);
+}
+
+/**
+ * Enquadra o modelo, aplica as vistas predefinidas e mantém o ponto de interesse: ao voltar
+ * da planta ou trocar a projeção, a câmera retoma o mesmo centro e a mesma ampliação.
+ */
 function CameraRig() {
   const viewRequest = useEditorStore((s) => s.viewRequest);
-  const camera = useThree((s) => s.camera) as PerspectiveCamera | OrthoImpl;
+  const camera = useThree((s) => s.camera) as SceneCamera;
   const viewport = useThree((s) => s.size);
   const controls = useThree((s) => s.controls) as OrbitLike | null;
+  const renderOrigin = useEditorStore((s) => s.renderOrigin);
+
+  // Origem de renderização trocada: a cena foi transladada, e a câmera vai junto — a vista
+  // não se move em relação ao modelo.
+  const appliedOrigin = useRef(renderOrigin);
+  useEffect(() => {
+    const previous = appliedOrigin.current;
+    appliedOrigin.current = renderOrigin;
+    if (!controls || previous === renderOrigin) return;
+    const shift = new Vector3(
+      previous.x - renderOrigin.x,
+      previous.y - renderOrigin.y,
+      previous.z - renderOrigin.z,
+    );
+    camera.position.add(shift);
+    controls.target.add(shift);
+    controls.update();
+  }, [renderOrigin, camera, controls]);
+
+  // Câmera nova (viewport remontado ou projeção trocada): retoma o ponto de interesse.
+  useEffect(() => {
+    if (!controls) return;
+    const focus = getViewFocus();
+    const pending = useEditorStore.getState().viewRequest;
+    if (focus && (!pending || pending.nonce === appliedNonce)) {
+      const kept = getViewDirection();
+      const direction = kept
+        ? new Vector3(kept.x, kept.y, kept.z)
+        : new Vector3(...VIEW_DIRECTIONS.iso).normalize();
+      const { x, y, z } = toRender(focus.center, appliedOrigin.current);
+      placeCamera(
+        camera,
+        controls,
+        new Vector3(x, y, z),
+        direction,
+        focus.halfHeight,
+        viewport.height,
+      );
+    }
+    const onChange = (): void => rememberFocus(camera, controls);
+    controls.addEventListener('change', onChange);
+    return () => controls.removeEventListener('change', onChange);
+    // A altura do viewport só importa no momento da troca de câmera.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera, controls]);
 
   useEffect(() => {
-    if (!viewRequest || !controls) return;
-    const { project } = useEditorStore.getState();
-    // O enquadramento considera só o que está visível.
-    const bounds = computeBounds(visibleElementsOf(project));
+    if (!viewRequest || !controls || viewRequest.nonce === appliedNonce) return;
+    appliedNonce = viewRequest.nonce;
+    const { project, selection } = useEditorStore.getState();
+    // O enquadramento considera só o que está visível (ou só a seleção, quando pedido).
+    const visible = visibleElementsOf(project);
+    const chosen = viewRequest.selection
+      ? visible.filter((element) => selection.includes(element.id))
+      : visible;
+    let bounds = computeBounds(chosen.length > 0 ? chosen : visible);
+    // Enquadrar o projeto inclui a superfície do terreno; enquadrar a seleção, não.
+    if (project.terrain && !(viewRequest.selection && chosen.length > 0)) {
+      const stats = terrainStats(project.terrain);
+      const low = vec3(stats.minX, stats.minY, stats.minZ);
+      const high = vec3(stats.maxX, stats.maxY, stats.maxZ);
+      bounds = bounds
+        ? {
+            min: vec3(
+              Math.min(bounds.min.x, low.x),
+              Math.min(bounds.min.y, low.y),
+              Math.min(bounds.min.z, low.z),
+            ),
+            max: vec3(
+              Math.max(bounds.max.x, high.x),
+              Math.max(bounds.max.y, high.y),
+              Math.max(bounds.max.z, high.z),
+            ),
+          }
+        : { min: low, max: high };
+    }
+    // Centro em coordenadas de desenho (a diferença é feita em precisão dupla).
+    const drawOrigin = appliedOrigin.current;
     const center = bounds
       ? new Vector3(
-          (bounds.min.x + bounds.max.x) / 2,
-          (bounds.min.y + bounds.max.y) / 2,
-          (bounds.min.z + bounds.max.z) / 2,
+          (bounds.min.x + bounds.max.x) / 2 - drawOrigin.x,
+          (bounds.min.y + bounds.max.y) / 2 - drawOrigin.y,
+          (bounds.min.z + bounds.max.z) / 2 - drawOrigin.z,
         )
-      : new Vector3(0, 0, 0);
+      : new Vector3(-drawOrigin.x, -drawOrigin.y, -drawOrigin.z);
     const size = bounds ? distance(bounds.min, bounds.max) : 10;
     const radius = Math.max(size / 2, 0.5);
-    const ortho = 'isOrthographicCamera' in camera;
-    const range = ortho
-      ? Math.max(radius * 4, 50)
-      : (radius / Math.sin(((camera as PerspectiveCamera).fov * Math.PI) / 360)) * 1.15;
 
     const direction =
       viewRequest.preset === 'fit'
@@ -237,23 +357,17 @@ function CameraRig() {
     if (direction.lengthSq() < 1e-9) direction.set(...VIEW_DIRECTIONS.iso);
     direction.normalize();
 
-    controls.target.copy(center);
-    camera.position.copy(center).addScaledVector(direction, range);
-    if (ortho) {
-      camera.zoom = Math.min(viewport.width, viewport.height) / (2 * radius * 1.2);
-      camera.near = 0.01;
-      camera.far = range * 20;
-    } else {
-      camera.near = Math.max(range / 1000, 0.005);
-      camera.far = Math.max(range * 100, 2000);
-    }
-    camera.updateProjectionMatrix();
-    controls.update();
+    // Meia altura que contém a esfera envolvente com folga, nas duas projeções.
+    const aspect = Math.min(1, viewport.width / Math.max(viewport.height, 1));
+    const halfHeight = isOrtho(camera)
+      ? (radius * 1.2) / aspect
+      : (radius / Math.sin(fovOf(camera) / 2)) * 1.15 * Math.tan(fovOf(camera) / 2);
+    placeCamera(camera, controls, center, direction, halfHeight, viewport.height);
+    rememberFocus(camera, controls);
   }, [viewRequest, camera, controls, viewport]);
 
   return null;
 }
-
 export function SceneContent() {
   const elementsRef = useRef<Group>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -261,6 +375,14 @@ export function SceneContent() {
   // A grade acompanha a cota em que os pontos são criados (nível + elevação do eixo).
   const workPlaneZ = useEditorStore(drawElevationOf);
   const orthographic = useEditorStore((s) => s.orthographic);
+  // Origem de renderização: todo o conteúdo do modelo é desenhado em relação a ela.
+  const origin = useEditorStore((s) => s.renderOrigin);
+  // Só o resto da divisão pelo passo da grade é aplicado: mantém as linhas da grade
+  // sobre os mesmos pontos do modelo sem levar números grandes ao sombreador.
+  const gridOffset = (value: number): number => {
+    const section = gridStep * 10;
+    return -(((value % section) + section) % section);
+  };
   // O botão do meio também orbita: em Selecionar, o esquerdo abre a janela de seleção
   // (o InteractionController alterna LEFT a cada clique).
   const mouseButtons = useMemo(
@@ -273,7 +395,7 @@ export function SceneContent() {
       <SceneLighting />
 
       <Grid
-        position={[0, 0, workPlaneZ]}
+        position={[gridOffset(origin.x), gridOffset(origin.y), workPlaneZ - origin.z]}
         rotation={[Math.PI / 2, 0, 0]}
         infiniteGrid
         cellSize={gridStep}
@@ -287,7 +409,7 @@ export function SceneContent() {
         followCamera={false}
         side={2}
       />
-      <axesHelper args={[1]} position={[0, 0, workPlaneZ]} />
+      <axesHelper args={[1]} position={[-origin.x, -origin.y, workPlaneZ - origin.z]} />
 
       {orthographic && (
         <OrthographicCamera
@@ -299,13 +421,16 @@ export function SceneContent() {
           far={5000}
         />
       )}
-      <TerrainMesh />
-
-      <group ref={elementsRef}>
-        <Elements hoveredId={hoveredId} />
+      {/* Conteúdo do modelo, em coordenadas do projeto, transladado para a origem de desenho. */}
+      <group position={[-origin.x, -origin.y, -origin.z]}>
+        <TerrainSurface />
+        <group ref={elementsRef}>
+          <Elements hoveredId={hoveredId} />
+        </group>
+        <FreePortMarkers />
+        <PipeGrips />
+        <DrawingOverlay />
       </group>
-      <FreePortMarkers />
-      <DrawingOverlay />
 
       <OrbitControls
         makeDefault

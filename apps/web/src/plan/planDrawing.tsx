@@ -47,6 +47,12 @@ const f = (value: number): string => (Math.round(value * 1e4) / 1e4).toString();
 
 interface CachedOutline {
   readonly outline: PlanOutline;
+  /**
+   * Ponto de referência do desenho do elemento (m, coordenadas do projeto). Os caminhos SVG são
+   * escritos em relação a ele: o SVG trabalha em precisão simples, e coordenadas de quilômetros
+   * (redes georreferenciadas) perderiam os milímetros se fossem escritas por extenso.
+   */
+  readonly anchor: Point2;
   readonly fillPath: string;
   readonly linePath: string;
   /** Preenchimento por papel da parte, na ordem de desenho (tema colorido). */
@@ -55,22 +61,22 @@ interface CachedOutline {
   readonly lineGroups: readonly { role: PartRole; path: string }[];
 }
 
-function trianglesPath(fill: Float32Array): string {
+function trianglesPath(fill: Float64Array, anchor: Point2): string {
+  const x = (i: number): string => f((fill[i] ?? 0) - anchor.x);
+  const y = (i: number): string => f(-((fill[i] ?? 0) - anchor.y));
   const path: string[] = [];
   for (let i = 0; i + 5 < fill.length; i += 6) {
-    path.push(
-      `M${f(fill[i] ?? 0)} ${f(-(fill[i + 1] ?? 0))}L${f(fill[i + 2] ?? 0)} ${f(-(fill[i + 3] ?? 0))}L${f(fill[i + 4] ?? 0)} ${f(-(fill[i + 5] ?? 0))}Z`,
-    );
+    path.push(`M${x(i)} ${y(i + 1)}L${x(i + 2)} ${y(i + 3)}L${x(i + 4)} ${y(i + 5)}Z`);
   }
   return path.join('');
 }
 
-function segmentsPath(lines: Float32Array): string {
+function segmentsPath(lines: Float64Array, anchor: Point2): string {
+  const x = (i: number): string => f((lines[i] ?? 0) - anchor.x);
+  const y = (i: number): string => f(-((lines[i] ?? 0) - anchor.y));
   const path: string[] = [];
   for (let i = 0; i + 3 < lines.length; i += 4) {
-    path.push(
-      `M${f(lines[i] ?? 0)} ${f(-(lines[i + 1] ?? 0))}L${f(lines[i + 2] ?? 0)} ${f(-(lines[i + 3] ?? 0))}`,
-    );
+    path.push(`M${x(i)} ${y(i + 1)}L${x(i + 2)} ${y(i + 3)}`);
   }
   return path.join('');
 }
@@ -81,19 +87,28 @@ export function outlineOf(element: HydroElement): CachedOutline {
   const hit = cache.get(element);
   if (hit) return hit;
   const outline = planOutline(buildElementGeometry(element));
+  // Metro inteiro mais próximo do canto do elemento: os caminhos ficam com números pequenos.
+  const anchor = { x: Math.round(outline.minX), y: Math.round(outline.minY) };
   const entry = {
     outline,
-    fillPath: trianglesPath(outline.fill),
-    linePath: segmentsPath(outline.lines),
-    shades: outline.shading.map((shade) => ({ role: shade.role, path: trianglesPath(shade.fill) })),
+    anchor,
+    fillPath: trianglesPath(outline.fill, anchor),
+    linePath: segmentsPath(outline.lines, anchor),
+    shades: outline.shading.map((shade) => ({
+      role: shade.role,
+      path: trianglesPath(shade.fill, anchor),
+    })),
     lineGroups: outline.lineGroups.map((group) => ({
       role: group.role,
-      path: segmentsPath(group.lines),
+      path: segmentsPath(group.lines, anchor),
     })),
   };
   cache.set(element, entry);
   return entry;
 }
+
+/** Origem de desenho nula: coordenadas do SVG iguais às do projeto. */
+export const NO_ORIGIN: Point2 = { x: 0, y: 0 };
 
 /** A cor (#rrggbb) é escura a ponto de esconder o traço preto? */
 function isDark(hex: string): boolean {
@@ -110,6 +125,8 @@ interface PlanElementProps {
   monochrome: boolean;
   /** Milímetro de papel em metros do modelo. */
   unit: number;
+  /** Origem de desenho (m): o SVG mostra as coordenadas do projeto menos este ponto. */
+  origin?: Point2;
 }
 
 export const PlanElement = memo(function PlanElement({
@@ -118,15 +135,20 @@ export const PlanElement = memo(function PlanElement({
   selected,
   monochrome,
   unit,
+  origin = NO_ORIGIN,
 }: PlanElementProps) {
-  const { fillPath, linePath, shades, lineGroups } = outlineOf(element);
+  const { anchor, fillPath, linePath, shades, lineGroups } = outlineOf(element);
   const width = PAPER.outline * unit;
   const lineWidth = selected ? width * 1.8 : width;
   // Mesma biblioteca de materiais do modelo 3D: papel da parte, material e cor do sistema.
   const colorOf = (role: PartRole): string =>
     partFinish(role, element.spec.material, systemColor).color;
   return (
-    <g data-element-id={element.id} data-element-kind={element.kind}>
+    <g
+      data-element-id={element.id}
+      data-element-kind={element.kind}
+      transform={`translate(${f(anchor.x - origin.x)} ${f(-(anchor.y - origin.y))})`}
+    >
       {/* O traço fino na cor do preenchimento fecha as frestas entre os triângulos. */}
       {monochrome ? (
         <path d={fillPath} fill={MONO_FILL} stroke={MONO_FILL} strokeWidth={width * 0.4} />
@@ -249,10 +271,41 @@ interface ShapeProps {
   color: string;
   /** Largura da área de clique das linhas (m); 0 = anotação não selecionável. */
   hit: number;
+  /** Origem de desenho (m): o SVG mostra as coordenadas do projeto menos este ponto. */
+  origin?: Point2;
+}
+
+const shifted = (p: Point2, origin: Point2): Point2 => ({ x: p.x - origin.x, y: p.y - origin.y });
+
+/**
+ * A anotação com os pontos relativos à origem de desenho. O desenho de uma anotação só depende
+ * de diferenças entre pontos (o valor cotado não muda), então basta transladar as entradas.
+ */
+function shiftAnnotation(annotation: Annotation, origin: Point2): Annotation {
+  if (origin.x === 0 && origin.y === 0) return annotation;
+  if (annotation.kind === 'dimension') {
+    return { ...annotation, a: shifted(annotation.a, origin), b: shifted(annotation.b, origin) };
+  }
+  if (annotation.kind === 'text') {
+    return {
+      ...annotation,
+      position: shifted(annotation.position, origin),
+      ...(annotation.leader ? { leader: shifted(annotation.leader, origin) } : {}),
+    };
+  }
+  return { ...annotation, position: shifted(annotation.position, origin) };
 }
 
 /** Desenho de uma anotação. As áreas de clique (`data-ui`) não vão para a exportação. */
-export function AnnotationShape({ annotation, project, unit, color, hit }: ShapeProps) {
+export function AnnotationShape({
+  annotation: source,
+  project,
+  unit,
+  color,
+  hit,
+  origin = NO_ORIGIN,
+}: ShapeProps) {
+  const annotation = shiftAnnotation(source, origin);
   const thin = PAPER.thin * unit;
   const height = PAPER.text * unit;
   const shapes: ReactNode[] = [];
@@ -430,7 +483,7 @@ export function AnnotationShape({ annotation, project, unit, color, hit }: Shape
         />,
       );
     } else {
-      const anchor = tagAnchor(element);
+      const anchor = shifted(tagAnchor(element), origin);
       segment('leader', anchor, annotation.position);
       shapes.push(
         <circle key="dot" cx={f(anchor.x)} cy={f(-anchor.y)} r={0.5 * unit} fill={color} />,

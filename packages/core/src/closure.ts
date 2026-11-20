@@ -1,4 +1,12 @@
-import { connectPorts, findConnection, getElement, isPortFree, resolvePort } from './connectivity';
+import {
+  alignmentTolerance,
+  connectPorts,
+  findConnection,
+  getElement,
+  isPortFree,
+  jointDeflectionLimit,
+  resolvePort,
+} from './connectivity';
 import { ANGLE_TOLERANCE, MIN_PIPE_LENGTH, POSITION_TOLERANCE } from './dimensions';
 import { formatAngleList, matchElbowAngle } from './elbowAngles';
 import type { FittingCatalog } from './families';
@@ -8,6 +16,7 @@ import {
   closestPointsBetweenLines,
   distance,
   dot,
+  length,
   negate,
   scale,
   sub,
@@ -29,12 +38,14 @@ import { degToRad, formatDegrees, formatMeters } from './units';
  * Só são resolvidas as geometrias que fecham com peças definidas:
  *  - `straight`: eixos colineares e opostos — um tubo;
  *  - `elbow`: eixos que se cruzam à frente das duas portas — um joelho no cruzamento;
- *  - `offset`: eixos paralelos e opostos, desalinhados — dois joelhos de mesmo ângulo.
+ *  - `offset`: eixos paralelos e opostos, desalinhados — dois joelhos de mesmo ângulo;
+ *  - `deflected`: um tubo direto, quando ele sai das duas extremidades dentro da deflexão
+ *    que a junta elástica admite (dado de catálogo da especificação) — sem joelhos.
  * Eixos reversos, extremidades voltadas para o mesmo lado e cruzamentos atrás das portas são
  * recusados com explicação.
  */
 
-export type ClosureKind = 'coincident' | 'straight' | 'elbow' | 'offset';
+export type ClosureKind = 'coincident' | 'straight' | 'elbow' | 'offset' | 'deflected';
 
 export interface ClosureInput {
   a: PortRef;
@@ -242,11 +253,66 @@ function closeOffset(
 }
 
 /**
- * Todas as formas de fechar as duas extremidades com as peças disponíveis (mais de uma só
- * no desvio paralelo, uma por ângulo de joelho que cabe). Falha com o motivo quando não há
- * nenhuma; o projeto recebido nunca é alterado.
+ * Tubo direto entre as extremidades, com a deflexão absorvida pelas duas juntas. Só existe
+ * quando a especificação traz a deflexão admitida e o tubo sai de cada porta dentro dela;
+ * `null` nos demais casos (inclusive o alinhamento exato, que é o fechamento `straight`).
+ */
+function deflectedClosure(project: Project, input: ClosureInput): Closure | null {
+  const pa = resolvePort(project, input.a);
+  const pb = resolvePort(project, input.b);
+  if (!pa || !pb || input.a.elementId === input.b.elementId) return null;
+  if (!isPortFree(project, input.a) || !isPortFree(project, input.b)) return null;
+  if (!sameSpec(pa, pb).ok) return null;
+  if (!plainCompatible(project, pa).ok || !plainCompatible(project, pb).ok) return null;
+
+  const gap = sub(pb.position, pa.position);
+  if (length(gap) < MIN_PIPE_LENGTH) return null;
+  // O trecho criado é de ponta lisa nas duas extremidades.
+  const plain = { spec: pa.spec, end: null };
+  const atA = angleBetween(pa.direction, gap);
+  const atB = angleBetween(pb.direction, negate(gap));
+  if (Math.max(atA, atB) <= ANGLE_TOLERANCE) return null;
+  if (atA > alignmentTolerance(pa, plain) || atB > alignmentTolerance(pb, plain)) return null;
+
+  const run = runTo(project, input.a, pb.position, { ...input, elbowAngles: undefined });
+  if (!run.ok) return null;
+  const closed = finish(
+    project,
+    run.value.project,
+    run.value.ref,
+    input.b,
+    'deflected',
+    null,
+    run.value.createdIds,
+  );
+  if (!closed.ok) return null;
+  const limit = Math.min(jointDeflectionLimit(pa, plain), jointDeflectionLimit(pb, plain));
+  return {
+    ...closed.value,
+    summary: `${closed.value.summary} com deflexão de ${formatDegrees(atA, 2)} e ${formatDegrees(atB, 2)} nas juntas (admitida: ${formatDegrees(limit, 2)})`,
+  };
+}
+
+/**
+ * Todas as formas de fechar as duas extremidades com as peças disponíveis (mais de uma no
+ * desvio paralelo, uma por ângulo de joelho que cabe; e o tubo direto com deflexão nas juntas,
+ * quando a junta o admite, listado primeiro por não exigir peça). Falha com o motivo quando
+ * não há nenhuma; o projeto recebido nunca é alterado.
  */
 export function closureCandidates(project: Project, input: ClosureInput): Result<Closure[]> {
+  const rigid = rigidClosures(project, input);
+  // Ângulo de desvio pedido: a escolha é a solução com joelhos.
+  if (input.offsetAngle !== undefined) return rigid;
+  if (rigid.ok && rigid.value.some((c) => c.kind === 'coincident' || c.kind === 'straight')) {
+    return rigid;
+  }
+  const deflected = deflectedClosure(project, input);
+  if (!deflected) return rigid;
+  return ok([deflected, ...(rigid.ok ? rigid.value : [])]);
+}
+
+/** Fechamentos com juntas alinhadas: conexão direta, tubo reto, um joelho ou desvio. */
+function rigidClosures(project: Project, input: ClosureInput): Result<Closure[]> {
   if (input.a.elementId === input.b.elementId) {
     return fail('SAME_ELEMENT', 'Escolha extremidades de dois elementos diferentes.');
   }

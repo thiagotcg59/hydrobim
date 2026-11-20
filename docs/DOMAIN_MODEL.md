@@ -12,13 +12,14 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 
 - Sistema destro com **Z para cima**. A elevação de um ponto é a sua coordenada Z (eixo da tubulação).
 - **DN não é diâmetro físico.** `PipeSpec` guarda separadamente `dn`, `outerDiameter`, `innerDiameter` e `wallThickness`, todos resolvidos a partir do catálogo.
+- **Deflexão na junta.** Duas portas acopladas têm de estar opostas, admitido o desvio angular que a junta permite: `jointDeflectionLimit` devolve o menor `PipeSpec.jointDeflection` dos dois lados (0 com flange ou sem o dado). Dentro do limite, `drawPipe` conecta o tubo direto, sem joelho; a validação acusa `DIRECTION_MISMATCH` acima dele. Sem o dado, vale só a tolerância geométrica de 0,5°.
 
 ## Projeto
 
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 10
+  schemaVersion: 12
   id, name
   discipline: 'mep' | 'infra'
   units: { length: 'm', angle: 'rad' }
@@ -29,13 +30,39 @@ Project {
   tankFamilies: TankFamily[]      // famílias de reservatórios personalizadas (somam-se ao catálogo)
   ifcTypes: { [chaveDoTipo]: { [Conjunto.Propriedade]: valor } }  // valores IFC do usuário por tipo
   georeference: Georeference | null   // informada pelo usuário; nunca presumida
-  terrain: Terrain | null         // TIN em coordenadas locais
+  terrain: Terrain | null         // superfície do terreno (TIN) com limite, linhas de quebra e procedência
   elements: HydroElement[]
   connections: Connection[]       // grafo de conectividade
   annotations: Annotation[]       // anotações da planta baixa
-  drawingScale: number            // denominador da escala do desenho (50 = 1:50)
+  drawingScale: number            // denominador da escala do desenho (50 = 1:50), planta do MEP
+  infra: InfraSettings            // configuração da Planta Infra (independente da planta do MEP)
 }
 ```
+
+## Georreferência e ambiente Infra
+
+```ts
+Georeference {
+  crsName, epsg | null            // sistema projetado informado pelo usuário
+  eastings, northings             // E e N da origem local (m)
+  orthogonalHeight                // altitude do ponto de cota local Z = 0 (m)
+  rotation                        // eixo X local em relação ao leste, anti-horário (rad)
+  verticalDatum: string | null    // referência altimétrica; null = não informada
+}
+
+InfraSettings {
+  drawingScale                    // escala de documentação da Planta Infra (1000 = 1:1.000)
+  basemap: { sourceId | null, visible, opacity }   // null = fundo técnico
+  layers: { network, equipment, terrain, references, annotations }
+  labels: { names, lengths, elevations }
+}
+```
+
+- A conversão local → projetado é a do `IfcMapConversion` exportado (escala 1): `E = eastings + x·cos − y·sin`, `N = northings + x·sin + y·cos`.
+- Derivados (`geo/`): `findProjectedCrs(epsg)` (registro dos sistemas com transformação implementada), `georeferenceStatus(georeference)` (`pending`, `unsupported`, `invalid`, `ready` com a cadeia de transformações), `createGeoTransform`, `gridFactors` (fator de escala e convergência). Nada disso é persistido.
+- `sourceId` é só a escolha da fonte de mapa; o registro de provedores fica no editor (`apps/web/src/map`). Zoom, centro e origem de renderização são estado de sessão.
+- Operações: `setGeoreference`, `setInfraSettings` (mescla parcial; recusa escala não positiva e opacidade fora de 0–1).
+- Ver [ambiente Infra](INFRA.md).
 
 ## Anotações da planta baixa
 
@@ -189,22 +216,59 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 | `addLevel`, `addSystem`, `setGeoreference`, `setTerrain` | Dados de projeto |
 | `updateFitting`, `rollFitting`, `translateElements` | Edição de conexões com reconciliação |
 | `setPipeEndpoint`, `setPipeLength` | Edição de extremidades livres |
+| `stretchPipe` | Estica ou encolhe o tubo por uma extremidade, livre ou conectada (a peça ligada desliza junto) |
+| `slideElements`, `slideAxesOf` | Desliza peças ao longo da linha: o que está acoplado acompanha rigidamente e os tubos paralelos ao deslocamento absorvem a diferença; falha com `NO_ROOM` se um tubo ficaria sem comprimento |
 | `setElementElevation` | Define a cota Z do elemento (`elementElevation`: eixo no início do tubo; origem da conexão; base do reservatório). Em tubo ou conexão, todos os elementos conectados sobem/descem juntos, rigidamente; em bomba ou reservatório, só o equipamento se move e os tubos vizinhos se ajustam quando o acoplamento permite |
 | `deleteElements`, `disconnect`, `renameElement`, `setElementProperty` | Edição geral |
 | `setElementIfcValue`, `setIfcTypeValue` | Guardam ou removem um valor IFC informado pelo usuário, na ocorrência ou no tipo |
 
 ## Catálogo (`packages/catalog`)
 
-`PipeSpecification` descreve material, norma, tipo de junta, classe de pressão e a tabela de diâmetros (`dn`, rótulo, diâmetro externo e espessura em mm). `resolvePipeSpec(id, dn)` converte para `PipeSpec` em SI.
+`PipeSpecification` descreve material, norma, tipo de junta, classe de pressão e a tabela de diâmetros (`dn`, rótulo, diâmetro externo e espessura em mm). `resolvePipeSpec(id, dn)` converte para `PipeSpec` em SI. Especificações de junta elástica trazem ainda a deflexão admitida em cada junta, por faixa de DN e com a fonte (`jointDeflection`), que segue para `PipeSpec.jointDeflection` (rad, opcional).
 
 As dimensões padrão das conexões (`dimensions.ts`) são proporções genéricas do diâmetro externo, usadas até existir um catálogo dimensional de conexões por norma/fabricante (Fase 2).
 
 ## Evolução do esquema
 
-Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. **v10** — trechos retos do joelho (`straight: { a, b }`) e, nos tamanhos de família, `centerToEnd2` e `bendRadius` (curvas ponta e bolsa); em válvulas e nos tamanhos de família, `bonnetLength` (dimensão do castelo ao longo do eixo do tubo, que com `width` define o castelo retangular das gavetas). Todos opcionais (documentos v9 já são válidos). Documentos de versões anteriores são migrados ao abrir.
+Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. **v10** — trechos retos do joelho (`straight: { a, b }`) e, nos tamanhos de família, `centerToEnd2` e `bendRadius` (curvas ponta e bolsa); em válvulas e nos tamanhos de família, `bonnetLength` (dimensão do castelo ao longo do eixo do tubo, que com `width` define o castelo retangular das gavetas). Todos opcionais (documentos v9 já são válidos). **v11** — configuração do ambiente Infra (`infra`) e referência altimétrica da georreferência (`verticalDatum`); a migração cria a configuração padrão, leva a escala da planta de um projeto Infra para a Planta Infra e deixa a referência altimétrica não informada. Documentos de versões anteriores são migrados ao abrir. O tipo `flowMeter` (medidor de vazão em linha; `height` = do eixo ao topo do cabeçote) entrou no próprio v11, ainda não publicado em commit, sem migração. **v12** — a superfície do terreno ganha limite (`boundary`), linhas de quebra (`breaklines`) e procedência (`source`); um terreno v11 é migrado como levantamento por pontos, sem limite informado e com datum, exatidão, resolução e data **não informados**.
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
 
+## Terreno
+
+```ts
+Terrain {
+  name
+  points: Vec3[]                    // vértices em coordenadas locais (m), arredondados a 0,1 mm
+  triangles: number[]               // três índices por triângulo, anti-horário em planta
+  boundary: Vec3[][] | null         // [contorno externo, ...furos]; null = envoltória convexa dos pontos
+  breaklines: Vec3[][]              // arestas obrigatórias da triangulação
+  source: TerrainSource
+}
+
+TerrainSource {
+  kind: 'survey' | 'dem'
+  provider                          // serviço, formato ou "Pontos XYZ"
+  dataset: string | null            // arquivo ou conjunto de dados
+  horizontalCrs: string | null      // sistema em que o dado foi recebido (ex.: EPSG:3857)
+  verticalDatum: string | null      // referência altimétrica DECLARADA pela fonte
+  resolution: number | null         // espaçamento (m) das amostras do raster usadas; null em levantamentos
+  verticalAccuracy: number | null   // exatidão altimétrica DECLARADA (m)
+  acquiredAt: string | null         // ISO 8601
+  attribution: string | null
+  notes: string | null              // ressalvas da fonte (sobreamostragem, lacunas, datum misto)
+}
+```
+
+Regras (ver `docs/INFRA.md`, seção Superfície do terreno):
+
+- **Um terreno por projeto**, em coordenadas locais: o sistema horizontal e a referência altimétrica são os da georreferência do projeto. Gerar outra superfície substitui a anterior (com desfazer).
+- **Triangulação restrita** (`terrain/delaunay.ts`): as arestas do limite e das linhas de quebra são arestas da malha; nenhum triângulo fica fora do contorno, dentro de um furo ou atravessando uma linha de quebra. Linhas de quebra que se cruzam sem vértice comum são recusadas (`TERRAIN_BREAKLINE_CROSSING`): a cota do cruzamento não pode ser presumida.
+- **Nada é inventado**: os vértices são dados de entrada. Em um DEM, são os próprios nós do raster (ou um a cada *n*); onde o raster não tem dado não há vértice nem triângulo; a única interpolação é a bilinear dentro de uma célula, para cotar os vértices do limite, e ela exige os quatro nós da célula.
+- **Resolução não é exatidão**: `resolution` é o espaçamento das amostras; `verticalAccuracy` e `verticalDatum` só são preenchidos quando a fonte (ou o responsável pelo levantamento) os declara. Nenhuma conversão de datum vertical é aplicada.
+- **Limite**: `MAX_TERRAIN_VERTICES` = 25.000 vértices (cerca de 2 MB no arquivo do projeto).
+- **Derivados, nunca persistidos**: cota e declividade em um ponto, estatísticas, curvas de nível e cortes.
+- **Intercâmbio**: `terrainExchange` entrega pontos numerados, faces por índices, limite e linhas de quebra no sistema projetado do projeto — o conteúdo de uma superfície TIN do LandXML (`Pnts`, `Faces`, `Breaklines`, `Boundaries`) e de um `IfcTriangulatedIrregularNetwork`. Os escritores LandXML e IFC do terreno ainda não existem; o DXF do modelo 3D já leva a malha.
 ## Análises e exportações (derivadas do modelo)
 
 | Função | Resultado |
@@ -213,6 +277,11 @@ Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `M
 | `exportEpanet` | Rede em formato INP, com a lista de pendências a revisar |
 | `buildIfcModel`, `validateIfcModel`, `exportIfc`, `exportIds` (`@hydrobim/ifc`) | Modelo de informação IFC 4.3, sua validação, o arquivo IFC e o perfil de requisitos em IDS |
 | `detectClashes` | Tubos cujas paredes externas se interpenetram |
-| `parseTerrainPoints`, `createTerrain`, `terrainElevationAt` | Terreno triangulado (TIN) |
+| `parseTerrainPoints`, `parseBreaklines`, `createTerrain`, `buildSurveySurface`, `buildTerrainSurface` | Superfície do terreno (TIN) de um levantamento, com área de recorte e linhas de quebra |
+| `rasterFrame`, `demSurfacePoints`, `sampleRaster` | DEM em raster posicionado pela georreferência e os pontos cotados da área |
+| `terrainElevationAt`, `terrainHitAt`, `terrainStats` | Cota, declividade e estatísticas da superfície |
+| `terrainContours`, `terrainProfile` | Curvas de nível e corte longitudinal do terreno |
+| `validatePolygon`, `parseGeoJsonPolygons`, `polygonToGeoJson` | Área de recorte (contorno e furos) e GeoJSON |
+| `terrainExchange` | Estrutura de intercâmbio da superfície (DXF 3D, LandXML, IFC) |
 | `buildProfile` | Perfil longitudinal com cota do terreno e recobrimento |
 | `exportIfc` (`@hydrobim/ifc`) | Arquivo IFC 4.3 |

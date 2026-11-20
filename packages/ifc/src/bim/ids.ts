@@ -33,6 +33,7 @@ const CLASS_LABELS: Record<IfcElementClass, string> = {
   fitting: 'Conexões',
   valve: 'Válvulas e registros',
   strainer: 'Filtros',
+  flowMeter: 'Medidores de vazão',
   pump: 'Bombas',
   tank: 'Reservatórios',
 };

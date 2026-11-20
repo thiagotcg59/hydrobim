@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { ctl } from './ui';
 
 /**
  * Reservatórios metálicos de catálogo (TRAMEC) no navegador real: escolha da família e do
@@ -20,12 +21,12 @@ function trackErrors(page: Page): string[] {
 async function openEmptyProject(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('action-new').click();
+  await (await ctl(page, 'action-new')).click();
   await expect(page.getByTestId('element-count')).toHaveText('0');
 }
 
 async function setField(page: Page, testId: string, value: string): Promise<void> {
-  const field = page.getByTestId(testId);
+  const field = await ctl(page, testId);
   await field.fill(value);
   await field.press('Enter');
 }
@@ -43,30 +44,30 @@ test('insere um reservatório de catálogo, personaliza e exporta em IFC', async
   await page.getByTestId('environment-infra').click();
 
   // Família e modelo comercial: linha "10.000 / 8,30 / 1,91 / 4,80" da p. 4 do catálogo.
-  await page.getByTestId('tool-tank').click();
-  await page.getByTestId('option-tank-family').selectOption('tramec-taca-sem-agua');
-  await expect(page.getByTestId('option-tank-variant').locator('option')).toHaveCount(35);
+  await (await ctl(page, 'tool-tank')).click();
+  await (await ctl(page, 'option-tank-family')).selectOption('tramec-taca-sem-agua');
+  await expect((await ctl(page, 'option-tank-variant')).locator('option')).toHaveCount(35);
   await page
     .getByTestId('option-tank-variant')
     .selectOption('tramec-taca-sem-agua/10000-830-191-480');
-  await expect(page.getByTestId('option-tank-source')).toContainText('p. 4');
+  await expect(await ctl(page, 'option-tank-source')).toContainText('p. 4');
   await setField(page, 'coord-x', '0');
   await setField(page, 'coord-y', '0');
   await setField(page, 'coord-z', '0');
-  await page.getByTestId('coord-add').click();
+  await (await ctl(page, 'coord-add')).click();
   await expectNoError(page);
-  await page.getByTestId('tool-select').click();
+  await (await ctl(page, 'tool-select')).click();
 
   // As dimensões do catálogo foram carregadas e estão identificadas como tal.
-  await expect(page.getByTestId('element-properties')).toHaveAttribute('data-element-kind', 'tank');
-  await expect(page.getByTestId('prop-tank-family')).toHaveValue('tramec-taca-sem-agua');
-  await expect(page.getByTestId('prop-tank-variant')).toHaveValue(
+  await expect(await ctl(page, 'element-properties')).toHaveAttribute('data-element-kind', 'tank');
+  await expect(await ctl(page, 'prop-tank-family')).toHaveValue('tramec-taca-sem-agua');
+  await expect(await ctl(page, 'prop-tank-variant')).toHaveValue(
     'tramec-taca-sem-agua/10000-830-191-480',
   );
-  await expect(page.getByTestId('prop-tank-capacity')).toHaveValue('10000');
-  await expect(page.getByTestId('prop-tank-diameter')).toHaveValue('1,91');
-  await expect(page.getByTestId('prop-tank-height')).toHaveValue('8,3');
-  await expect(page.getByTestId('prop-tank-columnHeight')).toHaveValue('4,8');
+  await expect(await ctl(page, 'prop-tank-capacity')).toHaveValue('10000');
+  await expect(await ctl(page, 'prop-tank-diameter')).toHaveValue('1,91');
+  await expect(await ctl(page, 'prop-tank-height')).toHaveValue('8,3');
+  await expect(await ctl(page, 'prop-tank-columnHeight')).toHaveValue('4,8');
   for (const name of ['nominalCapacity', 'diameter', 'height', 'columnHeight']) {
     await expect(origin(page, name)).toHaveAttribute('data-origin', 'catalog');
   }
@@ -74,7 +75,7 @@ test('insere um reservatório de catálogo, personaliza e exporta em IFC', async
   for (const name of ['columnDiameter', 'coneHeight', 'shellThickness', 'accessories']) {
     await expect(origin(page, name)).toHaveAttribute('data-origin', 'estimated');
   }
-  await expect(page.getByTestId('prop-tank-source')).toContainText('TRAMEC');
+  await expect(await ctl(page, 'prop-tank-source')).toContainText('TRAMEC');
   await page.screenshot({ path: 'test-results/tanks-01-taca.png' });
 
   // Outro modelo comercial da mesma família: as dimensões acompanham a tabela.
@@ -82,39 +83,39 @@ test('insere um reservatório de catálogo, personaliza e exporta em IFC', async
     .getByTestId('prop-tank-variant')
     .selectOption('tramec-taca-sem-agua/20000-1020-255-600');
   await expectNoError(page);
-  await expect(page.getByTestId('prop-tank-diameter')).toHaveValue('2,55');
-  await expect(page.getByTestId('prop-tank-height')).toHaveValue('10,2');
-  await expect(page.getByTestId('prop-tank-columnHeight')).toHaveValue('6');
-  await expect(page.getByTestId('prop-tank-top')).toHaveText(/10,2/);
+  await expect(await ctl(page, 'prop-tank-diameter')).toHaveValue('2,55');
+  await expect(await ctl(page, 'prop-tank-height')).toHaveValue('10,2');
+  await expect(await ctl(page, 'prop-tank-columnHeight')).toHaveValue('6');
+  await expect(await ctl(page, 'prop-tank-top')).toHaveText(/10,2/);
 
   // Dimensão personalizada: mantém a família, desfaz o vínculo com o modelo comercial.
   await setField(page, 'prop-tank-height', '11');
   await expectNoError(page);
-  await expect(page.getByTestId('prop-tank-variant')).toHaveValue('custom');
-  await expect(page.getByTestId('prop-tank-family')).toHaveValue('tramec-taca-sem-agua');
+  await expect(await ctl(page, 'prop-tank-variant')).toHaveValue('custom');
+  await expect(await ctl(page, 'prop-tank-family')).toHaveValue('tramec-taca-sem-agua');
   await expect(origin(page, 'height')).toHaveAttribute('data-origin', 'user');
   await expect(origin(page, 'diameter')).toHaveAttribute('data-origin', 'user');
 
   // Combinação impossível é recusada com mensagem, sem alterar o modelo.
   await setField(page, 'prop-tank-columnHeight', '12');
   await expect(page.getByTestId('status-message')).toHaveAttribute('data-level', 'error');
-  await expect(page.getByTestId('prop-tank-columnHeight')).toHaveValue('6');
+  await expect(await ctl(page, 'prop-tank-columnHeight')).toHaveValue('6');
 
   // Espessura informada pelo usuário, acessórios e um extravasor.
   await setField(page, 'prop-tank-thickness', '6,35');
   await expect(origin(page, 'shellThickness')).toHaveAttribute('data-origin', 'user');
-  await page.getByTestId('prop-tank-cage').uncheck();
-  await expect(page.getByTestId('prop-tank-cage')).not.toBeChecked();
-  await page.getByTestId('prop-tank-add-overflow').click();
-  await expect(page.getByTestId('prop-tank-nozzle-row')).toHaveCount(1);
-  await expect(page.getByTestId('prop-roll-port').locator('option')).toHaveText([
+  await (await ctl(page, 'prop-tank-cage')).uncheck();
+  await expect(await ctl(page, 'prop-tank-cage')).not.toBeChecked();
+  await (await ctl(page, 'prop-tank-add-overflow')).click();
+  await expect(await ctl(page, 'prop-tank-nozzle-row')).toHaveCount(1);
+  await expect((await ctl(page, 'prop-roll-port')).locator('option')).toHaveText([
     'Saída',
     'Entrada',
     'Extravasor',
   ]);
 
   const pending = page.waitForEvent('download');
-  await page.getByTestId('action-export-ifc').click();
+  await (await ctl(page, 'action-export-ifc')).click();
   const file = await pending;
   const ifc = await readFile(await file.path(), 'utf8');
   expect(ifc.match(/=IFCTANK\(/g)).toHaveLength(1);
@@ -126,10 +127,10 @@ test('insere um reservatório de catálogo, personaliza e exporta em IFC', async
   expect(ifc).toContain('.SINK.,.PIPE.');
 
   // Remoção do bocal e desfazer.
-  await page.getByTestId('prop-tank-nozzle-remove').click();
-  await expect(page.getByTestId('prop-tank-nozzle-row')).toHaveCount(0);
+  await (await ctl(page, 'prop-tank-nozzle-remove')).click();
+  await expect(await ctl(page, 'prop-tank-nozzle-row')).toHaveCount(0);
   await page.getByTestId('action-undo').click();
-  await expect(page.getByTestId('prop-tank-nozzle-row')).toHaveCount(1);
+  await expect(await ctl(page, 'prop-tank-nozzle-row')).toHaveCount(1);
   expect(errors).toEqual([]);
 });
 
@@ -137,45 +138,45 @@ test('famílias sem tabela no catálogo pedem as dimensões ao usuário', async 
   const errors = trackErrors(page);
   await openEmptyProject(page);
   await page.getByTestId('environment-infra').click();
-  await page.getByTestId('tool-tank').click();
+  await (await ctl(page, 'tool-tank')).click();
 
   // Australiano: só a faixa de capacidade e as duas alturas constam do catálogo.
-  await page.getByTestId('option-tank-family').selectOption('tramec-australiano');
-  await expect(page.getByTestId('option-tank-variant')).toHaveCount(0);
-  await expect(page.getByTestId('option-tank-no-table')).toContainText('4.300 a 540.000 L');
+  await (await ctl(page, 'option-tank-family')).selectOption('tramec-australiano');
+  await expect(await ctl(page, 'option-tank-variant')).toHaveCount(0);
+  await expect(await ctl(page, 'option-tank-no-table')).toContainText('4.300 a 540.000 L');
   await setField(page, 'option-tank-capacity', '50000');
-  await page.getByTestId('option-tank-wall').selectOption('1.72');
-  await expect(page.getByTestId('option-tank-derived')).toContainText('6,084');
-  await page.getByTestId('coord-add').click();
+  await (await ctl(page, 'option-tank-wall')).selectOption('1.72');
+  await expect(await ctl(page, 'option-tank-derived')).toContainText('6,084');
+  await (await ctl(page, 'coord-add')).click();
   await expectNoError(page);
-  await page.getByTestId('tool-select').click();
-  await expect(page.getByTestId('prop-tank-diameter')).toHaveValue('6,084');
+  await (await ctl(page, 'tool-select')).click();
+  await expect(await ctl(page, 'prop-tank-diameter')).toHaveValue('6,084');
   await expect(origin(page, 'diameter')).toHaveAttribute('data-origin', 'derived');
   await expect(origin(page, 'height')).toHaveAttribute('data-origin', 'catalog');
   await expect(origin(page, 'nominalCapacity')).toHaveAttribute('data-origin', 'user');
-  await expect(page.getByTestId('prop-tank-no-table')).toBeVisible();
+  await expect(await ctl(page, 'prop-tank-no-table')).toBeVisible();
 
   // Horizontal: troca do apoio de longarina para pés de 0,50 m (valor do catálogo).
-  await page.getByTestId('tool-tank').click();
-  await page.getByTestId('option-tank-family').selectOption('tramec-cilindrico-horizontal');
+  await (await ctl(page, 'tool-tank')).click();
+  await (await ctl(page, 'option-tank-family')).selectOption('tramec-cilindrico-horizontal');
   await setField(page, 'coord-x', '12');
-  await page.getByTestId('coord-add').click();
+  await (await ctl(page, 'coord-add')).click();
   await expectNoError(page);
-  await page.getByTestId('tool-select').click();
-  await expect(page.getByTestId('prop-tank-supportHeight')).toHaveValue('0,15');
-  await page.getByTestId('prop-tank-support').selectOption('legs');
+  await (await ctl(page, 'tool-select')).click();
+  await expect(await ctl(page, 'prop-tank-supportHeight')).toHaveValue('0,15');
+  await (await ctl(page, 'prop-tank-support')).selectOption('legs');
   await expectNoError(page);
-  await expect(page.getByTestId('prop-tank-supportHeight')).toHaveValue('0,5');
+  await expect(await ctl(page, 'prop-tank-supportHeight')).toHaveValue('0,5');
   await expect(origin(page, 'supportHeight')).toHaveAttribute('data-origin', 'catalog');
-  await expect(page.getByTestId('prop-tank-height')).toBeDisabled();
-  await expect(page.getByTestId('prop-tank-height')).toHaveValue('2,41');
+  await expect(await ctl(page, 'prop-tank-height')).toBeDisabled();
+  await expect(await ctl(page, 'prop-tank-height')).toHaveValue('2,41');
   expect(errors).toEqual([]);
 });
 
 test('o exemplo com as oito famílias abre e é desenhado sem erros', async ({ page }) => {
   const errors = trackErrors(page);
   await openEmptyProject(page);
-  await page.getByTestId('action-open').click();
+  await (await ctl(page, 'action-open')).click();
   await page
     .getByTestId('import-file')
     .setInputFiles(join(process.cwd(), 'examples', 'reservatorios-tramec.hydrobim.json'));
@@ -196,8 +197,8 @@ test('catálogo: reservatórios com tabela e modelo 3D, e famílias de todas as 
 }) => {
   const errors = trackErrors(page);
   await openEmptyProject(page);
-  await expect(page.getByTestId('action-families')).toHaveText(/Catálogo/);
-  await page.getByTestId('action-families').click();
+  await expect(await ctl(page, 'action-families')).toHaveText(/Catálogo/);
+  await (await ctl(page, 'action-families')).click();
   const dialog = page.getByTestId('families-dialog');
   await expect(dialog.getByRole('heading', { name: 'Catálogo' })).toBeVisible();
 
@@ -224,20 +225,20 @@ test('catálogo: reservatórios com tabela e modelo 3D, e famílias de todas as 
   await dialog.locator('[data-variant-id="tramec-tubular-alto/20000-1020-159"]').click();
   await dialog.getByTestId('tank-library-use').click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByTestId('option-tank-family')).toHaveValue('tramec-tubular-alto');
-  await expect(page.getByTestId('option-tank-variant')).toHaveValue(
+  await expect(await ctl(page, 'option-tank-family')).toHaveValue('tramec-tubular-alto');
+  await expect(await ctl(page, 'option-tank-variant')).toHaveValue(
     'tramec-tubular-alto/20000-1020-159',
   );
-  await page.getByTestId('coord-add').click();
+  await (await ctl(page, 'coord-add')).click();
   await expectNoError(page);
   // O elemento inserido fica selecionado, com o modelo comercial escolhido no catálogo.
-  await expect(page.getByTestId('element-properties')).toHaveAttribute('data-element-kind', 'tank');
-  await expect(page.getByTestId('prop-tank-variant')).toHaveValue(
+  await expect(await ctl(page, 'element-properties')).toHaveAttribute('data-element-kind', 'tank');
+  await expect(await ctl(page, 'prop-tank-variant')).toHaveValue(
     'tramec-tubular-alto/20000-1020-159',
   );
 
   // Aba Conexões: famílias de todas as especificações e tipos em uma só lista.
-  await page.getByTestId('action-families').click();
+  await (await ctl(page, 'action-families')).click();
   await dialog.getByTestId('families-tab-fittings').click();
   const single = await dialog.getByTestId('family-item').count();
   await dialog.getByTestId('families-specification').selectOption('all');
@@ -255,7 +256,7 @@ test('catálogo: duplicar uma família de reservatórios e editar a tabela da c�
   const errors = trackErrors(page);
   await openEmptyProject(page);
   await page.getByTestId('environment-infra').click();
-  await page.getByTestId('action-families').click();
+  await (await ctl(page, 'action-families')).click();
   const dialog = page.getByTestId('families-dialog');
   await dialog.getByTestId('families-tab-tanks').click();
 
@@ -305,18 +306,18 @@ test('catálogo: duplicar uma família de reservatórios e editar a tabela da c�
   // Inserir um reservatório da família personalizada.
   await dialog.getByTestId('tank-library-use').click();
   await expect(dialog).toBeHidden();
-  await page.getByTestId('coord-add').click();
+  await (await ctl(page, 'coord-add')).click();
   await expectNoError(page);
-  await page.getByTestId('tool-select').click();
-  await expect(page.getByTestId('prop-tank-height')).toHaveValue('9');
-  await expect(page.getByTestId('prop-tank-columnHeight')).toHaveValue('5,5');
+  await (await ctl(page, 'tool-select')).click();
+  await expect(await ctl(page, 'prop-tank-height')).toHaveValue('9');
+  await expect(await ctl(page, 'prop-tank-columnHeight')).toHaveValue('5,5');
   // As dimensões da tabela personalizada são do usuário, não do fabricante.
   await expect(origin(page, 'height')).toHaveAttribute('data-origin', 'user');
   await expect(origin(page, 'diameter')).toHaveAttribute('data-origin', 'user');
-  await expect(page.getByTestId('prop-tank-source')).toContainText('personalizada');
+  await expect(await ctl(page, 'prop-tank-source')).toContainText('personalizada');
 
   // Alterar a tabela reaplica as dimensões ao reservatório já inserido.
-  await page.getByTestId('action-families').click();
+  await (await ctl(page, 'action-families')).click();
   await dialog.getByTestId('families-tab-tanks').click();
   await custom.click();
   await expect(dialog.getByTestId('tank-family-apply')).toBeChecked();
@@ -324,11 +325,11 @@ test('catálogo: duplicar uma família de reservatórios e editar a tabela da c�
   await dialog.getByTestId('tank-family-save').click();
   await expectNoError(page);
   await dialog.getByTestId('families-close').click();
-  await expect(page.getByTestId('prop-tank-diameter')).toHaveValue('2,2');
-  await expect(page.getByTestId('prop-tank-height')).toHaveValue('9');
+  await expect(await ctl(page, 'prop-tank-diameter')).toHaveValue('2,2');
+  await expect(await ctl(page, 'prop-tank-height')).toHaveValue('9');
 
   // O catálogo do fabricante continua intacto.
-  await page.getByTestId('action-families').click();
+  await (await ctl(page, 'action-families')).click();
   await dialog.getByTestId('families-tab-tanks').click();
   await dialog.locator('[data-family-id="tramec-taca-sem-agua"]').click();
   await dialog.locator('[data-variant-id="tramec-taca-sem-agua/10000-830-191-480"]').click();

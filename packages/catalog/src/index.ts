@@ -1,14 +1,17 @@
 import {
+  degToRad,
   mmToM,
   type Discipline,
   type JointType,
   type Material,
   type PipeSpec,
 } from '@hydrobim/core';
+import { jointDeflectionDegrees } from './jointDeflection';
 import { SPECIFICATIONS, type CatalogSize, type PipeSpecification } from './specifications';
 
 export { BUILTIN_FAMILIES } from './families';
 export * from './flanges';
+export * from './jointDeflection';
 export * from './products';
 export { getTankFamily, TANK_FAMILIES } from './tanks';
 export { SPECIFICATIONS, type CatalogSize, type PipeSpecification } from './specifications';
@@ -44,6 +47,8 @@ export function listSpecifications(discipline?: Discipline): PipeSpecification[]
 function toPipeSpec(specification: PipeSpecification, entry: CatalogSize): PipeSpec {
   const outerDiameter = mmToM(entry.outerDiameterMm);
   const wallThickness = mmToM(entry.wallThicknessMm);
+  // DN fora das faixas da fonte fica sem o valor: a junta é tratada como rígida.
+  const deflection = jointDeflectionDegrees(specification.jointDeflection, entry.dn);
   return {
     specificationId: specification.id,
     material: specification.material,
@@ -55,6 +60,7 @@ function toPipeSpec(specification: PipeSpecification, entry: CatalogSize): PipeS
     outerDiameter,
     wallThickness,
     innerDiameter: outerDiameter - 2 * wallThickness,
+    ...(deflection === undefined ? {} : { jointDeflection: degToRad(deflection) }),
   };
 }
 

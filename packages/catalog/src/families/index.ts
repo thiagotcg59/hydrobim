@@ -3,6 +3,7 @@ import { BERMAD_FAMILIES } from './bermad';
 import { DUCTILE_IRON_FAMILIES } from './ductileIron';
 import { EURO_20_FAMILIES } from './euro20';
 import { PVC_FAMILIES } from './pvc';
+import { SANECOM_FAMILIES } from './sanecom';
 import { SPIRAX_SARCO_FAMILIES } from './spiraxSarco';
 import { STEEL_FAMILIES } from './steel';
 import { VALVE_FAMILIES } from './valves';
@@ -21,5 +22,6 @@ export const BUILTIN_FAMILIES: readonly FittingFamily[] = [
   ...EURO_20_FAMILIES,
   ...BERMAD_FAMILIES,
   ...SPIRAX_SARCO_FAMILIES,
+  ...SANECOM_FAMILIES,
   ...STEEL_FAMILIES,
 ];

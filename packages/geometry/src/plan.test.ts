@@ -19,7 +19,7 @@ const spec = {
 
 const identity = { position: ZERO, rotation: QUAT_IDENTITY };
 
-function segments(lines: Float32Array): [number, number, number, number][] {
+function segments(lines: Float64Array): [number, number, number, number][] {
   const out: [number, number, number, number][] = [];
   for (let i = 0; i < lines.length; i += 4) {
     out.push([lines[i] ?? 0, lines[i + 1] ?? 0, lines[i + 2] ?? 0, lines[i + 3] ?? 0]);
@@ -27,10 +27,10 @@ function segments(lines: Float32Array): [number, number, number, number][] {
   return out;
 }
 
-const totalLength = (lines: Float32Array): number =>
+const totalLength = (lines: Float64Array): number =>
   segments(lines).reduce((sum, [x1, y1, x2, y2]) => sum + Math.hypot(x2 - x1, y2 - y1), 0);
 
-function fillArea(fill: Float32Array): number {
+function fillArea(fill: Float64Array): number {
   let area = 0;
   for (let i = 0; i < fill.length; i += 6) {
     const [ax, ay, bx, by, cx, cy] = [0, 1, 2, 3, 4, 5].map((k) => fill[i + k] ?? 0);
@@ -78,8 +78,8 @@ describe('projeção em planta', () => {
       expect.closeTo(6, 5),
     ]);
     const byRole = new Map(outline.lineGroups.map((group) => [group.role, group.lines]));
-    expect(totalLength(byRole.get('body') ?? new Float32Array(0))).toBeCloseTo(6, 2);
-    expect(totalLength(byRole.get('accent') ?? new Float32Array(0))).toBeCloseTo(10, 2);
+    expect(totalLength(byRole.get('body') ?? new Float64Array(0))).toBeCloseTo(6, 2);
+    expect(totalLength(byRole.get('accent') ?? new Float64Array(0))).toBeCloseTo(10, 2);
     // Os grupos são uma partição de `lines`.
     expect(outline.lineGroups.reduce((sum, group) => sum + group.lines.length, 0)).toBe(
       outline.lines.length,

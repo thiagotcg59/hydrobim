@@ -89,6 +89,7 @@ export function pickPort(
   ports: readonly Port[],
   scale: PixelScale,
   cycle = 0,
+  radiusPx = SNAP_PX,
 ): { port: Port; stacked: number } | null {
   const direction = normalize(ray.direction);
   const near: { port: Port; score: number; t: number }[] = [];
@@ -96,7 +97,7 @@ export function pickPort(
     const { point, t } = closestPointOnLine(ray.origin, direction, port.position);
     if (t <= 0) continue;
     const gap = distance(point, port.position);
-    const tolerance = Math.max(portMarkerRadius(port), SNAP_PX * metersPerPixel(scale, t));
+    const tolerance = Math.max(portMarkerRadius(port), radiusPx * metersPerPixel(scale, t));
     if (gap <= tolerance) near.push({ port, score: gap / tolerance, t });
   }
   if (near.length === 0) return null;

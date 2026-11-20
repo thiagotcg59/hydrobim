@@ -67,7 +67,7 @@ def project_document():
 
     return {
         "format": "hydrobim-project",
-        "schemaVersion": 10,
+        "schemaVersion": 12,
         "id": "project-test",
         "name": "Projeto de teste",
         "discipline": "mep",
@@ -83,6 +83,18 @@ def project_document():
         "terrain": None,
         "annotations": [],
         "drawingScale": 50,
+        "infra": {
+            "drawingScale": 1000,
+            "basemap": {"sourceId": None, "visible": True, "opacity": 1},
+            "layers": {
+                "network": True,
+                "equipment": True,
+                "terrain": True,
+                "references": True,
+                "annotations": True,
+            },
+            "labels": {"names": False, "lengths": False, "elevations": False},
+        },
         "elements": [
             element(
                 "pipe-1",

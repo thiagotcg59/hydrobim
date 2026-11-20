@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ctl } from './ui';
 
 /**
  * Biblioteca de produtos (linha PBA): tabelas do fabricante e modelo 3D de cada produto na
@@ -19,9 +20,9 @@ test('biblioteca de produtos PBA: tabelas e modelos 3D de todos os produtos', as
   const errors = trackErrors(page);
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('action-new').click();
+  await (await ctl(page, 'action-new')).click();
 
-  await page.getByTestId('action-families').click();
+  await (await ctl(page, 'action-families')).click();
   const dialog = page.getByTestId('families-dialog');
   await dialog.getByTestId('families-tab-products').click();
   const library = dialog.getByTestId('product-library');

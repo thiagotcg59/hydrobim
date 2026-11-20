@@ -1,4 +1,5 @@
 export * from './elements';
+export * from './finishes';
 export * from './flange';
 export * from './loft';
 export * from './pba';

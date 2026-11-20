@@ -14,10 +14,11 @@ Três consequências orientam todo o código:
 
 ```
 ┌───────────────────────────── apps/web ─────────────────────────────┐
-│ ui/         componentes React (barras, painéis, diálogos)          │
+│ ui/         componentes React (cabeçalho, faixa, painéis, diálogos)│
+│ commands/   registro único de comandos, atalhos e disponibilidade  │
 │ viewport/   cena React Three Fiber + tradução de eventos de ponteiro│
 │ editor/     regras de apontamento/snapping (funções puras)         │
-│ state/      store Zustand (estado de edição) e casos de uso        │
+│ state/      stores Zustand (edição; interface) e casos de uso      │
 │ persistence/ repositório de projetos (interface + localStorage)    │
 └───────────────┬──────────────────┬──────────────────┬──────────────┘
                 │                  │                  │
@@ -39,15 +40,24 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Geometria | `packages/geometry` |
 | Catálogos | `packages/catalog` |
 | Renderização | `apps/web/src/viewport` |
-| Interface | `apps/web/src/ui` |
+| Interface (regiões da tela, abas de tarefa, painéis) | `apps/web/src/ui`; organização em [INTERFACE.md](INTERFACE.md) |
+| Comandos da interface (rótulo, atalho, disponibilidade, execução) | `apps/web/src/commands` |
+| Estado da interface (aba de tarefa, layout, diálogos) — fora do projeto e do histórico | `apps/web/src/state/uiStore.ts` |
 | Persistência | `apps/web/src/persistence`, `packages/core/src/serialization.ts` |
 | Exportação IFC | `packages/ifc` (cliente); verificação em `services/api/tests` |
 | Informação IFC (classificação, tipos, propriedades, quantidades, validação, IDS) | `packages/ifc/src/bim`; aba BIM / IFC em `apps/web/src/bim` |
 | Exportação DXF (planta anotada e modelo 3D) | `packages/dxf` (cliente) |
-| Quantitativo, EPANET, interferências, terreno, perfil | `packages/core/src/quantities.ts`, `epanet.ts`, `analysis.ts` |
+| Quantitativo, EPANET, interferências, perfil da rede | `packages/core/src/quantities.ts`, `epanet.ts`, `analysis.ts` |
+| Superfície do terreno: triangulação restrita, DEM, curvas de nível, corte | `packages/core/src/terrain/` (puro) |
+| Fontes de elevação, GeoTIFF, geração em Web Worker, painel do terreno | `apps/web/src/terrain/` |
+| Referenciais e transformações (CRS, Transversa de Mercator, ladrilhos) | `packages/core/src/geo` |
+| Provedores de mapa e ladrilhos (sem conhecer o domínio hidráulico) | `apps/web/src/map` |
+| Planta Infra (mapa de fundo, camadas, rótulos, níveis de detalhe) | `apps/web/src/infra`, dentro de `plan/PlanView.tsx` |
+| Origem de renderização das vistas | `apps/web/src/editor/renderOrigin.ts` |
 
 ## Fluxo de uma edição
 
+0. O usuário escolhe um comando na faixa, por atalho ou pela busca: os três leem o mesmo registro (`commands/commands.ts`), com a mesma regra de disponibilidade, e chamam a store.
 1. O usuário clica no viewport. `InteractionController` converte o evento em um raio e chama `pickPoint` (`editor/picking.ts`), que resolve o ponto 3D e o tipo de snap (porta, grade, eixo, vertical). Na planta baixa, `PlanView` faz o mesmo com `pickPlanPoint`/`planPipeHit` (`editor/planPicking.ts`): o clique só informa X e Y; a cota Z vem da elevação de desenho (nível + elevação do eixo), da âncora ou da porta capturada. As duas vistas entregam o mesmo evento (`ViewportClick`) à store e usam a mesma trava de ângulo (`deflectionConstraintOf` + `constrainDeflection`).
 2. A store (`state/editorStore.ts`) recebe um evento de domínio (`handleViewportClick`, `commitPoint`) e chama uma **operação pura** de `@hydrobim/core`.
 3. A operação devolve um novo `Project` imutável ou um erro de domínio (`Result<T>`), com mensagem em português.
@@ -61,9 +71,17 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 - Cada elemento tem um referencial local; a geometria é gerada nesse referencial e posicionada por uma transformação. Isso preserva a precisão `float32` da GPU quando as coordenadas forem grandes (redes georreferenciadas).
 - Orientação determinística (`frameFromDirection`): X local na direção do eixo, Z local o mais próximo possível do Z global.
 
+## Coordenadas grandes e ambiente Infra
+
+As vistas desenham em relação a uma **origem de renderização** (`renderOrigin`, estado de sessão): o SVG e a placa de vídeo trabalham em precisão simples e perderiam os milímetros em coordenadas UTM. A origem acompanha o ponto observado e nunca entra no projeto, nas operações nem nas exportações; tudo o que cruza a fronteira de uma vista (cliques, raios, pontos capturados) é convertido por `toRender`/`toCanonical`. Na planta, cada elemento ainda tem uma âncora própria para os caminhos SVG.
+
+No ambiente Infra a planta ganha o mapa de fundo, a malha de coordenadas, as camadas e os níveis de detalhe. O mapa é posicionado pela cadeia local ⇄ projetado ⇄ geográfico de `packages/core/src/geo`; o domínio guarda só a fonte escolhida. Detalhes, tolerâncias e etapas seguintes em [INFRA.md](INFRA.md).
+
 ## Reconciliação topológica
 
 Quando uma conexão muda de dimensão ou posição, `reconcile` restabelece o acoplamento: tubos vizinhos ajustam a extremidade conectada; conexões vizinhas são transladadas rigidamente e propagam o ajuste. Se o acoplamento não puder ser preservado (um giro, um tubo que ficaria sem comprimento, um conjunto super-restringido), a operação inteira falha e nada é alterado.
+
+A edição direta do traçado (`slide.ts`: `stretchPipe`, `slideElements`) usa a mesma reconciliação, com uma regra a mais: o conjunto acoplado à peça deslocada acompanha rigidamente até encontrar um tubo paralelo ao deslocamento, que absorve a diferença mudando de comprimento. Na interface, o arrasto de uma alça mostra a prévia ao vivo recalculando a operação a partir do projeto do início do arrasto e registra um único passo no histórico ao soltar.
 
 ## Persistência
 
@@ -78,5 +96,5 @@ Quando uma conexão muda de dimensão ou posição, `reconcile` restabelece o ac
 
 - Elementos em lista: buscas são lineares. Adequado ao porte do MVP; indexar por id quando houver milhares de elementos.
 - Uma malha por elemento. Para redes grandes será necessário instanciamento e níveis de detalhe.
-- Sem deslocamento de origem da cena: necessário antes do georreferenciamento (Fase 5).
+- A exportação DXF escreve as coordenadas do projeto por extenso; não foi conferida com coordenadas de centenas de quilômetros.
 - O contrato TypeScript ↔ Python é mantido manualmente e protegido por testes; avaliar geração a partir de JSON Schema quando o esquema crescer.

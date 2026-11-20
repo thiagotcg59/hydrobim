@@ -6,6 +6,7 @@ import {
   parseProject,
   parseTerrainPoints,
   quantitiesToCsv,
+  surveySource,
 } from '@hydrobim/core';
 import { encodeDxf, exportModelDxf } from '@hydrobim/dxf';
 import { exportIds, exportIfc } from '@hydrobim/ifc';
@@ -191,7 +192,11 @@ export async function importTerrainFile(file: File): Promise<boolean> {
     store().notify('error', `${file.name}: ${points.error.message}`);
     return false;
   }
-  const terrain = createTerrain(file.name.replace(/\.[^.]+$/, ''), points.value);
+  const terrain = createTerrain(
+    file.name.replace(/\.[^.]+$/, ''),
+    points.value,
+    surveySource(file.name, new Date().toISOString()),
+  );
   if (!terrain.ok) {
     store().notify('error', `${file.name}: ${terrain.error.message}`);
     return false;

@@ -1,28 +1,36 @@
 import {
+  add,
   angleBetween,
+  computeBounds,
+  AXIS_X,
+  AXIS_Y,
+  AXIS_Z,
+  scale,
+  axisElevationForCover,
+  coverAlongSegment,
   dimensionOffsetAt,
+  fail,
   distance,
-  DRAWING_SCALES,
-  formatDegrees,
   formatMeters,
   getAnnotation,
+  georeferenceStatus,
   getElement,
+  getPorts,
   ok,
   planSnapPoints,
   resolvePort,
   sub,
+  terrainStats,
   updateAnnotation,
   vec3,
   type Annotation,
   type AnnotationPatch,
-  type DimensionMode,
+  type HydroElement,
   type Point2,
   type Project,
   type Result,
   type Vec3,
 } from '@hydrobim/core';
-import { encodeDxf, exportPlanDxf } from '@hydrobim/dxf';
-import { FileDown, Minus } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -32,9 +40,28 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { SNAP_PX, type SnapKind } from '../editor/picking';
+import { formatSegment } from '../editor/segment';
 import { describeSnap } from '../editor/snapLabel';
+import { getViewFocus, planScaleFor, setViewFocus } from '../editor/viewPresets';
 import { visibleElementsOf, visibleFreePortsOf } from '../editor/visibility';
-import { pickPlanPoint, planPipeHit, type PlanPick } from '../editor/planPicking';
+import { arrowPreferences, contextTargetOf, CONTEXT_PX, nudgeStep } from '../editor/directEdit';
+import { pickPlanPoint, pickPlanPort, planPipeHit, type PlanPick } from '../editor/planPicking';
+import { BasemapLayer, type BasemapStatus } from '../infra/BasemapLayer';
+import { GeoPicker } from '../infra/GeoPicker';
+import { CoordinateGrid, NetworkLabels, SimplifiedElement } from '../infra/InfraLayers';
+import { InfraOverlay } from '../infra/InfraPanel';
+import {
+  infraLayerOf,
+  intersects,
+  isSimplified,
+  labelOf,
+  placeLabels,
+  planBoxOf,
+  type PlanLabel,
+} from '../infra/infraPlan';
+import { CUSTOM_BASEMAP_ID } from '../map/customSource';
+import { findBasemapProvider } from '../map/providers';
+import type { ViewBounds } from '../map/tiles';
 import { downloadText, projectFileBase } from '../persistence/fileIO';
 import {
   deflectionConstraintOf,
@@ -43,10 +70,14 @@ import {
   pipeCrossingOf,
   pipeSnapOf,
   useEditorStore,
-  type PlanTheme,
 } from '../state/editorStore';
-import { TOOL_HINTS } from '../ui/labels';
-import { AnnotationInspector, DIMENSION_MODE_LABELS } from './AnnotationInspector';
+import { useUiStore } from '../state/uiStore';
+import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
+import { TerrainPanel } from '../terrain/TerrainPanel';
+import { TerrainProfilePanel } from '../terrain/TerrainProfilePanel';
+import { useTerrainStore } from '../terrain/terrainStore';
+import { useTerrainKeys } from '../terrain/useTerrainKeys';
+import { AnnotationInspector } from './AnnotationInspector';
 import {
   AnnotationShape,
   annotationPoints,
@@ -75,7 +106,7 @@ interface Drag {
   readonly x: number;
   readonly y: number;
   readonly button: number;
-  readonly mode: 'pan' | 'annotation' | 'click';
+  readonly mode: 'pan' | 'annotation' | 'click' | 'grip';
   readonly annotationId: string | null;
   readonly elementId: string | null;
   readonly origin: Point2;
@@ -86,6 +117,27 @@ interface Drag {
 const CLICK_TOLERANCE_PX = 4;
 const DEFAULT_TEXT = 'TEXTO';
 
+/** Maior ampliação de afastamento (m por pixel): no Infra a vista alcança dezenas de km. */
+const MAX_MPP = { mep: 10, infra: 200 } as const;
+
+// O projeto é imutável: a caixa de um elemento vale enquanto o objeto for o mesmo.
+const boxCache = new WeakMap<HydroElement, ViewBounds>();
+function boxOf(element: HydroElement): ViewBounds {
+  let box = boxCache.get(element);
+  if (!box) {
+    box = planBoxOf(element);
+    boxCache.set(element, box);
+  }
+  return box;
+}
+
+/** Cota mais alta do elemento, pelas portas: ordem de desenho sem gerar a malha. */
+function topOf(element: HydroElement): number {
+  let top = element.kind === 'pipe' ? -Infinity : element.placement.position.z;
+  for (const port of getPorts(element)) top = Math.max(top, port.position.z);
+  return top + element.spec.outerDiameter / 2;
+}
+
 /** Envoltória do desenho: elementos visíveis e anotações. */
 function planBounds(project: Project): Bounds | null {
   const bounds: Bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
@@ -95,13 +147,28 @@ function planBounds(project: Project): Bounds | null {
     bounds.minY = Math.min(bounds.minY, y);
     bounds.maxY = Math.max(bounds.maxY, y);
   };
-  for (const element of visibleElementsOf(project)) {
-    const { outline } = outlineOf(element);
-    include(outline.minX, outline.minY);
-    include(outline.maxX, outline.maxY);
+  if (project.discipline === 'infra') {
+    // Redes extensas: a envoltória vem das portas, sem projetar a malha de cada elemento.
+    const box = computeBounds(visibleElementsOf(project));
+    if (box) {
+      include(box.min.x, box.min.y);
+      include(box.max.x, box.max.y);
+    }
+  } else {
+    for (const element of visibleElementsOf(project)) {
+      const { outline } = outlineOf(element);
+      include(outline.minX, outline.minY);
+      include(outline.maxX, outline.maxY);
+    }
   }
   for (const annotation of project.annotations) {
     for (const p of annotationPoints(project, annotation)) include(p.x, p.y);
+  }
+  // No Infra, a superfície do terreno faz parte do desenho: enquadrar leva até ela.
+  if (project.discipline === 'infra' && project.terrain && project.infra.layers.terrain) {
+    const stats = terrainStats(project.terrain);
+    include(stats.minX, stats.minY);
+    include(stats.maxX, stats.maxY);
   }
   return Number.isFinite(bounds.minX) ? bounds : null;
 }
@@ -155,7 +222,6 @@ export function PlanView() {
   const gridStep = useEditorStore((s) => s.gridStep);
   const anchor = useEditorStore((s) => s.anchor);
   const measure = useEditorStore((s) => s.measure);
-  const drawZ = useEditorStore(drawElevationOf);
   const workPlaneZ = useEditorStore((s) => s.workPlaneZ);
   /** Ferramenta de modelagem ativa (tubo, conexões, equipamentos, medição). */
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
@@ -175,8 +241,30 @@ export function PlanView() {
   const [preview, setPreview] = useState<{ id: string; patch: AnnotationPatch } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
 
-  /** Milímetro de papel em metros do modelo, na escala do desenho. */
-  const unit = project.drawingScale / 1000;
+  /**
+   * Ambiente Infra: a planta ganha mapa de fundo, malha de coordenadas, camadas, níveis de
+   * detalhe e a sua própria escala de documentação. No MEP nada disso é montado.
+   */
+  const infra = project.discipline === 'infra';
+  const settings = project.infra;
+  const geo = useMemo(() => georeferenceStatus(project.georeference), [project.georeference]);
+  /** Origem de desenho: o SVG mostra as coordenadas do projeto menos este ponto. */
+  const renderOrigin = useEditorStore((s) => s.renderOrigin);
+  const origin = useMemo<Point2>(
+    () => ({ x: renderOrigin.x, y: renderOrigin.y }),
+    [renderOrigin.x, renderOrigin.y],
+  );
+  const X = (x: number): number => x - origin.x;
+  const Y = (y: number): number => -(y - origin.y);
+  const [basemapStatus, setBasemapStatus] = useState<BasemapStatus | null>(null);
+  const [basemapRetry, setBasemapRetry] = useState(0);
+  const geoPicker = useEditorStore((s) => s.geoPicker);
+  /** Operação do terreno em andamento (área, furo, corte ou consulta): ela recebe os cliques. */
+  const terrainMode = useTerrainStore((s) => (infra ? s.mode : null));
+  useTerrainKeys();
+
+  /** Milímetro de papel em metros do modelo, na escala de documentação do ambiente. */
+  const unit = (infra ? settings.drawingScale : project.drawingScale) / 1000;
 
   const fit = useCallback((width: number, height: number): void => {
     const bounds = planBounds(useEditorStore.getState().project);
@@ -198,6 +286,22 @@ export function PlanView() {
     });
   }, []);
 
+  /** A vista já foi posicionada (antes disso o estado inicial não é um ponto de interesse). */
+  const framed = useRef(false);
+  useEffect(() => {
+    if (!framed.current || size.height <= 0) return;
+    const previous = getViewFocus();
+    setViewFocus({
+      // A planta não tem cota própria: mantém a do ponto de interesse do modelo 3D.
+      center: vec3(view.cx, view.cy, previous?.center.z ?? workPlaneZ),
+      halfHeight: (size.height / 2) * view.mpp,
+    });
+    // Longe da origem de desenho o SVG perderia os milímetros: ela acompanha a vista. A cota
+    // não interessa à planta e fica como está.
+    const store = useEditorStore.getState();
+    store.rebaseRenderOrigin(vec3(view.cx, view.cy, store.renderOrigin.z));
+  }, [view, size.height, workPlaneZ]);
+
   useEffect(() => {
     const node = svgRef.current?.parentElement;
     if (!node) return;
@@ -208,7 +312,17 @@ export function PlanView() {
       setSize({ width: rect.width, height: rect.height });
       if (first && rect.width > 0) {
         first = false;
-        fit(rect.width, rect.height);
+        // Vindo do modelo 3D, a planta abre no mesmo trecho e na mesma ampliação.
+        // Com a planta vazia não há trecho a acompanhar: vale a vista inicial.
+        const focus = planBounds(useEditorStore.getState().project) ? getViewFocus() : null;
+        if (focus) {
+          setView({
+            cx: focus.center.x,
+            cy: focus.center.y,
+            mpp: planScaleFor(focus.halfHeight, rect.height),
+          });
+        } else fit(rect.width, rect.height);
+        framed.current = true;
       }
     });
     observer.observe(node);
@@ -237,7 +351,8 @@ export function PlanView() {
       const py = event.clientY - rect.top - rect.height / 2;
       const factor = Math.exp(event.deltaY * 0.0015);
       setView((v) => {
-        const mpp = Math.min(10, Math.max(1e-5, v.mpp * factor));
+        const limit = MAX_MPP[useEditorStore.getState().project.discipline];
+        const mpp = Math.min(limit, Math.max(1e-5, v.mpp * factor));
         // O ponto sob o cursor permanece no lugar.
         return { mpp, cx: v.cx + px * (v.mpp - mpp), cy: v.cy - py * (v.mpp - mpp) };
       });
@@ -312,7 +427,29 @@ export function PlanView() {
       planHit(state.project, elementId, raw),
       picked.ok ? picked.value.point : null,
     );
-    return onPipe ? ok({ point: onPipe, snap: 'pipe', port: null, stacked: 1 }) : picked;
+    if (onPipe) return ok({ point: onPipe, snap: 'pipe', port: null, stacked: 1 });
+    // Assentamento por recobrimento: em ponto livre, a cota do eixo vem do terreno. Portas e
+    // tubos existentes mantêm a própria cota — é neles que a rede se conecta.
+    const cover = state.toolOptions.terrainCover;
+    const { terrain } = state.project;
+    if (picked.ok && infra && state.tool === 'pipe' && cover.enabled && terrain) {
+      const { point } = picked.value;
+      const z = axisElevationForCover(
+        terrain,
+        point.x,
+        point.y,
+        cover.cover,
+        state.activeSpec.outerDiameter,
+      );
+      if (z === null) {
+        return fail(
+          'COVER_NO_TERRAIN',
+          'Ponto fora da superfície do terreno: não há cota para aplicar o recobrimento. Clique sobre a superfície ou desligue "Seguir o terreno pelo recobrimento".',
+        );
+      }
+      return ok({ ...picked.value, point: vec3(point.x, point.y, Math.round(z * 1000) / 1000) });
+    }
+    return picked;
   };
 
   /** Clique de modelagem: mesmo evento de domínio do viewport 3D. */
@@ -343,16 +480,57 @@ export function PlanView() {
         hit = { elementId: target.id, point: pick.point };
       }
     }
+    const before = store.project;
     store.handleViewportClick({
       point: pick.point,
       port: pick.port?.ref ?? null,
       hit,
       additive,
     });
+    reportCover(before);
+  };
+
+  /**
+   * Depois de criar um trecho com o assentamento por recobrimento ligado, informa o recobrimento
+   * real ao longo dele: o tubo é reto entre os pontos e o terreno não.
+   */
+  const reportCover = (before: Project): void => {
+    const state = useEditorStore.getState();
+    const { enabled, cover } = state.toolOptions.terrainCover;
+    const { terrain } = state.project;
+    if (!infra || !enabled || !terrain || state.project === before) return;
+    if (state.message?.level === 'error') return;
+    const known = new Set(before.elements.map((element) => element.id));
+    const created = state.project.elements.filter(
+      (element) => element.kind === 'pipe' && !known.has(element.id),
+    );
+    const pipe = created[created.length - 1];
+    if (!pipe || pipe.kind !== 'pipe') return;
+    const result = coverAlongSegment(terrain, pipe.start, pipe.end, pipe.spec.outerDiameter);
+    if (!result) return;
+    const text = (value: number): string => formatMeters(value, 2);
+    const outside = result.length - result.coveredLength;
+    // Tolerância de 5 mm: as cotas dos pontos são arredondadas ao milímetro.
+    const short = result.min < cover - 0.005;
+    state.notify(
+      short || outside > 1e-6 ? 'error' : 'success',
+      `${pipe.name}: recobrimento de ${text(result.min)} a ${text(result.max)} ao longo do trecho` +
+        (short
+          ? ` — abaixo dos ${text(cover)} definidos a ${text(result.minAt)} do início (o terreno sobe entre os pontos). Acrescente um ponto intermediário ou aprofunde o trecho.`
+          : '.') +
+        (outside > 1e-6
+          ? ` ${text(outside)} do trecho estão fora da superfície, sem conferência.`
+          : ''),
+    );
   };
 
   const click = (d: Drag, raw: Point2, additive: boolean): void => {
     const store = useEditorStore.getState();
+    if (terrainMode) {
+      // Vértices do contorno e do corte: o ponto clicado, sem captura de grade ou de portas.
+      useTerrainStore.getState().click(raw, SNAP_PX * view.mpp);
+      return;
+    }
     if (modeling) {
       modelClick(d, raw, additive);
       return;
@@ -416,10 +594,83 @@ export function PlanView() {
     }
   };
 
+  // Alças do tubo selecionado: arrastar uma extremidade estica ou encolhe o tubo. Em tubo
+  // vertical as duas extremidades coincidem em planta e o arrasto não tem como indicar o eixo.
+  const single = selection.length === 1 && selection[0] ? getElement(project, selection[0]) : null;
+  const gripPipe =
+    tool === 'select' && single?.kind === 'pipe' && planPipeHit(single, { x: 0, y: 0 }).ok
+      ? single
+      : null;
+  const stretching = useEditorStore((s) => s.stretch !== null);
+  /**
+   * Centro da alça em planta: recuado para dentro do tubo, para não cobrir a conexão ligada
+   * àquela extremidade (que precisa continuar clicável). Em tubo curto o recuo é proporcional.
+   */
+  const gripPoint = (which: 'start' | 'end'): Point2 => {
+    if (!gripPipe) return { x: 0, y: 0 };
+    const from = gripPipe[which];
+    const to = gripPipe[which === 'start' ? 'end' : 'start'];
+    const span = Math.hypot(to.x - from.x, to.y - from.y);
+    const inset = Math.min(10 * view.mpp, span / 4) / (span || 1);
+    return { x: from.x + (to.x - from.x) * inset, y: from.y + (to.y - from.y) * inset };
+  };
+
+  /**
+   * Botão direito sem arrasto (o arrasto move a vista): junto a uma extremidade de tubo ou a
+   * uma conexão, abre o menu com "Criar tubo".
+   */
+  const openContextMenu = (
+    event: { clientX: number; clientY: number },
+    raw: Point2,
+    elementId: string | null,
+  ): void => {
+    const store = useEditorStore.getState();
+    const gap = (port: { position: Vec3 }): number =>
+      Math.hypot(port.position.x - raw.x, port.position.y - raw.y);
+    const target = contextTargetOf(
+      store.project,
+      elementId,
+      (ports) =>
+        pickPlanPort(raw, ports, CONTEXT_PX * view.mpp, drawElevationOf(store))?.port ?? null,
+      gap,
+    );
+    if (target) store.openContextMenu({ x: event.clientX, y: event.clientY, ...target });
+    else store.closeContextMenu();
+  };
+
+  // Setas: deslizam a seleção ao longo da linha (em planta, X para a direita e Y para cima).
+  useEffect(() => {
+    if (tool !== 'select') return;
+    const onKey = (event: KeyboardEvent): void => {
+      const target = event.target;
+      if (target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return;
+      if (event.altKey) return;
+      const preferences = arrowPreferences(event.key, AXIS_X, AXIS_Y, AXIS_Z);
+      const store = useEditorStore.getState();
+      if (!preferences || store.selection.length === 0) return;
+      event.preventDefault();
+      store.nudgeSelection(preferences, nudgeStep(store.gridStep, event));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tool]);
+
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
     const annotationId = idOf(event.target, 'data-annotation-id');
+    const grip = idOf(event.target, 'data-grip');
     const mode =
-      event.button !== 0 ? 'pan' : tool === 'select' && annotationId ? 'annotation' : 'click';
+      event.button !== 0
+        ? 'pan'
+        : terrainMode
+          ? 'click'
+          : gripPipe && (grip === 'start' || grip === 'end')
+            ? 'grip'
+            : tool === 'select' && annotationId
+              ? 'annotation'
+              : 'click';
+    if (mode === 'grip' && gripPipe && (grip === 'start' || grip === 'end')) {
+      useEditorStore.getState().beginStretch(gripPipe.id, grip);
+    }
     drag.current = {
       x: event.clientX,
       y: event.clientY,
@@ -498,6 +749,19 @@ export function PlanView() {
       const dy = event.clientY - d.y;
       if (!d.moved && Math.hypot(dx, dy) > CLICK_TOLERANCE_PX) d.moved = true;
       if (!d.moved) return;
+      if (d.mode === 'grip') {
+        // Ponto do eixo 3D do tubo cuja projeção em planta é a mais próxima do cursor.
+        const store = useEditorStore.getState();
+        const base = store.stretch ? getElement(store.stretch.base, store.stretch.pipeId) : null;
+        if (base?.kind === 'pipe') {
+          const axis = sub(base.end, base.start);
+          const t =
+            ((raw.x - base.start.x) * axis.x + (raw.y - base.start.y) * axis.y) /
+            (axis.x * axis.x + axis.y * axis.y);
+          if (Number.isFinite(t)) store.stretchTo(add(base.start, scale(axis, t)));
+        }
+        return;
+      }
       if (d.mode === 'annotation' && d.annotationId) {
         const annotation = getAnnotation(project, d.annotationId);
         if (annotation) {
@@ -516,7 +780,7 @@ export function PlanView() {
       hoverModel(raw, idOf(event.target, 'data-element-id'));
       return;
     }
-    const snapped = snap(raw);
+    const snapped = terrainMode ? { point: raw, snap: 'plane' as const } : snap(raw);
     setPointer(snapped);
     useEditorStore.getState().setCursor({
       point: vec3(snapped.point.x, snapped.point.y, 0),
@@ -533,6 +797,14 @@ export function PlanView() {
     }
     if (!d) return;
     const raw = toModel(event);
+    if (d.mode === 'grip') {
+      useEditorStore.getState().endStretch(true);
+      return;
+    }
+    if (d.button === 2 && !d.moved) {
+      openContextMenu(event, raw, d.elementId);
+      return;
+    }
     if (d.moved) {
       setPreview(null);
       const annotation =
@@ -565,16 +837,30 @@ export function PlanView() {
     requestAnimationFrame(() => {
       const source = svgRef.current;
       if (!source) return;
-      const { project: current } = useEditorStore.getState();
-      const mm = current.drawingScale / 1000;
+      const { project: current, renderOrigin: drawOrigin } = useEditorStore.getState();
+      const infraPlan = current.discipline === 'infra';
+      const scale = infraPlan ? current.infra.drawingScale : current.drawingScale;
+      const mm = scale / 1000;
       const margin = 10 * mm;
       const caption = 8 * mm;
-      const width = bounds.maxX - bounds.minX + 2 * margin;
-      const height = bounds.maxY - bounds.minY + 2 * margin + caption;
-      const left = bounds.minX - margin;
-      const top = -bounds.maxY - margin;
+      // No Infra exporta-se a janela visível (a rede inteira não cabe em uma prancha, e fora da
+      // janela os elementos nem são desenhados); no MEP, o desenho todo.
+      const frame = infraPlan
+        ? {
+            minX: view.cx - (size.width / 2) * view.mpp,
+            maxX: view.cx + (size.width / 2) * view.mpp,
+            minY: view.cy - (size.height / 2) * view.mpp,
+            maxY: view.cy + (size.height / 2) * view.mpp,
+          }
+        : bounds;
+      const width = frame.maxX - frame.minX + 2 * margin;
+      const height = frame.maxY - frame.minY + 2 * margin + caption;
+      // O desenho está em coordenadas relativas à origem de desenho.
+      const left = frame.minX - drawOrigin.x - margin;
+      const top = -(frame.maxY - drawOrigin.y) - margin;
 
       const copy = source.cloneNode(true) as SVGSVGElement;
+      // A imagem de fundo, as áreas de clique e os rascunhos (`data-ui`) não são exportados.
       copy.querySelectorAll('[data-ui]').forEach((node) => node.remove());
       for (const name of ['style', 'class', 'data-testid']) copy.removeAttribute(name);
       copy.setAttribute('viewBox', `${left} ${top} ${width} ${height}`);
@@ -591,6 +877,7 @@ export function PlanView() {
       paper.setAttribute('fill', '#ffffff');
       copy.insertBefore(paper, copy.firstChild);
 
+      const reference = georeferenceStatus(current.georeference);
       const label = document.createElementNS(ns, 'text');
       label.setAttribute(
         'transform',
@@ -599,37 +886,24 @@ export function PlanView() {
       label.setAttribute('font-size', '10');
       label.setAttribute('font-family', 'Arial, Helvetica, sans-serif');
       label.setAttribute('fill', INK);
-      label.textContent = `${current.name.toUpperCase()} — PLANTA BAIXA — ESC. 1:${current.drawingScale}`;
+      label.textContent = infraPlan
+        ? `${current.name.toUpperCase()} — PLANTA INFRA — ESC. 1:${scale} — ${
+            reference.state === 'ready'
+              ? `${reference.crs.name} (EPSG:${reference.crs.epsg})`
+              : 'COORDENADAS LOCAIS (SEM GEORREFERÊNCIA)'
+          }`
+        : `${current.name.toUpperCase()} — PLANTA BAIXA — ESC. 1:${scale}`;
       copy.appendChild(label);
 
       const text = `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(copy)}\n`;
       downloadText(`${projectFileBase(current)}-planta.svg`, text, 'image/svg+xml');
-      store.notify('success', `Planta exportada em SVG na escala 1:${current.drawingScale}.`);
-    });
-  };
-
-  const exportDxf = (): void => {
-    const store = useEditorStore.getState();
-    const current = store.project;
-    if (!planBounds(current)) {
-      store.notify('error', 'A planta está vazia: não há o que exportar.');
-      return;
-    }
-    try {
-      // Mesmas dimensões de papel e mesma projeção (em cache) da planta na tela.
-      const text = exportPlanDxf(current, {
-        paper: PAPER,
-        outline: (element) => outlineOf(element).outline,
-      });
-      downloadText(`${projectFileBase(current)}-planta.dxf`, encodeDxf(text), 'application/dxf');
       store.notify(
         'success',
-        `Planta exportada em DXF (R2000): desenho em metros, camadas REDE_*, anotações para plotagem em 1:${current.drawingScale}.`,
+        infraPlan
+          ? `Vista exportada em SVG na escala 1:${scale}, sem a imagem de fundo.`
+          : `Planta exportada em SVG na escala 1:${scale}.`,
       );
-    } catch (error) {
-      console.error('[HydroBIM] Falha na exportação DXF da planta.', error);
-      store.notify('error', 'Não foi possível exportar a planta em DXF.');
-    }
+    });
   };
 
   const { elements, systems: systemList } = project;
@@ -638,11 +912,64 @@ export function PlanView() {
   const ordered = useMemo(
     () =>
       visibleElementsOf({ elements, systems: systemList })
-        .map((element) => ({ element, z: outlineOf(element).outline.maxZ }))
+        .map((element) => ({
+          element,
+          z: infra ? topOf(element) : outlineOf(element).outline.maxZ,
+        }))
         .sort((a, b) => a.z - b.z)
         .map((entry) => entry.element),
-    [elements, systemList],
+    [elements, systemList, infra],
   );
+
+  /** Janela visível, em coordenadas do projeto (m). */
+  const viewBounds = useMemo<ViewBounds>(
+    () => ({
+      minX: view.cx - (size.width / 2) * view.mpp,
+      maxX: view.cx + (size.width / 2) * view.mpp,
+      minY: view.cy - (size.height / 2) * view.mpp,
+      maxY: view.cy + (size.height / 2) * view.mpp,
+    }),
+    [view, size],
+  );
+  /**
+   * O que é desenhado. No Infra: só as camadas ligadas, só o que toca a janela e, em vistas
+   * gerais, a representação simplificada (eixos e símbolos) no lugar da geometria das peças.
+   */
+  const drawn = useMemo(() => {
+    if (!infra) return ordered.map((element) => ({ element, simplified: false }));
+    return ordered
+      .filter((element) => settings.layers[infraLayerOf(element)])
+      .filter((element) => intersects(boxOf(element), viewBounds))
+      .map((element) => ({ element, simplified: isSimplified(element, view.mpp) }));
+  }, [infra, ordered, settings.layers, viewBounds, view.mpp]);
+  const anySimplified = drawn.some((entry) => entry.simplified);
+  const labels = useMemo<PlanLabel[]>(() => {
+    const { names, lengths, elevations } = settings.labels;
+    if (!infra || !(names || lengths || elevations)) return [];
+    const candidates = drawn
+      .map((entry) => labelOf(entry.element, settings.labels, project.terrain))
+      .filter((label): label is PlanLabel => label !== null);
+    return placeLabels(candidates, view.mpp);
+  }, [infra, drawn, settings.labels, project.terrain, view.mpp]);
+
+  const customBasemap = useEditorStore((s) => s.customBasemap);
+  const provider = infra ? findBasemapProvider(settings.basemap.sourceId, customBasemap) : null;
+  /** Fonte personalizada escolhida no projeto, mas não cadastrada neste navegador. */
+  const customMissing =
+    infra && settings.basemap.sourceId === CUSTOM_BASEMAP_ID && customBasemap === null;
+  const imagery = provider !== null && settings.basemap.visible && geo.state === 'ready';
+  useEffect(() => {
+    if (!imagery) setBasemapStatus(null);
+  }, [imagery]);
+  const goTo = (point: Point2): void => {
+    setView((v) => ({ ...v, cx: point.x, cy: point.y }));
+    useEditorStore
+      .getState()
+      .notify(
+        'info',
+        `Vista centralizada em X ${formatMeters(point.x, 2)}; Y ${formatMeters(point.y, 2)}.`,
+      );
+  };
 
   const shown = useMemo(() => {
     if (!preview) return project;
@@ -655,10 +982,6 @@ export function PlanView() {
   const cursorPoint = pointer?.point ?? null;
   const [first, second] = draft.points;
   const drafting = tool !== 'select';
-  const scales = (DRAWING_SCALES as readonly number[]).includes(project.drawingScale)
-    ? DRAWING_SCALES
-    : [...DRAWING_SCALES, project.drawingScale].sort((a, b) => a - b);
-
   // Prévia elástica do trecho: da âncora ao ponto resolvido, com comprimento real e deflexão.
   const modelPoint = modeling ? (pointer?.pick?.point ?? null) : null;
   const pipePreview =
@@ -667,23 +990,29 @@ export function PlanView() {
       : null;
   const previewOrigin = pipePreview && anchor?.port ? resolvePort(project, anchor.port) : undefined;
   const previewLabel = pipePreview
-    ? [
-        formatMeters(distance(pipePreview.from, pipePreview.to), 2),
+    ? formatSegment(
+        pipePreview.from,
+        pipePreview.to,
         previewOrigin
-          ? formatDegrees(
-              angleBetween(previewOrigin.direction, sub(pipePreview.to, pipePreview.from)),
-            )
-          : '',
-        Math.abs(pipePreview.to.z - pipePreview.from.z) > 1e-6
-          ? `ΔZ ${formatMeters(pipePreview.to.z - pipePreview.from.z, 2)}`
-          : '',
-      ]
-        .filter(Boolean)
-        .join(' · ')
+          ? angleBetween(previewOrigin.direction, sub(pipePreview.to, pipePreview.from))
+          : null,
+      )
     : '';
   const measureEnd = tool === 'measure' && measure.a ? (measure.b ?? modelPoint) : null;
   const capturedPort = modeling ? (pointer?.pick?.port ?? null) : null;
-  const level = project.levels.find((l) => Math.abs(l.elevation - workPlaneZ) < 1e-9);
+
+  // Pedidos da faixa de comandos que dependem da janela e do desenho desta vista. Só são
+  // atendidos com a vista já posicionada (ao abrir a planta para exportar, por exemplo).
+  const planRequest = useUiStore((s) => s.planRequest);
+  const planHandlers = useRef({ exportSvg, goTo });
+  planHandlers.current = { exportSvg, goTo };
+  useEffect(() => {
+    if (!planRequest || size.width <= 0 || !framed.current) return;
+    useUiStore.getState().clearPlanRequest();
+    const { command } = planRequest;
+    if (command.kind === 'exportSvg') planHandlers.current.exportSvg();
+    else planHandlers.current.goTo(command.point);
+  }, [planRequest, size.width]);
   const label = {
     fontSize: 11 * view.mpp,
     fontFamily: 'Arial, Helvetica, sans-serif',
@@ -724,53 +1053,137 @@ export function PlanView() {
         .join(' ')}
       data-testid="plan-view"
       data-tool={tool}
+      data-terrain-mode={terrainMode ?? ''}
       data-theme={theme}
+      data-environment={project.discipline}
+      data-origin={`${origin.x};${origin.y}`}
+      data-mpp={view.mpp}
+      data-center={`${view.cx};${view.cy}`}
     >
       <svg
         ref={svgRef}
         data-testid="plan-svg"
         width={size.width}
         height={size.height}
-        viewBox={`${view.cx - (size.width / 2) * view.mpp} ${-view.cy - (size.height / 2) * view.mpp} ${Math.max(size.width, 1) * view.mpp} ${Math.max(size.height, 1) * view.mpp}`}
-        style={{ cursor: drafting ? 'crosshair' : 'default' }}
+        viewBox={`${X(view.cx) - (size.width / 2) * view.mpp} ${Y(view.cy) - (size.height / 2) * view.mpp} ${Math.max(size.width, 1) * view.mpp} ${Math.max(size.height, 1) * view.mpp}`}
+        style={{ cursor: drafting || terrainMode ? 'crosshair' : 'default' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerLeave}
         onContextMenu={(event) => event.preventDefault()}
       >
-        <g data-layer="elements">
-          {ordered.map((element) => (
-            <PlanElement
-              key={element.id}
-              element={element}
-              systemColor={systems.get(element.systemId)?.color}
-              selected={selection.includes(element.id) || draft.elementId === element.id}
-              monochrome={theme === 'mono'}
-              unit={unit}
-            />
-          ))}
+        {/* Fundo: imagem de satélite georreferenciada (só com o georreferenciamento pronto). */}
+        {imagery && provider && geo.state === 'ready' && (
+          <BasemapLayer
+            transform={geo.transform}
+            provider={provider}
+            bounds={viewBounds}
+            metersPerPixel={view.mpp}
+            origin={origin}
+            opacity={settings.basemap.opacity}
+            retry={basemapRetry}
+            onStatus={setBasemapStatus}
+          />
+        )}
+        {infra && settings.layers.terrain && project.terrain && (
+          <TerrainSurfacePlan terrain={project.terrain} origin={origin} mpp={view.mpp} />
+        )}
+        {infra && settings.layers.references && size.width > 0 && (
+          <CoordinateGrid
+            bounds={viewBounds}
+            mpp={view.mpp}
+            origin={origin}
+            transform={geo.state === 'ready' ? geo.transform : null}
+            onImagery={imagery}
+          />
+        )}
+        {/* Vista geral do Infra: eixos e símbolos de tamanho fixo na tela (fora de escala). */}
+        <g data-layer-infra="network">
+          {drawn
+            .filter((entry) => entry.simplified)
+            .map(({ element }) => (
+              <SimplifiedElement
+                key={element.id}
+                element={element}
+                systemColor={systems.get(element.systemId)?.color}
+                selected={selection.includes(element.id) || draft.elementId === element.id}
+                origin={origin}
+                mpp={view.mpp}
+                monochrome={theme === 'mono'}
+              />
+            ))}
         </g>
+        <g data-layer="elements">
+          {drawn
+            .filter((entry) => !entry.simplified)
+            .map(({ element }) => (
+              <PlanElement
+                key={element.id}
+                element={element}
+                systemColor={systems.get(element.systemId)?.color}
+                selected={selection.includes(element.id) || draft.elementId === element.id}
+                monochrome={theme === 'mono'}
+                unit={unit}
+                origin={origin}
+              />
+            ))}
+        </g>
+        {labels.length > 0 && <NetworkLabels labels={labels} origin={origin} mpp={view.mpp} />}
         {/* Fora da seleção, as anotações não interceptam o clique sobre os elementos. */}
         <g data-layer="annotations" pointerEvents={tool === 'select' ? undefined : 'none'}>
-          {shown.annotations.map((annotation) => (
-            <AnnotationShape
-              key={annotation.id}
-              annotation={annotation}
-              project={shown}
-              unit={unit}
-              hit={hit}
-              color={annotation.id === annotationSelection ? HIGHLIGHT : INK}
-            />
-          ))}
+          {(!infra || settings.layers.annotations) &&
+            shown.annotations.map((annotation) => (
+              <AnnotationShape
+                key={annotation.id}
+                annotation={annotation}
+                project={shown}
+                unit={unit}
+                hit={hit}
+                color={annotation.id === annotationSelection ? HIGHLIGHT : INK}
+                origin={origin}
+              />
+            ))}
         </g>
+        {gripPipe && (
+          <g data-ui="grips">
+            {(['start', 'end'] as const).map((which) => (
+              <rect
+                key={which}
+                data-grip={which}
+                data-testid={`pipe-grip-${which}`}
+                x={X(gripPoint(which).x) - 5 * view.mpp}
+                y={Y(gripPoint(which).y) - 5 * view.mpp}
+                width={10 * view.mpp}
+                height={10 * view.mpp}
+                fill={HIGHLIGHT}
+                stroke="#ffffff"
+                strokeWidth={1.5 * view.mpp}
+                style={{ cursor: 'move' }}
+              >
+                <title>Arraste para esticar ou encolher o tubo ao longo do eixo</title>
+              </rect>
+            ))}
+            {stretching && (
+              <text
+                data-testid="pipe-stretch-label"
+                pointerEvents="none"
+                x={X((gripPipe.start.x + gripPipe.end.x) / 2) + 8 * view.mpp}
+                y={Y((gripPipe.start.y + gripPipe.end.y) / 2) - 8 * view.mpp}
+                {...label}
+              >
+                {formatMeters(distance(gripPipe.start, gripPipe.end), 3)}
+              </text>
+            )}
+          </g>
+        )}
         <g data-ui="draft" pointerEvents="none">
           {tool === 'dimension' && first && !second && cursorPoint && (
             <line
-              x1={first.x}
-              y1={-first.y}
-              x2={cursorPoint.x}
-              y2={-cursorPoint.y}
+              x1={X(first.x)}
+              y1={Y(first.y)}
+              x2={X(cursorPoint.x)}
+              y2={Y(cursorPoint.y)}
               stroke={HIGHLIGHT}
               strokeWidth={1.5 * view.mpp}
               strokeDasharray={`${6 * view.mpp} ${4 * view.mpp}`}
@@ -783,16 +1196,17 @@ export function PlanView() {
               unit={unit}
               hit={0}
               color={HIGHLIGHT}
+              origin={origin}
             />
           )}
           {draft.points.map((p, i) => (
-            <circle key={i} cx={p.x} cy={-p.y} r={marker * 0.7} fill={HIGHLIGHT} />
+            <circle key={i} cx={X(p.x)} cy={Y(p.y)} r={marker * 0.7} fill={HIGHLIGHT} />
           ))}
           {tool === 'pipe' && anchor && (
             <circle
               data-testid="plan-anchor"
-              cx={anchor.point.x}
-              cy={-anchor.point.y}
+              cx={X(anchor.point.x)}
+              cy={Y(anchor.point.y)}
               r={marker * 0.7}
               fill={HIGHLIGHT}
             />
@@ -801,18 +1215,18 @@ export function PlanView() {
             <>
               <line
                 data-testid="plan-pipe-preview"
-                x1={pipePreview.from.x}
-                y1={-pipePreview.from.y}
-                x2={pipePreview.to.x}
-                y2={-pipePreview.to.y}
+                x1={X(pipePreview.from.x)}
+                y1={Y(pipePreview.from.y)}
+                x2={X(pipePreview.to.x)}
+                y2={Y(pipePreview.to.y)}
                 stroke={HIGHLIGHT}
                 strokeWidth={2 * view.mpp}
                 strokeDasharray={`${6 * view.mpp} ${4 * view.mpp}`}
               />
               <text
                 data-testid="plan-pipe-preview-label"
-                x={(pipePreview.from.x + pipePreview.to.x) / 2 + 8 * view.mpp}
-                y={-(pipePreview.from.y + pipePreview.to.y) / 2 - 8 * view.mpp}
+                x={X((pipePreview.from.x + pipePreview.to.x) / 2) + 8 * view.mpp}
+                y={Y((pipePreview.from.y + pipePreview.to.y) / 2) - 8 * view.mpp}
                 {...label}
               >
                 {previewLabel}
@@ -823,16 +1237,16 @@ export function PlanView() {
             <>
               <line
                 data-testid="plan-measure"
-                x1={measure.a.x}
-                y1={-measure.a.y}
-                x2={measureEnd.x}
-                y2={-measureEnd.y}
+                x1={X(measure.a.x)}
+                y1={Y(measure.a.y)}
+                x2={X(measureEnd.x)}
+                y2={Y(measureEnd.y)}
                 stroke={HIGHLIGHT}
                 strokeWidth={1.5 * view.mpp}
               />
               <text
-                x={(measure.a.x + measureEnd.x) / 2 + 8 * view.mpp}
-                y={-(measure.a.y + measureEnd.y) / 2 - 8 * view.mpp}
+                x={X((measure.a.x + measureEnd.x) / 2) + 8 * view.mpp}
+                y={Y((measure.a.y + measureEnd.y) / 2) - 8 * view.mpp}
                 {...label}
               >
                 {formatMeters(distance(measure.a, measureEnd))}
@@ -844,8 +1258,8 @@ export function PlanView() {
             <text
               data-testid={capturedPort ? 'plan-port-info' : 'plan-snap-info'}
               data-stacked={pointer.pick.stacked}
-              x={pointer.point.x + 10 * view.mpp}
-              y={-pointer.point.y + 16 * view.mpp}
+              x={X(pointer.point.x) + 10 * view.mpp}
+              y={Y(pointer.point.y) + 16 * view.mpp}
               {...label}
             >
               {pointer.info}
@@ -853,8 +1267,8 @@ export function PlanView() {
           )}
           {drafting && pointer && (
             <circle
-              cx={pointer.point.x}
-              cy={-pointer.point.y}
+              cx={X(pointer.point.x)}
+              cy={Y(pointer.point.y)}
               r={marker}
               fill={pointer.snap === 'port' ? HIGHLIGHT : 'none'}
               fillOpacity={0.35}
@@ -863,97 +1277,41 @@ export function PlanView() {
             />
           )}
         </g>
+        {infra && (
+          <TerrainEditingLayer
+            terrain={project.terrain}
+            origin={origin}
+            mpp={view.mpp}
+            cursor={terrainMode ? (pointer?.point ?? null) : null}
+          />
+        )}
       </svg>
 
-      <div className="plan__bar" data-testid="plan-bar">
-        <label className="plan__field">
-          <span>Escala</span>
-          <select
-            data-testid="plan-scale"
-            value={project.drawingScale}
-            onChange={(event) =>
-              useEditorStore.getState().changeDrawingScale(Number(event.target.value))
-            }
-            title="Escala do desenho: define o tamanho de textos e cotas em relação ao modelo"
-          >
-            {scales.map((scale) => (
-              <option key={scale} value={scale}>
-                1:{scale}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="plan__field">
-          <span>Tema</span>
-          <select
-            data-testid="plan-theme"
-            value={theme}
-            onChange={(event) =>
-              useEditorStore.getState().setPlanTheme(event.target.value as PlanTheme)
-            }
-            title="Tema do desenho: colorido (as cores do modelo 3D: material, partes e sistema) ou preto e branco. Vale também para a exportação em SVG"
-          >
-            <option value="color">Colorido</option>
-            <option value="mono">Preto e branco</option>
-          </select>
-        </label>
-        <button
-          type="button"
-          className={thinLines ? 'btn btn--compact is-active' : 'btn btn--compact'}
-          data-testid="plan-thin-lines"
-          aria-pressed={thinLines}
-          onClick={() => useEditorStore.getState().setPlanThinLines(!thinLines)}
-          title="Linhas finas: todo traço com 1 px na tela, em qualquer zoom, para enxergar a geometria das peças. Desligue para ver as espessuras de plotagem na escala do desenho. Não altera a exportação"
-        >
-          <Minus size={14} /> Linhas finas
-        </button>
-        {tool === 'dimension' && (
-          <label className="plan__field">
-            <span>Tipo de cota</span>
-            <select
-              data-testid="plan-dimension-mode"
-              value={dimensionMode}
-              onChange={(event) =>
-                useEditorStore.getState().setDimensionMode(event.target.value as DimensionMode)
-              }
-            >
-              {(Object.keys(DIMENSION_MODE_LABELS) as DimensionMode[]).map((mode) => (
-                <option key={mode} value={mode}>
-                  {DIMENSION_MODE_LABELS[mode]}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <button
-          type="button"
-          className="btn btn--compact"
-          data-testid="plan-export-svg"
-          onClick={exportSvg}
-          title="Exportar a planta em SVG, no tamanho físico da escala escolhida"
-        >
-          <FileDown size={14} /> Exportar SVG
-        </button>
-        <button
-          type="button"
-          className="btn btn--compact"
-          data-testid="plan-export-dxf"
-          onClick={exportDxf}
-          title="Exportar a planta em DXF (CAD, R2000): desenho em metros nas coordenadas do projeto, camadas REDE_* por categoria, cotas como DIMENSION e conexões como blocos"
-        >
-          <FileDown size={14} /> Exportar DXF
-        </button>
-        <span className="muted plan__hint" data-testid="plan-hint">
-          {tool === 'select'
-            ? 'Clique para selecionar. Arraste o fundo para mover a vista e uma anotação para reposicioná-la. Roda do mouse: zoom.'
-            : modeling
-              ? `Nível: ${level ? level.name : 'cota livre'} (${formatMeters(workPlaneZ, 2)}) · ${
-                  tool === 'pipe' ? 'eixo dos tubos' : 'pontos'
-                } na cota Z ${formatMeters(drawZ, 2)}. Ajuste no painel da ferramenta.`
-              : TOOL_HINTS[tool]}
-        </span>
-      </div>
-
+      {infra && <TerrainPanel />}
+      {infra && <TerrainProfilePanel />}
+      {infra && (
+        <InfraOverlay
+          geo={geo}
+          mpp={view.mpp}
+          cursor={pointer?.point ?? null}
+          provider={provider}
+          basemap={imagery ? basemapStatus : null}
+          basemapNote={
+            customMissing
+              ? 'Mapa indisponível: o projeto usa uma fonte personalizada que não está cadastrada neste navegador (Camadas › Fonte de mapa própria).'
+              : provider && settings.basemap.visible && geo.state !== 'ready'
+                ? `Mapa indisponível: ${geo.message}`
+                : null
+          }
+          onRetry={() => setBasemapRetry((n) => n + 1)}
+          simplified={anySimplified}
+        />
+      )}
+      {infra && geoPicker && (
+        // Georreferência definida pelo mapa: a planta abre na origem escolhida, na mesma
+        // ampliação, já com o mapa ao fundo.
+        <GeoPicker onDone={(mpp) => setView({ cx: 0, cy: 0, mpp })} />
+      )}
       <AnnotationInspector focusId={focusId} />
     </div>
   );

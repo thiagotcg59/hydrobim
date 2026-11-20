@@ -319,3 +319,92 @@ A altura cadastrada é H1 (eixo ao topo da haste), não H: H inclui o cabeçote,
 
 As divergências internas do catálogo (D do DN 100, Lt de DN 200 e 300 no EURO 25, "11 x 194") estão registradas em `docs/CATALOGS.md` e no cabeçalho de `euro20.ts`; nenhuma foi corrigida em silêncio.
 
+## ADR-036 — Ambiente Infra: referenciais no `core`, mapa fora do domínio, origem de renderização e esquema v11
+
+**Data:** 2026-11-18 · **Estado:** aceita
+
+**Contexto.** Redes externas pedem mapa de fundo georreferenciado, escalas de 1:500 a 1:10.000 e coordenadas de centenas de quilômetros. A georreferência existente só alimentava o IFC; a planta e o 3D perdiam precisão com coordenadas grandes (diagnóstico em `docs/INFRA.md`).
+
+**Decisão.**
+- **Transformações próprias, sem dependência nova.** A Transversa de Mercator (séries de Krüger, ordem n⁴) e o esquema de ladrilhos Web Mercator foram implementados em `packages/core/src/geo`, que continua dependendo só de `zod`. A alternativa era `proj4js`: traria o suporte a qualquer CRS, mas também a tentação de aceitar sistemas cujo datum não está conferido. O registro (`findProjectedCrs`) aceita apenas SIRGAS 2000 / UTM e WGS 84 / UTM, com os parâmetros conferidos contra o banco EPSG do PROJ 9.8.1; os testes comparam 13 pontos de controle com o PROJ. Outros sistemas (SAD69, Córrego Alegre) ficam explicitamente sem transformação para o mapa, em vez de aproximados.
+- **O mapa não entra no domínio.** `project.infra.basemap.sourceId` guarda só a escolha; o registro de provedores e o cálculo dos ladrilhos ficam em `apps/web/src/map`. Nenhuma medida é tomada sobre a imagem.
+- **Fonte de mapa.** Sentinel-2 cloudless 2016 da EOX (CC BY 4.0), único serviço encontrado que é público, documentado, sem chave e com licença compatível com uso profissional. Esri World Imagery, as camadas EOX de 2018 em diante (não comerciais) e os demais candidatos foram descartados pelos termos ou pela qualidade — ver `docs/INFRA.md`. Nenhuma credencial, nenhum serviço pago, nenhum endereço não documentado.
+- **Tema de ruas e georreferência pelo mapa** (pedido do responsável, 2026-11-18). Ladrilhos padrão do OpenStreetMap, só para exibição na tela e com atribuição, conforme a política do serviço. O georreferenciamento pendente abre um mapa em que o usuário clica a origem do modelo; o fuso inicial é o SIRGAS 2000 / UTM 21S, com o 22S e os demais fusos brasileiros como opção. O fuso é uma opção pré-selecionada, não uma atribuição: a georreferência só é gravada quando o usuário confirma um ponto, e pontos fora do fuso escolhido são recusados.
+- **Fonte personalizada no navegador, não no projeto.** Imagem de alta resolução depende de serviços com conta ou chave. O usuário cadastra o endereço de ladrilhos do serviço a que tem direito; ele fica no `localStorage` e o projeto guarda só `sourceId: "custom"`. Assim nenhuma credencial entra no repositório, no arquivo do projeto ou em exportações, e o HydroBIM não embute serviço pago. A licença dessa fonte é responsabilidade do usuário; a imagem não é exportada.
+- **Ladrilhos como `<image>` do SVG**, um por ladrilho, com transformação afim calculada pelos cantos. Dispensa uma biblioteca de mapas (que imporia o seu próprio referencial à planta) e mantém a rede e a imagem no mesmo sistema de coordenadas do desenho. O erro da colocação afim é medido em teste (< 0,5 px nos níveis 10 a 14).
+- **Origem de renderização** como estado de sessão (`renderOrigin`), aplicada nas bordas das vistas. O projeto nunca é transladado: coordenadas canônicas, identificadores, conectividade e exportações não passam por ela. `PlanOutline` passou a precisão dupla para que a planta e o DXF não percam os milímetros na origem dos dados.
+- **Esquema v11.** `infra` (escala de documentação, mapa, camadas e rótulos da Planta Infra) e `georeference.verticalDatum`. A escala da Planta Infra é separada de `drawingScale`, para que as preferências de documentação de um ambiente não alterem o outro.
+- **Escala 1 entre local e projetado.** Mantida, por ser a do `IfcMapConversion` já exportado; o fator de escala da projeção é mostrado ao usuário e o fator combinado fica para etapa posterior.
+
+**Consequências.** A Planta Infra funciona sem rede e sem georreferência (fundo técnico, coordenadas locais); o mapa é um acréscimo que pode falhar sem afetar a edição. A resolução da imagem (10 m) serve a adutoras e redes urbanas, não ao detalhe de um lote — a ortofoto do usuário é a evolução prevista. Sistemas de referência fora do registro não têm mapa até que a sua transformação seja implementada e conferida. A planta do Infra exporta a janela visível, sem a imagem.
+
+**Verificação.** Vitest: `packages/core/src/geo/geo.test.ts` (PROJ), `packages/core/src/infra.test.ts` (configuração e migração), `apps/web/src/map/tiles.test.ts`, `apps/web/src/infra/infraPlan.test.ts` (regras e cenário de desempenho), `apps/web/src/editor/renderOrigin.test.ts`. Playwright: `tests/e2e/infra.spec.ts` (ponto de controle sobre o mapa após zoom, deslocamento e reabertura; falha do serviço; coordenadas UTM; independência do MEP). Backend: migração v10 → v11 e validação de `infra`.
+
+## ADR-037 — Medidor de vazão (macromedidor) como tipo de peça em linha, dentro do esquema v11
+
+**Contexto.** O catálogo não tinha macromedidor. A peça é um carretel flangeado de duas portas, com face a face e altura de catálogo — a mesma forma de dado de uma válvula em linha.
+
+**Decisão.**
+
+- **`valveType: 'flowMeter'` no elemento `valve`**, como o filtro Y (ADR-027): reaproveita inserção em linha, acoplamento, edição e famílias. Não é válvula: tem nome próprio ("Medidor de vazão N"), aparece assim nos quantitativos e, no IFC, é `IfcFlowMeter`/`WATERMETER` (entidade e tipo conferidos em `schemaData.ts`). Os conjuntos padronizados do medidor não estão em `schemaData.ts` (gerado, não editado à mão): só o conjunto próprio `HydroBIM_Medidor` e os gerais (fabricante, dimensões) são emitidos.
+- **Dentro do esquema v11**, que ainda não havia sido publicado em commit (mesmo critério do ADR-035): é um valor novo de enumeração, sem migração de dados.
+- **Família Sanecom com flange PN 10 da tabela única** (regra 14), e não o flange impresso na página do fabricante nem a classe PN 1.6 que ele indica até DN 200: o ferro dúctil do catálogo é padronizado no PN 10 e a diferença se resume ao número de furos do DN 200. Detalhes e derivações em `docs/CATALOGS.md`.
+- **EPANET:** exportado como trecho aberto, com aviso (a perda de carga do medidor não é representada).
+
+**Verificação.** Vitest: `packages/catalog/src/families/sanecom.test.ts` (transcrição, flange, inserção em linha e validação), `packages/geometry/src/flowMeter.test.ts`, `packages/ifc/src/flowMeter.test.ts`. Backend: `test_flow_meter_is_an_inline_valve_type`.
+
+## ADR-038 — Interface por tarefa: faixa de comandos, registro único de comandos e estado de interface fora do projeto
+
+**Contexto.** Os comandos estavam espalhados: arquivo, catálogo, projeto e cinco exportações no cabeçalho; ferramentas e vistas numa barra lateral; exportações da planta e os controles do Infra numa barra sobre o desenho; opções da ferramenta flutuando sobre a vista. O seletor "Modelo 3D · Planta · BIM / IFC · Perfil" misturava vista, modo de consulta e atalho para diálogo.
+
+**Decisão.**
+
+- **Ambiente, tarefa e vista são três escolhas independentes.** Ambiente (MEP/Infra) é dado do projeto; tarefa é a aba da faixa de comandos; vista é o que a área central desenha. Trocar de aba não altera modelo, vista, ferramenta nem histórico.
+- **Faixa de comandos por tarefa**, em vez de menus ou de barras laterais: os comandos principais ficam à vista com rótulo, a área de desenho ocupa toda a altura entre os painéis e a faixa pode ser recolhida.
+- **Registro único de comandos** (`apps/web/src/commands/commands.ts`): rótulo, finalidade, atalho, disponibilidade com motivo e execução. Botões, atalhos e busca usam a mesma definição — antes, os atalhos tinham uma tabela própria e as regras de disponibilidade estavam em cada componente.
+- **Modificar e Conectar não duplicam operações.** Os comandos que dependem de valores levam ao campo do painel de propriedades que já executa a operação do domínio.
+- **Estado de interface em store própria** (`uiStore.ts`), com as preferências de layout no `localStorage`. Nada disso entra no projeto, no histórico ou no arquivo. Sem nova dependência: os painéis redimensionáveis são eventos de ponteiro e variáveis CSS.
+- **Opções da ferramenta no painel direito**, em aba própria ("Ferramenta"), distinta de "Propriedades": parâmetros do próximo elemento e propriedades do que já existe não se confundem, e nada cobre o desenho.
+- **Consulta BIM / IFC mantida como modo sobre o Modelo 3D** (`viewMode: 'bim'` na store do editor, como antes), agora acionada pela aba de tarefa. É a única aba que muda a vista; por isso a operação em andamento é suspensa ao entrar e retomada ao sair, em vez de descartada.
+- **Diálogo de projeto dividido por finalidade**: configuração (Gerenciar) e resultados (Análise), no mesmo componente. Quantitativo em tela com as mesmas linhas do CSV.
+- **Exportações**: DXF da planta gerado do modelo (independe da vista); SVG continua sendo o desenho da planta, que é aberta para gerar o arquivo.
+- **Perfil longitudinal continua diálogo**, identificado como tal; só vira vista quando o conteúdo for adaptado.
+
+**Consequências.** Os `data-testid` dos controles foram preservados; mudou o caminho até eles, e os testes E2E passaram a usar `tests/e2e/ui.ts` para abrir a aba, o menu ou o painel de cada controle. Entrar na consulta BIM / IFC ainda reenquadra a vista. A organização comporta novas disciplinas (arquitetura) acrescentando comandos ao registro e grupos à faixa.
+
+**Verificação.** Vitest: `apps/web/src/commands/commands.test.ts`, `apps/web/src/state/uiStore.test.ts`. Playwright: `tests/e2e/layout.spec.ts` e toda a suíte existente pela nova navegação.
+
+## ADR-039 — Deflexão na junta como dado da especificação, dentro do esquema v11
+
+**Contexto.** Toda mudança de direção exigia joelho: o acoplamento entre portas só admitia 0,5° de tolerância geométrica. Em adutoras de junta elástica, curvas de raio longo e pequenos ajustes de traçado e de declividade são feitos defletindo as juntas, dentro do limite que o fabricante publica por diâmetro.
+
+**Decisão.**
+
+- **O limite é dado de catálogo e viaja na especificação** (`PipeSpec.jointDeflection`, rad, opcional), como já acontece com os diâmetros. Assim o `core` continua sem depender do catálogo e todas as operações — traçado, reconciliação, validação, fechamento — enxergam o mesmo limite sem parâmetro novo.
+- **Regra única em `connectivity.ts`**: `jointDeflectionLimit` (menor dos dois lados; 0 com flange ou sem o dado) e `alignmentTolerance`. `arePortsAligned` e `checkPortCompatibility` passam a usá-las.
+- **Sem valor, nada muda**: especificação sem o dado é junta rígida. Nenhum limite é presumido por material ou tipo de junta.
+- **Trava do cursor**: perto do eixo o trecho continua reto (metade do limite, no máximo 1°); daí até o limite o ponto é livre; acima, vale o mais próximo entre o limite e os ângulos de joelho de catálogo.
+- **Sem incremento de versão**: o campo é opcional e o esquema v11 ainda não foi publicado; documentos v11 existentes continuam válidos (mesmo critério do ADR-037).
+
+**Consequências.** Projetos salvos antes desta mudança não trazem o limite nos tubos já criados: esses trechos seguem rígidos até a especificação ser reaplicada. A interface só oferece a deflexão ao partir da extremidade de um tubo; saindo de uma conexão o cursor continua preso ao eixo da porta, embora o núcleo aceite a deflexão também na bolsa da conexão. A curvatura a frio do próprio tubo fica fora: é outro mecanismo e pede um elemento de tubo curvo.
+
+**Verificação.** Vitest: `packages/core/src/jointDeflection.test.ts`, `packages/catalog/src/jointDeflection.test.ts`, `apps/web/src/state/jointDeflection.test.ts`. Playwright: `tests/e2e/jointDeflection.spec.ts`.
+
+## ADR-040 — Superfície do terreno: triangulação restrita no `core`, fontes de elevação fora do domínio, esquema v12 e leitor de GeoTIFF próprio
+
+**Contexto.** O terreno era um TIN de até 4.000 pontos XYZ, limitado pela envoltória convexa, sem limite, linhas de quebra nem registro de procedência; a triangulação era quadrática e a consulta de cota percorria todos os triângulos. Projetos de redes precisam de superfícies por área (loteamento, faixa de adutora), a partir de DEM quando não há levantamento, e do levantamento quando ele existe.
+
+**Decisão.**
+
+- **Núcleo puro em `packages/core/src/terrain/`.** Triangulação de Delaunay com restrições escrita no projeto (inserção incremental com trocas de aresta, arestas obrigatórias pelo método de Sloan, classificação dentro/fora por paridade), construção da superfície, índice espacial para a consulta, curvas de nível, corte e a passagem do raster para pontos cotados. Sem dependência nova: o `core` continua dependendo só de `zod`.
+- **Fontes de elevação fora do domínio.** `apps/web/src/terrain/elevationProviders.ts` é a única parte que conhece serviços; o domínio recebe um raster (`ElevationRaster`) e a procedência (`TerrainSource`). Entram no registro só fontes com endereço, codificação e condições conferidos na documentação, com a data. A fonte aberta (Terrain Tiles na AWS) não exige chave; a Mapbox usa a chave do próprio usuário, guardada só no navegador (regra "sem credenciais" do `AGENTS.md`).
+- **Nada é inventado.** Vértices são os nós do raster ou os pontos do levantamento; lacunas do raster viram aberturas na superfície; resolução do raster, exatidão altimétrica e referência altimétrica são campos distintos, e os dois últimos ficam nulos quando a fonte não os declara. Níveis de ladrilho acima da resolução nominal do dado de origem são oferecidos com aviso e não são o padrão. Nenhuma conversão de datum vertical é aplicada.
+- **Escala vertical real por padrão.** O exagero é opção de visualização, só do desenho do terreno, sempre indicado.
+- **Esquema v12.** `terrain.boundary`, `terrain.breaklines` e `terrain.source` são obrigatórios: um terreno v11 precisa de migração de dados, por isso a versão foi incrementada (diferente dos ADR-035, 037 e 039, em que os campos eram opcionais). A migração não presume nada: limite nulo, sem linhas de quebra, procedência "Pontos XYZ" com datum, exatidão, resolução e data nulos.
+- **Leitor de GeoTIFF próprio** (`apps/web/src/terrain/geotiff.ts`), em vez da biblioteca `geotiff.js`: o que um DEM de uma banda exige (TIFF clássico, faixas e blocos, Deflate pelo `DecompressionStream` do navegador, LZW, preditores) cabe em um módulo testável, e a regra do projeto pede justificativa para cada dependência. O custo é declarado: BigTIFF, JPEG/ZSTD/LERC e rasters girados são recusados com o motivo.
+- **Processamento não bloqueante.** A leitura do GeoTIFF e a geração da superfície rodam em um Web Worker (`terrainWorker.ts`); os downloads são assíncronos, com andamento e cancelamento. O trabalho é uma função pura (`runTerrainJob`), a mesma nos testes e no worker.
+- **Interface sem ferramenta nova na store do editor.** As operações do terreno na planta (área, furo, corte, consulta) são um modo de sessão (`terrainStore`) que recebe os cliques da Planta Infra com a ferramenta de seleção; os comandos entram no registro único. A área em edição, o corte e as opções de visualização não entram no projeto nem no histórico.
+
+**Consequências.** A superfície é gravada no JSON do projeto, e por isso limitada a 25.000 vértices; áreas maiores pedem resolução mais grossa. Há uma superfície por projeto. As curvas de nível e o corte ainda não vão para a documentação (DXF/SVG). LandXML e a entidade IFC do terreno ficam para depois: `terrainExchange` entrega a estrutura, e o mapeamento IFC será conferido no esquema antes de ser escrito (regra 10). O caminho Mapbox não pôde ser exercitado com uma chave real.
+
+**Verificação.** Vitest: `packages/core/src/terrain/terrain.test.ts` (círculo vazio, contorno côncavo com furo, linhas de quebra, plano inclinado, curvas, corte, raster com lacunas, georreferência, migração) e `apps/web/src/terrain/terrain.web.test.ts` (codificações, mosaico de ladrilhos posicionado pela georreferência, falhas do serviço, GeoTIFF escrito pela libtiff — `tests/tools/make_terrain_fixtures.py` —, malha 3D, operações na planta). Playwright: `tests/e2e/terrain.spec.ts` (área desenhada, DEM com serviço interceptado e falha tratada, levantamento com linha de quebra e furo, consulta, corte, GeoTIFF, 3D). Backend: migração v11 → v12 e validação do terreno.

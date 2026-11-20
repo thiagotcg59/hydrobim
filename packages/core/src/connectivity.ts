@@ -3,7 +3,8 @@ import { newId } from './ids';
 import { angleBetween, distance, negate } from './math';
 import { getPort, getPorts, samePortRef, type Port } from './ports';
 import { fail, ok, type Result } from './result';
-import type { Connection, HydroElement, PortRef, Project } from './schema';
+import type { Connection, EndTreatment, HydroElement, PipeSpec, PortRef, Project } from './schema';
+import { formatDegrees } from './units';
 
 /**
  * Motor de conectividade. Opera apenas sobre o modelo de domínio (elementos + grafo de
@@ -62,11 +63,44 @@ export function connectionsOfElement(project: Project, elementId: string): Conne
   );
 }
 
-/** Verifica se duas portas estão geometricamente acopladas (coincidentes e opostas). */
+/** Lado de uma junta: a especificação e o acabamento da extremidade (`null` = ponta lisa). */
+export interface JointSide {
+  readonly spec: PipeSpec;
+  readonly end: EndTreatment | null;
+}
+
+/** Folga numérica (rad) ao comparar uma deflexão com o limite da junta. */
+const DEFLECTION_EPSILON = 1e-6;
+
+/**
+ * Deflexão angular (rad) admitida na junta entre dois lados; 0 = junta rígida. Vale o menor
+ * dos limites das duas especificações (dado de catálogo, com fonte). Flange não deflete, e
+ * especificação sem o valor é tratada como rígida: nada é presumido.
+ */
+export function jointDeflectionLimit(a: JointSide, b: JointSide): number {
+  const side = (s: JointSide): number =>
+    s.end?.type === 'flange' ? 0 : (s.spec.jointDeflection ?? 0);
+  return Math.min(side(a), side(b));
+}
+
+/** Desalinhamento angular (rad) aceito entre duas portas acopladas. */
+export function alignmentTolerance(a: JointSide, b: JointSide): number {
+  const limit = jointDeflectionLimit(a, b);
+  return limit > ANGLE_TOLERANCE ? limit + DEFLECTION_EPSILON : ANGLE_TOLERANCE;
+}
+
+/** Deflexão (rad) na junta entre duas portas: 0 quando estão exatamente opostas. */
+export const jointDeflection = (a: Port, b: Port): number =>
+  angleBetween(a.direction, negate(b.direction));
+
+/**
+ * Verifica se duas portas estão geometricamente acopladas: coincidentes e opostas, admitida
+ * a deflexão angular que a junta permite.
+ */
 export function arePortsAligned(a: Port, b: Port): boolean {
   return (
     distance(a.position, b.position) <= POSITION_TOLERANCE &&
-    angleBetween(a.direction, negate(b.direction)) <= ANGLE_TOLERANCE
+    jointDeflection(a, b) <= alignmentTolerance(a, b)
   );
 }
 
@@ -91,8 +125,16 @@ export function checkPortCompatibility(a: Port, b: Port): CompatibilityIssue[] {
   if (distance(a.position, b.position) > POSITION_TOLERANCE) {
     issues.push({ code: 'POSITION_MISMATCH', message: 'As portas não estão na mesma posição.' });
   }
-  if (angleBetween(a.direction, negate(b.direction)) > ANGLE_TOLERANCE) {
-    issues.push({ code: 'DIRECTION_MISMATCH', message: 'As portas não estão alinhadas.' });
+  const deflection = jointDeflection(a, b);
+  if (deflection > alignmentTolerance(a, b)) {
+    const limit = jointDeflectionLimit(a, b);
+    issues.push({
+      code: 'DIRECTION_MISMATCH',
+      message:
+        limit > 0
+          ? `As portas não estão alinhadas: deflexão de ${formatDegrees(deflection, 2)}, e a junta admite até ${formatDegrees(limit, 2)}.`
+          : 'As portas não estão alinhadas.',
+    });
   }
   return issues;
 }
@@ -136,7 +178,12 @@ export function autoConnectElement(project: Project, elementId: string): Project
     if (!isPortFree(current, port.ref)) continue;
     const candidate = getFreePorts(current).find(
       (other) =>
-        other.ref.elementId !== elementId && checkPortCompatibility(port, other).length === 0,
+        other.ref.elementId !== elementId &&
+        // Só portas na mesma posição podem ser compatíveis: conferir a distância primeiro evita
+        // montar as mensagens de incompatibilidade para cada porta livre da rede (em redes
+        // extensas isso tornava a criação de cada tubo proporcional ao tamanho da rede).
+        distance(port.position, other.position) <= POSITION_TOLERANCE &&
+        checkPortCompatibility(port, other).length === 0,
     );
     if (!candidate) continue;
     const result = connectPorts(current, port.ref, candidate.ref);

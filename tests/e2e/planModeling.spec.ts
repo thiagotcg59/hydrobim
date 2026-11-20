@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { ctl } from './ui';
 
 /**
  * Modelagem pela planta baixa: traçar tubos na elevação do eixo, travar as mudanças de
@@ -17,7 +18,7 @@ function trackErrors(page: Page): string[] {
 }
 
 async function setField(page: Page, testId: string, value: string): Promise<void> {
-  const field = page.getByTestId(testId);
+  const field = await ctl(page, testId);
   await field.fill(value);
   await field.press('Enter');
 }
@@ -35,9 +36,9 @@ test('planta baixa: terminar o trecho sobre um tubo insere o tê automático', a
   const errors = trackErrors(page);
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('action-new').click();
+  await (await ctl(page, 'action-new')).click();
   await page.getByTestId('view-mode-plan').click();
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
 
   const svg = page.getByTestId('plan-svg');
   const box = await svg.boundingBox();
@@ -75,7 +76,7 @@ test('planta baixa: terminar o trecho sobre um tubo insere o tê automático', a
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
 
   const download = page.waitForEvent('download');
-  await page.getByTestId('action-export').click();
+  await (await ctl(page, 'action-export')).click();
   const exported = JSON.parse(await readFile(await (await download).path(), 'utf8')) as {
     elements: ExportedElement[];
     connections: unknown[];
@@ -95,16 +96,16 @@ test('planta baixa: traçar, travar ângulos, criar prumada e inserir conexões'
   const errors = trackErrors(page);
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('action-new').click();
+  await (await ctl(page, 'action-new')).click();
   await expect(page.getByTestId('element-count')).toHaveText('0');
 
   // As ferramentas de modelagem permanecem na planta.
   await page.getByTestId('view-mode-plan').click();
   await expect(page.getByTestId('plan-view')).toBeVisible();
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   await expect(page.getByTestId('plan-view')).toBeVisible();
   await expect(page.getByTestId('view-mode-plan')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('tool-options')).toBeVisible();
+  await expect(await ctl(page, 'tool-options')).toBeVisible();
 
   // Planta vazia: origem no centro da vista, 100 px por metro.
   const svg = page.getByTestId('plan-svg');
@@ -122,8 +123,8 @@ test('planta baixa: traçar, travar ângulos, criar prumada e inserir conexões'
 
   // Elevação do eixo: 2,50 m acima do nível.
   await setField(page, 'option-pipe-elevation', '2,5');
-  await expect(page.getByTestId('pipe-elevation-info')).toContainText('Z 2,50 m');
-  await expect(page.getByTestId('option-catalog-angles')).toContainText('90°');
+  await expect(await ctl(page, 'pipe-elevation-info')).toContainText('Z 2,50 m');
+  await expect(await ctl(page, 'option-catalog-angles')).toContainText('90°');
 
   await page.mouse.click(...at(-1, 0));
   await expect(page.getByTestId('plan-anchor')).toHaveCount(1);
@@ -146,7 +147,7 @@ test('planta baixa: traçar, travar ângulos, criar prumada e inserir conexões'
   // Alterar a elevação durante o traçado cria a prumada (joelho + tubo vertical).
   await setField(page, 'option-pipe-elevation', '3,5');
   await expect(drawn).toHaveCount(7);
-  await expect(page.getByTestId('pipe-elevation-info')).toContainText('Z 3,50 m');
+  await expect(await ctl(page, 'pipe-elevation-info')).toContainText('Z 3,50 m');
   await expect(page.getByTestId('status-message')).toHaveAttribute('data-level', 'success');
 
   // O traçado continua em planta, na nova elevação.
@@ -171,26 +172,26 @@ test('planta baixa: traçar, travar ângulos, criar prumada e inserir conexões'
   };
 
   // Válvula e tê em linha, por clique sobre o tubo.
-  await page.getByTestId('tool-valve').click();
+  await (await ctl(page, 'tool-valve')).click();
   await expect(page.getByTestId('plan-view')).toBeVisible();
   await (await firstPipe()).click();
   await expect(drawn).toHaveCount(11);
   await expect(svg.locator('[data-element-kind="valve"]')).toHaveCount(1);
 
-  await page.getByTestId('tool-tee').click();
+  await (await ctl(page, 'tool-tee')).click();
   await (await firstPipe()).click();
   await expect(drawn).toHaveCount(13);
   await expect(svg.locator('[data-element-kind="tee"]')).toHaveCount(1);
 
   // Joelho na extremidade livre inicial; ângulo sem peça de catálogo é recusado.
-  await page.getByTestId('tool-elbow').click();
+  await (await ctl(page, 'tool-elbow')).click();
   await setField(page, 'option-elbow-angle', '30');
   await page.mouse.move(...at(-1, 0.02));
   await expect(page.getByTestId('plan-port-info')).toContainText('Z 2,50 m');
   await page.mouse.click(...at(-1, 0.02));
   await expect(page.getByTestId('status-message')).toContainText('Não há joelho de 30°');
   await expect(drawn).toHaveCount(13);
-  await page.getByTestId('option-elbow-chip-90').click();
+  await (await ctl(page, 'option-elbow-chip-90')).click();
   await page.mouse.click(...at(-1, 0.02));
   await expect(drawn).toHaveCount(14);
 
@@ -198,7 +199,7 @@ test('planta baixa: traçar, travar ângulos, criar prumada e inserir conexões'
 
   // O modelo exportado confirma cotas e ângulos.
   const download = page.waitForEvent('download');
-  await page.getByTestId('action-export').click();
+  await (await ctl(page, 'action-export')).click();
   const exported = JSON.parse(await readFile(await (await download).path(), 'utf8')) as {
     elements: ExportedElement[];
     connections: unknown[];
@@ -226,6 +227,9 @@ test('planta baixa: traçar, travar ângulos, criar prumada e inserir conexões'
   // O modelo 3D mostra o mesmo resultado.
   await page.getByTestId('view-mode-3d').click();
   await expect(page.getByTestId('viewport-canvas')).toBeVisible();
+  // A ferramenta continua ativa ao trocar de vista: Esc a encerra e, depois, limpa a seleção.
+  await expect(await ctl(page, 'tool-elbow')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('element-count')).toHaveText('14');
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
@@ -239,7 +243,7 @@ test('planta baixa: extremidades sobrepostas, escolha com Tab e trava ao editar 
   const errors = trackErrors(page);
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('action-new').click();
+  await (await ctl(page, 'action-new')).click();
   await expect(page.getByTestId('element-count')).toHaveText('0');
 
   // Dois tubos no mesmo traçado em planta, nas cotas 0 e 3 m.
@@ -247,9 +251,9 @@ test('planta baixa: extremidades sobrepostas, escolha com Tab e trava ao editar 
     await setField(page, 'coord-x', x);
     await setField(page, 'coord-y', y);
     await setField(page, 'coord-z', z);
-    await page.getByTestId('coord-add').click();
+    await (await ctl(page, 'coord-add')).click();
   };
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   await addPoint('0', '0', '0');
   await addPoint('2', '0', '0');
   await page.keyboard.press('Escape');
@@ -258,7 +262,7 @@ test('planta baixa: extremidades sobrepostas, escolha com Tab e trava ao editar 
   await page.keyboard.press('Escape');
 
   await page.getByTestId('view-mode-plan').click();
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   await setField(page, 'option-pipe-elevation', '0');
   const svg = page.getByTestId('plan-svg');
   await expect(svg.locator('[data-element-kind="pipe"]')).toHaveCount(2);
@@ -278,18 +282,18 @@ test('planta baixa: extremidades sobrepostas, escolha com Tab e trava ao editar 
   await expect(info).toContainText('Z 3,00 m');
   await page.mouse.click(...end);
   await expect(page.getByTestId('plan-anchor')).toHaveCount(1);
-  await expect(page.getByTestId('pipe-elevation-info')).toContainText('Z 3,00 m');
+  await expect(await ctl(page, 'pipe-elevation-info')).toContainText('Z 3,00 m');
   await page.mouse.click(end[0], end[1] - 150);
   await expect(svg.locator('[data-element-kind="elbow"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
 
   // Editar o ângulo do joelho para um valor sem peça de catálogo é recusado, e o campo
   // volta a mostrar o ângulo vigente.
-  await page.getByTestId('tool-select').click();
+  await (await ctl(page, 'tool-select')).click();
   await svg.locator('[data-element-kind="elbow"]').click();
   await setField(page, 'prop-angle', '60');
   await expect(page.getByTestId('status-message')).toContainText('Não há joelho de 60°');
-  await expect(page.getByTestId('prop-angle')).toHaveValue('90');
+  await expect(await ctl(page, 'prop-angle')).toHaveValue('90');
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
 
   expect(errors).toEqual([]);

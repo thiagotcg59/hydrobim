@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { ctl, openProjectTab } from './ui';
 
 /**
  * Fases 2 a 6 no navegador real: reduções automáticas ao trocar o diâmetro, famílias de
@@ -18,12 +19,12 @@ function trackErrors(page: Page): string[] {
 async function openEmptyProject(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('action-new').click();
+  await (await ctl(page, 'action-new')).click();
   await expect(page.getByTestId('element-count')).toHaveText('0');
 }
 
 async function setField(page: Page, testId: string, value: string): Promise<void> {
-  const field = page.getByTestId(testId);
+  const field = await ctl(page, testId);
   await field.fill(value);
   await field.press('Enter');
 }
@@ -32,11 +33,11 @@ async function addPoint(page: Page, x: string, y: string, z: string): Promise<vo
   await setField(page, 'coord-x', x);
   await setField(page, 'coord-y', y);
   await setField(page, 'coord-z', z);
-  await page.getByTestId('coord-add').click();
+  await (await ctl(page, 'coord-add')).click();
 }
 
 async function showProject(page: Page): Promise<void> {
-  const back = page.getByTestId('back-to-project');
+  const back = await ctl(page, 'back-to-project');
   if (await back.isVisible()) await back.click();
   await expect(page.getByTestId('section-project')).toBeVisible();
 }
@@ -49,20 +50,20 @@ async function expectNoError(page: Page): Promise<void> {
 }
 
 async function drawNetwork(page: Page): Promise<void> {
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   await addPoint(page, '0', '0', '0');
   await addPoint(page, '3', '0', '0');
   await addPoint(page, '3', '3', '0');
   await addPoint(page, '6', '3', '0');
   await expectNoError(page);
   await page.keyboard.press('Escape');
-  await page.getByTestId('tool-select').click();
+  await (await ctl(page, 'tool-select')).click();
   await showProject(page);
 }
 
 async function download(page: Page, testId: string): Promise<{ name: string; text: string }> {
   const pending = page.waitForEvent('download');
-  await page.getByTestId(testId).click();
+  await (await ctl(page, testId)).click();
   const file = await pending;
   return { name: file.suggestedFilename(), text: await readFile(await file.path(), 'utf8') };
 }
@@ -79,8 +80,8 @@ test('trocar o diâmetro altera só o tubo e insere reduções de catálogo', as
   // Tubo do meio: DE 32 (DN 25) → DE 25 (DN 20).
   await items(page, 'pipe').nth(1).click();
   await expect(page.getByTestId('size-mode-reducers')).toBeChecked();
-  await page.getByTestId('prop-dn').selectOption('20');
-  await expect(page.getByTestId('prop-outer-diameter')).toHaveText('25 mm');
+  await (await ctl(page, 'prop-dn')).selectOption('20');
+  await expect(await ctl(page, 'prop-outer-diameter')).toHaveText('25 mm');
   await expect(page.getByTestId('status-message')).toContainText('2 redução(ões) inserida(s)');
 
   await showProject(page);
@@ -90,11 +91,11 @@ test('trocar o diâmetro altera só o tubo e insere reduções de catálogo', as
   await expect(page.getByTestId('generic-count')).toHaveText('0');
   // Os tubos vizinhos mantiveram o diâmetro.
   await items(page, 'pipe').first().click();
-  await expect(page.getByTestId('prop-outer-diameter')).toHaveText('32 mm');
+  await expect(await ctl(page, 'prop-outer-diameter')).toHaveText('32 mm');
   // A redução inserida é a luva de redução do catálogo.
   await showProject(page);
   await items(page, 'reducer').first().click();
-  await expect(page.getByTestId('prop-family')).toHaveAttribute(
+  await expect(await ctl(page, 'prop-family')).toHaveAttribute(
     'data-family-id',
     'krona-luva-reducao-soldavel',
   );
@@ -102,7 +103,7 @@ test('trocar o diâmetro altera só o tubo e insere reduções de catálogo', as
   // Voltar ao diâmetro original remove as reduções.
   await showProject(page);
   await items(page, 'pipe').nth(1).click();
-  await page.getByTestId('prop-dn').selectOption('25');
+  await (await ctl(page, 'prop-dn')).selectOption('25');
   await expect(page.getByTestId('status-message')).toContainText('2 redução(ões) removida(s)');
   await showProject(page);
   await expect(items(page, 'reducer')).toHaveCount(0);
@@ -117,20 +118,20 @@ test('elevação: alterar a cota de um tubo move os elementos conectados', async
   await drawNetwork(page);
 
   await items(page, 'pipe').first().click();
-  await expect(page.getByTestId('prop-elevation')).toHaveValue('0');
-  await expect(page.getByTestId('prop-elevation-info')).toContainText('4 elemento(s) conectado(s)');
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('0');
+  await expect(await ctl(page, 'prop-elevation-info')).toContainText('4 elemento(s) conectado(s)');
   await setField(page, 'prop-elevation', '1,5');
   await expect(page.getByTestId('status-message')).toContainText('Elevação alterada');
-  await expect(page.getByTestId('prop-start-z')).toHaveValue('1,5');
-  await expect(page.getByTestId('prop-length')).toHaveValue('2,982');
+  await expect(await ctl(page, 'prop-start-z')).toHaveValue('1,5');
+  await expect(await ctl(page, 'prop-length')).toHaveValue('2,982');
 
   // Os demais elementos da rede acompanharam: último tubo e joelho.
   await showProject(page);
   await items(page, 'pipe').nth(2).click();
-  await expect(page.getByTestId('prop-elevation')).toHaveValue('1,5');
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('1,5');
   await showProject(page);
   await items(page, 'elbow').first().click();
-  await expect(page.getByTestId('prop-elevation')).toHaveValue('1,5');
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('1,5');
   await showProject(page);
   await expect(page.getByTestId('connection-count')).toHaveText('4');
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
@@ -144,9 +145,9 @@ test('famílias: consultar, editar dimensões e aplicar às peças do projeto', 
 
   // Comprimento do primeiro tubo com o joelho de catálogo (Z = 18 mm para DE 32).
   await items(page, 'pipe').first().click();
-  await expect(page.getByTestId('prop-length')).toHaveValue('2,982');
+  await expect(await ctl(page, 'prop-length')).toHaveValue('2,982');
 
-  await page.getByTestId('action-families').click();
+  await (await ctl(page, 'action-families')).click();
   const dialog = page.getByTestId('families-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.getByTestId('family-item').first()).toBeVisible();
@@ -189,16 +190,21 @@ test('famílias: consultar, editar dimensões e aplicar às peças do projeto', 
   await dialog.getByTestId('families-close').click();
 
   // O tubo foi reajustado ao novo joelho, sem perder o acoplamento.
-  await expect(page.getByTestId('prop-length')).toHaveValue('2,97');
+  await expect(await ctl(page, 'prop-length')).toHaveValue('2,97');
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
 
   // Ferro dúctil tem famílias com bolsas e com flanges.
-  await page.getByTestId('action-families').click();
+  await (await ctl(page, 'action-families')).click();
   await dialog.getByTestId('families-specification').selectOption('ferro-ductil-nbr7675-k9');
   await dialog.getByTestId('families-kind').selectOption('valve');
   // 5 famílias AVK + 2 da redutora BERMAD 720 (SIGMA EN e ES) + 6 gavetas EURO 20
-  // (EURO 21 em PN 10/16, PN 10 e PN 25; EURO 23 em PN 10/16 e PN 10; EURO 25 com bolsas).
-  await expect(dialog.getByTestId('family-item')).toHaveCount(13);
+  // (EURO 21 em PN 10/16, PN 10 e PN 25; EURO 23 em PN 10/16 e PN 10; EURO 25 com bolsas)
+  // + filtro Y Spirax Sarco CI + macromedidor eletromagnético Sanecom.
+  await expect(dialog.getByTestId('family-item')).toHaveCount(15);
+  await expect(dialog.getByTestId('family-item').filter({ hasText: 'Filtro Y' })).toHaveCount(1);
+  await expect(dialog.getByTestId('family-item').filter({ hasText: 'Macromedidor' })).toHaveCount(
+    1,
+  );
   await expect(dialog.getByTestId('family-item').filter({ hasText: 'EURO 2' })).toHaveCount(6);
   await expect(dialog.getByTestId('family-item').filter({ hasText: 'BERMAD 720' })).toHaveCount(2);
   await dialog.getByTestId('families-close').click();
@@ -212,39 +218,36 @@ test('equipamentos, exportações IFC/quantitativo/EPANET e análises', async ({
   await page.getByTestId('environment-infra').click();
 
   // Reservatório, tubo de saída, válvula de gaveta flangeada em linha.
-  await page.getByTestId('tool-tank').click();
+  await (await ctl(page, 'tool-tank')).click();
   await addPoint(page, '0', '0', '0');
   await expectNoError(page);
-  await expect(page.getByTestId('element-properties')).toHaveAttribute('data-element-kind', 'tank');
-  await page.getByTestId('tool-pipe').click();
+  await expect(await ctl(page, 'element-properties')).toHaveAttribute('data-element-kind', 'tank');
+  await (await ctl(page, 'tool-pipe')).click();
   await addPoint(page, '1,15', '0', '0,2'); // bocal de saída do reservatório
   await addPoint(page, '12', '0', '0,2');
   await expectNoError(page);
   await page.keyboard.press('Escape');
-  await page.getByTestId('tool-select').click();
+  await (await ctl(page, 'tool-select')).click();
   await showProject(page);
   await expect(page.getByTestId('connection-count')).toHaveText('1');
 
   await items(page, 'pipe').first().click();
   await setField(page, 'inline-distance', '4');
-  await page.getByTestId('inline-add-valve').click();
-  await expect(page.getByTestId('element-properties')).toHaveAttribute(
-    'data-element-kind',
-    'valve',
-  );
-  await expect(page.getByTestId('prop-family')).toHaveAttribute(
+  await (await ctl(page, 'inline-add-valve')).click();
+  await expect(await ctl(page, 'element-properties')).toHaveAttribute('data-element-kind', 'valve');
+  await expect(await ctl(page, 'prop-family')).toHaveAttribute(
     'data-family-id',
     'avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9',
   );
   // DN 150: face a face 210 mm (EN 558 série 14).
-  await expect(page.getByTestId('prop-valve-length')).toHaveValue('210');
+  await expect(await ctl(page, 'prop-valve-length')).toHaveValue('210');
 
   // Tubo independente cruzando a adutora: interferência.
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   await addPoint(page, '8', '-2', '0,25');
   await addPoint(page, '8', '2', '0,25');
   await page.keyboard.press('Escape');
-  await page.getByTestId('tool-select').click();
+  await (await ctl(page, 'tool-select')).click();
   await page.screenshot({ path: 'test-results/04-elevatoria.png' });
 
   // Exportações.
@@ -266,10 +269,10 @@ test('equipamentos, exportações IFC/quantitativo/EPANET e análises', async ({
   expect(inp.text).toContain('[TANKS]');
   expect(inp.text).toContain('[PIPES]');
 
-  // Diálogo de projeto: níveis, georreferência, terreno, perfil e interferências.
+  // Gerenciar (níveis, georreferência, terreno) e Análise (perfil e interferências).
   await showProject(page);
   await items(page, 'pipe').first().click();
-  await page.getByTestId('action-project').click();
+  await openProjectTab(page, 'levels');
   const dialog = page.getByTestId('project-dialog');
   await expect(dialog.getByTestId('level-row')).toHaveCount(1);
   await setField(page, 'level-name', 'Cobertura');
@@ -277,7 +280,7 @@ test('equipamentos, exportações IFC/quantitativo/EPANET e análises', async ({
   await dialog.getByTestId('level-add').click();
   await expect(dialog.getByTestId('level-row')).toHaveCount(2);
 
-  await dialog.getByTestId('tab-button-georeference').click();
+  await openProjectTab(page, 'georeference');
   await expect(dialog.getByTestId('geo-state')).toHaveText('Não definida');
   await setField(page, 'geo-crs', 'SIRGAS 2000 / UTM zone 23S');
   await setField(page, 'geo-epsg', '31983');
@@ -286,7 +289,7 @@ test('equipamentos, exportações IFC/quantitativo/EPANET e análises', async ({
   await dialog.getByTestId('geo-save').click();
   await expect(dialog.getByTestId('geo-state')).toContainText('SIRGAS 2000');
 
-  await dialog.getByTestId('tab-button-terrain').click();
+  await openProjectTab(page, 'terrain');
   await dialog.getByTestId('terrain-file').setInputFiles({
     name: 'levantamento.xyz',
     mimeType: 'text/plain',
@@ -294,17 +297,17 @@ test('equipamentos, exportações IFC/quantitativo/EPANET e análises', async ({
   });
   await expect(dialog.getByTestId('terrain-points')).toHaveText('5');
 
-  await dialog.getByTestId('tab-button-profile').click();
+  await openProjectTab(page, 'profile');
   await expect(dialog.getByTestId('profile-chart')).toBeVisible();
   await expect(dialog.getByTestId('profile-cover')).toContainText('m');
   await expect(dialog.getByTestId('profile-cover')).not.toContainText('Sem terreno');
 
-  await dialog.getByTestId('tab-button-clashes').click();
+  await openProjectTab(page, 'clashes');
   await expect(dialog.getByTestId('clash-count')).toHaveText('1');
   await dialog.getByTestId('clash-item').click();
   await page.screenshot({ path: 'test-results/05-perfil-interferencias.png' });
   await dialog.getByTestId('project-close').click();
-  await expect(page.getByTestId('multi-properties')).toHaveAttribute('data-count', '2');
+  await expect(await ctl(page, 'multi-properties')).toHaveAttribute('data-count', '2');
 
   // Com georreferência informada, o IFC passa a trazer o sistema de coordenadas.
   const georeferenced = await download(page, 'action-export-ifc');
