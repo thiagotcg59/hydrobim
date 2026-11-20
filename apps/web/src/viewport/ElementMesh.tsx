@@ -4,7 +4,10 @@ import { memo, useEffect, useMemo } from 'react';
 import { BufferAttribute, BufferGeometry } from 'three';
 import { partFinish } from './materials';
 
-const SELECTED_EMISSIVE = '#1f6fe0';
+// Ciano: o mesmo destaque da seleção na planta. A cor da peça é trocada (e não só somada à
+// do material) para que o destaque seja o mesmo em PVC marrom, ferro preto ou aço.
+const SELECTED_COLOR = '#19b6cf';
+const SELECTED_EMISSIVE = '#006f85';
 const HOVER_EMISSIVE = '#16406f';
 
 function toBufferGeometry(mesh: MeshData): BufferGeometry {
@@ -51,9 +54,9 @@ export const PartMeshes = memo(function PartMeshes({
         return (
           <mesh key={index} geometry={part.geometry}>
             <meshStandardMaterial
-              color={finish.color}
+              color={selected ? SELECTED_COLOR : finish.color}
               emissive={emissive}
-              emissiveIntensity={selected ? 0.9 : hovered ? 0.7 : 0}
+              emissiveIntensity={selected ? 0.55 : hovered ? 0.7 : 0}
               roughness={finish.roughness}
               metalness={finish.metalness}
             />

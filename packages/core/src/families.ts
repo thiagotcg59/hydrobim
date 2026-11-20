@@ -6,6 +6,7 @@ import {
 } from './dimensions';
 import type {
   EndTreatment,
+  EndType,
   FamilyEnd,
   FamilyKind,
   FamilySize,
@@ -49,23 +50,54 @@ export interface ValveDimensions extends ResolvedBase {
   bonnetLength?: number;
 }
 
+/**
+ * `endType`, quando informado, restringe a busca às famílias com esse acabamento nas
+ * extremidades: uma porta flangeada só recebe peça flangeada (flange × flange). Sem família
+ * com o acabamento pedido, o resultado é genérico (`familyId: null`).
+ */
 export interface FittingCatalog {
-  elbow(spec: PipeSpec, angle: number, preferredFamilyId?: string | null): ElbowDimensions;
-  tee(spec: PipeSpec, branchSpec: PipeSpec, preferredFamilyId?: string | null): TeeDimensions;
+  elbow(
+    spec: PipeSpec,
+    angle: number,
+    preferredFamilyId?: string | null,
+    endType?: EndType,
+  ): ElbowDimensions;
+  tee(
+    spec: PipeSpec,
+    branchSpec: PipeSpec,
+    preferredFamilyId?: string | null,
+    endType?: EndType,
+  ): TeeDimensions;
   /** `a` e `b` são as especificações das portas `a` e `b`, em qualquer ordem de diâmetro. */
-  reducer(a: PipeSpec, b: PipeSpec, preferredFamilyId?: string | null): ReducerDimensions;
-  valve(spec: PipeSpec, valveType: ValveType, preferredFamilyId?: string | null): ValveDimensions;
+  reducer(
+    a: PipeSpec,
+    b: PipeSpec,
+    preferredFamilyId?: string | null,
+    endType?: EndType,
+  ): ReducerDimensions;
+  valve(
+    spec: PipeSpec,
+    valveType: ValveType,
+    preferredFamilyId?: string | null,
+    endType?: EndType,
+  ): ValveDimensions;
   /**
    * Flange de um tubo da família de tubos flangeados `familyId`, para o diâmetro de `spec`.
    * `undefined` quando a família não atende a especificação ou não tabula o diâmetro.
    * Ausente no catálogo genérico: sem tabela, não há flange a oferecer.
    */
   pipeFlange?(spec: PipeSpec, familyId: string): EndTreatment | undefined;
+  /**
+   * Flange da classe de pressão `pressureClass` (ex.: `PN 40`) para o diâmetro de `spec`, pela
+   * tabela única de flanges. `undefined` quando a tabela não traz a classe ou o diâmetro.
+   */
+  flange?(spec: PipeSpec, pressureClass: string): EndTreatment | undefined;
 }
 
-/** Recursos do catálogo que não são famílias de conexões (tubos com flanges). */
+/** Recursos do catálogo que não são famílias de conexões (tubos com flanges, flanges PN). */
 export interface CatalogExtensions {
   pipeFlange?: (spec: PipeSpec, familyId: string) => EndTreatment | undefined;
+  flange?: (spec: PipeSpec, pressureClass: string) => EndTreatment | undefined;
 }
 
 /** Proporções genéricas em função do diâmetro externo (não representam produtos reais). */
@@ -121,10 +153,15 @@ export function createFamilyCatalog(
     kind: FamilyKind,
     spec: PipeSpec,
     preferredId: string | null | undefined,
+    endType: EndType | undefined,
     accept: (family: FittingFamily) => boolean,
   ): FittingFamily[] {
     const matching = families.filter(
-      (f) => f.kind === kind && f.specificationId === spec.specificationId && accept(f),
+      (f) =>
+        f.kind === kind &&
+        f.specificationId === spec.specificationId &&
+        (endType === undefined || f.endType === endType) &&
+        accept(f),
     );
     const wanted = preferredId ?? preferred[kind];
     // A família preferida vem primeiro; as demais servem de alternativa para o diâmetro.
@@ -144,10 +181,11 @@ export function createFamilyCatalog(
 
   return {
     ...(extensions.pipeFlange ? { pipeFlange: extensions.pipeFlange } : {}),
+    ...(extensions.flange ? { flange: extensions.flange } : {}),
 
-    elbow(spec, angle, preferredId) {
+    elbow(spec, angle, preferredId, endType) {
       const hit = find(
-        candidates('elbow', spec, preferredId, (f) =>
+        candidates('elbow', spec, preferredId, endType, (f) =>
           f.angle === undefined ? false : Math.abs(f.angle - angle) <= ANGLE_MATCH,
         ),
         (s) => s.dn === spec.dn && s.centerToEnd !== undefined,
@@ -182,9 +220,9 @@ export function createFamilyCatalog(
       };
     },
 
-    tee(spec, branchSpec, preferredId) {
+    tee(spec, branchSpec, preferredId, endType) {
       const hit = find(
-        candidates('tee', spec, preferredId, () => true),
+        candidates('tee', spec, preferredId, endType, () => true),
         (s) => s.dn === spec.dn && (s.dn2 ?? s.dn) === branchSpec.dn && s.centerToEnd !== undefined,
       );
       if (!hit?.size.centerToEnd) return GENERIC_CATALOG.tee(spec, branchSpec);
@@ -201,12 +239,12 @@ export function createFamilyCatalog(
       };
     },
 
-    reducer(a, b, preferredId) {
+    reducer(a, b, preferredId, endType) {
       const aIsLarge = a.dn >= b.dn;
       const large = aIsLarge ? a : b;
       const small = aIsLarge ? b : a;
       const hit = find(
-        candidates('reducer', large, preferredId, () => true),
+        candidates('reducer', large, preferredId, endType, () => true),
         (s) => s.dn === large.dn && s.dn2 === small.dn && s.length !== undefined,
       );
       if (!hit?.size.length) return GENERIC_CATALOG.reducer(a, b);
@@ -222,9 +260,9 @@ export function createFamilyCatalog(
       };
     },
 
-    valve(spec, valveType, preferredId) {
+    valve(spec, valveType, preferredId, endType) {
       const hit = find(
-        candidates('valve', spec, preferredId, (f) => f.valveType === valveType),
+        candidates('valve', spec, preferredId, endType, (f) => f.valveType === valveType),
         (s) => s.dn === spec.dn && s.length !== undefined,
       );
       if (!hit?.size.length) return GENERIC_CATALOG.valve(spec, valveType);
@@ -247,6 +285,16 @@ export function createFamilyCatalog(
       };
     },
   };
+}
+
+/**
+ * Acabamento que uma peça ligada às portas `ports` precisa ter: porta flangeada exige peça
+ * flangeada (flange × flange, sem presumir adaptador). `undefined` = sem restrição.
+ */
+export function requiredEndType(
+  ...ends: readonly (EndTreatment | null | undefined)[]
+): EndType | undefined {
+  return ends.some((end) => end?.type === 'flange') ? 'flange' : undefined;
 }
 
 /** Une famílias embutidas e as do projeto; as do projeto prevalecem pelo `id`. */

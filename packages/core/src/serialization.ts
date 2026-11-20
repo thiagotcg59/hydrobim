@@ -91,6 +91,12 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
           }
         : doc.terrain,
   }),
+  // v12 → v13: famílias de bombas. A bomba ganha a forma construtiva (`pumpType`), a linha da
+  // tabela (`variantId`), os estágios, as classes dos flanges e as cotas do dimensional do
+  // fabricante (C, D, E, G, ØH, I, J); `dischargeOffset` e `dischargeHeight` passam a ser
+  // opcionais (só a bomba genérica os usa). O projeto ganha as famílias de bombas
+  // personalizadas (`pumpFamilies`), vazias nos documentos antigos.
+  12: (doc) => ({ pumpFamilies: [], ...doc, schemaVersion: 13 }),
 };
 
 export function serializeProject(project: Project): string {

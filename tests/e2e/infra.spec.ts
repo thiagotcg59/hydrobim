@@ -492,6 +492,25 @@ test('georreferência pelo mapa: fuso 21S por padrão, temas de satélite e ruas
   expect(custom[0]).toContain('key=CHAVE-DO-USUARIO');
   await theme.selectOption('osm-standard');
 
+  // Atalho Esri World Imagery: basta a chave do usuário; o endereço segue a documentação.
+  const esri: string[] = [];
+  await page.route(/^https:\/\/ibasemaps-api\.arcgis\.com\//, async (route) => {
+    esri.push(route.request().url());
+    await route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL });
+  });
+  await picker.getByTestId('custom-source-esri-apply').click();
+  await expect(picker.getByTestId('custom-source-error')).toContainText('chave');
+  await picker.getByTestId('custom-source-esri-key').fill('CHAVE-ESRI-DE-TESTE');
+  await picker.getByTestId('custom-source-esri-apply').click();
+  await expect(picker.getByTestId('custom-source-error')).toHaveCount(0);
+  await theme.selectOption('custom');
+  await expect(page.getByTestId('geo-picker-attribution')).toContainText('Esri');
+  await expect.poll(() => esri.length).toBeGreaterThan(0);
+  expect(esri[0]).toMatch(
+    /World_Imagery\/MapServer\/tile\/\d+\/\d+\/\d+\?token=CHAVE-ESRI-DE-TESTE$/,
+  );
+  await theme.selectOption('osm-standard');
+
   // Navegação: ir para uma coordenada, aproximar com a roda e arrastar.
   const map = page.getByTestId('geo-picker-map');
   await setField(page, 'geo-picker-search', '-15,6; -56,1');

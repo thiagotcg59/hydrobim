@@ -14,6 +14,8 @@ import {
   TANK_NOZZLE_ROLE_LABELS,
   TANK_TYPE_LABELS,
   tankNozzlePorts,
+  PUMP_DIMENSION_KEYS,
+  pumpTypeOf,
   tankTypeOf,
   type EndTreatment,
   type HydroElement,
@@ -100,6 +102,10 @@ const END_LABELS: Record<EndTreatment['type'], string> = {
 export const isCatalogTank = (element: HydroElement): boolean =>
   element.kind === 'tank' && tankTypeOf(element) !== 'generic';
 
+/** Bomba de família de catálogo (forma construtiva definida). */
+export const isCatalogPump = (element: HydroElement): boolean =>
+  element.kind === 'pump' && pumpTypeOf(element) !== 'generic';
+
 /** Entidade IFC, tipo predefinido e tipo interno de um elemento. */
 export function classifyElement(element: HydroElement): IfcClassification {
   switch (element.kind) {
@@ -112,7 +118,13 @@ export function classifyElement(element: HydroElement): IfcClassification {
     case 'reducer':
       return { entity: 'IfcPipeFitting', predefinedType: 'TRANSITION', objectType: 'reducer' };
     case 'pump':
-      return { entity: 'IfcPump', predefinedType: 'ENDSUCTION', objectType: 'pump' };
+      // Bomba anfíbia: motobomba de motor submerso, que opera submersa ou a seco, em linha.
+      // SUBMERSIBLEPUMP é o tipo do esquema que a descreve (conferido em schemaData.ts).
+      return {
+        entity: 'IfcPump',
+        predefinedType: isCatalogPump(element) ? 'SUBMERSIBLEPUMP' : 'ENDSUCTION',
+        objectType: 'pump',
+      };
     case 'tank':
       return { entity: 'IfcTank', predefinedType: 'STORAGE', objectType: 'tank' };
     case 'valve':
@@ -231,11 +243,26 @@ export function ifcTypeKey(element: HydroElement): string {
     case 'pump':
       parts.push(
         'pump',
+        pumpTypeOf(element),
+        family,
+        element.variantId,
         spec.specificationId,
         spec.dn,
         element.dischargeSpec.specificationId,
         element.dischargeSpec.dn,
         round(element.length),
+        // Bomba de catálogo: as cotas do dimensional e as classes dos flanges definem o tipo.
+        ...(isCatalogPump(element)
+          ? [
+              element.stages,
+              element.suctionFlangeClass,
+              element.dischargeFlangeClass,
+              ...PUMP_DIMENSION_KEYS.map((key) => {
+                const dimension = element[key];
+                return dimension === undefined ? undefined : round(dimension);
+              }),
+            ]
+          : []),
         element.ratedFlow === undefined ? undefined : round(element.ratedFlow),
         element.ratedHead === undefined ? undefined : round(element.ratedHead),
       );
@@ -302,6 +329,8 @@ function typeName(element: HydroElement, family: IfcFamilyInfo | undefined): str
   if (element.kind === 'tank' && isCatalogTank(element))
     return element.manufacturing.model ?? TANK_TYPE_LABELS[tankTypeOf(element)];
   if (family) return `${family.name} — ${sizeText(element)}`;
+  if (isCatalogPump(element))
+    return `${element.manufacturing.model ?? KIND_LABELS.pump} — ${sizeText(element)}`;
   const label =
     element.kind === 'valve'
       ? (VALVE_NAMES[element.valveType] ?? 'Válvula')
@@ -316,6 +345,10 @@ function typeDescription(element: HydroElement, family: IfcFamilyInfo | undefine
     return TANK_TYPE_LABELS[tankTypeOf(element)];
   if (family) return `Família de catálogo. Fonte: ${family.source}`;
   if (element.kind === 'pipe') return 'Tubo da especificação do catálogo de tubos.';
+  if (element.kind === 'pump' && isCatalogPump(element))
+    return element.variantId
+      ? 'Bomba de catálogo: cotas do dimensional do fabricante.'
+      : 'Bomba com a forma da família de catálogo e cotas preenchidas pelo usuário.';
   if (element.kind === 'pump' || element.kind === 'tank')
     return 'Representação genérica; sem identificação de produto comercial.';
   return 'Dimensões genéricas; sem identificação de produto comercial.';
@@ -327,6 +360,8 @@ function elementDescription(element: HydroElement): string | null {
   if (element.kind === 'pipe') return null;
   if (isCatalogTank(element))
     return 'Geometria paramétrica da forma construtiva da família; dimensões principais do catálogo ou do usuário. Chapas, acessórios e bocais são representação ou configuração do usuário.';
+  if (isCatalogPump(element))
+    return 'Geometria paramétrica da forma construtiva da família; cotas principais do dimensional do fabricante ou do usuário. Carcaça, tirantes, pés e olhais são representação.';
   return element.familyId === null
     ? 'Geometria genérica; dimensões livres, sem identificação de produto comercial.'
     : 'Geometria simplificada; dimensões principais da família de catálogo.';

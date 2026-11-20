@@ -104,7 +104,9 @@ export function SegmentEntry() {
   const angles = useMemo(
     () =>
       origin && toolOptions.lockElbowAngles
-        ? elbowAnglesOf(project, origin.spec).map((a) => Math.round(radToDeg(a) * 100) / 100)
+        ? elbowAnglesOf(project, origin.spec, origin.end).map(
+            (a) => Math.round(radToDeg(a) * 100) / 100,
+          )
         : [90, 45, 22.5, 11.25],
     [origin, project, toolOptions.lockElbowAngles],
   );

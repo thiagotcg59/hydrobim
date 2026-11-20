@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { checkCustomSource, CUSTOM_BASEMAP_ID, customProvider } from './customSource';
+import {
+  checkCustomSource,
+  CUSTOM_BASEMAP_ID,
+  customProvider,
+  esriWorldImagerySource,
+} from './customSource';
 import { basemapProviders, findBasemapProvider, tileUrl } from './providers';
 
 const valid = {
@@ -39,6 +44,21 @@ describe('fonte de mapa personalizada', () => {
     const checked = checkCustomSource(input);
     expect(checked.ok).toBe(false);
     if (!checked.ok) expect(checked.message).toContain(reason);
+  });
+
+  it('monta a fonte Esri World Imagery a partir da chave do usuário', () => {
+    const checked = esriWorldImagerySource('  AAPK-chave+de/teste  ');
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    const provider = customProvider(checked.value);
+    // Ordem da Esri: nível, linha, coluna; a chave vai codificada no parâmetro `token`.
+    expect(tileUrl(provider, 15, 11000, 17000)).toBe(
+      'https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/15/17000/11000?token=AAPK-chave%2Bde%2Fteste',
+    );
+    expect(provider.attribution).toContain('Esri');
+    expect(provider.name).not.toContain('AAPK');
+    expect(esriWorldImagerySource('   ').ok).toBe(false);
+    expect(esriWorldImagerySource('AAPK com espaço').ok).toBe(false);
   });
 
   it('entra na lista de fontes só quando configurada', () => {

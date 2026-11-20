@@ -1,5 +1,5 @@
 import { add, angleBetween, dot, length, scale, sub, tryNormalize, type Vec3 } from './math';
-import type { FittingFamily, PipeSpec } from './schema';
+import type { EndType, FittingFamily, PipeSpec } from './schema';
 import { degToRad, formatDegrees } from './units';
 
 /**
@@ -15,10 +15,16 @@ export const ELBOW_ANGLE_MATCH = degToRad(0.5);
  * especificação e o diâmetro informados. Lista vazia: não há família para a especificação
  * (as peças são genéricas e o ângulo fica livre).
  */
-export function availableElbowAngles(families: readonly FittingFamily[], spec: PipeSpec): number[] {
+export function availableElbowAngles(
+  families: readonly FittingFamily[],
+  spec: PipeSpec,
+  /** Acabamento exigido (porta flangeada só admite curva flangeada). */
+  endType?: EndType,
+): number[] {
   const angles: number[] = [];
   for (const family of families) {
     if (family.kind !== 'elbow' || family.specificationId !== spec.specificationId) continue;
+    if (endType !== undefined && family.endType !== endType) continue;
     const angle = family.angle;
     if (angle === undefined) continue;
     if (!family.sizes.some((s) => s.dn === spec.dn && s.centerToEnd !== undefined)) continue;

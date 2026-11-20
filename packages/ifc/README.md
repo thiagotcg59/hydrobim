@@ -63,7 +63,8 @@ Detalhes do mapeamento: `docs/IFC_MAPPING.md`; decisão: ADR-033.
 | Válvula globo | `IfcValve` | `REGULATING` |
 | Válvula de retenção | `IfcValve` | `CHECK` |
 | Ventosa | `IfcValve` | `AIRRELEASE` |
-| Bomba | `IfcPump` | `ENDSUCTION` |
+| Bomba genérica | `IfcPump` | `ENDSUCTION` |
+| Bomba anfíbia de catálogo | `IfcPump` | `SUBMERSIBLEPUMP` |
 | Reservatório | `IfcTank` | `STORAGE` |
 | Reservatório de catálogo | `IfcTank` + `IfcTankType`, material, `Pset_<Fabricante>_Reservatorio`, conjuntos padrão e portas com função (ver `docs/IFC_MAPPING.md`) | `STORAGE` |
 

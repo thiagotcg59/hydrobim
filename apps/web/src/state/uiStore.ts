@@ -23,6 +23,7 @@ export const TASK_LABELS: Record<TaskId, string> = {
 
 export type DialogId = 'open' | 'families' | 'ifcLibrary' | 'export' | 'commands';
 export type PanelTab = 'tool' | 'properties';
+export type WorkspaceView = 'plan' | '3d';
 
 /** Pedido a ser atendido pela planta (que guarda a janela visível e o desenho). */
 export type PlanCommand =
@@ -35,6 +36,9 @@ export interface LayoutPrefs {
   /** Larguras dos painéis laterais, em pixels. */
   readonly navWidth: number;
   readonly panelWidth: number;
+  readonly workspaceLayout: 'single' | 'split';
+  /** Fração da área de desenho ocupada pela planta. */
+  readonly splitRatio: number;
 }
 
 export const DEFAULT_LAYOUT: LayoutPrefs = {
@@ -43,6 +47,9 @@ export const DEFAULT_LAYOUT: LayoutPrefs = {
   panelOpen: true,
   navWidth: 240,
   panelWidth: 340,
+  // Planta e modelo 3D lado a lado: o mesmo projeto visto de cima e em volume.
+  workspaceLayout: 'split',
+  splitRatio: 0.5,
 };
 
 export const PANEL_LIMITS = {
@@ -74,6 +81,11 @@ export function parseLayout(text: string | null): LayoutPrefs {
       panelOpen: flag('panelOpen'),
       navWidth: width('navWidth', PANEL_LIMITS.nav),
       panelWidth: width('panelWidth', PANEL_LIMITS.panel),
+      workspaceLayout: data.workspaceLayout === 'single' ? 'single' : 'split',
+      splitRatio:
+        typeof data.splitRatio === 'number' && Number.isFinite(data.splitRatio)
+          ? Math.min(0.75, Math.max(0.25, data.splitRatio))
+          : DEFAULT_LAYOUT.splitRatio,
     };
   } catch {
     return DEFAULT_LAYOUT;
@@ -115,6 +127,8 @@ interface UiState extends LayoutPrefs {
   planRequest: { command: PlanCommand; nonce: number } | null;
   /** Campo ou seção do painel de propriedades a mostrar (`data-testid`). */
   reveal: { target: string; nonce: number } | null;
+  /** Maximização temporária: as duas vistas continuam montadas e conservam suas câmeras. */
+  maximizedView: WorkspaceView | null;
 
   setTask: (task: TaskId) => void;
   setRibbonCollapsed: (collapsed: boolean) => void;
@@ -122,6 +136,10 @@ interface UiState extends LayoutPrefs {
   setPanelOpen: (open: boolean) => void;
   setPanelWidth: (side: 'nav' | 'panel', width: number) => void;
   resetLayout: () => void;
+  setWorkspaceLayout: (layout: 'single' | 'split') => void;
+  setSplitRatio: (ratio: number) => void;
+  maximizeView: (view: WorkspaceView) => void;
+  activateWorkspaceView: (view: WorkspaceView) => void;
   openDialog: (dialog: DialogId) => void;
   /** Fecha o diálogo indicado (um diálogo que se fecha não derruba o que abriu em seguida). */
   closeDialog: (dialog: DialogId) => void;
@@ -138,6 +156,8 @@ const layoutOf = (state: LayoutPrefs): LayoutPrefs => ({
   panelOpen: state.panelOpen,
   navWidth: state.navWidth,
   panelWidth: state.panelWidth,
+  workspaceLayout: state.workspaceLayout,
+  splitRatio: state.splitRatio,
 });
 
 export const useUiStore = create<UiState>()((set, get) => {
@@ -157,6 +177,7 @@ export const useUiStore = create<UiState>()((set, get) => {
     validationOpen: false,
     planRequest: null,
     reveal: null,
+    maximizedView: null,
 
     setTask: (task) => {
       const previous = get().task;
@@ -198,7 +219,31 @@ export const useUiStore = create<UiState>()((set, get) => {
           ? { navWidth: clamp(width, PANEL_LIMITS.nav.min, PANEL_LIMITS.nav.max) }
           : { panelWidth: clamp(width, PANEL_LIMITS.panel.min, PANEL_LIMITS.panel.max) },
       ),
-    resetLayout: () => setLayout(DEFAULT_LAYOUT),
+    resetLayout: () => {
+      set({ maximizedView: null });
+      setLayout(DEFAULT_LAYOUT);
+    },
+    setWorkspaceLayout: (workspaceLayout) => {
+      const editor = useEditorStore.getState();
+      if (editor.viewMode === 'bim') return;
+      const entering = workspaceLayout === 'split' && get().workspaceLayout !== 'split';
+      set({ maximizedView: null });
+      setLayout({ workspaceLayout });
+      // A vista combinada abre com uma orientação técnica; a navegação seguinte é independente.
+      if (entering) editor.requestIsometric();
+    },
+    setSplitRatio: (ratio) => {
+      if (Number.isFinite(ratio)) setLayout({ splitRatio: Math.min(0.75, Math.max(0.25, ratio)) });
+    },
+    maximizeView: (view) => {
+      const maximizedView = get().maximizedView === view ? null : view;
+      set({ maximizedView });
+      if (maximizedView) get().activateWorkspaceView(view);
+    },
+    activateWorkspaceView: (view) => {
+      const editor = useEditorStore.getState();
+      if (editor.viewMode !== 'bim' && editor.viewMode !== view) editor.setViewMode(view);
+    },
 
     openDialog: (dialog) => set({ dialog }),
     closeDialog: (dialog) => {
@@ -247,6 +292,16 @@ useEditorStore.subscribe((state, previous) => {
   // Entrada na consulta por outro caminho que não a aba (ex.: testes, comandos futuros).
   if (previous.viewMode !== 'bim' && state.viewMode === 'bim' && ui.task !== 'bim') {
     useUiStore.setState({ task: 'bim', returnTask: ui.task });
+  }
+
+  // Vista maximizada: escolher a outra vista (aba, navegador, comando) troca a que ocupa a área.
+  if (
+    ui.maximizedView &&
+    state.viewMode !== previous.viewMode &&
+    state.viewMode !== 'bim' &&
+    state.viewMode !== ui.maximizedView
+  ) {
+    useUiStore.setState({ maximizedView: state.viewMode });
   }
 
   // O painel direito acompanha a ferramenta: opções ao criar, propriedades ao selecionar.

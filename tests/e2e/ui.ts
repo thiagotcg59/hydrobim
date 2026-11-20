@@ -15,20 +15,29 @@ const TASK_RULES: readonly (readonly [RegExp, Task])[] = [
   [/^(plan-scale|plan-dimension-mode|infra-scale|doc-.*)$/, 'document'],
   [/^(tool-(select|pipe|elbow|tee|reducer|valve|pump|tank|measure)|action-families)$/, 'model'],
   [/^(modify-|connect-)/, 'model'],
-  [/^(plan-theme|plan-thin-lines|custom-source-toggle|ribbon-view-.*|layout-(nav|panel))$/, 'view'],
+  [
+    /^(plan-theme|plan-thin-lines|custom-source-toggle|ribbon-view-.*|view-split|layout-(nav|panel))$/,
+    'view',
+  ],
   [
     /^infra-(basemap(-visible|-opacity)?|layers|layer-.*|label-(names|lengths|elevations))$/,
     'view',
   ],
   [/^infra-(goto|goto-go|georef)$/, 'view'],
   [
-    /^terrain-(color-mode|contours-toggle|contour-interval|contour-smoothing|triangulation-toggle|exaggeration|natural|opacity)$/,
+    /^terrain-(color-mode|contours-toggle|contour-interval|contour-smoothing|triangulation-toggle|exaggeration|natural|opacity|visible-plan|visible-3d)$/,
     'view',
   ],
   [/^terrain-cmd-/, 'model'],
   [/^analysis-/, 'analysis'],
   [/^(action-export-.+|plan-export-(svg|dxf)|export-details)$/, 'export'],
   [/^(manage-.*|layout-(ribbon|reset))$/, 'manage'],
+];
+
+/** Comandos reunidos em um botão com seta da faixa: a lista é aberta antes de usá-los. */
+const RIBBON_MENUS: readonly (readonly [RegExp, string])[] = [
+  [/^tool-(elbow|tee|reducer)$/, 'fittings'],
+  [/^tool-(pump|tank)$/, 'equipment'],
 ];
 
 const PANEL_RULES: readonly (readonly [RegExp, 'properties' | 'tool'])[] = [
@@ -69,6 +78,10 @@ export async function ctl(page: Page, testId: string): Promise<Locator> {
   }
   const task = TASK_RULES.find(([pattern]) => pattern.test(testId))?.[1];
   if (task) await openTask(page, task);
+  const menu = RIBBON_MENUS.find(([pattern]) => pattern.test(testId))?.[1];
+  if (menu && !(await page.getByTestId(`ribbon-menu-${menu}-list`).isVisible())) {
+    await page.getByTestId(`ribbon-menu-${menu}`).click();
+  }
   const tab = PANEL_RULES.find(([pattern]) => pattern.test(testId))?.[1];
   if (tab) await openPanelTab(page, tab);
   return page.getByTestId(testId);

@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 12 as const;
+export const SCHEMA_VERSION = 13 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -246,23 +246,140 @@ export const ValveSchema = z.object({
 });
 export type Valve = z.infer<typeof ValveSchema>;
 
-/** Conjunto motobomba (representação genérica: sucção axial, recalque vertical). */
+/**
+ * Forma construtiva da bomba. Ausente no elemento = `generic` (conjunto motobomba de
+ * representação: sucção axial, recalque vertical, sem identificação de produto).
+ */
+export const PUMP_TYPES = [
+  'generic',
+  // Bomba anfíbia em linha: sucção e descarga flangeadas e coaxiais, motor entre elas,
+  // apoiada em dois pares de pés.
+  'amphibious',
+] as const;
+export const PumpTypeSchema = z.enum(PUMP_TYPES);
+export type PumpType = z.infer<typeof PumpTypeSchema>;
+
+/**
+ * Bomba. Sem `pumpType` é o conjunto motobomba genérico (sucção axial na porta `a`, recalque
+ * vertical na porta `b`, posicionado por `dischargeOffset` e `dischargeHeight`).
+ *
+ * Bomba anfíbia (`pumpType: 'amphibious'`): a porta `a` (sucção, flange A do catálogo) fica
+ * na origem e a porta `b` (descarga, flange B) no mesmo eixo, a `length` (cota F) de
+ * distância. As demais cotas levam, na interface, as letras do dimensional do fabricante:
+ * C = `footOffset`, D = `footSpan`, E = `rearLength`, G = `footWidth`, ØH =
+ * `footHoleDiameter`, I = `axisHeight`, J = `totalHeight`. `familyId` identifica a família
+ * de catálogo e `variantId`, a linha da tabela (ausente = cotas preenchidas pelo usuário).
+ */
 export const PumpSchema = z.object({
   ...fittingBase,
   kind: z.literal('pump'),
   /** Especificação do recalque (porta `b`). `spec` descreve a sucção (porta `a`). */
   dischargeSpec: PipeSpecSchema,
-  /** Comprimento total do conjunto ao longo do eixo de sucção (m). */
+  /**
+   * Comprimento total ao longo do eixo de sucção (m). Na bomba anfíbia é a cota F: de face a
+   * face dos flanges.
+   */
   length: positive,
-  /** Distância da face de sucção ao eixo do recalque (m). */
-  dischargeOffset: positive,
-  /** Altura do eixo de sucção à face do recalque (m). */
-  dischargeHeight: positive,
+  /** Genérica: distância da face de sucção ao eixo do recalque (m). */
+  dischargeOffset: positive.optional(),
+  /** Genérica: altura do eixo de sucção à face do recalque (m). */
+  dischargeHeight: positive.optional(),
   /** Vazão nominal (m³/s) e altura manométrica (m), quando conhecidas. */
   ratedFlow: positive.optional(),
   ratedHead: positive.optional(),
+  pumpType: PumpTypeSchema.optional(),
+  /** Linha da tabela da família (`familyId`); ausente = cotas preenchidas pelo usuário. */
+  variantId: z.string().min(1).optional(),
+  /** Número de estágios (1 = estágio único); muda só a representação do corpo. */
+  stages: z.number().int().positive().optional(),
+  /** Classe de pressão dos flanges de sucção (A) e de descarga (B), ex.: `PN 40`. */
+  suctionFlangeClass: z.string().min(1).optional(),
+  dischargeFlangeClass: z.string().min(1).optional(),
+  /** Cota C: da face do flange de descarga (B) ao primeiro par de pés (m). */
+  footOffset: positive.optional(),
+  /** Cota D: distância entre os dois pares de pés, ao longo do eixo (m). */
+  footSpan: positive.optional(),
+  /** Cota E: do segundo par de pés à face do flange de sucção (A) (m). */
+  rearLength: positive.optional(),
+  /** Cota G: distância entre os furos dos pés, transversal ao eixo (m). */
+  footWidth: positive.optional(),
+  /** Cota ØH: diâmetro dos furos dos pés (m). */
+  footHoleDiameter: positive.optional(),
+  /** Cota I: da base dos pés ao eixo da bomba (m). */
+  axisHeight: positive.optional(),
+  /** Cota J: altura total, da base dos pés ao topo (m). */
+  totalHeight: positive.optional(),
 });
 export type Pump = z.infer<typeof PumpSchema>;
+
+// ---------------------------------------------------------------------------
+// Famílias de bombas (catálogo embutido e famílias personalizadas do projeto)
+// ---------------------------------------------------------------------------
+
+/** Flange de uma boca, como impresso no catálogo (ex.: DN 200 PN 40). */
+export const PumpFlangeRefSchema = z.object({
+  dn: positive,
+  pressureClass: z.string().min(1),
+});
+export type PumpFlangeRef = z.infer<typeof PumpFlangeRefSchema>;
+
+/** Cotas do dimensional (m), com os nomes dos parâmetros da bomba (letras C a J). */
+export const PumpDimensionsSchema = z.object({
+  footOffset: positive,
+  footSpan: positive,
+  rearLength: positive,
+  length: positive,
+  footWidth: positive,
+  footHoleDiameter: positive,
+  axisHeight: positive,
+  totalHeight: positive,
+});
+export type PumpDimensions = z.infer<typeof PumpDimensionsSchema>;
+
+/** Linha da tabela dimensional: vale para todos os modelos listados em `models`. */
+export const PumpVariantSchema = z.object({
+  id: z.string().min(1),
+  /** Modelos a que a linha se aplica, como impressos. */
+  models: z.array(z.string().min(1)).min(1),
+  /** Carcaça do motor, como impressa. */
+  frame: z.string(),
+  /** Coluna A (sucção) e coluna B (descarga). */
+  suction: PumpFlangeRefSchema,
+  discharge: PumpFlangeRefSchema,
+  dimensions: PumpDimensionsSchema,
+  /** Peso (kg), como impresso; ausente = não informado. */
+  weightKg: positive.optional(),
+  /** Número de estágios. */
+  stages: z.number().int().positive(),
+});
+export type PumpVariant = z.infer<typeof PumpVariantSchema>;
+
+/**
+ * Família de bombas: forma construtiva e tabela dimensional. `builtin` = transcrita do
+ * catálogo de um fabricante; `custom` = criada no projeto (duplicada de uma família de
+ * catálogo) — suas cotas são do usuário, não do fabricante.
+ */
+export const PumpFamilySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  pumpType: PumpTypeSchema.exclude(['generic']),
+  manufacturer: z.string(),
+  /** Frequência da rede a que a tabela se refere (Hz). */
+  frequencyHz: positive,
+  /** Documento, revisão, tabela e página; nas personalizadas, de onde a família veio. */
+  source: z.string(),
+  page: z.number().int().nonnegative(),
+  description: z.string(),
+  variants: z.array(PumpVariantSchema),
+  /** O que NÃO vem do catálogo: valores derivados, estimados ou de representação. */
+  approximations: z.array(z.string()),
+  /** Observações sobre a transcrição (divergências do próprio catálogo). */
+  remarks: z.array(z.string()),
+  origin: z.enum(['builtin', 'custom']),
+  /** Personalizadas: família de catálogo de que esta foi duplicada. */
+  basedOn: z.string().optional(),
+});
+export type PumpFamily = z.infer<typeof PumpFamilySchema>;
 
 /**
  * Forma construtiva do reservatório. Ausente no elemento = `generic` (cilindro vertical
@@ -788,6 +905,8 @@ export const ProjectSchema = z.object({
   families: z.array(FittingFamilySchema),
   /** Famílias de reservatórios personalizadas neste projeto (somam-se ao catálogo embutido). */
   tankFamilies: z.array(TankFamilySchema),
+  /** Famílias de bombas personalizadas (somam-se ao catálogo). */
+  pumpFamilies: z.array(PumpFamilySchema),
   /**
    * Valores IFC informados pelo usuário para os TIPOS (`Ifc…Type`), por chave do tipo e
    * `Conjunto.Propriedade`. Valem para todas as ocorrências do mesmo tipo — inclusive as

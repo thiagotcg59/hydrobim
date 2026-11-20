@@ -71,9 +71,10 @@ export function planPipeSegment(state: PipePlanState, point: Vec3): Result<Proje
           spec: state.activeSpec,
           ends: pipeEndsInputOf(state.toolOptions.pipeEnds, origin?.spec ?? state.activeSpec),
           catalog,
+          elbowFamilyId: state.toolOptions.families.elbow,
           elbowAngles:
             origin && state.toolOptions.lockElbowAngles
-              ? elbowAnglesOf(project, origin.spec)
+              ? elbowAnglesOf(project, origin.spec, origin.end)
               : undefined,
         });
   return result.ok ? policy(state, result.value.project) : result;
@@ -100,7 +101,7 @@ export function closureInputFor(
     catalog: catalogOf(state.project, state.toolOptions.families),
     elbowAngles:
       port && state.toolOptions.lockElbowAngles
-        ? elbowAnglesOf(state.project, port.spec)
+        ? elbowAnglesOf(state.project, port.spec, port.end)
         : undefined,
   };
 }

@@ -13,6 +13,7 @@ const INTERVALS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100] as const;
  */
 export function TerrainDisplayControls() {
   const terrain = useEditorStore((s) => s.project.terrain);
+  const discipline = useEditorStore((s) => s.project.discipline);
   const display = useTerrainStore((s) => s.display);
   const customBasemap = useEditorStore((s) => s.customBasemap);
   const providers = basemapProviders(customBasemap);
@@ -28,8 +29,32 @@ export function TerrainDisplayControls() {
   const stats = terrainStats(terrain);
   const relief = stats.maxZ - stats.minZ;
   const natural = display.exaggeration === 1;
+  const mep = discipline === 'mep';
   return (
     <>
+      {mep && (
+        <label
+          className="check"
+          title="Mostrar a superfície do terreno (limite, curvas de nível e triangulação) na planta do MEP"
+        >
+          <input
+            type="checkbox"
+            data-testid="terrain-visible-plan"
+            checked={display.mepPlan}
+            onChange={(event) => setDisplay({ mepPlan: event.target.checked })}
+          />
+          Na planta
+        </label>
+      )}
+      <label className="check" title="Mostrar a superfície do terreno no modelo 3D">
+        <input
+          type="checkbox"
+          data-testid="terrain-visible-3d"
+          checked={display.show3d}
+          onChange={(event) => setDisplay({ show3d: event.target.checked })}
+        />
+        No 3D
+      </label>
       <label className="plan__field">
         <span>Superfície (3D)</span>
         <select

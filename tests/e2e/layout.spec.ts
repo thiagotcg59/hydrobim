@@ -210,7 +210,8 @@ test('painéis e faixa: recolher, redimensionar, restaurar e lembrar a preferên
   const wide = await view.boundingBox();
   if (!wide) throw new Error('Área de desenho sem dimensões.');
   expect(wide.width).toBeGreaterThan(initial.width + 400);
-  expect(wide.height).toBeGreaterThan(initial.height + 60);
+  // A barra de ferramentas tem uma linha de comandos: recolhê-la devolve essa linha.
+  expect(wide.height).toBeGreaterThan(initial.height + 40);
   // Nada disso altera o projeto.
   await expect(page.getByTestId('action-undo')).toBeDisabled();
 

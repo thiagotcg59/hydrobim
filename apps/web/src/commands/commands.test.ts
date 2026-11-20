@@ -179,9 +179,21 @@ describe('disponibilidade dos comandos', () => {
     expect(stateOf('export.ifc')).toMatchObject({ enabled: false });
     expect(stateOf('export.ids').enabled).toBe(true);
     expect(stateOf('view.top').enabled).toBe(true);
+    // Lado a lado, o modelo 3D continua à mostra com a planta ativa: a câmera segue disponível.
+    useUiStore.getState().setWorkspaceLayout('split');
     editor().setViewMode('plan');
+    expect(stateOf('view.split').active).toBe(true);
+    expect(stateOf('view.top').enabled).toBe(true);
+    expect(stateOf('view.isometric').enabled).toBe(true);
+    // Com a planta ocupando a área (maximizada ou uma vista por vez), não há câmera a mover.
+    useUiStore.getState().maximizeView('plan');
+    expect(stateOf('view.top').enabled).toBe(false);
+    useUiStore.getState().maximizeView('plan');
+    useUiStore.getState().setWorkspaceLayout('single');
+    expect(stateOf('view.split').active).toBe(false);
     expect(stateOf('view.top').enabled).toBe(false);
     expect(stateOf('view.top').reason).toContain('Modelo 3D');
+    expect(stateOf('view.isometric').enabled).toBe(false);
     expect(stateOf('view.fit').enabled).toBe(true);
     expect(stateOf('view.plan').active).toBe(true);
     drawBend();
