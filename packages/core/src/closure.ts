@@ -3,8 +3,8 @@ import {
   connectPorts,
   findConnection,
   getElement,
+  deflectionAllowance,
   isPortFree,
-  jointDeflectionLimit,
   resolvePort,
 } from './connectivity';
 import { ANGLE_TOLERANCE, MIN_PIPE_LENGTH, POSITION_TOLERANCE } from './dimensions';
@@ -40,7 +40,8 @@ import { degToRad, formatDegrees, formatMeters } from './units';
  *  - `elbow`: eixos que se cruzam à frente das duas portas — um joelho no cruzamento;
  *  - `offset`: eixos paralelos e opostos, desalinhados — dois joelhos de mesmo ângulo;
  *  - `deflected`: um tubo direto, quando ele sai das duas extremidades dentro da deflexão
- *    que a junta elástica admite (dado de catálogo da especificação) — sem joelhos.
+ *    que a junta elástica ou a curvatura a frio do tubo admitem (dados de catálogo da
+ *    especificação) — sem joelhos.
  * Eixos reversos, extremidades voltadas para o mesmo lado e cruzamentos atrás das portas são
  * recusados com explicação.
  */
@@ -267,8 +268,9 @@ function deflectedClosure(project: Project, input: ClosureInput): Closure | null
 
   const gap = sub(pb.position, pa.position);
   if (length(gap) < MIN_PIPE_LENGTH) return null;
-  // O trecho criado é de ponta lisa nas duas extremidades.
-  const plain = { spec: pa.spec, end: null };
+  // O trecho criado é de ponta lisa nas duas extremidades; seu comprimento conta para a
+  // curvatura a frio.
+  const plain = { spec: pa.spec, end: null, run: length(gap) };
   const atA = angleBetween(pa.direction, gap);
   const atB = angleBetween(pb.direction, negate(gap));
   if (Math.max(atA, atB) <= ANGLE_TOLERANCE) return null;
@@ -286,10 +288,13 @@ function deflectedClosure(project: Project, input: ClosureInput): Closure | null
     run.value.createdIds,
   );
   if (!closed.ok) return null;
-  const limit = Math.min(jointDeflectionLimit(pa, plain), jointDeflectionLimit(pb, plain));
+  const fromA = deflectionAllowance(pa, plain);
+  const fromB = deflectionAllowance(pb, plain);
+  const tightest = fromA.limit <= fromB.limit ? fromA : fromB;
+  const where = tightest.kind === 'bend' ? 'por curvatura do tubo' : 'nas juntas';
   return {
     ...closed.value,
-    summary: `${closed.value.summary} com deflexão de ${formatDegrees(atA, 2)} e ${formatDegrees(atB, 2)} nas juntas (admitida: ${formatDegrees(limit, 2)})`,
+    summary: `${closed.value.summary} com deflexão de ${formatDegrees(atA, 2)} e ${formatDegrees(atB, 2)} ${where} (admitida: ${formatDegrees(tightest.limit, 2)})`,
   };
 }
 

@@ -1,5 +1,6 @@
 import {
   formatMeters,
+  smoothContourLine,
   suggestContourInterval,
   terrainContours,
   terrainHitAt,
@@ -85,7 +86,8 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
     const labels: { x: number; y: number; text: string }[] = [];
     for (const contour of result.value) {
       let longest: Point2[] | null = null;
-      for (const line of contour.lines) {
+      for (const raw of contour.lines) {
+        const line = display.contourSmoothing ? smoothContourLine(raw) : raw;
         (contour.major ? major : minor).push(
           line
             .map((p, i) => `${i === 0 ? 'M' : 'L'}${n(p.x - origin.x)} ${n(-(p.y - origin.y))}`)
@@ -105,7 +107,7 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
       }
     }
     return { minor: minor.join(''), major: major.join(''), labels, count: result.value.length };
-  }, [terrain, origin, display.contours, interval]);
+  }, [terrain, origin, display.contours, display.contourSmoothing, interval]);
 
   return (
     <g
@@ -130,6 +132,7 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
           data-testid="terrain-contours"
           data-interval={interval}
           data-count={contours.count}
+          data-smoothed={display.contourSmoothing}
           fill="none"
           stroke={CONTOUR_INK}
           strokeLinejoin="round"

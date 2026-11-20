@@ -55,6 +55,14 @@ export const PipeSpecSchema = z.object({
    * caso em que só o alinhamento exato conecta.
    */
   jointDeflection: positive.optional(),
+  /**
+   * Curvatura a frio do próprio tubo: raio (m) da poligonal equivalente. O desvio admitido em
+   * um vértice entre dois tubos é o comprimento do trecho vizinho mais curto dividido por
+   * este raio. Dado de catálogo, com fonte; ausente = o tubo não é curvado.
+   */
+  coldBendRadius: positive.optional(),
+  /** Comprimento da barra (m): o trecho contado em cada vértice não passa dele. */
+  coldBendSpan: positive.optional(),
 });
 export type PipeSpec = z.infer<typeof PipeSpecSchema>;
 

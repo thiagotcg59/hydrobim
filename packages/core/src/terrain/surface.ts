@@ -420,6 +420,116 @@ export function terrainElevationAt(terrain: Terrain, x: number, y: number): numb
   return terrainHitAt(terrain, x, y)?.elevation ?? null;
 }
 
+/** Limite de passos do percurso do raio sobre a grade do índice. */
+const MAX_RAY_STEPS = 8192;
+
+/**
+ * Primeiro ponto em que um raio (origem e direção) atinge a superfície; `null` quando não a
+ * atinge. A cota devolvida é a interpolada no triângulo atingido.
+ *
+ * O raio percorre a grade do índice em passos do tamanho de uma célula; os triângulos de cada
+ * passo são testados (nos dois lados: a câmera pode estar sob a superfície) e o percurso para
+ * no primeiro passo que contém a interseção mais próxima.
+ */
+export function terrainRayHit(terrain: Terrain, origin: Vec3, direction: Vec3): Vec3 | null {
+  const { points, triangles } = terrain;
+  if (triangles.length < 3) return null;
+  const stats = terrainStats(terrain);
+  const horizontal = Math.hypot(direction.x, direction.y);
+  if (horizontal < 1e-12) {
+    // Raio vertical (vista de topo): o ponto é o próprio (x, y) da origem.
+    if (Math.abs(direction.z) < 1e-12) return null;
+    const z = terrainElevationAt(terrain, origin.x, origin.y);
+    if (z === null || (z - origin.z) / direction.z < 0) return null;
+    return { x: origin.x, y: origin.y, z };
+  }
+
+  // Trecho do raio dentro da caixa da superfície (método das placas).
+  let t0 = 0;
+  let t1 = Infinity;
+  const slabs: [number, number, number, number][] = [
+    [origin.x, direction.x, stats.minX, stats.maxX],
+    [origin.y, direction.y, stats.minY, stats.maxY],
+    [origin.z, direction.z, stats.minZ, stats.maxZ],
+  ];
+  for (const [o, d, lo, hi] of slabs) {
+    if (Math.abs(d) < 1e-12) {
+      if (o < lo - 1e-9 || o > hi + 1e-9) return null;
+      continue;
+    }
+    const a = (lo - o) / d;
+    const b = (hi - o) / d;
+    t0 = Math.max(t0, Math.min(a, b));
+    t1 = Math.min(t1, Math.max(a, b));
+  }
+  if (!(t0 <= t1) || !Number.isFinite(t1)) return null;
+
+  const cell = indexOf(terrain).cell;
+  const step = Math.max(cell / horizontal, (t1 - t0) / MAX_RAY_STEPS);
+  const at = (t: number): Vec3 => ({
+    x: origin.x + direction.x * t,
+    y: origin.y + direction.y * t,
+    z: origin.z + direction.z * t,
+  });
+  const seen = new Set<number>();
+  let best = Infinity;
+  for (let ta = t0; ta <= t1 + 1e-12; ta += step) {
+    const tb = Math.min(ta + step, t1);
+    const p = at(ta);
+    const q = at(tb);
+    terrainTrianglesIn(
+      terrain,
+      Math.min(p.x, q.x),
+      Math.min(p.y, q.y),
+      Math.max(p.x, q.x),
+      Math.max(p.y, q.y),
+      (triangle) => {
+        if (seen.has(triangle)) return;
+        seen.add(triangle);
+        const a = points[triangles[3 * triangle] as number];
+        const b = points[triangles[3 * triangle + 1] as number];
+        const c = points[triangles[3 * triangle + 2] as number];
+        if (!a || !b || !c) return;
+        const t = rayTriangle(origin, direction, a, b, c);
+        if (t !== null && t >= 0 && t < best) best = t;
+      },
+    );
+    // Toda interseção até `tb` está nos triângulos já visitados: a menor encontrada é a final.
+    if (best <= tb + 1e-12) break;
+  }
+  if (!Number.isFinite(best)) return null;
+  const hit = at(best);
+  const z = terrainElevationAt(terrain, hit.x, hit.y);
+  return z === null ? null : { x: hit.x, y: hit.y, z };
+}
+
+/** Parâmetro do raio no triângulo (Möller–Trumbore, dois lados); `null` sem interseção. */
+function rayTriangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3): number | null {
+  const e1x = b.x - a.x;
+  const e1y = b.y - a.y;
+  const e1z = b.z - a.z;
+  const e2x = c.x - a.x;
+  const e2y = c.y - a.y;
+  const e2z = c.z - a.z;
+  const px = d.y * e2z - d.z * e2y;
+  const py = d.z * e2x - d.x * e2z;
+  const pz = d.x * e2y - d.y * e2x;
+  const det = e1x * px + e1y * py + e1z * pz;
+  if (Math.abs(det) < 1e-14) return null;
+  const inv = 1 / det;
+  const sx = o.x - a.x;
+  const sy = o.y - a.y;
+  const sz = o.z - a.z;
+  const u = (sx * px + sy * py + sz * pz) * inv;
+  if (u < -1e-9 || u > 1 + 1e-9) return null;
+  const qx = sy * e1z - sz * e1y;
+  const qy = sz * e1x - sx * e1z;
+  const qz = sx * e1y - sy * e1x;
+  const v = (d.x * qx + d.y * qy + d.z * qz) * inv;
+  if (v < -1e-9 || u + v > 1 + 1e-9) return null;
+  return (e2x * qx + e2y * qy + e2z * qz) * inv;
+}
+
 export interface TerrainStats {
   readonly vertexCount: number;
   readonly triangleCount: number;

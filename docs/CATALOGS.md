@@ -50,24 +50,39 @@ Tubos: Tigre MPVC DEFoFo (Catálogo Infraestrutura 07/2025, p. 15). Usa as conex
 
 **Ressalvas:** é a edição **internacional** de 2010 (EN 545 / ISO 2531); o catálogo brasileiro da PAM não pôde ser consultado. A equivalência entre a junta STANDARD e a JGS/JE2GS brasileira é uma suposição. Valores copiados como impressos, inclusive os que parecem erros do catálogo (curvas flangeadas de 22°30' e 11°15' em DN 500/600 repetem os valores da de 45°).
 
-### Deflexão admitida na junta (`packages/catalog/src/jointDeflection.ts`)
+### Mudança de direção sem peça (`packages/catalog/src/jointDeflection.ts`)
 
-Juntas elásticas admitem um pequeno desvio angular depois de montadas; o traçado usa esse valor para mudar de direção sem peça. O limite é dado de catálogo, por especificação e DN, e segue para a especificação do tubo (`PipeSpec.jointDeflection`, em radianos).
+O traçado aceita uma pequena mudança de direção sem joelho quando o fabricante a admite, em qualquer plano (inclusive para dar declividade). Há dois mecanismos, e cada especificação usa o seu. Os valores foram confirmados pelo responsável em 2026-11-19.
+
+**Deflexão angular da junta elástica** — segue para `PipeSpec.jointDeflection` (rad):
 
 | Especificação | Deflexão por junta | Fonte |
 | --- | --- | --- |
 | Ferro fundido dúctil, junta JGS (`ferro-ductil-nbr7675-k9`) | DN 80 a 150: 5°; DN 200 a 300: 4°; DN 350 a 600: 3° (a fonte traz ainda DN 700 a 800: 2° e DN 900 a 1200: 1°30') | Saint-Gobain Canalização — Manual Técnico de Montagem e Manutenção, V.3 (2019), p. 14, "Deflexão angular: tubos e conexões com bolsas", perfil JGS — <https://produto.sgpam.com.br/api/GetFile?filePath=C%3A%5Cmounts%5Cimages%5CUploaded%5CProduct%5CAttachment%5C1%5CManual_tecnico_2019.pdf> |
-| PVC PBA (`pvc-pba-nbr5647-cl12`, `-cl15`, `-cl20`) e PVC DEFoFo (`pvc-defofo-nbr7665`) | 1° | Amanco Wavin — Manual Técnico Infraestrutura (mai/2023), p. 84, item 13.1 — <https://mediahub.wavin.com/m/32ed9fa83d5aa656/original/Manual-Infraestrutura.pdf> |
-| PVC soldável, aço-carbono (solda de topo), PEAD (termofusão) | nenhuma | junta rígida: sem tabela |
+
+**Curvatura a frio do próprio tubo** — segue para `PipeSpec.coldBendRadius` (raio da poligonal equivalente, m) e `coldBendSpan` (barra, m). As juntas ficam alinhadas; no modelo a curva é uma poligonal, e o desvio admitido em cada vértice entre dois tubos é o comprimento do trecho vizinho mais curto (limitado à barra) dividido pelo raio:
+
+| Especificação | Dado da fonte | Desvio por barra inteira (derivado) | Fonte |
+| --- | --- | --- | --- |
+| PVC DEFoFo (`pvc-defofo-nbr7665`) | flecha h sobre a barra de 6 m: DN 100: 0,10 m; DN 150: 0,035 m; DN 200: 0,020 m; DN 250 e 300: 0,015 m; DN 350, 400 e 500: 0,010 m | DN 100: 7,63°; DN 150: 2,67°; DN 200: 1,53°; DN 250 e 300: 1,15°; DN 350 a 500: 0,76° | Tigre — Ficha Técnica MPVC DEFoFo, jan/2026, p. 2, tabela "Flexão permitida no tubo" — <https://tigresite.s3.amazonaws.com/2026/01/FT_DE-FoFo-MPVC_2025_V7.pdf>; mesma tabela no Catálogo Infraestrutura Tigre (2022), Tabela 1 |
+| PVC PBA (`pvc-pba-nbr5647-cl12`, `-cl15`, `-cl20`) | raio mínimo de 300 × DE no meio de 5 m curvados da barra de 6 m | DN 50: 7,96°; DN 75: 5,62°; DN 100: 4,34° | Amanco Wavin — Manual Técnico Infraestrutura (mai/2023), p. 84–85, item 13.2 — <https://mediahub.wavin.com/m/32ed9fa83d5aa656/original/Manual-Infraestrutura.pdf> |
+| PEAD PE 100 SDR 11 (`pead-pe100-sdr11`) | raio de 25 a 30 × DE (até 50 × para SDR maior que 17); adotado 30 × DE | tubo contínuo, sem barra: desvio = trecho ÷ raio (DE 110: raio de 3,30 m; trechos de 1 m admitem 17,4°) | Corr Plastik — Manual Técnico PEAD Liso (ago/2025), p. 24 — <https://corrplastik.com.br/wp-content/uploads/2025/11/Manual-Tecnico-PEAD-Liso-Agosto-20251.pdf> |
+
+**Sem nenhum dos dois:** PVC soldável predial e aço-carbono com solda de topo. Não foi encontrado catálogo que admita deflexão ou curvatura para eles; a mudança de direção exige joelho ou curva.
+
+**Derivações declaradas:**
+
+- DEFoFo: o raio vem da flecha, tomando a barra como arco de círculo — R = L²/(8·h) + h/2, com L = 6 m (a figura da ficha mostra h no meio da barra, entre as juntas).
+- PBA: a fonte curva a barra como viga biapoiada com carga no meio do vão, e dá o desvio total 2·θ = L/(2·R), com L = 5 m (0,5 m retos em cada ponta). O raio equivalente da poligonal é o que faz uma barra de 6 m dar esse desvio: R_eq = 6 · 2·R / 5. Confere com o exemplo do manual (linha Biax, DN 100: 2·θ = 4,0°).
+- Limite de 22,5° por vértice (`MAX_BEND_VERTEX`, no `core`): não é dado de catálogo, é regra de fidelidade do modelo. Acima disso a poligonal deixa de representar o arco; o traçado deve usar trechos mais curtos. Na prática só atinge o PEAD.
 
 **Ressalvas:**
 
-- Flange não deflete, qualquer que seja a especificação. Especificação ou DN sem valor na fonte é tratado como junta rígida.
-- A tabela de ferro dúctil é a da junta JGS. As juntas travadas (JTI, JTE) têm limites próprios na mesma página e não são modeladas.
-- O valor de PVC é o do fabricante Amanco Wavin, que trata as "tubulações de PVC" com junta elástica em conjunto; o catálogo da Tigre não foi consultado para este dado. No DEFoFo vale 1° em todas as juntas, inclusive nas conexões de ferro dúctil, por ser o menor dos dois lados.
-- A **curvatura a frio do próprio tubo** (PVC: raio mínimo de 300 × DE, item 13.2 do mesmo manual; PEAD) não é deflexão de junta e não é modelada: depende de um elemento de tubo curvo.
-- A deflexão é dada depois de montada a junta, com os tubos alinhados (nota do manual da Saint-Gobain); é orientação de obra, sem efeito no modelo.
-
+- Flange não deflete nem é curvado. Especificação ou DN sem valor na fonte exige peça.
+- Ferro dúctil: a tabela é a da junta JGS. As juntas travadas (JTI, JTE) têm limites próprios na mesma página e não são modeladas. O tubo de ferro dúctil não é curvado.
+- PVC com junta elástica: os fabricantes divergem. A Amanco Wavin admite também 1° de deflexão em cada junta (item 13.1 do mesmo manual); a Tigre manda manter a junta alinhada. Foi adotada só a flexão do tubo, com a junta alinhada. A Tigre não tabula a flexão do PBA, por isso o PBA usa o dado da Amanco Wavin.
+- Em tubo curvado, a Amanco Wavin não recomenda colar de tomada nem tê de serviço; no modelo, inserir uma peça que encurte o trecho abaixo do que o desvio exige é recusado.
+- A curva é representada por poligonal: não há elemento de tubo curvo. Comprimentos e quantitativos são os das cordas.
 ### Flanges — tabela única (`packages/catalog/src/flanges.ts`)
 
 **Fonte:** "Catálogo Geral" (arquivo `CATÁLOGO GERAL.pdf`, fornecido pelo responsável do projeto), capítulo 4, linha Água e Esgoto, p. 246–249 — "Junta com Flange – PN 10 / PN 16 / PN 25 / PN 40". **As páginas recebidas não trazem o fabricante, a edição nem a norma do flange**; esses campos estão declarados como não identificados e devem ser completados com a capa/ficha do catálogo.

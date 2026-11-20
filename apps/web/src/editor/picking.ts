@@ -23,7 +23,8 @@ export interface Ray {
   readonly direction: Vec3;
 }
 
-export type SnapKind = 'port' | 'grid' | 'plane' | 'axis' | 'vertical' | 'angle' | 'pipe';
+export type SnapKind =
+  'port' | 'grid' | 'plane' | 'axis' | 'vertical' | 'angle' | 'pipe' | 'terrain';
 
 export interface PickAnchor {
   readonly point: Vec3;
@@ -66,6 +67,18 @@ export interface PickContext {
   readonly anchor: PickAnchor | null;
   /** Restringe o ponto à vertical que passa pela âncora (tecla Shift). */
   readonly vertical: boolean;
+  /**
+   * Assentamento sobre o terreno (equipamentos): fora das portas, o ponto é onde o raio atinge
+   * a superfície, com a cota de assentamento daquele (x, y). `null`/ausente = plano de trabalho.
+   */
+  readonly ground?: PickGround | null;
+}
+
+export interface PickGround {
+  /** Ponto (x, y) em que o raio atinge a superfície desenhada; `null` quando não a atinge. */
+  readonly hit: (ray: Ray) => { readonly x: number; readonly y: number } | null;
+  /** Cota de assentamento em (x, y); `null` fora da superfície. */
+  readonly elevationAt: (x: number, y: number) => number | null;
 }
 
 export interface PickResult {
@@ -141,6 +154,11 @@ export function pickPoint(context: PickContext): PickResult | null {
     };
   }
 
+  const onGround = context.ground
+    ? groundPoint(context.ground, context.ray, context.gridStep)
+    : null;
+  if (onGround) return { point: onGround, snap: 'terrain', port: null, stacked: 1 };
+
   if (Math.abs(direction.z) < 1e-6) return null;
   const t = (context.workPlaneZ - origin.z) / direction.z;
   if (t <= 0) return null;
@@ -155,6 +173,19 @@ export function pickPoint(context: PickContext): PickResult | null {
     port: null,
     stacked: 1,
   };
+}
+
+/** Ponto sobre o terreno; a grade arredonda o (x, y) e a cota é a do ponto arredondado. */
+function groundPoint(ground: PickGround, ray: Ray, gridStep: number): Vec3 | null {
+  const hit = ground.hit(ray);
+  if (!hit) return null;
+  const x = snapValue(hit.x, gridStep);
+  const y = snapValue(hit.y, gridStep);
+  const z = ground.elevationAt(x, y);
+  if (z !== null) return vec3(x, y, z);
+  // O ponto da grade caiu fora da borda da superfície: vale o ponto atingido, sem grade.
+  const raw = ground.elevationAt(hit.x, hit.y);
+  return raw === null ? null : vec3(hit.x, hit.y, raw);
 }
 
 /** Distância, a partir do início do tubo, da projeção de `point` sobre o seu eixo. */

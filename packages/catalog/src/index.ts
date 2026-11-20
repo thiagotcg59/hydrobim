@@ -6,7 +6,7 @@ import {
   type Material,
   type PipeSpec,
 } from '@hydrobim/core';
-import { jointDeflectionDegrees } from './jointDeflection';
+import { coldBendRadiusM, jointDeflectionDegrees } from './jointDeflection';
 import { SPECIFICATIONS, type CatalogSize, type PipeSpecification } from './specifications';
 
 export { BUILTIN_FAMILIES } from './families';
@@ -49,6 +49,8 @@ function toPipeSpec(specification: PipeSpecification, entry: CatalogSize): PipeS
   const wallThickness = mmToM(entry.wallThicknessMm);
   // DN fora das faixas da fonte fica sem o valor: a junta é tratada como rígida.
   const deflection = jointDeflectionDegrees(specification.jointDeflection, entry.dn);
+  const bending = specification.coldBending;
+  const bendRadius = coldBendRadiusM(bending, entry.dn, entry.outerDiameterMm);
   return {
     specificationId: specification.id,
     material: specification.material,
@@ -61,6 +63,10 @@ function toPipeSpec(specification: PipeSpecification, entry: CatalogSize): PipeS
     wallThickness,
     innerDiameter: outerDiameter - 2 * wallThickness,
     ...(deflection === undefined ? {} : { jointDeflection: degToRad(deflection) }),
+    ...(bendRadius === undefined ? {} : { coldBendRadius: bendRadius }),
+    ...(bendRadius === undefined || bending?.barLengthM === undefined
+      ? {}
+      : { coldBendSpan: bending.barLengthM }),
   };
 }
 

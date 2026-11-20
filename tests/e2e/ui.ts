@@ -22,7 +22,7 @@ const TASK_RULES: readonly (readonly [RegExp, Task])[] = [
   ],
   [/^infra-(goto|goto-go|georef)$/, 'view'],
   [
-    /^terrain-(color-mode|contours-toggle|contour-interval|triangulation-toggle|exaggeration|natural|opacity)$/,
+    /^terrain-(color-mode|contours-toggle|contour-interval|contour-smoothing|triangulation-toggle|exaggeration|natural|opacity)$/,
     'view',
   ],
   [/^terrain-cmd-/, 'model'],

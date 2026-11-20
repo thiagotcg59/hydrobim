@@ -17,6 +17,8 @@ import {
   addLevel,
   ANGLE_TOLERANCE,
   angleBetween,
+  deflectionAllowance,
+  describeAllowance,
   addSystem,
   addTankNozzle,
   applyFamilyToInstances,
@@ -50,6 +52,7 @@ import {
   insertInline,
   isPortFree,
   jointDeflectionLimit,
+  pipeRunOf,
   matchElbowAngle,
   mergeFamilies,
   MIN_PIPE_LENGTH,
@@ -86,6 +89,7 @@ import {
   slideElements,
   stretchPipe,
   sub,
+  terrainElevationAt,
   translateElements,
   updateAnnotation,
   updateFitting,
@@ -292,6 +296,13 @@ export interface ToolOptions {
    * abaixo dele. O valor é decisão de projeto do usuário, não um mínimo de norma.
    */
   readonly terrainCover: { readonly enabled: boolean; readonly cover: number };
+  /**
+   * Assentamento de equipamentos (Bomba, Reservatório) sobre o terreno: com a opção ligada e o
+   * projeto com superfície, a cota de referência do elemento (base do reservatório, eixo de
+   * sucção da bomba) é a do terreno no ponto clicado mais `offset` metros. Fora da superfície,
+   * vale a cota do plano de trabalho.
+   */
+  readonly terrainPlacement: { readonly enabled: boolean; readonly offset: number };
 }
 
 /** Clique no viewport já resolvido para o domínio. */
@@ -563,6 +574,24 @@ export function drawElevationOf(state: {
 }
 
 /**
+ * Cota de assentamento de um equipamento sobre o terreno em (x, y), arredondada ao milímetro;
+ * `null` quando a ferramenta não é de equipamento, a opção está desligada, o projeto não tem
+ * superfície ou o ponto está fora dela (nenhuma cota é presumida).
+ */
+export function equipmentGroundElevation(
+  state: { tool: ToolId; project: Project; toolOptions: ToolOptions },
+  x: number,
+  y: number,
+): number | null {
+  if (state.tool !== 'pump' && state.tool !== 'tank') return null;
+  const { enabled, offset } = state.toolOptions.terrainPlacement;
+  const { terrain } = state.project;
+  if (!enabled || !terrain) return null;
+  const ground = terrainElevationAt(terrain, x, y);
+  return ground === null ? null : Math.round((ground + offset) * 1000) / 1000;
+}
+
+/**
  * Trava de ângulo do trecho em criação: saindo da extremidade de um tubo, a mudança de
  * direção recebe um joelho automático, que precisa existir no catálogo. `null` = sem trava.
  */
@@ -582,8 +611,9 @@ export function deflectionConstraintOf(state: {
     origin: port.position,
     axis: port.direction,
     angles: elbowAnglesOf(state.project, port.spec),
-    // Deflexão que a junta admite sem peça (o trecho novo sai de ponta lisa).
-    jointLimit: jointDeflectionLimit(port, { spec: port.spec, end: null }),
+    // Desvio admitido sem peça, pela junta ou pela curvatura a frio do tubo. O trecho novo
+    // sai de ponta lisa e ainda não tem comprimento: o núcleo confere ao confirmar.
+    jointLimit: jointDeflectionLimit(port, { spec: port.spec, end: null, run: Infinity }),
   };
 }
 
@@ -858,6 +888,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       families: {},
       lockElbowAngles: true,
       terrainCover: { enabled: false, cover: 0.8 },
+      terrainPlacement: { enabled: true, offset: 0 },
     },
     workPlaneZ: 0,
     pipeElevation: 0,
@@ -1061,12 +1092,16 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     select: (id, additive = false) =>
       set((state) => {
         if (id === null) return additive ? {} : { selection: [], annotationSelection: null };
-        if (!additive) return { selection: [id], annotationSelection: null };
+        // Tubos ligados direto uns aos outros, sem peça entre eles, são selecionados como um
+        // tubo só. Um trecho isolado é escolhido no painel de propriedades (`selectMany`).
+        const run = pipeRunOf(state.project, id);
+        const ids = run.length > 0 ? run : [id];
+        if (!additive) return { selection: ids, annotationSelection: null };
         return {
           annotationSelection: null,
           selection: state.selection.includes(id)
-            ? state.selection.filter((s) => s !== id)
-            : [...state.selection, id],
+            ? state.selection.filter((s) => !ids.includes(s))
+            : [...state.selection, ...ids.filter((s) => !state.selection.includes(s))],
         };
       }),
 
@@ -1229,16 +1264,26 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           state.notify('error', fitting.error.message);
           return;
         }
+        // Sobre o terreno, a cota vem da superfície no ponto clicado (nas duas vistas).
+        const ground = equipmentGroundElevation(state, point.x, point.y);
+        const seated = state.toolOptions.terrainPlacement.enabled && project.terrain !== null;
         const result = placeEquipment(project, {
           fitting: fitting.value,
           spec: state.activeSpec,
-          position: point,
+          position: ground === null ? point : vec3(point.x, point.y, ground),
         });
         if (!result.ok) {
           state.notify('error', result.error.message);
           return;
         }
-        commit(success(result.value.project), `${elementKindLabel(tool)} posicionado(a).`);
+        commit(
+          success(result.value.project),
+          ground !== null
+            ? `${elementKindLabel(tool)} posicionado(a) sobre o terreno, na cota ${formatMeters(ground, 3)}.`
+            : seated
+              ? `${elementKindLabel(tool)} posicionado(a) fora da superfície do terreno: usada a cota do plano de trabalho (${formatMeters(point.z, 3)}).`
+              : `${elementKindLabel(tool)} posicionado(a).`,
+        );
         set({ selection: [result.value.elementId] });
         return;
       }
@@ -1286,9 +1331,23 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         state.notify('error', result.error.message);
         return;
       }
+      // Desvio admitido sem peça neste vértice (junta ou curvatura a frio do tubo).
+      const allowance =
+        origin && !source
+          ? deflectionAllowance(origin, {
+              spec: origin.spec,
+              end: null,
+              run: distance(state.anchor.point, point),
+            })
+          : null;
       const problem = catalogProblem(result.value.project);
       if (problem) {
-        state.notify('error', problem);
+        state.notify(
+          'error',
+          allowance && allowance.limit > 0
+            ? `${problem} Sem peça, ${describeAllowance(allowance)}.`
+            : problem,
+        );
         return;
       }
       const created = result.value;
@@ -1298,9 +1357,14 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         origin && !source && !withElbow
           ? angleBetween(origin.direction, sub(point, state.anchor.point))
           : 0;
+
       const deflected =
-        origin && turn > ANGLE_TOLERANCE
-          ? `Tubo criado com deflexão de ${formatDegrees(turn, 2)} na junta (admitida: ${formatDegrees(jointDeflectionLimit(origin, { spec: origin.spec, end: null }), 2)}).`
+        allowance && turn > ANGLE_TOLERANCE
+          ? `Tubo criado com ${
+              allowance.kind === 'bend' ? 'curvatura a frio' : 'deflexão'
+            } de ${formatDegrees(turn, 2)} ${
+              allowance.kind === 'bend' ? 'no vértice' : 'na junta'
+            } (admitida: ${formatDegrees(allowance.limit, 2)}).`
           : null;
       commit(
         success(created.project),

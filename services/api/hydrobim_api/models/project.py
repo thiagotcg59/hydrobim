@@ -117,6 +117,9 @@ class PipeSpec(CamelModel):
     wall_thickness: PositiveNumber
     # Deflexão angular admitida em cada junta (rad), do catálogo; ausente = junta rígida.
     joint_deflection: PositiveNumber = Field(default=None, validate_default=False)
+    # Curvatura a frio do tubo: raio da poligonal equivalente (m) e barra considerada (m).
+    cold_bend_radius: PositiveNumber = Field(default=None, validate_default=False)
+    cold_bend_span: PositiveNumber = Field(default=None, validate_default=False)
 
 
 class ElementMeta(CamelModel):

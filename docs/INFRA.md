@@ -174,7 +174,7 @@ Pontos "X Y Z" e, opcionalmente, linhas de quebra (blocos de "X Y Z" separados p
 | Recurso | Como funciona |
 | --- | --- |
 | Cota e declividade | Sob o cursor, na barra da Planta Infra, e ponto fixado por **Consultar cota**. Fora da superfície: "sem dado" — nada é extrapolado |
-| Curvas de nível | Interseção exata do plano horizontal com os triângulos, sem suavização; intervalo configurável (sugerido pelo desnível), mestras a cada cinco. Um intervalo mais fino que a exatidão dos dados não acrescenta informação real |
+| Curvas de nível | Interseção exata do plano horizontal com os triângulos; intervalo configurável de 0,1 m a 100 m (sugerido pelo desnível; intervalos que dariam mais de 400 curvas ficam desabilitados), mestras a cada cinco. Um intervalo mais fino que a exatidão dos dados não acrescenta informação real. **Suavizar curvas** (desligado por padrão) arredonda só o desenho, na planta e no 3D, por média gaussiana ao longo da curva com alcance de alguns lados da malha (remove os degraus que a curva faz ao cruzar a triangulação célula a célula; pontas no limite ficam fixas; anéis pequenos não encolhem visivelmente): a superfície, as cotas e os cortes não mudam, e a curva suavizada deixa de passar exatamente pelas interseções com a triangulação |
 | Corte longitudinal | Poligonal traçada na planta; uma estaca em cada aresta atravessada; trechos fora da superfície ficam sem cota. Gráfico com escala real 1:1 ou exagero vertical indicado; exportação em CSV |
 | Modelo 3D | `BufferGeometry` com a normal de cada face (um TIN é feito de faces planas; normais suavizadas esconderiam as linhas de quebra), cor por altitude, por classes de declividade ou lisa, curvas de nível e arestas da triangulação |
 | Escala vertical | **1:1 por padrão** (terreno natural, escala real). O exagero (2× a 10×) estica só o desenho do terreno no 3D, com aviso de que a rede deixa de coincidir com ele; "Terreno natural 1:1" volta à escala real |
@@ -194,9 +194,28 @@ Na ferramenta Tubulação, no ambiente Infra, o grupo **Assentamento no terreno*
 - **As regras de modelagem não mudam**: a mudança de direção vertical em cada vértice continua exigindo joelho de catálogo ou deflexão admitida na junta. Em relevo acidentado, com "Somente peças de catálogo" ligado, o núcleo recusa o trecho e explica o motivo.
 - **Limites**: vale para os cliques na Planta Infra, não para a entrada por coordenadas, para o trecho por valores nem para o modelo 3D. Trechos já criados não são reassentados quando o terreno ou o recobrimento mudam.
 
+### Equipamentos sobre o terreno
+
+Nas ferramentas Bomba e Reservatório, o grupo **Assentamento no terreno** (aba Ferramenta) traz "Assentar sobre o terreno" — ligado por padrão quando o projeto tem superfície — e a "Altura sobre o terreno" (m, padrão 0; negativa = abaixo).
+
+- **Regra** (`equipmentGroundElevation` na store): cota de referência do elemento (base do reservatório; eixo de sucção da bomba, que na representação genérica não tem base) = terreno no (x, y) clicado + altura, arredondada ao milímetro. Vale na planta e no 3D; nas portas livres o equipamento continua acoplado na cota da porta.
+- **No 3D** o cursor é capturado onde o raio atinge a superfície (`terrainRayHit`, no núcleo), com a captura "Terreno"; com exagero vertical o raio é testado contra a superfície desenhada, mas a cota usada é a real.
+- **Fora da superfície** não há cota de terreno: vale a do plano de trabalho, e a mensagem diz isso.
+- **Depois de criado**, a elevação continua editável em Propriedades (como a de qualquer elemento). Bomba e reservatório mostram a cota do terreno sob a origem e o botão **Assentar no terreno**, que leva a cota de referência a ela.
+
 ### Transparência da superfície
 
 Visualizar › Terreno › **Transparência (3D)**, de 0 a 90 % (40 % por padrão). A superfície translúcida não grava profundidade, para que a rede enterrada apareça através dela; com 0 % ela volta a encobrir o que está abaixo. É opção de visualização da sessão.
+### Mapa sobre o terreno (modelo 3D)
+
+Visualizar › Terreno › **Superfície (3D)** oferece, além de altitude, declividade e lisa, as fontes de mapa do ambiente Infra (ruas, satélite e a fonte própria): a imagem é estendida sobre a superfície e acompanha o relevo.
+
+- **Posição**: cada vértice da malha recebe a sua posição na imagem pela mesma cadeia de referenciais que posiciona o mapa na planta (local → geográfico → ladrilho). Exige o projeto georreferenciado; sem isso a opção informa o motivo e a superfície segue com a cor escolhida.
+- **Ladrilhos**: um mosaico só da área da superfície, com cerca de 2.048 px de lado e no máximo 36 ladrilhos; nada é pré-carregado nem guardado.
+- **A imagem é só referência**: nenhuma cota vem dela. O relevo, as curvas de nível e o recobrimento continuam sendo os da superfície. Imagem de satélite de 10 m ampliada sobre uma área pequena fica borrada, e a interface avisa ("imagem ampliada além da resolução da fonte").
+- **Atribuição** da fonte sempre visível sobre o 3D enquanto a imagem está à mostra.
+- **Falhas**: serviço fora do ar, ou que não permita o uso das imagens entre origens (CORS, exigido pelo navegador para levar a imagem à placa de vídeo), deixam a superfície com a cor escolhida e uma mensagem.
+- Conferido em 2026-11-19 com os serviços reais das duas fontes embutidas (ruas do OpenStreetMap e satélite da EOX); a fonte própria depende de o serviço do usuário enviar os cabeçalhos CORS.
 ### Cache, falhas e desempenho
 
 - **Cache**: os ladrilhos decodificados ficam em memória durante a sessão (96 ladrilhos): trocar a resolução ou ajustar a área não refaz os pedidos. Nada é gravado em disco nem pré-carregado, e uma busca pede no máximo 36 ladrilhos. O GeoTIFF e os arquivos do levantamento ficam em memória até a página ser fechada.

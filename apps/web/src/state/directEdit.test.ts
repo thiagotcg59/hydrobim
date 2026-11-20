@@ -175,7 +175,9 @@ describe('menu de contexto: criar tubo', () => {
     state().select(id);
     state().cancelInteraction();
     expect(state().contextMenu).toBeNull();
-    // O primeiro Esc só fecha o menu: a seleção permanece.
-    expect(state().selection).toEqual([id]);
+    // O primeiro Esc só fecha o menu: a seleção permanece. Os dois tubos estão ligados direto,
+    // sem peça entre eles, e por isso são selecionados como um tubo só.
+    expect(state().selection).toHaveLength(2);
+    expect(state().selection).toContain(id);
   });
 });

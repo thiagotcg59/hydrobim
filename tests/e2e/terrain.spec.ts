@@ -302,6 +302,16 @@ test('DEM em ladrilhos: área desenhada, falha tratada, superfície com procedê
   const interval = await ctl(page, 'terrain-contour-interval');
   await interval.selectOption('1');
   await expect(contours).toHaveAttribute('data-interval', '1');
+  // Suavização: só o desenho muda (mais pontos na curva); o número de curvas é o mesmo.
+  const countBefore = await contours.getAttribute('data-count');
+  const lengthBefore = (await contours.locator('path').first().getAttribute('d'))?.length ?? 0;
+  await (await ctl(page, 'terrain-contour-smoothing')).check();
+  await expect(contours).toHaveAttribute('data-smoothed', 'true');
+  expect(await contours.getAttribute('data-count')).toBe(countBefore);
+  expect((await contours.locator('path').first().getAttribute('d'))?.length ?? 0).toBeGreaterThan(
+    lengthBefore * 2,
+  );
+  await (await ctl(page, 'terrain-contour-smoothing')).uncheck();
   await (await ctl(page, 'terrain-contours-toggle')).uncheck();
   await expect(page.getByTestId('terrain-contours')).toHaveCount(0);
   await (await ctl(page, 'terrain-contours-toggle')).check();
@@ -320,6 +330,32 @@ test('DEM em ladrilhos: área desenhada, falha tratada, superfície com procedê
   await expect(page.locator('[data-testid="app"]')).toHaveAttribute('data-view-mode', '3d');
   await expect(page.locator('canvas')).toBeVisible();
   await page.waitForTimeout(600);
+
+  // Mapa de ruas estendido sobre o relevo: só os ladrilhos da área, com a atribuição visível.
+  const streets: string[] = [];
+  await page.route(/^https:\/\/tile\.openstreetmap\.org\//, async (route) => {
+    streets.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      headers: { 'access-control-allow-origin': '*' },
+      body: terrariumTile(1, 2),
+    });
+  });
+  await expect(page.getByTestId('terrain-drape')).toHaveCount(0);
+  await (await ctl(page, 'terrain-color-mode')).selectOption('map:osm-standard');
+  const drape = page.getByTestId('terrain-drape');
+  await expect(drape).toHaveAttribute('data-state', 'ready');
+  await expect(page.getByTestId('terrain-drape-attribution')).toContainText('OpenStreetMap');
+  await expect(page.getByTestId('terrain-drape-attribution')).toContainText(
+    'as cotas são as da superfície',
+  );
+  expect(streets.length).toBeGreaterThan(0);
+  expect(streets.length).toBeLessThanOrEqual(36);
+  await page.waitForTimeout(400);
+  // Voltar à cor por altitude tira a imagem e a atribuição.
+  await (await ctl(page, 'terrain-color-mode')).selectOption('elevation');
+  await expect(drape).toHaveCount(0);
   await page.getByTestId('view-mode-plan').click();
   await expect(page.getByTestId('infra-terrain')).toBeVisible();
 
@@ -612,6 +648,57 @@ test('rede assentada pelo recobrimento: o eixo acompanha o terreno e a superfíc
     await page.waitForTimeout(1200);
     await page.screenshot({ path: `${process.env.HB_SHOTS}/terreno-recobrimento-3d.png` });
   }
+
+  expect(errors).toEqual([]);
+});
+
+test('reservatório assentado sobre o terreno no ponto clicado, com a elevação editável', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await startInfra(page);
+  await openTerrainPanel(page);
+  await page.getByTestId('terrain-tab-survey').click();
+  // Plano inclinado z = 100 + 0,02 x + 0,01 y em malha de 10 m.
+  const lines: string[] = [];
+  for (let y = 0; y <= 100; y += 10) {
+    for (let x = 0; x <= 100; x += 10)
+      lines.push(`${x} ${y} ${(100 + 0.02 * x + 0.01 * y).toFixed(3)}`);
+  }
+  await page.getByTestId('terrain-survey-points').setInputFiles({
+    name: 'plano.xyz',
+    mimeType: 'text/plain',
+    buffer: Buffer.from(lines.join('\n')),
+  });
+  await page.getByTestId('terrain-generate').click();
+  await expect(page.getByTestId('terrain-result')).toBeVisible();
+  await page.getByTestId('terrain-panel-close').click();
+  await page.getByTestId('view-fit').click();
+  await zoomTo(page, 0.4);
+
+  // A opção vem ligada quando o projeto tem superfície.
+  await (await ctl(page, 'tool-tank')).click();
+  await expect(await ctl(page, 'option-terrain-placement')).toBeChecked();
+  await expect(page.getByTestId('option-terrain-placement-note')).toContainText(
+    'Base do reservatório = terreno no ponto clicado',
+  );
+
+  // Terreno em (40, 30): 100 + 0,80 + 0,30 = 101,10 m.
+  await clickModel(page, 40, 30);
+  await expect(page.getByTestId('status-message')).toContainText(
+    'sobre o terreno, na cota 101,100 m',
+  );
+  await (await ctl(page, 'tool-select')).click();
+  await expect(await ctl(page, 'element-properties')).toHaveAttribute('data-element-kind', 'tank');
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('101,1');
+  await expect(await ctl(page, 'prop-ground-elevation')).toHaveText('101,100 m');
+  await expect(await ctl(page, 'prop-seat-on-terrain')).toBeDisabled();
+
+  // A elevação continua editável; "Assentar no terreno" devolve a base à superfície.
+  await setField(page, 'prop-elevation', '103');
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('103');
+  await (await ctl(page, 'prop-seat-on-terrain')).click();
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('101,1');
 
   expect(errors).toEqual([]);
 });

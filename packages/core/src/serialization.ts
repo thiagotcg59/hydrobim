@@ -59,8 +59,9 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   // georreferência (`verticalDatum`, não informada). A escala que um projeto Infra usava na
   // planta passa a ser a escala da Planta Infra; nada geográfico é presumido. O tipo
   // `flowMeter` (medidor de vazão) entrou neste mesmo esquema, ainda não publicado: é só um
-  // valor novo de `valveType` e não exige migração. O mesmo vale para `jointDeflection` na
-  // especificação (deflexão admitida na junta): opcional, e ausente = junta rígida.
+  // valor novo de `valveType` e não exige migração. O mesmo vale para `jointDeflection`,
+  // `coldBendRadius` e `coldBendSpan` na especificação (mudança de direção sem peça):
+  // opcionais, e ausentes = junta rígida e tubo que não é curvado.
   10: (doc) => ({
     infra: defaultInfraSettings(
       doc.discipline === 'infra' && typeof doc.drawingScale === 'number' && doc.drawingScale > 0

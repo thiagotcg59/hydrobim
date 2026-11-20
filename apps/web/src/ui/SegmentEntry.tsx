@@ -1,7 +1,7 @@
 import {
   degToRad,
   formatMeters,
-  jointDeflectionLimit,
+  deflectionAllowance,
   radToDeg,
   resolvePort,
   vec3,
@@ -109,8 +109,12 @@ export function SegmentEntry() {
     [origin, project, toolOptions.lockElbowAngles],
   );
 
-  // Deflexão que a junta de partida admite sem peça (dado de catálogo da especificação).
-  const jointLimit = origin ? jointDeflectionLimit(origin, { spec: origin.spec, end: null }) : 0;
+  // Desvio que a partida admite sem peça: deflexão da junta ou curvatura a frio do tubo
+  // (dados de catálogo da especificação). Na curvatura, vale para trecho novo longo o bastante.
+  const allowance = origin
+    ? deflectionAllowance(origin, { spec: origin.spec, end: null, run: Infinity })
+    : null;
+  const jointLimit = allowance?.limit ?? 0;
   const jointDegrees = Math.round(radToDeg(jointLimit) * 100) / 100;
 
   if (!anchor) return null;
@@ -197,7 +201,9 @@ export function SegmentEntry() {
             <option value="0">0° (reto)</option>
             {jointLimit > 0 && (
               <option value={String(jointDegrees)} data-testid="segment-deflection-joint">
-                {String(jointDegrees).replace('.', ',')}° (máx. na junta, sem peça)
+                {String(jointDegrees).replace('.', ',')}° (
+                {allowance?.kind === 'bend' ? 'máx. por curvatura do tubo' : 'máx. na junta'}, sem
+                peça)
               </option>
             )}
             {angles.map((angle) => (

@@ -7,6 +7,7 @@ import {
 } from '@hydrobim/catalog';
 import {
   formatMeters,
+  MAX_BEND_VERTEX,
   australianDiameter,
   radToDeg,
   tankVariantLabel,
@@ -303,6 +304,21 @@ export function ToolOptions() {
   );
   const jointTable = getSpecification(activeSpec.specificationId)?.jointDeflection;
   const jointDegrees = jointDeflectionDegrees(jointTable, activeSpec.dn);
+  // Curvatura a frio do tubo: desvio por vértice para a barra inteira ou, em tubo contínuo
+  // (PEAD), para trechos de 1 m — sempre limitado ao máximo por vértice do núcleo.
+  const bendRadius = activeSpec.coldBendRadius;
+  const bendSpan = activeSpec.coldBendSpan;
+  const bendDegrees =
+    bendRadius === undefined
+      ? undefined
+      : Math.round(radToDeg(Math.min((bendSpan ?? 1) / bendRadius, MAX_BEND_VERTEX)) * 10) / 10;
+  const deflectionSource =
+    jointDegrees !== undefined
+      ? jointTable
+      : bendRadius !== undefined
+        ? getSpecification(activeSpec.specificationId)?.coldBending
+        : undefined;
+  const degreesText = (degrees: number): string => `${String(degrees).replace('.', ',')}°`;
   const catalogOnly = (
     <label
       className="check"
@@ -334,16 +350,23 @@ export function ToolOptions() {
       <span
         className="muted"
         data-testid="option-joint-deflection"
-        data-degrees={jointDegrees ?? 0}
+        data-kind={
+          jointDegrees !== undefined ? 'joint' : bendRadius !== undefined ? 'bend' : 'none'
+        }
+        data-degrees={jointDegrees ?? bendDegrees ?? 0}
         title={
-          jointTable && jointDegrees !== undefined
-            ? `Fonte: ${jointTable.source}${jointTable.remarks ? ` — ${jointTable.remarks}` : ''}`
-            : 'A especificação não traz deflexão admitida na junta (junta soldada, por termofusão ou sem dado de fabricante).'
+          deflectionSource
+            ? `Fonte: ${deflectionSource.source}${deflectionSource.remarks ? ` — ${deflectionSource.remarks}` : ''}`
+            : 'A especificação não traz deflexão na junta nem curvatura a frio do tubo (junta colada ou soldada, ou sem dado de fabricante).'
         }
       >
         {jointDegrees !== undefined
-          ? `Junta elástica: até ${String(jointDegrees).replace('.', ',')}° de deflexão por junta em ${activeSpec.sizeLabel}, sem peça. Acima disso, joelho.`
-          : 'Junta rígida nesta especificação: mudança de direção só com joelho.'}
+          ? `Junta elástica: até ${degreesText(jointDegrees)} de deflexão por junta em ${activeSpec.sizeLabel}, sem peça. Acima disso, joelho.`
+          : bendRadius !== undefined && bendSpan !== undefined
+            ? `Curvatura a frio do tubo: até ${degreesText(bendDegrees ?? 0)} entre barras de ${formatMeters(bendSpan, 0)} em ${activeSpec.sizeLabel}, sem peça e com as juntas alinhadas (trecho mais curto, desvio proporcional). Acima disso, curva.`
+            : bendRadius !== undefined
+              ? `Curvatura a frio do tubo: raio mínimo de ${formatMeters(bendRadius, 2)} em ${activeSpec.sizeLabel}. Cada vértice admite o comprimento do trecho mais curto dividido pelo raio (trechos de 1 m: ${degreesText(bendDegrees ?? 0)}), até 22,5°.`
+              : 'Junta rígida nesta especificação: mudança de direção só com joelho.'}
       </span>
     </>
   );
@@ -384,6 +407,48 @@ export function ToolOptions() {
       )}
 
       {tool === 'tank' && <TankOptions />}
+
+      {(tool === 'pump' || tool === 'tank') && (
+        <div className="options__group" data-testid="terrain-placement-options">
+          <span className="options__caption">Assentamento no terreno</span>
+          <label
+            className="check"
+            title="A cota do elemento passa a vir da superfície do terreno no ponto clicado, no modelo 3D e na planta"
+          >
+            <input
+              type="checkbox"
+              data-testid="option-terrain-placement"
+              checked={options.terrainPlacement.enabled && project.terrain !== null}
+              disabled={project.terrain === null}
+              onChange={(event) =>
+                setToolOptions({
+                  terrainPlacement: { ...options.terrainPlacement, enabled: event.target.checked },
+                })
+              }
+            />
+            Assentar sobre o terreno
+          </label>
+          <NumberField
+            label="Altura sobre o terreno"
+            unit="m"
+            digits={2}
+            value={options.terrainPlacement.offset}
+            disabled={project.terrain === null || !options.terrainPlacement.enabled}
+            title={`Distância vertical do terreno à cota de referência do elemento (${tool === 'tank' ? 'base do reservatório' : 'eixo de sucção da bomba'}). Negativa = abaixo do terreno`}
+            onCommit={(value) =>
+              setToolOptions({ terrainPlacement: { ...options.terrainPlacement, offset: value } })
+            }
+            testId="option-terrain-placement-offset"
+          />
+          <span className="muted" data-testid="option-terrain-placement-note">
+            {project.terrain === null
+              ? 'O projeto não tem superfície de terreno: o elemento fica na cota do plano de trabalho.'
+              : options.terrainPlacement.enabled
+                ? `${tool === 'tank' ? 'Base do reservatório' : 'Eixo de sucção da bomba'} = terreno no ponto clicado${options.terrainPlacement.offset !== 0 ? ` ${options.terrainPlacement.offset > 0 ? '+' : '−'} ${formatMeters(Math.abs(options.terrainPlacement.offset), 2)}` : ''}. Fora da superfície, vale a cota do plano de trabalho. A elevação pode ser alterada depois em Propriedades.`
+                : 'Desligado: o elemento fica na cota do plano de trabalho.'}
+          </span>
+        </div>
+      )}
 
       {tool === 'pipe' && pipeFamilies.length > 0 && (
         <div className="options__group" data-testid="pipe-ends-options">
