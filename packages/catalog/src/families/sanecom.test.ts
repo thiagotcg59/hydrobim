@@ -80,7 +80,8 @@ describe('macromedidor eletromagnético SANECOM (catálogo, p. 4)', () => {
         flangedPipeFamilies: (id) => flangedPipeFamiliesFor(id).map((f) => f.id),
       },
     );
-    // Sem elas, um flange encostaria na ponta lisa do corte: a inserção é recusada.
+    // Sem elas, o corte fica de pontas lisas (comportamento anterior das válvulas; a verificação
+    // geral do tipo de extremidade é pendência do roadmap).
     const bare = createFamilyCatalog(BUILTIN_FAMILIES);
     const pipe = addPipe(createProject('Macromedição'), {
       start: vec3(0, 0, 0),
@@ -95,13 +96,13 @@ describe('macromedidor eletromagnético SANECOM (catálogo, p. 4)', () => {
       catalog,
     });
     if (!inserted.ok) throw new Error(inserted.error.message);
-    const refused = insertInline(pipe.value.project, {
+    const plainCut = insertInline(pipe.value.project, {
       pipeId: pipe.value.elementId,
       distanceFromStart: 2,
       fitting: { kind: 'valve', valveType: 'flowMeter' },
       catalog: bare,
     });
-    expect(refused.ok ? 'ok' : refused.error.code).toBe('NO_PIPE_FLANGE');
+    expect(plainCut.ok ? 'ok' : plainCut.error.code).toBe('ok');
     const pipes = inserted.value.project.elements.filter((e) => e.kind === 'pipe');
     expect(pipes.map((p) => (p.kind === 'pipe' ? Object.keys(p.ends ?? {}) : []))).toEqual([
       ['end'],

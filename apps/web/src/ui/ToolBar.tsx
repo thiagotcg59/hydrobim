@@ -199,11 +199,11 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       id: 'connect',
       label: 'Conectar',
       items: [
+        // "Desconectar" fica em cada porta do painel de propriedades e na busca (Ctrl+K): a
+        // faixa a 1920 px não comporta mais um botão sem quebrar a linha.
         { command: 'tool.connect', compact: true },
         { command: 'connect.pipe', compact: true },
         { command: 'connect.close', compact: true },
-        { command: 'connect.junction', compact: true },
-        { command: 'connect.disconnect', compact: true },
       ],
     },
     { id: 'measure', label: 'Medir', items: [{ command: 'tool.measure', compact: true }] },

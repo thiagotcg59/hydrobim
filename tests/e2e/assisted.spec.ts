@@ -187,8 +187,9 @@ test('ligar extremidades: soluções com peças de catálogo e recusa explicada'
   await expect(section.locator('[data-kind="offset"]', { hasText: 'Desvio 90°' })).toHaveCount(1);
   await offset45.click();
 
+  // O primeiro trecho é o próprio tubo de partida prolongado (sem junta a mais).
   await expect(page.getByTestId('status-message')).toHaveText(
-    'Extremidades ligadas: 2 joelhos de 45° e 2 tubos.',
+    /^Extremidades ligadas: 2 joelhos de 45° e 2 tubos e prolongamento de "Tubo \d+" em [\d,]+ m\.$/,
   );
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
   await page.keyboard.press('Escape');

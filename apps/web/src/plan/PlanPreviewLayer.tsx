@@ -51,13 +51,14 @@ export function PlanPreviewLayer({ origin, mpp, unit }: Props) {
             data-element-kind={element.kind}
             transform={`translate(${X(anchor.x)} ${Y(anchor.y)})`}
           >
-            <path d={fillPath} fill={PREVIEW_COLOR} fillOpacity={0.35} stroke="none" />
+            <path d={fillPath} fill={PREVIEW_COLOR} fillOpacity={0.3} stroke="none" />
+            {/* Traço contínuo e fino: tracejado sobre as muitas arestas das peças vira ruído. */}
             <path
               d={linePath}
               fill="none"
               stroke={PREVIEW_COLOR}
-              strokeWidth={Math.max(1.5 * mpp, 0.2 * unit)}
-              strokeDasharray={`${5 * mpp} ${3 * mpp}`}
+              strokeOpacity={0.9}
+              strokeWidth={Math.max(1 * mpp, 0.13 * unit)}
             />
           </g>
         );

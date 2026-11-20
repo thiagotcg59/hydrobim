@@ -1,7 +1,7 @@
 import { add, scale, type HydroElement, type Vec3 } from '@hydrobim/core';
 import { buildElementGeometry } from '@hydrobim/geometry';
 import { Html, Line } from '@react-three/drei';
-import { memo, useEffect, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { BufferAttribute, BufferGeometry } from 'three';
 import { useEditorStore } from '../state/editorStore';
 import { guidesText, RELATION_LABELS, useViewPreview } from '../state/viewPreview';
@@ -57,6 +57,14 @@ const Ghost = memo(function Ghost({ element }: { element: HydroElement }) {
 export function PreviewGhosts() {
   const preview = useViewPreview();
   const cursor = useEditorStore((s) => s.cursor);
+  // Os rótulos (Html) criam uma raiz React própria: montá-los no mesmo render que cria a cena
+  // (ao abrir o modelo 3D com uma prévia já em andamento) faz o React desmontá-los no meio
+  // da renderização e eles se perdem. Entram um quadro depois da montagem.
+  const [labels, setLabels] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setLabels(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   if (!preview) return null;
   const { guides } = preview;
   const reach = guides ? Math.max(guides.distance * 1.2, 1) : 0;
@@ -65,19 +73,20 @@ export function PreviewGhosts() {
       {preview.ghosts.map((element) => (
         <Ghost key={element.id} element={element} />
       ))}
-      {preview.junctions.map(({ element, label }) =>
-        element.kind === 'pipe' ? null : (
-          <Html key={`j-${element.id}`} position={tuple(element.placement.position)} center>
-            <span
-              className="viewport-label viewport-label--preview"
-              data-testid="viewport-preview-junction"
-              data-kind={element.kind}
-            >
-              {label}
-            </span>
-          </Html>
-        ),
-      )}
+      {labels &&
+        preview.junctions.map(({ element, label }) =>
+          element.kind === 'pipe' ? null : (
+            <Html key={`j-${element.id}`} position={tuple(element.placement.position)} center>
+              <span
+                className="viewport-label viewport-label--preview"
+                data-testid="viewport-preview-junction"
+                data-kind={element.kind}
+              >
+                {label}
+              </span>
+            </Html>
+          ),
+        )}
       {guides && (
         <>
           {[guides.from, guides.to].map((port, index) => (
@@ -110,14 +119,16 @@ export function PreviewGhosts() {
               <meshBasicMaterial color={GUIDE_COLOR} depthTest={false} />
             </mesh>
           )}
-          <Html position={tuple(guides.footOnTarget)} pointerEvents="none">
-            <span className="viewport-label" data-testid="viewport-guides-text">
-              {`${RELATION_LABELS[guides.relation]} — ${guidesText(guides)}`}
-            </span>
-          </Html>
+          {labels && (
+            <Html position={tuple(guides.footOnTarget)} pointerEvents="none">
+              <span className="viewport-label" data-testid="viewport-guides-text">
+                {`${RELATION_LABELS[guides.relation]} — ${guidesText(guides)}`}
+              </span>
+            </Html>
+          )}
         </>
       )}
-      {preview.error && cursor && (
+      {labels && preview.error && cursor && (
         <Html position={tuple(cursor.point)} pointerEvents="none">
           <span
             className="viewport-label viewport-label--error"

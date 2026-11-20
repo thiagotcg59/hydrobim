@@ -883,14 +883,19 @@ export function insertInline(project: Project, input: InsertInlineInput): Result
   let cutFlange: PipeFlange | null = null;
   if (runFlange?.type === 'flange') {
     const chosen = input.cutFlange ? ok(input.cutFlange) : pipeFlangeFor(catalog, pipe, runFlange);
-    if (!chosen.ok) return chosen;
-    if (!flangesMate(chosen.value.end, runFlange)) {
-      return fail(
-        'FLANGE_MISMATCH',
-        `O flange do tubo (${describeDrilling(chosen.value.end)}) não casa com o da peça (${describeDrilling(runFlange)}).`,
-      );
+    // Válvulas: sem família de tubos com flanges que case (aço-carbono, por exemplo), mantém-se
+    // o comportamento anterior — a verificação geral do tipo de extremidade ainda é pendência
+    // (ROADMAP, Fase 2). Tês e cruzetas seguem a regra estrita.
+    if (!chosen.ok && input.fitting.kind !== 'valve') return chosen;
+    if (chosen.ok) {
+      if (!flangesMate(chosen.value.end, runFlange)) {
+        return fail(
+          'FLANGE_MISMATCH',
+          `O flange do tubo (${describeDrilling(chosen.value.end)}) não casa com o da peça (${describeDrilling(runFlange)}).`,
+        );
+      }
+      cutFlange = chosen.value;
     }
-    cutFlange = chosen.value;
   }
   const total = pipeLength(pipe);
   const direction = normalize(sub(pipe.end, pipe.start));

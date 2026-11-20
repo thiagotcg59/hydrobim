@@ -43,15 +43,15 @@ export function ConnectPanel() {
   const candidate = chosenCandidate(connect);
 
   return (
-    <div className="options__group" data-testid="connect-panel">
+    <div className="options__group" data-testid="connection-panel">
       <span className="options__caption">Alinhar e conectar</span>
       <dl className="connect-steps">
         <dt>1. Extremidade do trecho</dt>
-        <dd data-testid="connect-from">
+        <dd data-testid="connection-from">
           {connect.from ? portText(project, connect.from) : 'clique uma extremidade livre'}
         </dd>
         <dt>2. Porta de referência</dt>
-        <dd data-testid="connect-to">
+        <dd data-testid="connection-to">
           {connect.to
             ? portText(project, connect.to)
             : connect.from
@@ -61,21 +61,25 @@ export function ConnectPanel() {
       </dl>
 
       {plan && !plan.ok && (
-        <span className="options__error" data-testid="connect-error">
+        <span className="options__error" data-testid="connection-error">
           {plan.error.message}
         </span>
       )}
 
       {plan?.ok && (
         <>
-          <span className="muted" data-testid="connect-guides">
+          <span className="muted" data-testid="connection-guides">
             {RELATION_LABELS[plan.value.guides.relation]}: {guidesText(plan.value.guides)}.
           </span>
-          {plan.value.candidates.length === 0 ? (
-            <span className="options__error" data-testid="connect-none">
-              Montagem impossível: {plan.value.refusals.join(' ')}
+          {!plan.value.candidates.some((option) => option.connects) && (
+            <span className="options__error" data-testid="connection-none">
+              Montagem impossível: {plan.value.refusals.join(' ') || 'sem peças compatíveis.'}
+              {plan.value.candidates.length > 0
+                ? ' Só é possível alinhar o trecho, sem registrar a ligação.'
+                : ''}
             </span>
-          ) : (
+          )}
+          {plan.value.candidates.length > 0 && (
             <div role="radiogroup" aria-label="Alternativas" className="connect-options">
               {plan.value.candidates.map((option) => {
                 const active = option.key === candidate?.key;
@@ -83,7 +87,7 @@ export function ConnectPanel() {
                   <label
                     key={option.key}
                     className={active ? 'connect-option is-active' : 'connect-option'}
-                    data-testid={`connect-option-${option.key}`}
+                    data-testid={`connection-option-${option.key}`}
                     data-action={option.action}
                   >
                     <input
@@ -104,7 +108,7 @@ export function ConnectPanel() {
             </div>
           )}
           {candidate && (
-            <div className="connect-details" data-testid="connect-details">
+            <div className="connect-details" data-testid="connection-details">
               {(() => {
                 const changes = describeChanges(project, candidate.project);
                 return (
@@ -143,7 +147,7 @@ export function ConnectPanel() {
             </div>
           )}
           {plan.value.refusals.length > 0 && plan.value.candidates.length > 0 && (
-            <details className="muted" data-testid="connect-refusals">
+            <details className="muted" data-testid="connection-refusals">
               <summary>Alternativas indisponíveis</summary>
               <ul>
                 {plan.value.refusals.map((reason) => (
@@ -159,7 +163,7 @@ export function ConnectPanel() {
         <button
           type="button"
           className="btn btn--primary"
-          data-testid="connect-confirm"
+          data-testid="connection-confirm"
           disabled={!candidate}
           onClick={() => confirmConnection()}
         >
@@ -168,7 +172,7 @@ export function ConnectPanel() {
         <button
           type="button"
           className="btn"
-          data-testid="connect-reset"
+          data-testid="connection-reset"
           disabled={!connect.from}
           onClick={() => resetConnection()}
         >

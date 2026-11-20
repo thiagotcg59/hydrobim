@@ -5,6 +5,7 @@ import { mergeFamilies, serializeProject, type Project } from '@hydrobim/core';
 import { exportIfc } from '@hydrobim/ifc';
 import { it } from 'vitest';
 import { createDemoProject } from '../../apps/web/src/demo/demoProject';
+import { createJunctionDemoProject } from '../../apps/web/src/demo/junctionDemo';
 import { createTankDemoProject } from '../../apps/web/src/demo/tankDemo';
 
 /** Famílias do catálogo e do projeto: alimentam os tipos IFC (fabricante, fonte, modelo). */
@@ -32,6 +33,21 @@ it('gera examples/demo-barrilete (.hydrobim.json e .ifc)', () => {
   );
   writeFileSync(
     join(directory, 'demo-barrilete.ifc'),
+    exportIfc(project, ifcOptions(project)),
+    'utf8',
+  );
+});
+
+it('gera examples/ligacoes-derivacoes (.hydrobim.json e .ifc)', () => {
+  const directory = join(import.meta.dirname, '..', '..', 'examples');
+  const project = createJunctionDemoProject();
+  writeFileSync(
+    join(directory, 'ligacoes-derivacoes.hydrobim.json'),
+    `${serializeProject(project)}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    join(directory, 'ligacoes-derivacoes.ifc'),
     exportIfc(project, ifcOptions(project)),
     'utf8',
   );

@@ -2345,7 +2345,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         connect: { from: connect.from, to: ref, choice: null, plan: { base: project, result } },
       });
       if (!result.ok) state.notify('error', result.error.message);
-      else if (result.value.candidates.length === 0) {
+      else if (!result.value.candidates.some((candidate) => candidate.connects)) {
         state.notify(
           'error',
           `Não há montagem possível: ${result.value.refusals[0] ?? 'sem peças compatíveis.'}`,
