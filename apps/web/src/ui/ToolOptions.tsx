@@ -22,8 +22,10 @@ import {
   vec3,
   type FamilyKind,
   type FittingFamily,
+  type JunctionChoice,
 } from '@hydrobim/core';
 import { useState } from 'react';
+import { ConnectPanel } from './ConnectPanel';
 import {
   drawElevationOf,
   elbowAnglesOf,
@@ -81,6 +83,21 @@ function CoordinateEntry() {
     </div>
   );
 }
+
+const JUNCTION_CHOICES: readonly (readonly [JunctionChoice, string])[] = [
+  ['auto', 'Automática'],
+  ['tee', 'Tê'],
+  ['cross', 'Cruzeta'],
+];
+const JUNCTION_NOTES: Record<JunctionChoice, string> = {
+  auto: 'Tê sobre tubo simples. Ramal no lado oposto à derivação de um tê: o tê é convertido em cruzeta (mesmo elemento). Porta livre de cruzeta: o ramal a usa.',
+  tee: 'Sempre tê. No lado oposto à derivação de um tê existente, a ligação é recusada.',
+  cross:
+    'Cruzeta: com três ligações, a quarta porta fica livre (aviso na validação) — só um acessório real a fecharia.',
+};
+/** A família tem a peça para a passagem `dn` (qualquer derivação)? */
+const offersSize = (family: FittingFamily, dn: number): boolean =>
+  family.sizes.some((size) => size.dn === dn);
 
 /** Escolha da família de catálogo usada pela ferramenta. */
 function FamilySelect({
@@ -622,6 +639,34 @@ export function ToolOptions() {
         </div>
       )}
 
+      {tool === 'pipe' && (
+        <div className="options__group" data-testid="junction-options">
+          <span className="options__caption">Conexão da derivação</span>
+          <div className="chips" role="radiogroup" aria-label="Conexão da derivação">
+            {JUNCTION_CHOICES.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={options.junction === value}
+                className={options.junction === value ? 'chip is-active' : 'chip'}
+                data-testid={`option-junction-${value}`}
+                onClick={() => setToolOptions({ junction: value })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="muted" data-testid="option-junction-note">
+            {JUNCTION_NOTES[options.junction]}
+          </span>
+          <FamilySelect kind="tee" accept={(f) => offersSize(f, activeSpec.dn)} />
+          <FamilySelect kind="cross" accept={(f) => offersSize(f, activeSpec.dn)} />
+        </div>
+      )}
+
+      {tool === 'connect' && <ConnectPanel />}
+
       {tool === 'pipe' && discipline === 'infra' && (
         <div className="options__group" data-testid="terrain-cover-options">
           <span className="options__caption">Assentamento no terreno</span>
@@ -762,7 +807,7 @@ export function ToolOptions() {
         </div>
       )}
 
-      {tool !== 'select' && (
+      {tool !== 'select' && tool !== 'connect' && (
         <div className="options__group">
           <span className="options__caption">Nível e elevação</span>
           <SelectField

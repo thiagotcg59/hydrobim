@@ -213,6 +213,16 @@ function exitPort(element: HydroElement, inPort: string): string | null {
     // Segue pela passagem; entrando pela derivação, o caminho termina.
     return inPort === 'a' ? 'b' : inPort === 'b' ? 'a' : null;
   }
+  if (element.kind === 'cross') {
+    // Na cruzeta o caminho segue reto: passagem com passagem, derivação com a oposta.
+    const opposite: Record<string, string> = {
+      a: 'b',
+      b: 'a',
+      branch: 'branch2',
+      branch2: 'branch',
+    };
+    return opposite[inPort] ?? null;
+  }
   if (element.kind === 'tank' || element.kind === 'pump') return null;
   return ids.find((id) => id !== inPort) ?? null;
 }

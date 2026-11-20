@@ -10,7 +10,7 @@ import {
 } from '@hydrobim/core';
 import { Html } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { Raycaster, Vector2 } from 'three';
 import { toCanonical } from '../editor/renderOrigin';
 import { useEditorStore } from '../state/editorStore';
@@ -32,10 +32,18 @@ export function PipeGrips() {
   /** Encerra o arrasto em andamento (também ao desmontar o viewport). */
   const stop = useRef<(() => void) | null>(null);
   useEffect(() => () => stop.current?.(), []);
+  // As alças (Html) criam uma raiz React própria: montadas no mesmo render que cria a cena (ao
+  // abrir o modelo 3D com um tubo já selecionado), o React as desmonta no meio da renderização
+  // ("synchronously unmount a root"). Entram um quadro depois da montagem.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   const selected =
     selection.length === 1 && selection[0] ? getElement(project, selection[0]) : null;
-  if (tool !== 'select' || viewMode !== '3d' || selected?.kind !== 'pipe') return null;
+  if (!ready || tool !== 'select' || viewMode !== '3d' || selected?.kind !== 'pipe') return null;
   const pipe = selected;
 
   const begin = (which: 'start' | 'end', event: ReactPointerEvent<HTMLDivElement>): void => {

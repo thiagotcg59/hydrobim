@@ -189,6 +189,7 @@ const TOOL_ICONS: Record<ToolId, LucideIcon> = {
   select: MousePointer2,
   ...ELEMENT_ICONS,
   measure: Ruler,
+  connect: Waypoints,
   dimension: MoveHorizontal,
   text: Type,
   leader: MessageSquare,
@@ -205,6 +206,7 @@ const TOOL_KEYS: Record<ToolId, string> = {
   pump: 'B',
   tank: 'Q',
   measure: 'M',
+  connect: 'A',
   dimension: 'C',
   text: 'X',
   leader: 'L',
@@ -336,6 +338,7 @@ const TOOLS: ToolId[] = [
   'pump',
   'tank',
   'measure',
+  'connect',
   'dimension',
   'text',
   'leader',
@@ -507,6 +510,29 @@ export const COMMANDS: readonly Command[] = [
         ? ENABLED
         : off('Selecione exatamente dois elementos com extremidades livres.'),
   ),
+  {
+    id: 'connect.junction',
+    label: 'Converter tê ⇄ cruzeta',
+    description:
+      'Troca o tê selecionado por cruzeta (quarta porta livre) ou a cruzeta por tê (só com uma derivação livre), mantendo o elemento e as ligações. Mostra a prévia antes de confirmar.',
+    icon: Crosshair,
+    testId: 'connect-junction',
+    state: (context) => {
+      const blocked = modeling(context);
+      if (blocked) return blocked;
+      const element = single(context);
+      return element?.kind === 'tee' || element?.kind === 'cross'
+        ? ENABLED
+        : off('Selecione um único tê ou cruzeta.');
+    },
+    run: () => {
+      const state = editor();
+      const id = state.selection.length === 1 ? state.selection[0] : undefined;
+      if (!id) return;
+      state.previewJunction(id, null);
+      ui().revealProperty('section-junction');
+    },
+  },
   revealCommand(
     'connect.disconnect',
     'Desconectar',
@@ -576,10 +602,14 @@ export const COMMANDS: readonly Command[] = [
   {
     id: 'view.fit',
     label: 'Enquadrar',
-    description: 'Enquadra todo o projeto na vista.',
+    description: 'Enquadra os elementos selecionados ou, sem seleção, todo o projeto.',
     icon: Maximize,
     testId: 'view-fit',
-    run: () => editor().requestView('fit'),
+    // Com seleção, enquadrar o projeto inteiro tiraria de vista justamente o que se está editando.
+    run: () =>
+      editor().selection.length > 0
+        ? editor().requestView('fit', { selection: true })
+        : editor().requestView('fit'),
   },
   {
     id: 'view.fitSelection',

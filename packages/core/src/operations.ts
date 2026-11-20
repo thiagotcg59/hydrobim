@@ -11,13 +11,22 @@ import {
   resolvePort,
 } from './connectivity';
 import {
+  ANGLE_TOLERANCE,
   elbowPortDistances,
   MAX_ELBOW_ANGLE,
   MIN_ELBOW_ANGLE,
   MIN_PIPE_LENGTH,
+  POSITION_TOLERANCE,
 } from './dimensions';
 import { formatAngleList, matchElbowAngle } from './elbowAngles';
 import { GENERIC_CATALOG, requiredEndType, type Ends, type FittingCatalog } from './families';
+import {
+  describeDrilling,
+  flangesMate,
+  newPipeFlange,
+  pipeFlangeFor,
+  type PipeFlange,
+} from './flangeMatch';
 import { newId } from './ids';
 import { baseFields, elementKindLabel, nextName, now, putElement, touch } from './internal';
 import {
@@ -52,6 +61,7 @@ import {
   defaultInfraSettings,
   PROJECT_FORMAT,
   SCHEMA_VERSION,
+  type Cross,
   type Discipline,
   type Elbow,
   type EndTreatment,
@@ -87,7 +97,13 @@ import { degToRad, formatDegrees } from './units';
 export { elementKindLabel };
 
 /** Peças cujas extremidades vêm de família de conexões (equipamentos ficam de fora). */
-const CATALOG_FITTINGS: ReadonlySet<string> = new Set(['elbow', 'tee', 'valve', 'reducer']);
+const CATALOG_FITTINGS: ReadonlySet<string> = new Set([
+  'elbow',
+  'tee',
+  'cross',
+  'valve',
+  'reducer',
+]);
 
 /**
  * Recusa a peça quando a porta exige flange e o catálogo não tem a peça flangeada no
@@ -496,6 +512,7 @@ function keepPipeEnd(pipe: Pipe, portId: 'start' | 'end'): Pipe {
 export type FittingInput =
   | { kind: 'elbow'; angle?: number; bendRadius?: number; familyId?: string | null }
   | { kind: 'tee'; branchSpec?: PipeSpec; familyId?: string | null }
+  | { kind: 'cross'; branchSpec?: PipeSpec; familyId?: string | null }
   | { kind: 'valve'; valveType?: ValveType; familyId?: string | null }
   | { kind: 'reducer'; outletSpec: PipeSpec; familyId?: string | null }
   | {
@@ -555,21 +572,22 @@ export function buildFitting(
       };
       return ok(elbow);
     }
-    case 'tee': {
+    case 'tee':
+    case 'cross': {
+      const piece = input.kind === 'tee' ? 'tê' : 'cruzeta';
       const branchSpec = input.branchSpec ?? spec;
       if (branchSpec.specificationId !== spec.specificationId) {
         return fail(
           'SPEC_MISMATCH',
-          'A derivação do tê deve ter a mesma especificação da passagem.',
+          `A derivação da ${piece} deve ter a mesma especificação da passagem.`,
         );
       }
       if (branchSpec.dn > spec.dn) {
-        return fail('INVALID_BRANCH', 'A derivação do tê não pode ser maior que a passagem.');
+        return fail('INVALID_BRANCH', `A derivação da ${piece} não pode ser maior que a passagem.`);
       }
-      const dims = catalog.tee(spec, branchSpec, input.familyId, endType);
-      const tee: Tee = {
+      const dims = catalog[input.kind](spec, branchSpec, input.familyId, endType);
+      const junction = {
         ...base,
-        kind: 'tee',
         placement,
         familyId: dims.familyId,
         ends: dims.ends,
@@ -577,7 +595,11 @@ export function buildFitting(
         branchLength: dims.branchLength,
         ...(branchSpec.dn !== spec.dn ? { branchSpec } : {}),
       };
-      return ok(tee);
+      return ok(
+        input.kind === 'tee'
+          ? ({ ...junction, kind: 'tee' } satisfies Tee)
+          : ({ ...junction, kind: 'cross' } satisfies Cross),
+      );
     }
     case 'valve': {
       const valveType = input.valveType ?? 'gate';
@@ -784,13 +806,56 @@ export interface InsertInlineInput {
   distanceFromStart: number;
   fitting:
     | { kind: 'tee'; branchSpec?: PipeSpec; familyId?: string | null }
+    | { kind: 'cross'; branchSpec?: PipeSpec; familyId?: string | null }
     | { kind: 'valve'; valveType?: ValveType; familyId?: string | null };
   roll?: number;
   catalog?: FittingCatalog;
+  /**
+   * Acabamento exigido da peça (porta flangeada → peça flangeada). Ausente: o do tubo — um
+   * tubo com flanges recebe peça flangeada e as faces do corte ganham o flange da família do
+   * tubo (`cutFlange`).
+   */
+  endType?: EndType;
+  /**
+   * Flange das faces criadas pelo corte quando a peça é flangeada. Ausente: o da família de
+   * tubos flangeados do próprio tubo, ou de uma família que case com o flange da peça.
+   */
+  cutFlange?: { end: EndTreatment; familyId: string };
 }
 
 /**
- * Insere uma conexão em linha (tê ou válvula) dividindo o tubo em dois trechos.
+ * Acabamento da peça em linha: o pedido; o da família escolhida (tê, cruzeta); ou, num tubo
+ * com flanges, o flangeado — o coletor flangeado recebe tê flangeado.
+ */
+function inlineEndType(
+  pipe: Pipe,
+  input: InsertInlineInput,
+  catalog: FittingCatalog,
+): EndType | undefined {
+  if (input.endType) return input.endType;
+  const { fitting } = input;
+  if (fitting.kind !== 'tee' && fitting.kind !== 'cross') return undefined;
+  if (fitting.familyId) {
+    const chosen = catalog
+      .junctionFamilies?.(fitting.kind, pipe.spec, fitting.branchSpec ?? pipe.spec)
+      .find((family) => family.id === fitting.familyId);
+    if (chosen) return chosen.endType;
+  }
+  const flanged = pipe.ends && Object.values(pipe.ends).some((end) => end.type === 'flange');
+  if (!flanged) return undefined;
+  // Sem peça flangeada no catálogo, vale a peça de bolsas sobre as pontas do corte (montagem
+  // real: o corte de um tubo flangeado deixa pontas lisas).
+  const offered = catalog.junctionFamilies?.(
+    fitting.kind,
+    pipe.spec,
+    fitting.branchSpec ?? pipe.spec,
+    'flange',
+  );
+  return offered && offered.length > 0 ? 'flange' : undefined;
+}
+
+/**
+ * Insere uma conexão em linha (tê, cruzeta ou válvula) dividindo o tubo em dois trechos.
  * O tubo original mantém seu identificador no primeiro trecho.
  */
 export function insertInline(project: Project, input: InsertInlineInput): Result<Created> {
@@ -801,8 +866,37 @@ export function insertInline(project: Project, input: InsertInlineInput): Result
   if (input.fitting.kind === 'valve' && input.fitting.valveType === 'airRelease') {
     return fail('NOT_INLINE', 'A ventosa não é instalada em linha: acople-a à derivação de um tê.');
   }
-  const built = buildFitting(project, input.fitting, pipe.spec, pipe.systemId, input.catalog);
+  const catalog = input.catalog ?? GENERIC_CATALOG;
+  const endType = inlineEndType(pipe, input, catalog);
+  const built = buildFitting(project, input.fitting, pipe.spec, pipe.systemId, catalog, endType);
   if (!built.ok) return built;
+  const unmatched = flangeMismatch(
+    elementKindLabel(built.value.kind).toLowerCase(),
+    pipe.spec,
+    endType,
+    built.value,
+  );
+  if (unmatched) return unmatched;
+  // Peça flangeada: as duas faces do corte precisam de flange que case com o da peça. O tubo
+  // cortado vira dois tubos com flanges da família — nunca uma ponta lisa encostada no flange.
+  const runFlange = built.value.ends.a;
+  let cutFlange: PipeFlange | null = null;
+  if (runFlange?.type === 'flange') {
+    const chosen = input.cutFlange ? ok(input.cutFlange) : pipeFlangeFor(catalog, pipe, runFlange);
+    // Válvulas: sem família de tubos com flanges que case (aço-carbono, por exemplo), mantém-se
+    // o comportamento anterior — a verificação geral do tipo de extremidade ainda é pendência
+    // (ROADMAP, Fase 2). Tês e cruzetas seguem a regra estrita.
+    if (!chosen.ok && input.fitting.kind !== 'valve') return chosen;
+    if (chosen.ok) {
+      if (!flangesMate(chosen.value.end, runFlange)) {
+        return fail(
+          'FLANGE_MISMATCH',
+          `O flange do tubo (${describeDrilling(chosen.value.end)}) não casa com o da peça (${describeDrilling(runFlange)}).`,
+        );
+      }
+      cutFlange = chosen.value;
+    }
+  }
   const total = pipeLength(pipe);
   const direction = normalize(sub(pipe.end, pipe.start));
   const fitting = placeAtPort(built.value, ZERO, direction, input.roll ?? 0);
@@ -832,9 +926,18 @@ export function insertInline(project: Project, input: InsertInlineInput): Result
     },
   };
   // O corte cria duas pontas lisas: cada trecho conserva só o flange da sua extremidade
-  // original (tubo com flanges).
-  const first = touch(keepPipeEnd({ ...pipe, end: sub(center, scale(direction, half)) }, 'start'));
-  const second: Pipe = keepPipeEnd(
+  // original (tubo com flanges) e, com peça flangeada, recebe o flange na face do corte.
+  const kept = keepPipeEnd({ ...pipe, end: sub(center, scale(direction, half)) }, 'start');
+  const firstResult = cutFlange
+    ? applyPipeEnds(kept, {
+        start: kept.ends?.start ?? null,
+        end: cutFlange.end,
+        familyId: cutFlange.familyId,
+      })
+    : ok(kept);
+  if (!firstResult.ok) return firstResult;
+  const first = touch(firstResult.value);
+  const tail = keepPipeEnd(
     {
       ...baseFields(project, 'pipe', pipe.spec, pipe.systemId),
       kind: 'pipe',
@@ -847,6 +950,15 @@ export function insertInline(project: Project, input: InsertInlineInput): Result
     },
     'end',
   );
+  const secondResult = cutFlange
+    ? applyPipeEnds(tail, {
+        start: cutFlange.end,
+        end: tail.ends?.end ?? null,
+        familyId: cutFlange.familyId,
+      })
+    : ok(tail);
+  if (!secondResult.ok) return secondResult;
+  const second: Pipe = secondResult.value;
 
   // A conexão que existia no fim do tubo original passa para o novo trecho.
   const oldEnd: PortRef = { elementId: pipe.id, portId: 'end' };
@@ -872,6 +984,186 @@ export function insertInline(project: Project, input: InsertInlineInput): Result
 }
 
 /**
+ * Acabamentos que se acoplam diretamente: flange só com flange de mesma furação; bolsa
+ * recebe ponta (nunca outra bolsa); ponta com ponta é a junta entre tubos já modelada.
+ * Devolve o motivo da incompatibilidade, ou `null`.
+ */
+export function endMismatch(a: EndTreatment | null, b: EndTreatment | null): string | null {
+  const flangeA = a?.type === 'flange';
+  const flangeB = b?.type === 'flange';
+  if (flangeA && flangeB && a && b) {
+    return flangesMate(a, b)
+      ? null
+      : `Os flanges não casam (${describeDrilling(a)} × ${describeDrilling(b)}).`;
+  }
+  if (flangeA || flangeB) {
+    return 'Flange só se liga a flange: a outra extremidade é bolsa ou ponta lisa e exigiria peça de transição.';
+  }
+  if (a?.type === 'socket' && b?.type === 'socket') {
+    return 'Bolsa não recebe bolsa: a ligação exige um tubo ou peça com ponta.';
+  }
+  return null;
+}
+
+export interface RunToPortInput {
+  /** Porta livre de onde o trecho parte; ausente = ponto livre `start`. */
+  fromPort?: PortRef;
+  start: Vec3;
+  spec: PipeSpec;
+  systemId?: string;
+  name?: string;
+  catalog?: FittingCatalog;
+  elbowAngles?: readonly number[];
+  elbowFamilyId?: string | null;
+}
+
+/** Resultado de levar um trecho até uma porta: `extendedId` = tubo existente prolongado. */
+export interface RunToPort extends Created {
+  readonly extendedId: string | null;
+}
+
+/**
+ * Leva o trecho de `input` até a porta livre `target` e registra a ligação. A porta de destino
+ * é a referência: o trecho tem de chegar pelo eixo dela (oposto à sua direção).
+ *  - Saindo da extremidade livre de um tubo, alinhada ao destino: o próprio tubo é prolongado
+ *    (sem peça nem junta intermediária).
+ *  - Nos demais casos, um tubo novo (com joelho automático saindo de tubo, como no traçado).
+ * Destino flangeado: a face do tubo recebe flange de uma família de tubos com flanges que case
+ * com ele; sem essa família, a ligação é recusada (não há flange a presumir). Bolsa recebe
+ * ponta; flange nunca encosta em bolsa ou ponta.
+ */
+export function runToPort(
+  project: Project,
+  input: RunToPortInput,
+  target: PortRef,
+): Result<RunToPort> {
+  const goal = resolvePort(project, target);
+  const goalHost = getElement(project, target.elementId);
+  if (!goal || !goalHost) return fail('PORT_NOT_FOUND', 'Porta de destino inexistente.');
+  if (!isPortFree(project, target))
+    return fail('PORT_OCCUPIED', 'A porta de destino já está ligada.');
+  const origin = input.fromPort ? resolvePort(project, input.fromPort) : undefined;
+  if (input.fromPort && !origin) return fail('PORT_NOT_FOUND', 'Porta de partida inexistente.');
+  if (origin && !isPortFree(project, origin.ref)) {
+    return fail('PORT_OCCUPIED', 'A porta de partida já está ligada.');
+  }
+  const spec = origin?.spec ?? input.spec;
+  if (spec.specificationId !== goal.spec.specificationId) {
+    return fail(
+      'SPEC_MISMATCH',
+      `Especificações diferentes (${spec.standard} × ${goal.spec.standard}): é necessária uma peça de transição.`,
+    );
+  }
+  if (spec.dn !== goal.spec.dn) {
+    return fail(
+      'DN_MISMATCH',
+      `Diâmetros diferentes (${spec.sizeLabel} × ${goal.spec.sizeLabel}): é necessária uma redução.`,
+    );
+  }
+  const start = origin?.position ?? input.start;
+  const catalog = input.catalog ?? GENERIC_CATALOG;
+  const gap = sub(goal.position, start);
+  const reach = Math.hypot(gap.x, gap.y, gap.z);
+
+  // Portas já encostadas e opostas: só registrar a ligação.
+  if (origin && reach <= POSITION_TOLERANCE) {
+    const mismatch = endMismatch(origin.end, goal.end);
+    if (mismatch) return fail('END_MISMATCH', mismatch);
+    const joined = connectPorts(project, origin.ref, target);
+    if (!joined.ok) return joined;
+    return ok({
+      project: joined.value,
+      elementId: origin.ref.elementId,
+      createdIds: [],
+      extendedId: null,
+    });
+  }
+  if (reach < MIN_PIPE_LENGTH) {
+    return fail('PIPE_TOO_SHORT', 'O ponto de partida está perto demais da porta de destino.');
+  }
+  // O último trecho chega pelo eixo da porta de destino.
+  const arrival = angleBetween(gap, negate(goal.direction));
+  const lateral = reach * Math.sin(Math.min(arrival, Math.PI / 2));
+  const host = origin ? getElement(project, origin.ref.elementId) : undefined;
+  const fromPipeEnd = host?.kind === 'pipe' && origin !== undefined;
+  const straight = origin ? angleBetween(origin.direction, gap) <= ANGLE_TOLERANCE : true;
+  if (arrival > ANGLE_TOLERANCE) {
+    return fail(
+      'OFF_PORT_AXIS',
+      `O trecho não chega pelo eixo da porta de "${goalHost.name}" (desvio de ${formatDegrees(arrival, 2)}, ${(lateral * 1000).toFixed(0)} mm fora do eixo). Use "Alinhar e conectar" para escolher joelhos ou desvio.`,
+    );
+  }
+
+  // Prolongamento do próprio tubo.
+  if (fromPipeEnd && host?.kind === 'pipe' && origin && straight) {
+    const which = origin.ref.portId === 'start' ? 'start' : 'end';
+    const current = host.ends?.[which] ?? null;
+    let ends = pipeEndsOf(host);
+    if (goal.end?.type === 'flange' && current?.type !== 'flange') {
+      // A face prolongada recebe o flange da família do tubo (ou de uma que case).
+      const flange = pipeFlangeFor(catalog, host, goal.end);
+      if (!flange.ok) return flange;
+      ends =
+        which === 'start'
+          ? { ...ends, start: flange.value.end, familyId: flange.value.familyId }
+          : { ...ends, end: flange.value.end, familyId: flange.value.familyId };
+    }
+    const mismatch = endMismatch(which === 'start' ? ends.start : ends.end, goal.end);
+    if (mismatch) return fail('END_MISMATCH', mismatch);
+    const moved = applyPipeEnds(setPipeEnd(host, which, goal.position), ends);
+    if (!moved.ok) return moved;
+    const joined = connectPorts(putElement(project, touch(moved.value)), origin.ref, target);
+    if (!joined.ok) return joined;
+    return ok({ project: joined.value, elementId: host.id, createdIds: [], extendedId: host.id });
+  }
+
+  // Tubo novo: flange nas faces que encostam em flange (partida de peça flangeada, destino
+  // flangeado), da mesma família de tubos com flanges.
+  const startMate = origin?.end?.type === 'flange' ? origin.end : null;
+  const endMate = goal.end?.type === 'flange' ? goal.end : null;
+  let ends: PipeEndsInput | undefined;
+  if (startMate || endMate) {
+    const family = newPipeFlange(
+      catalog,
+      spec,
+      [startMate, endMate].filter((end): end is EndTreatment => end !== null),
+    );
+    if (!family.ok) return family;
+    ends = {
+      start: startMate ? family.value.end : null,
+      end: endMate ? family.value.end : null,
+      familyId: family.value.familyId,
+    };
+  }
+  const mismatch = endMismatch(ends?.end ?? null, goal.end);
+  if (mismatch) return fail('END_MISMATCH', mismatch);
+  const drawn = drawPipe(project, {
+    fromPort: input.fromPort,
+    start,
+    end: goal.position,
+    spec,
+    systemId: input.systemId ?? goalHost.systemId,
+    name: input.name,
+    catalog,
+    elbowAngles: input.elbowAngles,
+    elbowFamilyId: input.elbowFamilyId,
+    ...(ends ? { ends } : {}),
+  });
+  if (!drawn.ok) return drawn;
+  const link = findConnection(drawn.value.project, target);
+  const joined =
+    link &&
+    [link.a, link.b].some((r) => r.elementId === drawn.value.elementId && r.portId === 'end');
+  if (!joined) {
+    return fail(
+      'NOT_COUPLED',
+      `O trecho não acopla na porta de "${goalHost.name}"; nada foi criado.`,
+    );
+  }
+  return ok({ ...drawn.value, extendedId: null });
+}
+
+/**
  * Pé da perpendicular de `from` sobre o eixo do tubo: único ponto em que um trecho vindo de
  * `from` pode derivar por um tê (derivação a 90°). `distanceFromStart` pode cair fora do tubo.
  */
@@ -887,21 +1179,35 @@ export function pipeBranchPoint(
  * Insere um tê em linha no tubo com a derivação apontando para `toward` (unitário e
  * perpendicular ao eixo). A derivação assume `spec` (tê de redução quando o DN difere).
  */
+/**
+ * Peça da derivação: `auto` e `tee` = tê; `cross` = cruzeta, com a derivação oposta livre (só
+ * um acessório real a fecharia). Sobre um tê existente, `auto` o converte em cruzeta.
+ */
+export type JunctionChoice = 'auto' | 'tee' | 'cross';
+
+export interface JunctionOptions {
+  catalog?: FittingCatalog;
+  teeFamilyId?: string | null;
+  crossFamilyId?: string | null;
+  junction?: JunctionChoice;
+}
+
 function insertBranchTee(
   project: Project,
   pipe: Pipe,
   distanceFromStart: number,
   toward: Vec3,
   spec: PipeSpec,
-  options: { catalog?: FittingCatalog; teeFamilyId?: string | null },
+  options: JunctionOptions,
 ): Result<{ project: Project; createdIds: string[]; branch: Port }> {
-  const fitting: InsertInlineInput['fitting'] = {
-    kind: 'tee',
-    familyId: options.teeFamilyId,
-    ...(spec.specificationId !== pipe.spec.specificationId || spec.dn !== pipe.spec.dn
+  const asCross = options.junction === 'cross';
+  const branchSpec =
+    spec.specificationId !== pipe.spec.specificationId || spec.dn !== pipe.spec.dn
       ? { branchSpec: spec }
-      : {}),
-  };
+      : {};
+  const fitting: InsertInlineInput['fitting'] = asCross
+    ? { kind: 'cross', familyId: options.crossFamilyId, ...branchSpec }
+    : { kind: 'tee', familyId: options.teeFamilyId, ...branchSpec };
   // Giro que leva a derivação, da orientação padrão, à direção pedida.
   const probe = buildFitting(project, fitting, pipe.spec, pipe.systemId, options.catalog);
   if (!probe.ok) return probe;
@@ -926,11 +1232,9 @@ function insertBranchTee(
   return ok({ project: inserted.value.project, createdIds: inserted.value.createdIds, branch });
 }
 
-export interface DrawPipeToPipeInput extends Omit<DrawPipeInput, 'end'> {
+export interface DrawPipeToPipeInput extends Omit<DrawPipeInput, 'end'>, JunctionOptions {
   /** Tubo existente que recebe o novo trecho. */
   targetPipeId: string;
-  /** Família preferida para o tê automático. */
-  teeFamilyId?: string | null;
 }
 
 /**
@@ -973,32 +1277,30 @@ export function drawPipeToPipe(project: Project, input: DrawPipeToPipeInput): Re
   const inserted = insertBranchTee(project, target, distanceFromStart, toward, spec, input);
   if (!inserted.ok) return inserted;
   const { branch } = inserted.value;
+  const piece = input.junction === 'cross' ? 'da cruzeta' : 'do tê';
   if (reach - distance(branch.position, junction) < MIN_PIPE_LENGTH) {
     return fail(
       'NO_ROOM',
-      `O ponto de partida está perto demais de "${target.name}" para a derivação do tê.`,
+      `O ponto de partida está perto demais de "${target.name}" para a derivação ${piece}.`,
     );
   }
 
-  const drawn = drawPipe(inserted.value.project, {
-    fromPort: input.fromPort,
-    start,
-    end: branch.position,
-    spec,
-    systemId: input.systemId ?? target.systemId,
-    name: input.name,
-    catalog: input.catalog,
-    elbowAngles: input.elbowAngles,
-  });
+  // Saindo da extremidade livre de um tubo alinhado à derivação, o próprio tubo é prolongado.
+  const drawn = runToPort(
+    inserted.value.project,
+    {
+      fromPort: input.fromPort,
+      start,
+      spec,
+      systemId: input.systemId ?? target.systemId,
+      name: input.name,
+      catalog: input.catalog,
+      elbowAngles: input.elbowAngles,
+      elbowFamilyId: input.elbowFamilyId,
+    },
+    branch.ref,
+  );
   if (!drawn.ok) return drawn;
-  const link = findConnection(drawn.value.project, {
-    elementId: drawn.value.elementId,
-    portId: 'end',
-  });
-  const joined =
-    link &&
-    [link.a, link.b].some((r) => r.elementId === branch.ref.elementId && r.portId === 'branch');
-  if (!joined) return fail('NOT_COUPLED', 'O novo trecho não acopla na derivação do tê.');
   return ok({
     project: drawn.value.project,
     elementId: drawn.value.elementId,
@@ -1006,7 +1308,7 @@ export function drawPipeToPipe(project: Project, input: DrawPipeToPipeInput): Re
   });
 }
 
-export interface DrawPipeFromPipeInput {
+export interface DrawPipeFromPipeInput extends JunctionOptions {
   /** Tubo existente de onde o novo trecho deriva. */
   sourcePipeId: string;
   /** Posição do centro do tê, medida a partir do início do tubo de origem (m). */
@@ -1020,8 +1322,6 @@ export interface DrawPipeFromPipeInput {
   targetPipeId?: string;
   spec: PipeSpec;
   name?: string;
-  catalog?: FittingCatalog;
-  teeFamilyId?: string | null;
 }
 
 /** Projeção de `point` no plano perpendicular ao tubo que passa por `origin` (ponto do eixo). */
@@ -1078,13 +1378,23 @@ export function drawPipeFromPipe(project: Project, input: DrawPipeFromPipeInput)
       name: input.name,
       catalog: input.catalog,
       teeFamilyId: input.teeFamilyId,
+      crossFamilyId: input.crossFamilyId,
+      // A segunda peça segue a escolha; `auto` sobre tubo simples é tê.
+      junction: input.junction,
     });
   } else {
     if (reach - distance(branch.position, center) < MIN_PIPE_LENGTH) {
       return fail(
         'NO_ROOM',
-        `O ponto indicado está perto demais de "${source.name}" para a derivação do tê.`,
+        `O ponto indicado está perto demais de "${source.name}" para a derivação ${input.junction === 'cross' ? 'da cruzeta' : 'do tê'}.`,
       );
+    }
+    // Derivação flangeada: o ramal sai com flange (família de tubos com flanges que case).
+    let ends: PipeEndsInput | undefined;
+    if (branch.end?.type === 'flange') {
+      const flange = newPipeFlange(input.catalog ?? GENERIC_CATALOG, branch.spec, [branch.end]);
+      if (!flange.ok) return flange;
+      ends = { start: flange.value.end, end: null, familyId: flange.value.familyId };
     }
     drawn = drawPipe(inserted.value.project, {
       fromPort: branch.ref,
@@ -1093,6 +1403,7 @@ export function drawPipeFromPipe(project: Project, input: DrawPipeFromPipeInput)
       spec: branch.spec,
       name: input.name,
       catalog: input.catalog,
+      ...(ends ? { ends } : {}),
     });
   }
   if (!drawn.ok) return drawn;
@@ -1107,6 +1418,7 @@ export function drawPipeFromPipe(project: Project, input: DrawPipeFromPipeInput)
 const EDITABLE: Record<FittingKind, readonly string[]> = {
   elbow: ['angle', 'bendRadius'],
   tee: ['runLength', 'branchLength'],
+  cross: ['runLength', 'branchLength'],
   reducer: ['length'],
   valve: ['length', 'height', 'handwheelDiameter', 'width', 'bonnetLength'],
   pump: [

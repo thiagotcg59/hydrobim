@@ -39,6 +39,8 @@ export interface TeeDimensions extends ResolvedBase {
   runLength: number;
   branchLength: number;
 }
+/** Cruzeta: a mesma leitura do tê, com `branchLength` valendo para as duas derivações. */
+export type CrossDimensions = TeeDimensions;
 export interface ReducerDimensions extends ResolvedBase {
   length: number;
 }
@@ -68,6 +70,28 @@ export interface FittingCatalog {
     preferredFamilyId?: string | null,
     endType?: EndType,
   ): TeeDimensions;
+  cross(
+    spec: PipeSpec,
+    branchSpec: PipeSpec,
+    preferredFamilyId?: string | null,
+    endType?: EndType,
+  ): CrossDimensions;
+  /**
+   * Famílias de `kind` (tê, cruzeta) que atendem a passagem `spec` com a derivação
+   * `branchSpec`, na ordem de preferência; com `endType`, só as desse acabamento. Serve para
+   * oferecer a escolha da família e para explicar a indisponibilidade.
+   */
+  junctionFamilies?(
+    kind: 'tee' | 'cross',
+    spec: PipeSpec,
+    branchSpec: PipeSpec,
+    endType?: EndType,
+  ): readonly FittingFamily[];
+  /**
+   * Famílias de tubos com flanges da especificação (identificadores), para dar flange à face
+   * de um tubo que encosta numa peça flangeada. Ausente = nenhuma.
+   */
+  flangedPipeFamilies?(specificationId: string): readonly string[];
   /** `a` e `b` são as especificações das portas `a` e `b`, em qualquer ordem de diâmetro. */
   reducer(
     a: PipeSpec,
@@ -98,6 +122,7 @@ export interface FittingCatalog {
 export interface CatalogExtensions {
   pipeFlange?: (spec: PipeSpec, familyId: string) => EndTreatment | undefined;
   flange?: (spec: PipeSpec, pressureClass: string) => EndTreatment | undefined;
+  flangedPipeFamilies?: (specificationId: string) => readonly string[];
 }
 
 /** Proporções genéricas em função do diâmetro externo (não representam produtos reais). */
@@ -112,6 +137,8 @@ export const GENERIC_CATALOG: FittingCatalog = {
       branchLength: dims.branchLength,
     };
   },
+  // Proporções genéricas da cruzeta: as do tê (identificadas por `familyId: null`).
+  cross: (spec, branchSpec) => GENERIC_CATALOG.tee(spec, branchSpec),
   reducer: (a, b) => ({ familyId: null, ends: {}, length: defaultReducerLength(a, b) }),
   valve: (spec, valveType) => ({
     familyId: null,
@@ -179,6 +206,39 @@ export function createFamilyCatalog(
     return undefined;
   }
 
+  const junctionSize = (s: FamilySize, spec: PipeSpec, branchSpec: PipeSpec): boolean =>
+    s.dn === spec.dn && (s.dn2 ?? s.dn) === branchSpec.dn && s.centerToEnd !== undefined;
+
+  /** Tê e cruzeta: passagem pelo centro, derivação(ões) a `centerToBranch` do centro. */
+  function junction(
+    kind: 'tee' | 'cross',
+    spec: PipeSpec,
+    branchSpec: PipeSpec,
+    preferredId: string | null | undefined,
+    endType: EndType | undefined,
+  ): TeeDimensions {
+    const hit = find(
+      candidates(kind, spec, preferredId, endType, () => true),
+      (s) => junctionSize(s, spec, branchSpec),
+    );
+    if (!hit?.size.centerToEnd) return GENERIC_CATALOG[kind](spec, branchSpec);
+    const end = toEnd(hit.family, hit.size.end);
+    const branchEnd = toEnd(hit.family, hit.size.end2 ?? hit.size.end);
+    return {
+      familyId: hit.family.id,
+      runLength: 2 * hit.size.centerToEnd,
+      branchLength: hit.size.centerToBranch ?? hit.size.centerToEnd,
+      ends: buildEnds([
+        ['a', end],
+        ['b', end],
+        ['branch', branchEnd],
+        ...(kind === 'cross'
+          ? ([['branch2', branchEnd]] as [string, EndTreatment | undefined][])
+          : []),
+      ]),
+    };
+  }
+
   return {
     ...(extensions.pipeFlange ? { pipeFlange: extensions.pipeFlange } : {}),
     ...(extensions.flange ? { flange: extensions.flange } : {}),
@@ -220,24 +280,19 @@ export function createFamilyCatalog(
       };
     },
 
-    tee(spec, branchSpec, preferredId, endType) {
-      const hit = find(
-        candidates('tee', spec, preferredId, endType, () => true),
-        (s) => s.dn === spec.dn && (s.dn2 ?? s.dn) === branchSpec.dn && s.centerToEnd !== undefined,
+    tee: (spec, branchSpec, preferredId, endType) =>
+      junction('tee', spec, branchSpec, preferredId, endType),
+    cross: (spec, branchSpec, preferredId, endType) =>
+      junction('cross', spec, branchSpec, preferredId, endType),
+
+    junctionFamilies(kind, spec, branchSpec, endType) {
+      return candidates(kind, spec, null, endType, () => true).filter((family) =>
+        family.sizes.some((s) => junctionSize(s, spec, branchSpec)),
       );
-      if (!hit?.size.centerToEnd) return GENERIC_CATALOG.tee(spec, branchSpec);
-      const end = toEnd(hit.family, hit.size.end);
-      return {
-        familyId: hit.family.id,
-        runLength: 2 * hit.size.centerToEnd,
-        branchLength: hit.size.centerToBranch ?? hit.size.centerToEnd,
-        ends: buildEnds([
-          ['a', end],
-          ['b', end],
-          ['branch', toEnd(hit.family, hit.size.end2 ?? hit.size.end)],
-        ]),
-      };
     },
+    ...(extensions.flangedPipeFamilies
+      ? { flangedPipeFamilies: extensions.flangedPipeFamilies }
+      : {}),
 
     reducer(a, b, preferredId, endType) {
       const aIsLarge = a.dn >= b.dn;

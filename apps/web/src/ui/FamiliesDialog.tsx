@@ -29,6 +29,7 @@ const ALL_SPECIFICATIONS = 'all';
 const KIND_LABELS: Record<FamilyKind, string> = {
   elbow: 'Joelhos e curvas',
   tee: 'Tês',
+  cross: 'Cruzetas',
   reducer: 'Reduções',
   valve: 'Válvulas',
 };
@@ -116,12 +117,16 @@ function columnsFor(family: FittingFamily): Column[] {
             ...end,
           ];
     case 'tee':
+    case 'cross':
       return [
         dn,
         {
           path: 'dn2',
           label: 'DN deriv.',
-          title: 'DN da derivação (vazio = igual à passagem)',
+          title:
+            family.kind === 'cross'
+              ? 'DN das duas derivações (vazio = igual à passagem)'
+              : 'DN da derivação (vazio = igual à passagem)',
           raw: true,
         },
         {

@@ -45,6 +45,7 @@ import { describeSnap } from '../editor/snapLabel';
 import { getViewFocus, planScaleFor, setViewFocus } from '../editor/viewPresets';
 import { visibleElementsOf, visibleFreePortsOf } from '../editor/visibility';
 import { arrowPreferences, contextTargetOf, CONTEXT_PX, nudgeStep } from '../editor/directEdit';
+import { isPolarLockHeld, polarLockedPoint } from '../editor/polarLock';
 import { pickPlanPoint, pickPlanPort, planPipeHit, type PlanPick } from '../editor/planPicking';
 import { BasemapLayer, type BasemapStatus } from '../infra/BasemapLayer';
 import { GeoPicker } from '../infra/GeoPicker';
@@ -73,7 +74,9 @@ import {
   useEditorStore,
 } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
+import { cursorElementOf } from '../state/viewPreview';
 import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
+import { PlanPreviewLayer } from './PlanPreviewLayer';
 import { TerrainPanel } from '../terrain/TerrainPanel';
 import { TerrainProfilePanel } from '../terrain/TerrainProfilePanel';
 import { useTerrainStore } from '../terrain/terrainStore';
@@ -137,6 +140,24 @@ function topOf(element: HydroElement): number {
   let top = element.kind === 'pipe' ? -Infinity : element.placement.position.z;
   for (const port of getPorts(element)) top = Math.max(top, port.position.z);
   return top + element.spec.outerDiameter / 2;
+}
+
+/** Envoltória dos elementos selecionados visíveis em planta (nula se nenhum estiver visível). */
+function selectionBounds(project: Project, selection: readonly string[]): Bounds | null {
+  const chosen = visibleElementsOf(project).filter((element) => selection.includes(element.id));
+  if (project.discipline === 'infra') {
+    const box = computeBounds(chosen);
+    return box ? { minX: box.min.x, minY: box.min.y, maxX: box.max.x, maxY: box.max.y } : null;
+  }
+  const bounds: Bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  for (const element of chosen) {
+    const { outline } = outlineOf(element);
+    bounds.minX = Math.min(bounds.minX, outline.minX);
+    bounds.minY = Math.min(bounds.minY, outline.minY);
+    bounds.maxX = Math.max(bounds.maxX, outline.maxX);
+    bounds.maxY = Math.max(bounds.maxY, outline.maxY);
+  }
+  return Number.isFinite(bounds.minX) ? bounds : null;
 }
 
 /** Envoltória do desenho: elementos visíveis e anotações. */
@@ -274,7 +295,10 @@ export function PlanView() {
   const unit = (infra ? settings.drawingScale : project.drawingScale) / 1000;
 
   const fit = useCallback((width: number, height: number): void => {
-    const bounds = planBounds(useEditorStore.getState().project);
+    const { project, selection, viewRequest } = useEditorStore.getState();
+    // Enquadrar a seleção cai no projeto inteiro se nada selecionado estiver visível.
+    const bounds =
+      (viewRequest?.selection ? selectionBounds(project, selection) : null) ?? planBounds(project);
     if (!bounds || width <= 0 || height <= 0) {
       setView({ cx: 0, cy: 0, mpp: 0.01 });
       return;
@@ -414,7 +438,7 @@ export function PlanView() {
   /** Ponto 3D, porta e captura indicados pelo cursor para as ferramentas de modelagem. */
   const pickModel = (raw: Point2, elementId: string | null): Result<PlanPick> => {
     const state = useEditorStore.getState();
-    const picked = pickPlanPoint({
+    const free = pickPlanPoint({
       point: raw,
       tolerance: SNAP_PX * view.mpp,
       freePorts,
@@ -427,7 +451,11 @@ export function PlanView() {
       constraint: deflectionConstraintOf(state),
       cycle: stackCycle.current,
     });
-    if (picked.ok && picked.value.port) return picked;
+    if (free.ok && free.value.port) return free;
+    // Shift: o trecho trava a 0°, 45° ou 90° (do tubo de partida ou dos eixos do projeto).
+    const locked = free.ok && isPolarLockHeld() ? polarLockedPoint(state, free.value.point) : null;
+    const picked: Result<PlanPick> =
+      free.ok && locked ? ok({ ...free.value, point: locked, snap: 'angle' }) : free;
     // Junto a um tubo existente, o cursor mostra onde o tê automático ficará.
     const onPipe = pipeSnapOf(
       state,
@@ -482,6 +510,14 @@ export function PlanView() {
       // Mesmo ponto sobre o eixo usado na prévia (início do trecho sobre o tubo).
       const onAxis = planHit(store.project, target.id, raw)?.point;
       hit = { elementId: target.id, point: onAxis ?? pick.point };
+    } else if (
+      target &&
+      !pick.port &&
+      tool === 'pipe' &&
+      (target.kind === 'tee' || target.kind === 'cross')
+    ) {
+      // Tê ou cruzeta como início ou fim do ramal (a cota é conferida pela operação).
+      hit = { elementId: target.id, point: target.placement.position };
     } else if (target && !pick.port && (tool === 'tee' || tool === 'valve')) {
       if (target.kind === 'pipe') {
         // A posição em linha é medida sobre o eixo real do tubo, não sobre a projeção.
@@ -720,7 +756,13 @@ export function PlanView() {
           point: pick.point,
           snap: pick.snap,
           port: pick.port?.ref ?? null,
-          elementId: pick.port?.ref.elementId ?? (pick.snap === 'pipe' ? elementId : null),
+          elementId: cursorElementOf(
+            store.project,
+            store.tool,
+            pick.port?.ref.elementId ?? null,
+            pick.snap,
+            elementId,
+          ),
           stacked: pick.stacked,
           note,
         }
@@ -1146,6 +1188,8 @@ export function PlanView() {
               />
             ))}
         </g>
+        <PlanPreviewLayer origin={origin} mpp={view.mpp} unit={unit} />
+
         {labels.length > 0 && <NetworkLabels labels={labels} origin={origin} mpp={view.mpp} />}
         {/* Fora da seleção, as anotações não interceptam o clique sobre os elementos. */}
         <g data-layer="annotations" pointerEvents={tool === 'select' ? undefined : 'none'}>

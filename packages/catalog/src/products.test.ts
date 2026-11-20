@@ -115,7 +115,17 @@ describe('biblioteca de produtos', () => {
       const kinds = BUILTIN_FAMILIES.filter(
         (f) => f.specificationId === spec && f.kind !== 'valve',
       ).map((f) => f.kind);
-      expect(kinds.sort()).toEqual(['elbow', 'elbow', 'elbow', 'elbow', 'reducer', 'tee', 'tee']);
+      expect(kinds.sort()).toEqual([
+        'cross',
+        'cross',
+        'elbow',
+        'elbow',
+        'elbow',
+        'elbow',
+        'reducer',
+        'tee',
+        'tee',
+      ]);
     }
   });
 

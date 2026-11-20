@@ -439,6 +439,83 @@ code {
   color: #7ee0c3;
 }
 
+/* Prévia de operação: peça de derivação proposta e recusa. */
+.viewport-label--preview {
+  border-color: #8ce99a;
+  color: #b2f2bb;
+}
+
+.viewport-label--error {
+  display: inline-block;
+  border-color: #ffa8a8;
+  color: #ffc9c9;
+  pointer-events: none;
+}
+
+/* "Alinhar e conectar" e conversão tê ⇄ cruzeta. */
+.connect-steps {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.connect-steps dt {
+  font-weight: 600;
+}
+
+.connect-steps dd {
+  margin: 0;
+}
+
+.connect-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.connect-option {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 4px 6px;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.connect-option.is-active {
+  border-color: #2f9e44;
+  background: #ebfbee;
+}
+
+.connect-option__badge {
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #e7f5ff;
+  color: #1864ab;
+  font-size: 11px;
+}
+
+.connect-details ul {
+  margin: 2px 0 6px;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.options__error {
+  color: #c92a2a;
+  font-size: 12px;
+}
+
+.options__actions {
+  display: flex;
+  gap: 6px;
+}
+
 .options {
   position: absolute;
   top: 10px;

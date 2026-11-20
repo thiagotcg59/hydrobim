@@ -32,6 +32,8 @@ import {
   type PixelScale,
   type Ray,
 } from '../editor/picking';
+import { shiftPick } from '../editor/polarLock';
+import { cursorElementOf } from '../state/viewPreview';
 import { visibleFreePortsOf } from '../editor/visibility';
 import {
   deflectionConstraintOf,
@@ -163,6 +165,9 @@ export function InteractionController({ elementsRef, onHover }: Props) {
 
       const usesPoints = state.tool !== 'select';
       const gridStep = state.snapToGrid ? state.gridStep : 0;
+      // Shift no traçado de tubo: trava de 45°/90° no plano ou trecho vertical, o que estiver
+      // mais perto do cursor. Nas demais ferramentas, Shift continua sendo a vertical.
+      const polar = event.shiftKey && state.tool === 'pipe' && state.anchor !== null;
       const picked = usesPoints
         ? pickPoint({
             ray,
@@ -177,10 +182,26 @@ export function InteractionController({ elementsRef, onHover }: Props) {
               state.tool === 'pipe' && state.anchor
                 ? { point: state.anchor.point, lockAxis: state.anchor.lockAxis }
                 : null,
-            vertical: event.shiftKey,
+            vertical: event.shiftKey && !polar,
             ground: groundOf(state),
           })
         : null;
+      if (polar) {
+        const up = pickPoint({
+          ray,
+          freePorts: visibleFreePortsOf(state.project),
+          pixelScale: pixelScale(),
+          cycle,
+          workPlaneZ: drawElevationOf(state),
+          gridStep,
+          anchor: state.anchor
+            ? { point: state.anchor.point, lockAxis: state.anchor.lockAxis }
+            : null,
+          vertical: true,
+          ground: groundOf(state),
+        });
+        return { pick: shiftPick(state, ray, picked, up), hit };
+      }
       // Saindo da extremidade de um tubo, a direção trava nos ângulos dos joelhos de catálogo.
       const constraint = deflectionConstraintOf(state);
       // Junto a um tubo existente, o cursor mostra onde o tê automático ficará.
@@ -221,7 +242,13 @@ export function InteractionController({ elementsRef, onHover }: Props) {
               point: pick.point,
               snap: pick.snap,
               port: pick.port?.ref ?? null,
-              elementId: pick.port?.ref.elementId ?? (pick.snap === 'pipe' ? hit?.elementId : null),
+              elementId: cursorElementOf(
+                state.project,
+                state.tool,
+                pick.port?.ref.elementId ?? null,
+                pick.snap,
+                hit?.elementId ?? null,
+              ),
               stacked: pick.stacked,
             }
           : null,

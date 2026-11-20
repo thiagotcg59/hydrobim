@@ -13,7 +13,10 @@ const MENU = new Set(['action-new', 'action-open', 'action-export', 'file-save']
 const TASK_RULES: readonly (readonly [RegExp, Task])[] = [
   [/^tool-(dimension|text|leader|tag)$/, 'document'],
   [/^(plan-scale|plan-dimension-mode|infra-scale|doc-.*)$/, 'document'],
-  [/^(tool-(select|pipe|elbow|tee|reducer|valve|pump|tank|measure)|action-families)$/, 'model'],
+  [
+    /^(tool-(select|pipe|elbow|tee|reducer|valve|pump|tank|measure|connect)|action-families)$/,
+    'model',
+  ],
   [/^(modify-|connect-)/, 'model'],
   [
     /^(plan-theme|plan-thin-lines|custom-source-toggle|ribbon-view-.*|view-split|layout-(nav|panel))$/,
@@ -42,11 +45,11 @@ const RIBBON_MENUS: readonly (readonly [RegExp, string])[] = [
 
 const PANEL_RULES: readonly (readonly [RegExp, 'properties' | 'tool'])[] = [
   [
-    /^(prop-|move-|copy-|port-|inline-|section-|close-|bim-(key|value|add)|size-mode|action-delete|back-to-project|element-properties|multi-properties|properties-)/,
+    /^(prop-|move-|copy-|port-|inline-|section-|close-|junction-|bim-(key|value|add)|size-mode|action-delete|back-to-project|element-properties|multi-properties|properties-)/,
     'properties',
   ],
   [
-    /^(coord-|option-|segment-|active-|anchor-info|tool-options|pipe-ends-options|tank-options|coordinate-entry|capture-options|pipe-elevation-info)/,
+    /^(coord-|option-|segment-|active-|anchor-info|tool-options|connection-|junction-options|pipe-ends-options|tank-options|coordinate-entry|capture-options|pipe-elevation-info)/,
     'tool',
   ],
 ];

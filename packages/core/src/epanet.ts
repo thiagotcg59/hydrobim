@@ -124,6 +124,7 @@ export function exportEpanet(project: Project): EpanetExport {
     const collapses =
       element.kind === 'elbow' ||
       element.kind === 'tee' ||
+      element.kind === 'cross' ||
       element.kind === 'reducer' ||
       element.kind === 'tank';
     const first = ports[0];

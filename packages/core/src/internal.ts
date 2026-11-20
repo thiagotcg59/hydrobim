@@ -9,6 +9,7 @@ const KIND_LABEL: Record<ElementKind, string> = {
   pipe: 'Tubo',
   elbow: 'Joelho',
   tee: 'Tê',
+  cross: 'Cruzeta',
   reducer: 'Redução',
   valve: 'Válvula',
   pump: 'Bomba',

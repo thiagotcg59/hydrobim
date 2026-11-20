@@ -50,6 +50,7 @@ export function elementClass(element: HydroElement): IfcElementClass {
       return 'pipe';
     case 'elbow':
     case 'tee':
+    case 'cross':
     case 'reducer':
       return 'fitting';
     case 'valve':
@@ -233,9 +234,11 @@ function endTypes(element: HydroElement): string {
       ? ['start', 'end']
       : element.kind === 'tee'
         ? ['a', 'b', 'branch']
-        : element.kind === 'valve' && element.valveType === 'airRelease'
-          ? ['a']
-          : ['a', 'b'];
+        : element.kind === 'cross'
+          ? ['a', 'b', 'branch', 'branch2']
+          : element.kind === 'valve' && element.valveType === 'airRelease'
+            ? ['a']
+            : ['a', 'b'];
   return ids.map((id) => END_LABELS[element.ends?.[id]?.type ?? 'plain']).join(' × ');
 }
 
@@ -275,6 +278,7 @@ function axisLength(element: HydroElement): number | null {
         element.bendRadius * element.angle + (element.straight?.a ?? 0) + (element.straight?.b ?? 0)
       );
     case 'tee':
+    case 'cross':
       return element.runLength;
     case 'reducer':
       return element.length;
@@ -332,7 +336,17 @@ const FITTING_LABEL = (element: HydroElement): string =>
       ? element.branchSpec
         ? 'Tê de redução'
         : 'Tê'
-      : 'Redução';
+      : element.kind === 'cross'
+        ? element.branchSpec
+          ? 'Cruzeta de redução'
+          : 'Cruzeta'
+        : 'Redução';
+
+/** Tê ou cruzeta: peças de derivação (passagem e derivação(ões) a 90°). */
+const isJunction = (
+  element: HydroElement,
+): element is Extract<HydroElement, { kind: 'tee' | 'cross' }> =>
+  element.kind === 'tee' || element.kind === 'cross';
 
 const M = 'Pset_ManufacturerTypeInformation';
 const SIZE = 'Pset_ElementSize';
@@ -561,7 +575,8 @@ export const IFC_PROPERTY_DEFINITIONS: readonly IfcPropertyDefinition[] = [
     resolve: ({ element }) => value(endTypes(element), dimensional(element)),
   }),
   own('HydroBIM_Conexao', 'NumberOfPorts', 'Número de portas', 'type', ['fitting'], 'IfcInteger', {
-    resolve: ({ element }) => value(element.kind === 'tee' ? 3 : 2, 'model'),
+    resolve: ({ element }) =>
+      value(element.kind === 'cross' ? 4 : element.kind === 'tee' ? 3 : 2, 'model'),
   }),
   own(
     'HydroBIM_Conexao',
@@ -571,9 +586,9 @@ export const IFC_PROPERTY_DEFINITIONS: readonly IfcPropertyDefinition[] = [
     ['fitting'],
     'IfcLabel',
     {
-      when: ({ element }) => element.kind === 'tee',
+      when: ({ element }) => isJunction(element),
       resolve: ({ element }) =>
-        element.kind === 'tee'
+        isJunction(element)
           ? value((element.branchSpec ?? element.spec).sizeLabel, 'catalog')
           : null,
     },
@@ -603,10 +618,10 @@ export const IFC_PROPERTY_DEFINITIONS: readonly IfcPropertyDefinition[] = [
     ['fitting'],
     'IfcPositiveLengthMeasure',
     {
-      when: ({ element }) => element.kind === 'tee',
+      when: ({ element }) => isJunction(element),
       resolve: ({ element }) =>
-        element.kind === 'tee' ? value(element.runLength, dimensional(element)) : null,
-      binding: 'Família: dimensão do tê',
+        isJunction(element) ? value(element.runLength, dimensional(element)) : null,
+      binding: 'Família: dimensão do tê/cruzeta',
     },
   ),
   own(
@@ -617,10 +632,10 @@ export const IFC_PROPERTY_DEFINITIONS: readonly IfcPropertyDefinition[] = [
     ['fitting'],
     'IfcPositiveLengthMeasure',
     {
-      when: ({ element }) => element.kind === 'tee',
+      when: ({ element }) => isJunction(element),
       resolve: ({ element }) =>
-        element.kind === 'tee' ? value(element.branchLength, dimensional(element)) : null,
-      binding: 'Família: dimensão do tê',
+        isJunction(element) ? value(element.branchLength, dimensional(element)) : null,
+      binding: 'Família: dimensão do tê/cruzeta',
     },
   ),
   own(

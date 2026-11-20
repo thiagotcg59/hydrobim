@@ -25,6 +25,8 @@ CLASSES = {
     "pipe": ("IfcPipeSegment", "RIGIDSEGMENT"),
     "elbow": ("IfcPipeFitting", "BEND"),
     "tee": ("IfcPipeFitting", "JUNCTION"),
+    # Esquema v14: a cruzeta é uma junção (mais de duas portas), como o tê.
+    "cross": ("IfcPipeFitting", "JUNCTION"),
     "reducer": ("IfcPipeFitting", "TRANSITION"),
     "pump": ("IfcPump", "ENDSUCTION"),
     "tank": ("IfcTank", "STORAGE"),
@@ -72,6 +74,9 @@ def test_ifc_schema_and_model(example):
         if e.get("valveType") == "strainer"
         else ("IfcValve", VALVES[e["valveType"]])
         if e["kind"] == "valve"
+        # Bomba anfíbia de catálogo: motobomba submersa (SUBMERSIBLEPUMP), em linha.
+        else ("IfcPump", "SUBMERSIBLEPUMP")
+        if e["kind"] == "pump" and e.get("pumpType") == "amphibious"
         else CLASSES[e["kind"]]
         for e in elements
     )
@@ -83,7 +88,9 @@ def test_ifc_schema_and_model(example):
     assert len({e.GlobalId for e in roots}) == len(roots)
     assert all(re.fullmatch(r"[0-3][0-9A-Za-z_$]{21}", e.GlobalId) for e in roots)
     port_count = sum(
-        3
+        4
+        if e["kind"] == "cross"
+        else 3
         if e["kind"] == "tee"
         else 1
         if e.get("valveType") == "airRelease"
@@ -141,15 +148,15 @@ def test_ifc_schema_and_model(example):
         body = next(r for r in representations if r.RepresentationIdentifier == "Body")
         assert body.ContextOfItems.is_a("IfcGeometricRepresentationSubContext")
         assert body.ContextOfItems.TargetView == "MODEL_VIEW"
-        assert body.RepresentationType == (
-            "SweptSolid" if element["kind"] == "pipe" else "Tessellation"
-        )
+        # Tubo liso: sólido varrido; tubo com flanges e peças: malha triangulada.
+        swept = element["kind"] == "pipe" and not element.get("ends")
+        assert body.RepresentationType == ("SweptSolid" if swept else "Tessellation")
         assert len(entity.ContainedInStructure) == 1
         container = entity.ContainedInStructure[0].RelatingStructure
         assert entity.ObjectPlacement.PlacementRelTo == container.ObjectPlacement
         if document["discipline"] == "infra":
             assert container.is_a("IfcSite")
-        if element["kind"] == "pipe":
+        if swept:
             solid = body.Items[0]
             assert solid.is_a("IfcExtrudedAreaSolid")
             assert solid.Depth == pytest.approx(

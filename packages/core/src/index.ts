@@ -1,3 +1,4 @@
+export * from './alignConnect';
 export * from './analysis';
 export * from './annotations';
 export * from './bounds';
@@ -9,6 +10,8 @@ export * from './dimensions';
 export * from './elbowAngles';
 export * from './epanet';
 export * from './families';
+export * from './flangeMatch';
+export * from './junctions';
 export * from './geo/crs';
 export * from './geo/projection';
 export * from './geo/transform';

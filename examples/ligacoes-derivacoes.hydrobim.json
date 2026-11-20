@@ -1,0 +1,681 @@
+{
+  "format": "hydrobim-project",
+  "schemaVersion": 14,
+  "id": "f8a79cdb-6fa0-4df7-a29c-0d2ef08992e7",
+  "name": "Ligações e derivações",
+  "discipline": "infra",
+  "units": {
+    "length": "m",
+    "angle": "rad"
+  },
+  "createdAt": "2026-11-20T14:53:44.505Z",
+  "updatedAt": "2026-11-20T14:53:44.512Z",
+  "systems": [
+    {
+      "id": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "name": "Abastecimento de água",
+      "kind": "waterSupply"
+    }
+  ],
+  "levels": [
+    {
+      "id": "6514e2d3-4e65-47bf-9354-227128752b36",
+      "name": "Referência",
+      "elevation": 0
+    }
+  ],
+  "families": [],
+  "tankFamilies": [],
+  "pumpFamilies": [],
+  "ifcTypes": {},
+  "georeference": null,
+  "terrain": null,
+  "elements": [
+    {
+      "id": "fe48c4eb-9d5d-47a2-a7d7-55bae35ae024",
+      "name": "Bomba de recalque",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "higra-anfibia-estagio-unico-60hz",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "HIGRA",
+        "model": "Bomba anfíbia HIGRA de estágio único, 60 Hz — R1-195/15B a R1-195/30B"
+      },
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.506Z",
+        "updatedAt": "2026-11-20T14:53:44.506Z",
+        "revision": 1
+      },
+      "kind": "pump",
+      "placement": {
+        "position": {
+          "x": 0,
+          "y": 10,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "dischargeSpec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "pumpType": "amphibious",
+      "variantId": "higra-anfibia-estagio-unico-60hz/r1-195-132l",
+      "stages": 1,
+      "suctionFlangeClass": "PN 40",
+      "dischargeFlangeClass": "PN 40",
+      "footOffset": 0.16,
+      "footSpan": 0.599,
+      "rearLength": 0.174,
+      "length": 0.933,
+      "footWidth": 0.27,
+      "footHoleDiameter": 0.0265,
+      "axisHeight": 0.206,
+      "totalHeight": 0.396,
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "c8c1f7eb-d48d-49a9-8e97-cc6fb558e242",
+      "name": "Recalque",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.506Z",
+        "updatedAt": "2026-11-20T14:53:44.506Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 7.933,
+        "y": 10.4,
+        "z": 0
+      },
+      "end": {
+        "x": 3.933,
+        "y": 10.4,
+        "z": 0
+      }
+    },
+    {
+      "id": "fa6b1dd0-47e9-4a3b-994c-62e9b2cbe0bc",
+      "name": "Coletor FoFo",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.158,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.506Z",
+        "updatedAt": "2026-11-20T14:53:44.507Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "end": {
+        "x": 12,
+        "y": 0,
+        "z": 0
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.285,
+          "boltCircle": 0.24,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.023,
+          "raisedFaceDiameter": 0.211,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.285,
+          "boltCircle": 0.24,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.023,
+          "raisedFaceDiameter": 0.211,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "259a7110-4821-4bde-9a7f-56151bc50893",
+      "name": "Ramal norte",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.158,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.507Z",
+        "updatedAt": "2026-11-20T14:53:44.507Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 6,
+        "y": 5,
+        "z": 0
+      },
+      "end": {
+        "x": 6,
+        "y": 2,
+        "z": 0
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.285,
+          "boltCircle": 0.24,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.023,
+          "raisedFaceDiameter": 0.211,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "25aec14f-751f-4878-9976-c2c1f97a4f10",
+      "name": "Ramal sul",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.158,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.507Z",
+        "updatedAt": "2026-11-20T14:53:44.507Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 6,
+        "y": -5,
+        "z": 0
+      },
+      "end": {
+        "x": 6,
+        "y": -2,
+        "z": 0
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.285,
+          "boltCircle": 0.24,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.023,
+          "raisedFaceDiameter": 0.211,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "e36979a5-623e-455c-bfff-61502dc4b0d3",
+      "name": "Coletor PBA",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "pvc-pba-nbr5647-cl15",
+        "material": "pvc",
+        "standard": "ABNT NBR 5647",
+        "jointType": "socketSpigot",
+        "pressureClass": "Classe 15 (0,75 MPa)",
+        "dn": 75,
+        "sizeLabel": "DN 75 (DE 85)",
+        "outerDiameter": 0.085,
+        "wallThickness": 0.0047,
+        "innerDiameter": 0.0756,
+        "coldBendRadius": 61.20000000000001,
+        "coldBendSpan": 6
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.507Z",
+        "updatedAt": "2026-11-20T14:53:44.507Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": -12,
+        "z": 0
+      },
+      "end": {
+        "x": 8,
+        "y": -12,
+        "z": 0
+      }
+    },
+    {
+      "id": "15042b5c-8329-449d-8fc9-e37c3a7e3278",
+      "name": "Ramal PBA",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "pvc-pba-nbr5647-cl15",
+        "material": "pvc",
+        "standard": "ABNT NBR 5647",
+        "jointType": "socketSpigot",
+        "pressureClass": "Classe 15 (0,75 MPa)",
+        "dn": 75,
+        "sizeLabel": "DN 75 (DE 85)",
+        "outerDiameter": 0.085,
+        "wallThickness": 0.0047,
+        "innerDiameter": 0.0756,
+        "coldBendRadius": 61.20000000000001,
+        "coldBendSpan": 6
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.507Z",
+        "updatedAt": "2026-11-20T14:53:44.507Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 4,
+        "y": -8,
+        "z": 0
+      },
+      "end": {
+        "x": 4,
+        "y": -10,
+        "z": 0
+      }
+    },
+    {
+      "id": "822c3618-cb97-41cc-bd46-a288661d11df",
+      "name": "Linha PBA",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "pvc-pba-nbr5647-cl15",
+        "material": "pvc",
+        "standard": "ABNT NBR 5647",
+        "jointType": "socketSpigot",
+        "pressureClass": "Classe 15 (0,75 MPa)",
+        "dn": 75,
+        "sizeLabel": "DN 75 (DE 85)",
+        "outerDiameter": 0.085,
+        "wallThickness": 0.0047,
+        "innerDiameter": 0.0756,
+        "coldBendRadius": 61.20000000000001,
+        "coldBendSpan": 6
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.507Z",
+        "updatedAt": "2026-11-20T14:53:44.510Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": -20,
+        "z": 0
+      },
+      "end": {
+        "x": 3.947,
+        "y": -20,
+        "z": 0
+      }
+    },
+    {
+      "id": "d2c72bed-79cc-4e95-a5a1-9642ee2ea66a",
+      "name": "Derivação PBA 1",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "pvc-pba-nbr5647-cl15",
+        "material": "pvc",
+        "standard": "ABNT NBR 5647",
+        "jointType": "socketSpigot",
+        "pressureClass": "Classe 15 (0,75 MPa)",
+        "dn": 75,
+        "sizeLabel": "DN 75 (DE 85)",
+        "outerDiameter": 0.085,
+        "wallThickness": 0.0047,
+        "innerDiameter": 0.0756,
+        "coldBendRadius": 61.20000000000001,
+        "coldBendSpan": 6
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.507Z",
+        "updatedAt": "2026-11-20T14:53:44.511Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 4,
+        "y": -17,
+        "z": 0
+      },
+      "end": {
+        "x": 4,
+        "y": -19.94705,
+        "z": 0
+      }
+    },
+    {
+      "id": "0d42792d-c78a-4b1f-bd27-b3c18c4cbf90",
+      "name": "Tê 1",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "pvc-pba-nbr5647-cl15",
+        "material": "pvc",
+        "standard": "ABNT NBR 5647",
+        "jointType": "socketSpigot",
+        "pressureClass": "Classe 15 (0,75 MPa)",
+        "dn": 75,
+        "sizeLabel": "DN 75 (DE 85)",
+        "outerDiameter": 0.085,
+        "wallThickness": 0.0047,
+        "innerDiameter": 0.0756,
+        "coldBendRadius": 61.20000000000001,
+        "coldBendSpan": 6
+      },
+      "familyId": "wavin-cruzeta-pba@pvc-pba-nbr5647-cl15",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.510Z",
+        "updatedAt": "2026-11-20T14:53:44.511Z",
+        "revision": 1
+      },
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 4,
+          "y": -20,
+          "z": 0
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.071,
+          "outerDiameter": 0.1167
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.071,
+          "outerDiameter": 0.1167
+        },
+        "branch": {
+          "type": "socket",
+          "length": 0.071,
+          "outerDiameter": 0.1167
+        },
+        "branch2": {
+          "type": "socket",
+          "length": 0.071,
+          "outerDiameter": 0.1167
+        }
+      },
+      "runLength": 0.106,
+      "branchLength": 0.053,
+      "kind": "cross"
+    },
+    {
+      "id": "993f44e0-354a-49c5-90ba-dfc3018f9ae4",
+      "name": "Tubo 1",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "pvc-pba-nbr5647-cl15",
+        "material": "pvc",
+        "standard": "ABNT NBR 5647",
+        "jointType": "socketSpigot",
+        "pressureClass": "Classe 15 (0,75 MPa)",
+        "dn": 75,
+        "sizeLabel": "DN 75 (DE 85)",
+        "outerDiameter": 0.085,
+        "wallThickness": 0.0047,
+        "innerDiameter": 0.0756,
+        "coldBendRadius": 61.20000000000001,
+        "coldBendSpan": 6
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.510Z",
+        "updatedAt": "2026-11-20T14:53:44.510Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 4.053,
+        "y": -20,
+        "z": 0
+      },
+      "end": {
+        "x": 8,
+        "y": -20,
+        "z": 0
+      }
+    },
+    {
+      "id": "12f2dd50-cc8f-49b6-88e9-7ed0f7a92a6f",
+      "name": "Derivação PBA 2",
+      "systemId": "5db92968-da9b-4a2b-8324-277c9a2e609b",
+      "spec": {
+        "specificationId": "pvc-pba-nbr5647-cl15",
+        "material": "pvc",
+        "standard": "ABNT NBR 5647",
+        "jointType": "socketSpigot",
+        "pressureClass": "Classe 15 (0,75 MPa)",
+        "dn": 75,
+        "sizeLabel": "DN 75 (DE 85)",
+        "outerDiameter": 0.085,
+        "wallThickness": 0.0047,
+        "innerDiameter": 0.0756,
+        "coldBendRadius": 61.20000000000001,
+        "coldBendSpan": 6
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T14:53:44.511Z",
+        "updatedAt": "2026-11-20T14:53:44.512Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 4,
+        "y": -23,
+        "z": 0
+      },
+      "end": {
+        "x": 4,
+        "y": -20.053,
+        "z": 0
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "bf78a39e-f860-4ac3-998f-2d91ce70c189",
+      "a": {
+        "elementId": "822c3618-cb97-41cc-bd46-a288661d11df",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "0d42792d-c78a-4b1f-bd27-b3c18c4cbf90",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "40df3553-4bd5-4bf0-ae16-d27c4182e23e",
+      "a": {
+        "elementId": "0d42792d-c78a-4b1f-bd27-b3c18c4cbf90",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "993f44e0-354a-49c5-90ba-dfc3018f9ae4",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "cb994284-35dd-48d4-b911-e55f40c82b04",
+      "a": {
+        "elementId": "d2c72bed-79cc-4e95-a5a1-9642ee2ea66a",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "0d42792d-c78a-4b1f-bd27-b3c18c4cbf90",
+        "portId": "branch"
+      }
+    },
+    {
+      "id": "3f616756-a028-4bf8-8183-4ac74331c10d",
+      "a": {
+        "elementId": "12f2dd50-cc8f-49b6-88e9-7ed0f7a92a6f",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "0d42792d-c78a-4b1f-bd27-b3c18c4cbf90",
+        "portId": "branch2"
+      }
+    }
+  ],
+  "annotations": [],
+  "drawingScale": 500,
+  "infra": {
+    "drawingScale": 1000,
+    "basemap": {
+      "sourceId": null,
+      "visible": true,
+      "opacity": 1
+    },
+    "layers": {
+      "network": true,
+      "equipment": true,
+      "terrain": true,
+      "references": true,
+      "annotations": true
+    },
+    "labels": {
+      "names": false,
+      "lengths": false,
+      "elevations": false
+    }
+  }
+}

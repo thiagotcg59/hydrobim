@@ -97,6 +97,9 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   // opcionais (só a bomba genérica os usa). O projeto ganha as famílias de bombas
   // personalizadas (`pumpFamilies`), vazias nos documentos antigos.
   12: (doc) => ({ pumpFamilies: [], ...doc, schemaVersion: 13 }),
+  // v13 → v14: cruzeta como elemento (`cross`, quatro portas) e famílias de cruzetas
+  // (`kind: 'cross'`). Só acrescenta tipos: documentos v13 já são válidos no esquema v14.
+  13: (doc) => ({ ...doc, schemaVersion: 14 }),
 };
 
 export function serializeProject(project: Project): string {
