@@ -1,4 +1,5 @@
 import {
+  FLANGE_PRESSURE_CLASSES,
   flangedPipeFamiliesFor,
   getSpecification,
   jointDeflectionDegrees,
@@ -9,6 +10,12 @@ import {
   formatMeters,
   MAX_BEND_VERTEX,
   australianDiameter,
+  mmToM,
+  mToMm,
+  PUMP_DIMENSION_KEYS,
+  PUMP_DIMENSION_LABELS,
+  pumpFlangeLabel,
+  pumpVariantLabel,
   radToDeg,
   tankVariantLabel,
   VALVE_TYPES,
@@ -21,6 +28,7 @@ import {
   drawElevationOf,
   elbowAnglesOf,
   familiesOf,
+  pumpFamiliesOf,
   tankFamiliesOf,
   useEditorStore,
 } from '../state/editorStore';
@@ -29,7 +37,6 @@ import { PLAN_TOOL_HINTS, TOOL_HINTS, TOOL_LABELS, VALVE_TYPE_LABELS } from './l
 import { SegmentEntry } from './SegmentEntry';
 import { SpecSelector } from './SpecSelector';
 
-const GRID_STEPS = [0.01, 0.05, 0.1, 0.25, 0.5, 1, 5, 10];
 const POINT_TOOLS = new Set(['pipe', 'measure', 'pump', 'tank']);
 
 /** Entrada de pontos por coordenadas exatas. */
@@ -283,6 +290,130 @@ function TankOptions() {
   );
 }
 
+/** Família, modelo e cotas da bomba a inserir (letras do dimensional do fabricante). */
+function PumpOptions() {
+  const pump = useEditorStore((s) => s.toolOptions.pump);
+  const activeSpec = useEditorStore((s) => s.activeSpec);
+  const project = useEditorStore((s) => s.project);
+  const { setToolOptions } = useEditorStore.getState();
+  const families = pumpFamiliesOf(project);
+  const family = families.find((f) => f.id === pump.familyId);
+  const variant = family?.variants.find((v) => v.id === pump.variantId);
+  const first = family?.variants[0];
+  const set = (patch: Partial<typeof pump>): void =>
+    setToolOptions({ pump: { ...pump, ...patch } });
+  const setCustom = (patch: Partial<typeof pump.custom>): void =>
+    set({ custom: { ...pump.custom, ...patch } });
+  const sizes = getSpecification(activeSpec.specificationId)?.sizes ?? [];
+  const classes = FLANGE_PRESSURE_CLASSES.map((c) => ({ value: c as string, label: c }));
+
+  return (
+    <div className="options__group" data-testid="pump-options">
+      <span className="options__caption">Bomba</span>
+      <SelectField
+        label="Família"
+        testId="option-pump-family"
+        value={family?.id ?? 'generic'}
+        options={[
+          { value: 'generic', label: 'Genérica (sem catálogo)' },
+          ...families.map((f) => ({
+            value: f.id,
+            label: `${f.name}${f.origin === 'custom' ? ' (personalizada)' : ''}`,
+          })),
+        ]}
+        onChange={(id) => {
+          const next = families.find((f) => f.id === id);
+          set({
+            familyId: next?.id ?? null,
+            variantId: next?.variants[0]?.id ?? null,
+            custom: {},
+            dischargeDn: null,
+          });
+        }}
+      />
+      {!family && (
+        <span className="muted">
+          Conjunto motobomba de representação, com dimensões genéricas (fora de catálogo).
+        </span>
+      )}
+      {family && (
+        <SelectField
+          label="Modelo"
+          testId="option-pump-variant"
+          value={pump.variantId ?? 'custom'}
+          options={[
+            ...family.variants.map((v) => ({ value: v.id, label: pumpVariantLabel(v) })),
+            { value: 'custom', label: 'Outro modelo (preencher as cotas)' },
+          ]}
+          onChange={(id) => set({ variantId: id === 'custom' ? null : id })}
+        />
+      )}
+      {family && variant && (
+        <span className="muted" data-testid="option-pump-ports">
+          A — sucção: {pumpFlangeLabel(variant.suction)} · B — descarga:{' '}
+          {pumpFlangeLabel(variant.discharge)}. As bocas usam a especificação de tubo ativa nesses
+          diâmetros.
+        </span>
+      )}
+      {family && first && !variant && (
+        <>
+          <span className="muted" data-testid="option-pump-custom-note">
+            Preencha com os valores do dimensional do fabricante (mesmas letras da tabela). A —
+            sucção: {activeSpec.sizeLabel} (especificação ativa).
+          </span>
+          <SelectField
+            label="A — classe do flange de sucção"
+            testId="option-pump-class-a"
+            value={pump.custom.suctionFlangeClass ?? first.suction.pressureClass}
+            options={classes}
+            onChange={(v) => setCustom({ suctionFlangeClass: v })}
+          />
+          <SelectField
+            label="B — DN da descarga"
+            testId="option-pump-dn-b"
+            value={String(pump.dischargeDn ?? activeSpec.dn)}
+            options={sizes.map((s) => ({ value: String(s.dn), label: s.label }))}
+            onChange={(v) => set({ dischargeDn: Number(v) })}
+          />
+          <SelectField
+            label="B — classe do flange de descarga"
+            testId="option-pump-class-b"
+            value={pump.custom.dischargeFlangeClass ?? first.discharge.pressureClass}
+            options={classes}
+            onChange={(v) => setCustom({ dischargeFlangeClass: v })}
+          />
+          {PUMP_DIMENSION_KEYS.map((key) => (
+            <NumberField
+              key={key}
+              label={`${PUMP_DIMENSION_LABELS[key].letter} — ${PUMP_DIMENSION_LABELS[key].description}`}
+              unit="mm"
+              digits={1}
+              value={mToMm(pump.custom.dimensions?.[key] ?? first.dimensions[key])}
+              onCommit={(v) =>
+                setCustom({ dimensions: { ...pump.custom.dimensions, [key]: mmToM(v) } })
+              }
+              testId={`option-pump-${key}`}
+            />
+          ))}
+          <NumberField
+            label="Estágios"
+            digits={0}
+            value={pump.custom.stages ?? first.stages}
+            onCommit={(v) => setCustom({ stages: Math.round(v) })}
+            testId="option-pump-stages"
+          />
+        </>
+      )}
+      {family && (
+        <span className="muted families__source" data-testid="option-pump-source">
+          Fonte: {family.source}. Carcaça, tirantes, pés e olhais são representação; os flanges vêm
+          da tabela única de flanges.
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ToolOptions() {
   const tool = useEditorStore((s) => s.tool);
   const discipline = useEditorStore((s) => s.project.discipline);
@@ -290,14 +421,11 @@ export function ToolOptions() {
   const activeSpec = useEditorStore((s) => s.activeSpec);
   const options = useEditorStore((s) => s.toolOptions);
   const workPlaneZ = useEditorStore((s) => s.workPlaneZ);
-  const gridStep = useEditorStore((s) => s.gridStep);
-  const snapToGrid = useEditorStore((s) => s.snapToGrid);
   const viewMode = useEditorStore((s) => s.viewMode);
   const pipeElevation = useEditorStore((s) => s.pipeElevation);
   const drawing = useEditorStore((s) => s.anchor !== null);
   const project = useEditorStore((s) => s.project);
-  const { setActiveSpec, setToolOptions, setWorkPlaneZ, setGridStep, setSnapToGrid } =
-    useEditorStore.getState();
+  const { setActiveSpec, setToolOptions, setWorkPlaneZ } = useEditorStore.getState();
   const pipeFamilies = flangedPipeFamiliesFor(activeSpec.specificationId);
   const catalogAngles = elbowAnglesOf(project, activeSpec).map(
     (angle) => Math.round(radToDeg(angle) * 100) / 100,
@@ -372,7 +500,6 @@ export function ToolOptions() {
   );
 
   const sizes = getSpecification(activeSpec.specificationId)?.sizes ?? [];
-  const steps = GRID_STEPS.includes(gridStep) ? GRID_STEPS : [...GRID_STEPS, gridStep].sort();
   const isFittingTool =
     tool === 'elbow' || tool === 'tee' || tool === 'reducer' || tool === 'valve';
   const level = levels.find((l) => Math.abs(l.elevation - workPlaneZ) < 1e-9);
@@ -407,6 +534,7 @@ export function ToolOptions() {
       )}
 
       {tool === 'tank' && <TankOptions />}
+      {tool === 'pump' && <PumpOptions />}
 
       {(tool === 'pump' || tool === 'tank') && (
         <div className="options__group" data-testid="terrain-placement-options">
@@ -683,26 +811,6 @@ export function ToolOptions() {
 
       {tool === 'pipe' && <SegmentEntry />}
       {POINT_TOOLS.has(tool) && <CoordinateEntry />}
-
-      {tool !== 'select' && (
-        <div className="options__group" data-testid="capture-options">
-          <span className="options__caption">Captura e grade</span>
-          <SelectField
-            label="Passo da grade"
-            value={String(gridStep)}
-            options={steps.map((step) => ({ value: String(step), label: formatMeters(step, 2) }))}
-            onChange={(value) => setGridStep(Number(value))}
-          />
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={snapToGrid}
-              onChange={(event) => setSnapToGrid(event.target.checked)}
-            />
-            Ajustar à grade
-          </label>
-        </div>
-      )}
     </aside>
   );
 }

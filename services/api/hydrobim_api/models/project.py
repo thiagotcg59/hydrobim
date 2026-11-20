@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 def _json_number(value: Any) -> int | float:
@@ -225,10 +225,25 @@ class Pump(FittingBase):
     kind: Literal["pump"]
     discharge_spec: PipeSpec
     length: PositiveNumber
-    discharge_offset: PositiveNumber
-    discharge_height: PositiveNumber
+    # Esquema v13: só a bomba genérica usa a posição do recalque (opcionais).
+    discharge_offset: PositiveNumber = Field(default=None, validate_default=False)
+    discharge_height: PositiveNumber = Field(default=None, validate_default=False)
     rated_flow: PositiveNumber = Field(default=None, validate_default=False)
     rated_head: PositiveNumber = Field(default=None, validate_default=False)
+    # Esquema v13: bomba de catálogo (anfíbia em linha) — forma construtiva, linha da tabela,
+    # estágios, classes dos flanges e cotas do dimensional do fabricante (C, D, E, G, ØH, I, J).
+    pump_type: Literal["generic", "amphibious"] = Field(default=None, validate_default=False)
+    variant_id: NonEmptyString = Field(default=None, validate_default=False)
+    stages: PositiveInteger = Field(default=None, validate_default=False)
+    suction_flange_class: NonEmptyString = Field(default=None, validate_default=False)
+    discharge_flange_class: NonEmptyString = Field(default=None, validate_default=False)
+    foot_offset: PositiveNumber = Field(default=None, validate_default=False)
+    foot_span: PositiveNumber = Field(default=None, validate_default=False)
+    rear_length: PositiveNumber = Field(default=None, validate_default=False)
+    foot_width: PositiveNumber = Field(default=None, validate_default=False)
+    foot_hole_diameter: PositiveNumber = Field(default=None, validate_default=False)
+    axis_height: PositiveNumber = Field(default=None, validate_default=False)
+    total_height: PositiveNumber = Field(default=None, validate_default=False)
 
 
 class TankNozzle(CamelModel):
@@ -317,6 +332,53 @@ class TankFamily(CamelModel):
     catalog_heights: list[PositiveNumber] = Field(default=None, validate_default=False)
     catalog_support_height: PositiveNumber = Field(default=None, validate_default=False)
     custom_defaults: TankCustomDefaults
+    approximations: list[str]
+    remarks: list[str]
+    origin: Literal["builtin", "custom"]
+    based_on: str = Field(default=None, validate_default=False)
+
+
+class PumpFlangeRef(CamelModel):
+    dn: PositiveNumber
+    pressure_class: NonEmptyString
+
+
+class PumpDimensions(CamelModel):
+    """Cotas do dimensional (m): C, D, E, F, G, ØH, I e J."""
+
+    foot_offset: PositiveNumber
+    foot_span: PositiveNumber
+    rear_length: PositiveNumber
+    length: PositiveNumber
+    foot_width: PositiveNumber
+    foot_hole_diameter: PositiveNumber
+    axis_height: PositiveNumber
+    total_height: PositiveNumber
+
+
+class PumpVariant(CamelModel):
+    id: NonEmptyString
+    models: Annotated[list[NonEmptyString], Field(min_length=1)]
+    frame: str
+    suction: PumpFlangeRef
+    discharge: PumpFlangeRef
+    dimensions: PumpDimensions
+    weight_kg: PositiveNumber = Field(default=None, validate_default=False)
+    stages: PositiveInteger
+
+
+class PumpFamily(CamelModel):
+    """Família de bombas personalizada no projeto (espelho de PumpFamilySchema)."""
+
+    id: NonEmptyString
+    name: NonEmptyString
+    pump_type: Literal["amphibious"]
+    manufacturer: str
+    frequency_hz: PositiveNumber
+    source: str
+    page: NonNegativeInteger
+    description: str
+    variants: list[PumpVariant]
     approximations: list[str]
     remarks: list[str]
     origin: Literal["builtin", "custom"]
@@ -542,7 +604,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[12], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[13], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -553,6 +615,8 @@ class Project(CamelModel):
     levels: list[Level]
     families: list[FittingFamily]
     tank_families: list[TankFamily]
+    # Esquema v13: famílias de bombas personalizadas no projeto.
+    pump_families: list[PumpFamily]
     # Esquema v9: valores IFC do usuário por tipo: {chave: {"Conjunto.Propriedade": valor}}.
     ifc_types: dict[str, dict[str, PropertyValue]]
     georeference: Georeference | None
@@ -566,12 +630,17 @@ class Project(CamelModel):
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v12), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v13), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
+        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
             return document
+        # v12 → v13: famílias de bombas — campos opcionais na bomba e a lista de famílias
+        # personalizadas, vazia nos documentos antigos.
+        document = {"pumpFamilies": [], **document}
+        if version == 12:
+            return {**document, "schemaVersion": 13}
         # v11 → v12: limite, linhas de quebra e procedência da superfície do terreno. Um
         # terreno antigo é um levantamento por pontos, sem limite informado.
         terrain = document.get("terrain")
@@ -582,7 +651,7 @@ class Project(CamelModel):
             else terrain,
         }
         if version == 11:
-            return {**document, "schemaVersion": 12}
+            return {**document, "schemaVersion": 13}
         # v10 → v11: configuração do ambiente Infra e referência altimétrica (não informada).
         # A escala que um projeto Infra usava na planta passa a ser a da Planta Infra.
         # v9 → v10: trechos retos do joelho e cotas das curvas ponta e bolsa (opcionais).
@@ -592,7 +661,7 @@ class Project(CamelModel):
         # v5 → v6: forma construtiva, bocais e acessórios dos reservatórios (opcionais).
         # v4 → v5: filtro Y e furação opcional dos flanges. Nos dois casos o documento
         # já era válido.
-        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 12}
+        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 13}
         if version != 1 and version != 2 and version != 3:
             return cls._migrate_v10(document)
         # v3 → v4: anotações da planta baixa e escala do desenho.

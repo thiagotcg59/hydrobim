@@ -61,7 +61,8 @@ Um joelho **não** é uma entidade `IfcElbow` (inexistente): é um `IfcPipeFitti
 | `valve` (`pressureReducing`) | `IfcValve` | `PRESSUREREDUCING` | Porta `a` = montante; `FlowDirection` ainda `NOTDEFINED` |
 | `valve` (`strainer`) | `IfcFilter` | `STRAINER` | Filtro Y: classe interna `valve` (peça em linha), mas entidade IFC própria; porta `a` = montante |
 | `valve` (`flowMeter`) | `IfcFlowMeter` | `WATERMETER` | Medidor de vazão em linha (macromedidor): classe interna `valve`, mas entidade IFC própria; porta `a` = montante |
-| `pump` | `IfcPump` | `ENDSUCTION` | Representação genérica |
+| `pump` (genérica) | `IfcPump` | `ENDSUCTION` | Representação genérica |
+| `pump` anfíbia de catálogo (`pumpType: 'amphibious'`) | `IfcPump` | `SUBMERSIBLEPUMP` | Motobomba de motor submerso, em linha, que opera submersa ou a seco; é o tipo do esquema que a descreve (conferido em `schemaData.ts`). O `IfcPumpType` leva o modelo do fabricante; as cotas do dimensional entram na chave do tipo |
 | `tank` | `IfcTank` | `STORAGE` | Reservatórios de catálogo têm `IfcTankType` e conjuntos de propriedades (abaixo) |
 
 Sistemas:

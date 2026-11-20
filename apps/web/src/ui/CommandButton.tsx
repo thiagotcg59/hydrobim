@@ -4,16 +4,20 @@ interface Props {
   id: string;
   context: CommandContext;
   /**
-   * `large`: ícone sobre o rótulo (comandos principais); `small`: ícone e rótulo em linha;
-   * `icon`: só o ícone (acesso rápido); `menu`: linha com a descrição (menus).
+   * `large`: ícone e rótulo (comandos principais da faixa); `compact`: comando secundário da
+   * faixa, só o ícone em telas estreitas; `small`: ícone e rótulo menores, em linha; `icon`: só
+   * o ícone (acesso rápido); `menu`: linha com a descrição (menus).
    */
-  variant?: 'large' | 'small' | 'icon' | 'menu';
+  variant?: 'large' | 'compact' | 'small' | 'icon' | 'menu';
   /** Rótulo no lugar do nome do comando (ex.: "Planta Infra"). */
   label?: string;
   /** `data-testid` no lugar do padrão do comando, quando ele aparece em dois lugares. */
   testId?: string;
   onRun?: () => void;
 }
+
+/** Tamanho do desenho do ícone; a área clicável é maior e vem do estilo do botão. */
+const ICON_SIZE = { large: 20, compact: 20, small: 16, icon: 18, menu: 18 } as const;
 
 /** Botão de um comando do registro: rótulo, dica, atalho e disponibilidade vêm de lá. */
 export function CommandButton({ id, context, variant = 'large', label, testId, onRun }: Props) {
@@ -33,7 +37,7 @@ export function CommandButton({ id, context, variant = 'large', label, testId, o
       {...data}
       disabled={!state.enabled}
       aria-pressed={state.active === undefined ? undefined : state.active}
-      aria-label={variant === 'icon' ? text : undefined}
+      aria-label={variant === 'icon' || variant === 'compact' ? text : undefined}
       role={variant === 'menu' ? 'menuitem' : undefined}
       title={commandTitle(command, state)}
       onClick={() => {
@@ -41,7 +45,7 @@ export function CommandButton({ id, context, variant = 'large', label, testId, o
         onRun?.();
       }}
     >
-      <Icon size={variant === 'large' ? 20 : 15} aria-hidden />
+      <Icon size={ICON_SIZE[variant]} className="cmd__icon" aria-hidden />
       {variant === 'menu' ? (
         <span className="cmd__text">
           <strong>{text}</strong>

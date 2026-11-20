@@ -1,13 +1,17 @@
-import { portKey } from './connectivity';
+import { connectedPortRef, getElement, portKey } from './connectivity';
+import { pipeRunOf } from './pipeRun';
 import { getPorts, pipeLength } from './ports';
-import type { HydroElement, Material, Project } from './schema';
+import type { Vec3 } from './math';
+import type { HydroElement, Material, PortRef, Project } from './schema';
 import { tankHydraulics } from './tanks';
 
 /**
  * Exportação da rede para o formato INP do EPANET 2.x.
  *
  * Correspondência adotada:
- *  - cada tubo vira um trecho [PIPES] com comprimento geométrico e diâmetro INTERNO;
+ *  - cada tubulação contínua (tubos ligados direto, sem peça entre eles) vira UM trecho
+ *    [PIPES], com a soma dos comprimentos e o diâmetro INTERNO; as mudanças de direção
+ *    absorvidas pela junta ou pela curvatura do tubo viram [VERTICES] do traçado, não nós;
  *  - joelhos, tês e reduções são nós (as perdas localizadas não são atribuídas);
  *  - válvulas em linha viram trechos curtos [PIPES] (retenção com estado CV);
  *  - reservatórios viram [TANKS]; bombas viram [PUMPS] quando têm ponto nominal;
@@ -51,6 +55,63 @@ class UnionFind {
 const pad = (value: string | number, width = 16): string => String(value).padEnd(width);
 const num = (value: number, digits = 3): string => value.toFixed(digits);
 
+interface ContinuousRun {
+  /** Tubos da tubulação, em ordem de percurso. */
+  readonly ids: readonly string[];
+  /** Portas das duas extremidades (os nós do trecho). */
+  readonly from: PortRef;
+  readonly to: PortRef;
+  readonly length: number;
+  /** Pontos de união entre tubos consecutivos, na ordem de `from` para `to`. */
+  readonly vertices: readonly Vec3[];
+  readonly name: string;
+}
+
+/**
+ * Tubulação contínua que contém o tubo, quando tem mais de um trecho. `null` para tubo
+ * isolado e para anel fechado só de tubos (as duas extremidades cairiam no mesmo nó, o que
+ * o EPANET não aceita): nesses casos cada tubo é exportado separadamente.
+ */
+function continuousRun(project: Project, pipeId: string): ContinuousRun | null {
+  const ids = pipeRunOf(project, pipeId);
+  if (ids.length < 2) return null;
+  const pipesOf = ids.map((id) => getElement(project, id));
+  const vertices: Vec3[] = [];
+  let from: PortRef | null = null;
+  let to: PortRef | null = null;
+  let length = 0;
+  for (let i = 0; i < pipesOf.length; i += 1) {
+    const pipe = pipesOf[i];
+    if (pipe?.kind !== 'pipe') return null;
+    length += pipeLength(pipe);
+    const next = pipesOf[i + 1];
+    // Extremidade deste tubo que está ligada ao seguinte.
+    const exit = next
+      ? (['start', 'end'] as const).find(
+          (portId) =>
+            connectedPortRef(project, { elementId: pipe.id, portId })?.elementId === next.id,
+        )
+      : undefined;
+    if (next && !exit) return null;
+    if (i === 0) from = { elementId: pipe.id, portId: exit === 'start' ? 'end' : 'start' };
+    if (exit) vertices.push(exit === 'start' ? pipe.start : pipe.end);
+    if (!next) {
+      const previous = pipesOf[i - 1];
+      const entry = (['start', 'end'] as const).find(
+        (portId) =>
+          connectedPortRef(project, { elementId: pipe.id, portId })?.elementId === previous?.id,
+      );
+      to = { elementId: pipe.id, portId: entry === 'end' ? 'start' : 'end' };
+    }
+  }
+  const first = pipesOf[0];
+  if (!from || !to || !first) return null;
+  // Anel fechado: a última extremidade volta à primeira.
+  const closing = connectedPortRef(project, to);
+  if (closing && closing.elementId === from.elementId && closing.portId === from.portId)
+    return null;
+  return { ids, from, to, length, vertices, name: first.name };
+}
 export function exportEpanet(project: Project): EpanetExport {
   const warnings: string[] = [];
   const sets = new UnionFind();
@@ -90,6 +151,10 @@ export function exportEpanet(project: Project): EpanetExport {
   const pipes: string[] = [];
   const pumps: string[] = [];
   const curves: string[] = [];
+  const vertices: string[] = [];
+  /** Tubos já exportados como parte de uma tubulação contínua. */
+  const merged = new Set<string>();
+  let mergedRuns = 0;
   let linkCount = 0;
   const link = (): string => `L${(linkCount += 1)}`;
 
@@ -97,11 +162,28 @@ export function exportEpanet(project: Project): EpanetExport {
     const c = HAZEN_WILLIAMS[element.spec.material];
     const diameter = num(element.spec.innerDiameter * 1000, 1);
     switch (element.kind) {
-      case 'pipe':
+      case 'pipe': {
+        if (merged.has(element.id)) break;
+        const run = continuousRun(project, element.id);
+        if (!run) {
+          pipes.push(
+            `${pad(link())}${pad(nodeOf(element.id, 'start'))}${pad(nodeOf(element.id, 'end'))}${pad(num(pipeLength(element)))}${pad(diameter)}${pad(c)}${pad(0)}Open    ; ${element.name}`,
+          );
+          break;
+        }
+        // Tubulação contínua: um trecho só, do primeiro ao último tubo; os pontos de união
+        // entre os tubos são vértices do desenho, sem nó hidráulico.
+        for (const id of run.ids) merged.add(id);
+        mergedRuns += 1;
+        const id = link();
         pipes.push(
-          `${pad(link())}${pad(nodeOf(element.id, 'start'))}${pad(nodeOf(element.id, 'end'))}${pad(num(pipeLength(element)))}${pad(diameter)}${pad(c)}${pad(0)}Open    ; ${element.name}`,
+          `${pad(id)}${pad(nodeOf(run.from.elementId, run.from.portId))}${pad(nodeOf(run.to.elementId, run.to.portId))}${pad(num(run.length))}${pad(diameter)}${pad(c)}${pad(0)}Open    ; ${run.name} (${run.ids.length} trechos sem peça)`,
         );
+        for (const point of run.vertices) {
+          vertices.push(`${pad(id)}${pad(num(point.x))}${pad(num(point.y))}`);
+        }
         break;
+      }
       case 'valve':
         if (element.valveType === 'airRelease') {
           nodeOf(element.id, 'a');
@@ -189,6 +271,11 @@ export function exportEpanet(project: Project): EpanetExport {
     );
   }
   if (pipes.length === 0) warnings.push('A rede não possui tubos.');
+  if (mergedRuns > 0) {
+    warnings.push(
+      `${mergedRuns} tubulação(ões) com trechos ligados sem peça foram exportadas como trecho único, com as mudanças de direção em [VERTICES]: o EPANET só calcula pressão nos nós, de modo que pontos altos ou baixos no meio do trecho não são verificados.`,
+    );
+  }
   warnings.push(
     'Demandas nodais exportadas como zero e rugosidades com valores de referência: revise antes de simular.',
   );
@@ -225,6 +312,7 @@ export function exportEpanet(project: Project): EpanetExport {
     'Headloss           H-W',
     '',
     section('COORDINATES', 'Node            X-Coord         Y-Coord', coordinates),
+    section('VERTICES', 'Link            X-Coord         Y-Coord', vertices),
     '[END]',
     '',
   ].join('\n');

@@ -1,4 +1,5 @@
 import { pipeLength } from './ports';
+import { PUMP_TYPE_LABELS, pumpTypeOf } from './pumps';
 import type { FittingFamily, HydroElement, Project } from './schema';
 import { TANK_TYPE_LABELS, tankTypeOf } from './tanks';
 import { radToDeg } from './units';
@@ -86,7 +87,11 @@ function describe(element: HydroElement): Pick<QuantityRow, 'category' | 'descri
     case 'pump':
       return {
         category: 'Equipamento',
-        description: 'Conjunto motobomba',
+        // Bomba de catálogo: o modelo identifica o produto (fabricante e linha da tabela).
+        description:
+          pumpTypeOf(element) === 'generic'
+            ? 'Conjunto motobomba'
+            : (element.manufacturing.model ?? PUMP_TYPE_LABELS[pumpTypeOf(element)]),
         size: `${size} × ${element.dischargeSpec.sizeLabel}`,
       };
     case 'tank': {

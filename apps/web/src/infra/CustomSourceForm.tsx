@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { checkCustomSource } from '../map/customSource';
+import { checkCustomSource, ESRI_WORLD_IMAGERY, esriWorldImagerySource } from '../map/customSource';
 import { useEditorStore } from '../state/editorStore';
 
 /**
@@ -13,6 +13,28 @@ export function CustomSourceForm() {
   const [attribution, setAttribution] = useState(current?.attribution ?? '');
   const [maxZoom, setMaxZoom] = useState(String(current?.maxZoom ?? 19));
   const [error, setError] = useState<string | null>(null);
+
+  const [esriKey, setEsriKey] = useState('');
+
+  /** Atalho: o usuário cola só a chave; endereço, atribuição e nível vêm da documentação da Esri. */
+  const applyEsri = (): void => {
+    const checked = esriWorldImagerySource(esriKey);
+    if (!checked.ok) {
+      setError(checked.message);
+      return;
+    }
+    setError(null);
+    setUrlTemplate(checked.value.urlTemplate);
+    setAttribution(checked.value.attribution);
+    setMaxZoom(String(checked.value.maxZoom));
+    setEsriKey('');
+    const store = useEditorStore.getState();
+    store.setCustomBasemap(checked.value);
+    store.notify(
+      'success',
+      `${ESRI_WORLD_IMAGERY.name} gravada neste navegador. Escolha "Personalizada" na lista de mapas.`,
+    );
+  };
 
   const save = (): void => {
     const checked = checkCustomSource({ urlTemplate, attribution, maxZoom: Number(maxZoom) });
@@ -37,6 +59,34 @@ export function CustomSourceForm() {
         ao qual você tem direito — com a sua chave, se houver. O endereço fica guardado só neste
         navegador: não entra no projeto nem nas exportações. Confira os termos de uso do serviço.
       </span>
+      <label className="plan__field plan__field--block">
+        <span>
+          {ESRI_WORLD_IMAGERY.name}: chave de API da sua conta gratuita em{' '}
+          <a href={ESRI_WORLD_IMAGERY.signupUrl} target="_blank" rel="noreferrer">
+            location.arcgis.com
+          </a>
+        </span>
+        <input
+          data-testid="custom-source-esri-key"
+          value={esriKey}
+          type="password"
+          autoComplete="off"
+          placeholder="Cole aqui a chave de API"
+          spellCheck={false}
+          onChange={(event) => setEsriKey(event.target.value)}
+        />
+      </label>
+      <div className="chips">
+        <button
+          type="button"
+          className="btn"
+          data-testid="custom-source-esri-apply"
+          onClick={applyEsri}
+        >
+          Usar {ESRI_WORLD_IMAGERY.name}
+        </button>
+      </div>
+      <span className="muted">Ou informe outro serviço:</span>
       <label className="plan__field plan__field--block">
         <span>Endereço dos ladrilhos</span>
         <input

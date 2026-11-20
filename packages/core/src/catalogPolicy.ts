@@ -1,5 +1,5 @@
 import { getElement } from './connectivity';
-import type { FittingCatalog } from './families';
+import { requiredEndType, type FittingCatalog } from './families';
 import { elementKindLabel, putElement } from './internal';
 import { updateFitting } from './operations';
 import { fail, ok, type Result } from './result';
@@ -57,7 +57,13 @@ export function setElbowCatalogAngle(
   if (!element || element.kind !== 'elbow') {
     return fail('NOT_AN_ELBOW', 'Elemento não é um joelho.');
   }
-  const dims = catalog.elbow(element.spec, angle, preferredFamilyId);
+  const dims = catalog.elbow(
+    element.spec,
+    angle,
+    preferredFamilyId,
+    // Joelho flangeado continua flangeado com o novo ângulo.
+    requiredEndType(...Object.values(element.ends)),
+  );
   if (dims.familyId === null) {
     return fail(
       'NO_CATALOG_ELBOW',

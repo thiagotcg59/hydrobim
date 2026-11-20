@@ -215,7 +215,7 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
     drawingScale: number;
     annotations: { kind: string }[];
   };
-  expect(exported.schemaVersion).toBe(12);
+  expect(exported.schemaVersion).toBe(13);
   expect(exported.drawingScale).toBe(25);
   expect(exported.annotations.map((a) => a.kind).sort()).toEqual(['dimension', 'tag', 'text']);
 

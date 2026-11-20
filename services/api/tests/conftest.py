@@ -67,7 +67,7 @@ def project_document():
 
     return {
         "format": "hydrobim-project",
-        "schemaVersion": 12,
+        "schemaVersion": 13,
         "id": "project-test",
         "name": "Projeto de teste",
         "discipline": "mep",
@@ -78,6 +78,7 @@ def project_document():
         "levels": [{"id": "nivel-0", "name": "Térreo", "elevation": 0}],
         "families": [],
         "tankFamilies": [],
+        "pumpFamilies": [],
         "ifcTypes": {},
         "georeference": None,
         "terrain": None,

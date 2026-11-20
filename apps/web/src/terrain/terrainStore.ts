@@ -39,6 +39,13 @@ export interface TerrainDisplay {
    * relevo; `null` = cor pela opção `colorMode`.
    */
   readonly drapeSourceId: string | null;
+  /** Superfície à mostra no modelo 3D (MEP e Infra). */
+  readonly show3d: boolean;
+  /**
+   * Superfície à mostra na planta do MEP. No Infra a planta segue a camada Terreno do
+   * ambiente (`project.infra.layers.terrain`).
+   */
+  readonly mepPlan: boolean;
 }
 
 export const DEFAULT_DISPLAY: TerrainDisplay = {
@@ -50,6 +57,8 @@ export const DEFAULT_DISPLAY: TerrainDisplay = {
   exaggeration: 1,
   opacity: 0.6,
   drapeSourceId: null,
+  show3d: true,
+  mepPlan: false,
 };
 
 export const EXAGGERATIONS = [1, 2, 3, 5, 10] as const;

@@ -1,13 +1,22 @@
 import { connectPorts, findConnection, getElement, oppositeRef } from './connectivity';
 import { MIN_PIPE_LENGTH } from './dimensions';
-import { GENERIC_CATALOG, type FittingCatalog } from './families';
+import { GENERIC_CATALOG, requiredEndType, type FittingCatalog } from './families';
 import { baseFields, putElement, touch } from './internal';
 import { dot, sub, QUAT_IDENTITY, ZERO } from './math';
 import { deleteElements, placeAtPort } from './operations';
 import { getPort, getPorts, pipeLength } from './ports';
+import { pumpTypeOf, unlinkPumpVariant } from './pumps';
 import { reconcile, setPipeEnd, translateFitting } from './reconcile';
 import { fail, ok, type Result } from './result';
-import type { HydroElement, Pipe, PipeSpec, PortRef, Project, Reducer } from './schema';
+import type {
+  EndTreatment,
+  HydroElement,
+  Pipe,
+  PipeSpec,
+  PortRef,
+  Project,
+  Reducer,
+} from './schema';
 
 /**
  * Alteração de especificação (material/diâmetro) com dois comportamentos:
@@ -44,6 +53,10 @@ function groupOf(element: HydroElement, portId: string | null | undefined): stri
   );
 }
 
+/** Peça flangeada continua flangeada ao mudar de diâmetro (sem trocar por uma de bolsa). */
+const keepFlange = (element: { ends: Readonly<Record<string, EndTreatment>> }) =>
+  requiredEndType(...Object.values(element.ends));
+
 /** Aplica a especificação ao lado indicado e recalcula as dimensões pelo catálogo. */
 function withSpec(
   element: HydroElement,
@@ -78,7 +91,7 @@ function withSpec(
             ),
           };
     case 'elbow': {
-      const dims = catalog.elbow(spec, element.angle, element.familyId);
+      const dims = catalog.elbow(spec, element.angle, element.familyId, keepFlange(element));
       const { straight: _previous, ...rest } = element;
       return {
         ...rest,
@@ -93,7 +106,7 @@ function withSpec(
       const branchOnly = group.length === 1 && group[0] === 'branch';
       const runSpec = branchOnly ? element.spec : spec;
       const branchSpec = branchOnly ? spec : (element.branchSpec ?? spec);
-      const dims = catalog.tee(runSpec, branchSpec, element.familyId);
+      const dims = catalog.tee(runSpec, branchSpec, element.familyId, keepFlange(element));
       const { branchSpec: _previous, ...rest } = element;
       return {
         ...rest,
@@ -106,7 +119,7 @@ function withSpec(
       };
     }
     case 'valve': {
-      const dims = catalog.valve(spec, element.valveType, element.familyId);
+      const dims = catalog.valve(spec, element.valveType, element.familyId, keepFlange(element));
       const { height: _h, handwheelDiameter: _d, width: _w, bonnetLength: _b, ...rest } = element;
       return {
         ...rest,
@@ -124,11 +137,26 @@ function withSpec(
     }
     case 'reducer': {
       const next = group[0] === 'b' ? { ...element, outletSpec: spec } : { ...element, spec };
-      const dims = catalog.reducer(next.spec, next.outletSpec, element.familyId);
+      const dims = catalog.reducer(
+        next.spec,
+        next.outletSpec,
+        element.familyId,
+        keepFlange(element),
+      );
       return { ...next, familyId: dims.familyId, ends: dims.ends, length: dims.length };
     }
-    case 'pump':
-      return group[0] === 'b' ? { ...element, dischargeSpec: spec } : { ...element, spec };
+    case 'pump': {
+      const side = group[0] === 'b' ? 'b' : 'a';
+      const next = side === 'b' ? { ...element, dischargeSpec: spec } : { ...element, spec };
+      if (pumpTypeOf(element) === 'generic') return next;
+      // Bomba de catálogo: o flange acompanha o novo diâmetro, na mesma classe de pressão
+      // (sem flange tabulado, a boca fica sem ele), e a bomba deixa de ser a linha da tabela.
+      const pressureClass =
+        side === 'b' ? element.dischargeFlangeClass : element.suctionFlangeClass;
+      const flange = pressureClass ? catalog.flange?.(spec, pressureClass) : undefined;
+      const { [side]: _previous, ...others } = next.ends;
+      return unlinkPumpVariant({ ...next, ends: flange ? { ...others, [side]: flange } : others });
+    }
   }
 }
 

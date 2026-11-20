@@ -8,7 +8,7 @@ Organização da tela, distribuição dos comandos e regras de comportamento. A 
 | --- | --- | --- | --- |
 | **Ambiente** | MEP, Infra | Seletor "Ambiente", no cabeçalho | A disciplina do projeto (especificação e grade padrão, planta própria). É uma alteração do projeto, com desfazer. |
 | **Tarefa** | Modelagem, Documentação, Visualizar, Análise, BIM / IFC, Exportação, Gerenciar | Abas da faixa de comandos | Só os comandos à mostra. |
-| **Vista** | Modelo 3D, Planta MEP ou Planta Infra | Abas sobre a área de desenho (e navegador do projeto) | O que é desenhado. |
+| **Vista** | Planta MEP ou Planta Infra, Modelo 3D | Cabeçalho de cada vista (e navegador do projeto) | O que é desenhado. Lado a lado, as duas ficam à mostra e a vista ativa é a que o cursor aponta. |
 
 Trocar de aba de tarefa não altera o ambiente, o modelo, a vista nem a operação em andamento, não marca o projeto como alterado e não entra no histórico. Trocar de vista mantém a ferramenta de modelagem, o trecho em andamento, a medição, a seleção e o ponto observado; as ferramentas de documentação só existem na planta e são encerradas ao ir para o modelo 3D.
 
@@ -20,40 +20,64 @@ Trocar de aba de tarefa não altera o ambiente, o modelo, a vista nem a operaç�
 ## Regiões da tela
 
 ```
-┌ HydroBIM │ Arquivo ▾ │ Nome do projeto · salvo │ salvar desfazer refazer │ Ambiente [MEP|Infra] ┐
-├ Modelagem │ Documentação │ Visualizar │ Análise │ BIM / IFC │ Exportação │ Gerenciar │ buscar ⌃ ┤
-│ grupos de comandos da tarefa                                                                    │
-├────────────┬──────────────────────────────────────────────────────────┬────────────────────────┤
-│ Navegador  │ [Modelo 3D] [Planta] [Perfil…]          navegação da vista│ Ferramenta│Propriedades│
-│  Vistas    │                                                          │  seções recolhíveis    │
-│  Níveis    │                    área de desenho                       │                        │
-│  Sistemas  │                                                          │                        │
-│  └ elementos                                                          │                        │
-├────────────┴──────────────────────────────────────────────────────────┴────────────────────────┤
-│ instrução da operação │ X Y Z │ cota de desenho │ captura │ grade │ mensagem │ pendências        │
-└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ HydroBIM │ Arquivo ▾ │ Projeto: nome │ salvo        Ambiente: [MEP|Infra] │ salvar desfazer refazer ┐  azul-marinho
+├ Modelagem │ Documentação │ Visualizar │ Análise │ BIM / IFC │ Exportação │ Gerenciar │    buscar ⌃ ┤
+│ ▭ Tubos  ⌐ Conexões ▾  ⋈ Válvulas  ◔ Equipamentos ▾ │ ➤ Selecionar  ✥ Mover … │ … │ ▥ Catálogo      │  uma linha
+│       CRIAR                                          │       MODIFICAR          │   │   BIBLIOTECA    │
+├────────────┬─────────────────────────────┬─────────────────────────────┬────────────────────────────┤
+│ Projeto    │ Planta MEP   1:50    ⛶ ⤢    │ Modelo 3D  Isométrica … ⤢   │ Ferramenta │ Propriedades  │
+│  buscar    │                             ║                             │  ▣ Tubo                    │
+│  ▾ projeto │          planta             ║         modelo 3D           │    Tubo 2                  │
+│   ▾ Pavim. │                             ║                             │  ▾ Identificação           │
+│   ▾ Sistem.│                             ║                      XYZ    │  ▾ Especificação           │
+│   ▸ Equip. ├─────────────────────────────╨─────────────────────────────┤  ▾ Geometria               │
+│ Vistas     │ Referências  (●) Grade 0,10 m  ✓ Extremidades  ⓘ instrução │                            │
+├────────────┴────────────────────────────────────────────────────────────┴────────────────────────────┤
+│ ➤ ferramenta: estado │ ⌖ captura │ X Y Z │ cota de desenho │ unidades │ mensagem │ pendências        │  azul-marinho
+└───────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 | Região | Componente | Conteúdo |
 | --- | --- | --- |
-| Cabeçalho | `ui/TopBar.tsx` | Identidade, menu Arquivo, nome e estado de salvamento, acesso rápido (salvar, desfazer, refazer), ambiente. |
-| Faixa de comandos | `ui/ToolBar.tsx` | Abas de tarefa, grupos, busca de comandos, botão de recolher (ou duplo clique na aba). |
-| Navegador do projeto | `ui/ProjectBrowser.tsx` (na consulta BIM: `bim/BimTree.tsx`) | Vistas, níveis (plano de trabalho), sistemas com visibilidade e seleção, elementos com busca. |
-| Área central | `ui/ViewTabs.tsx` + `viewport/Viewport.tsx` ou `plan/PlanView.tsx` | Abas de vista em posição fixa e controles de navegação (enquadrar, topo, elevação, perspectiva, isométrica, ortográfica). No Modelo 3D, com elementos selecionados (de qualquer tipo, um ou vários), a navegação é focada no centro da seleção: o giro (botão do meio ou Alt + arrasto) é em torno dele, o zoom aproxima em direção a ele enquanto estiver à vista e o pan (botão direito) é medido na profundidade da seleção, que acompanha o cursor; sem seleção, tudo é em relação ao centro da tela (`editor/orbitPivot.ts`). Cada passo da roda aproxima cerca de 10 %. |
-| Painel direito | `App.tsx` (`RightPanel`), `ui/ToolOptions.tsx`, `ui/PropertiesPanel.tsx`, `bim/IfcPanel.tsx` | Aba **Ferramenta**: parâmetros do próximo elemento. Aba **Propriedades**: elementos já selecionados (única, múltipla ou nenhuma). |
-| Barra de status | `ui/StatusBar.tsx` | Instrução da operação, coordenadas, cota de desenho, captura, grade, restrição de catálogo, mensagens e pendências. |
+| Cabeçalho | `ui/TopBar.tsx` | Identidade, menu Arquivo, nome do projeto, estado de salvamento (etiqueta: "salvo" ou, em âmbar e com ponto cheio, "não salvo"), seletor de ambiente e acesso rápido (salvar, desfazer, refazer). |
+| Abas de tarefa e barra de ferramentas | `ui/ToolBar.tsx` | Abas de tarefa (a ativa tem fundo azul-claro e linha inferior azul), **uma linha** de comandos com símbolo e nome, agrupados e legendados; botões com seta para comandos relacionados; busca de comandos; botão de recolher (ou duplo clique na aba). |
+| Navegador do projeto | `ui/ProjectBrowser.tsx` (na consulta BIM: `bim/BimTree.tsx`) | Busca no topo e árvore: projeto › Pavimentos (plano de trabalho) · Sistemas › sistema › Tubos / Conexões / Válvulas · Equipamentos (bombas) · Reservatórios · Referências (terreno, georreferência). Visibilidade e seleção por sistema, à direita da linha. Vistas no pé. |
+| Área de desenho | `ui/Workspace.tsx` + `plan/PlanView.tsx` e `viewport/Viewport.tsx` | Planta à esquerda e modelo 3D à direita (**lado a lado**, o padrão), com divisor ajustável, ou uma vista por vez. Cada vista tem o seu cabeçalho: título, enquadrar, orientação (no 3D) e maximizar. Ver "Vistas lado a lado". |
+| Barra de referências | `ui/ReferenceBar.tsx` | Junto do desenho: grade de captura (liga/desliga e passo), capturas sempre ativas (extremidades, ponto sobre o tubo), capturas previstas identificadas como tal, restrição de catálogo e a instrução da operação em andamento. |
+| Painel direito | `App.tsx` (`RightPanel`), `ui/ToolOptions.tsx`, `ui/PropertiesPanel.tsx`, `bim/IfcPanel.tsx` | Aba **Ferramenta**: parâmetros do próximo elemento. Aba **Propriedades**: símbolo do tipo e nome do elemento, seções recolhíveis com cabeçalho em faixa, campos em duas colunas com a unidade à vista. Campo editável tem caixa branca; informação somente para leitura é texto simples; campo bloqueado tem contorno tracejado e o motivo na dica. |
+| Barra de status | `ui/StatusBar.tsx` | Ferramenta ativa e o que ela aguarda, captura de pontos, coordenadas, cota de desenho, unidades, mensagens e pendências. |
 | Molduras dos painéis | `ui/SidePanel.tsx` | Recolher para uma régua e redimensionar pela borda (arrastar ou setas). |
 
-Os painéis laterais e a faixa são recolhíveis; as larguras são ajustáveis (navegador 180–420 px, propriedades 280–560 px). **Restaurar layout** (Visualizar › Painéis e Gerenciar › Preferências) volta ao padrão. Em telas estreitas os botões compactam e a faixa quebra em linhas, sem esconder comandos.
+Os painéis laterais e a barra de ferramentas são recolhíveis; as larguras são ajustáveis (navegador 180–420 px, propriedades 280–560 px, divisão das vistas de 25 % a 75 %). **Restaurar layout** (Visualizar › Vistas e painéis e Gerenciar › Preferências) volta ao padrão.
+
+### Vistas lado a lado
+
+- **Lado a lado** (comando `view.split`, em Visualizar › Vistas e painéis e no cabeçalho da vista única) alterna entre as duas disposições. É preferência de interface: fica no navegador, não no projeto.
+- As duas vistas mostram o **mesmo projeto e a mesma seleção**; cada uma guarda a própria navegação. Enquadrar vale para as duas.
+- A **vista ativa** é a que o cursor aponta (linha azul no topo do cabeçalho; `viewMode` na store): recebe as setas do teclado e define a instrução mostrada. Ferramenta, trecho em andamento, medição e seleção atravessam de uma vista para a outra. O que só existe na planta — anotações, operações do terreno, escolha da origem no mapa — não é encerrado por passar o cursor sobre o modelo 3D, só por um clique nele.
+- **Maximizar** (botão no cabeçalho de cada vista) faz a vista ocupar a área; a outra continua montada e conserva a câmera. Com uma vista maximizada o cabeçalho traz as abas de vista, e escolher a outra troca a que está maximizada.
+- Os comandos de câmera (topo, elevação, perspectiva, isométrica, ortográfica) ficam no cabeçalho do modelo 3D e continuam disponíveis com a planta ativa; só ficam indisponíveis quando o modelo 3D está fora da tela.
+- A consulta BIM / IFC usa só o modelo 3D, qualquer que seja a disposição.
+
+### Aparência
+
+Cabeçalho e barra de status em azul-marinho; painéis brancos sobre cinza muito claro; azul-claro para a ferramenta, a aba e o item selecionados; ciano para os elementos selecionados no desenho (planta e 3D). As cores ficam em variáveis no início de `styles/app.css`; a aparência da bancada, em `styles/workbench.css`. Todo estado tem um sinal além da cor: o comando ativo tem contorno, linha inferior e negrito; o item selecionado da árvore, barra à esquerda e negrito; o indisponível fica esmaecido e explica o motivo na dica; "não salvo" troca o símbolo.
+
+### Ícones
+
+- Biblioteca: `lucide-react`. Símbolos técnicos que ela não tem (tubo, joelho, tê, redução, válvula, bomba, reservatório) ficam em `ui/EngineeringIcons.tsx`, desenhados no mesmo padrão: quadro de 24, traço arredondado de espessura única (1,6, aplicada a todos os ícones em `workbench.css`), sem preenchimento.
+- Tamanhos: 20 px nos comandos da barra de ferramentas, 18 px nos botões só com ícone, 16–17 px na árvore e nos controles menores. A área clicável é sempre maior que o desenho (32 px de altura na barra, 24–27 px nos cabeçalhos de vista e na árvore).
+- Comandos principais têm nome ao lado do símbolo. Comandos secundários (Comprimento, Girar, Excluir, Conectar, Medir) mostram só o símbolo abaixo de 1700 px de largura; o nome continua na dica e no leitor de tela.
+- A dica de todo comando traz nome, atalho, finalidade e, se for o caso, por que está indisponível.
 
 ## Distribuição dos comandos
 
 | Onde | Grupos e comandos |
 | --- | --- |
 | **Menu Arquivo** | Novo projeto · Abrir projeto (salvos no navegador, arquivo, demonstração) · recentes · Salvar no navegador · Baixar arquivo `.hydrobim.json`. O menu explica a diferença: salvar guarda só neste navegador; baixar gera um arquivo do usuário. |
-| **Modelagem** | Geral: Selecionar, Medir · Criar: Tubulação, Joelho, Tê, Redução, Válvula, Bomba, Reservatório · Modificar: Mover, Copiar, Excluir, Comprimento, Elevação, Girar · Conectar: Tubo da extremidade, Ligar extremidades, Desconectar · Catálogo · Terreno (só no Infra): Superfície do terreno, Área do terreno, Corte do terreno, Consultar cota |
+| **Modelagem** | Criar: Tubos, Conexões ▾ (Joelho, Tê, Redução), Válvulas, Equipamentos ▾ (Bomba, Reservatório) · Modificar: Selecionar, Mover, Copiar, Elevação, Comprimento, Girar, Excluir · Conectar: Tubo da extremidade, Ligar extremidades, Desconectar · Medir · Biblioteca: Catálogo · Terreno (só no Infra): Superfície, Área do terreno, Corte do terreno, Consultar cota |
 | **Documentação** | Anotar na planta: Cota, Texto, Chamada, Etiqueta · Escala e cotas: escala de documentação do ambiente, tipo de cota · Previstos (desabilitados, com a fase): Pranchas, Cotas de nível |
-| **Visualizar** | Câmera: Perspectiva, Isométrica, Ortográfica, Topo, Elevação · Enquadrar: Projeto, Seleção · Aparência da planta: tema, linhas finas · Mapa e camadas e Localização (só no Infra): fundo, imagem, opacidade, camadas, rótulos, fonte própria, ir para, georreferência · Terreno (só no Infra): cor, curvas de nível e intervalo, triangulação, escala vertical (1:1 por padrão) · Painéis |
+| **Visualizar** | Câmera: Perspectiva, Isométrica, Ortográfica, Topo, Elevação · Enquadrar: Projeto, Seleção · Aparência da planta: tema, linhas finas · Mapa e camadas e Localização (só no Infra): fundo, imagem, opacidade, camadas, rótulos, fonte própria, ir para, georreferência · Terreno: cor, curvas de nível e intervalo, triangulação, escala vertical (1:1 por padrão) · Vistas e painéis: Lado a lado, Navegador, Propriedades, Restaurar layout |
 | **Análise** | Verificação: Pendências, Interferências · Quantitativos · Perfil e recobrimento · Medição · Terreno (só no Infra): Corte do terreno, Consultar cota |
 | **BIM / IFC** | Modelo de informação (esquema, contagens, conformidade) · Visibilidade: Isolar e Ocultar seleção · Classificação da biblioteca · Entrega: IFC, IDS |
 | **Exportação** | Modelo: IFC 4.3, DXF do modelo 3D · Planta: DXF e SVG · Dados: CSV, INP, IDS · Conteúdo e requisitos de cada saída |
@@ -74,7 +98,7 @@ As exportações de planta funcionam de qualquer vista: o DXF é gerado do model
 
 Regras:
 
-- Comando novo entra no registro; a faixa (`RIBBON`, em `ui/ToolBar.tsx`) só diz em que aba e grupo ele aparece.
+- Comando novo entra no registro; a barra de ferramentas (`RIBBON`, em `ui/ToolBar.tsx`) só diz em que aba e grupo ele aparece, se é principal ou secundário (`compact`) e se entra em um botão com seta (`menu`). O botão com seta mostra o símbolo do comando em uso e a busca de comandos informa o caminho completo (ex.: Modelagem › Criar › Conexões).
 - A disponibilidade é uma função pura do contexto (`CommandContext`), testada em `commands.test.ts`. Botão, atalho e busca aplicam a mesma regra; um comando indisponível explica o motivo na dica.
 - Recurso não implementado tem `phase` e aparece desabilitado com a fase do roadmap (regra 11 do `AGENTS.md`).
 - Atalhos não disparam com o foco em campos, menus ou diálogos, exceto os globais (Ctrl+S e Ctrl+K).
@@ -83,7 +107,7 @@ Uma mesma configuração tem um só controle e uma só fonte de estado (a store 
 
 ## Estado da interface
 
-`apps/web/src/state/uiStore.ts` guarda o que não é dado de engenharia: aba de tarefa, aba do painel direito, diálogos abertos, lista de pendências e as preferências de layout (faixa recolhida, painéis abertos, larguras). As preferências são gravadas no navegador (`localStorage`, chave `hydrobim.layout.v1`), separadas do projeto. Nada disso passa pela store do editor, pelo histórico ou pelo arquivo do projeto.
+`apps/web/src/state/uiStore.ts` guarda o que não é dado de engenharia: aba de tarefa, aba do painel direito, diálogos abertos, lista de pendências, vista maximizada e as preferências de layout (barra recolhida, painéis abertos, larguras, disposição das vistas e proporção do divisor). As preferências são gravadas no navegador (`localStorage`, chave `hydrobim.layout.v1`), separadas do projeto. Nada disso passa pela store do editor, pelo histórico ou pelo arquivo do projeto.
 
 ## Preparação para novas disciplinas
 
@@ -92,6 +116,7 @@ Ferramentas de arquitetura (paredes, pisos, telhados) não existem. A organizaç
 ## Testes
 
 - Unitários: `apps/web/src/commands/commands.test.ts` (registro, atalhos, disponibilidade) e `apps/web/src/state/uiStore.test.ts` (abas, suspensão da modelagem na consulta BIM, preferências).
+- E2E: `tests/e2e/workbench.spec.ts` (disposição padrão: vistas lado a lado, vista ativa, divisor, maximizar, traçado que começa na planta e continua no 3D; barra de ferramentas e botões com seta; navegador em árvore; referências e barra de status; 1366 × 768 e 1920 × 1080 com painéis abertos, redimensionados e recolhidos). Os demais fluxos partem de uma vista por vez, fixada como preferência em `playwright.config.ts`.
 - E2E: `tests/e2e/layout.spec.ts` (independência entre tarefa, vista e ambiente; painéis; menu Arquivo; busca; teclado; exportações pelos novos acessos; 1366 × 768). Os demais testes usam `tests/e2e/ui.ts` (`ctl`, `openTask`, `openProjectTab`) para abrir a aba, o menu ou o painel que contém cada controle.
 
 ## Limites conhecidos
@@ -101,4 +126,7 @@ Ferramentas de arquitetura (paredes, pisos, telhados) não existem. A organizaç
 - A ferramenta de tubo não tem escolha de sistema para o próximo elemento: o sistema é atribuído depois, nas propriedades.
 - O inspetor de anotações da planta continua sobre o desenho, não no painel direito.
 - Não há personalização de atalhos, de abas ou de grupos, nem painéis flutuantes.
-- Validado em 1366 × 768, 1440 × 900 e 1920 × 1080; abaixo de 1100 px a faixa quebra em mais de uma linha.
+- A visibilidade é por sistema (`system.visible`): o modelo não guarda visibilidade por elemento nem por categoria, e por isso a árvore não oferece esse controle fora da linha do sistema.
+- Das capturas de referência, só a grade se liga e desliga. Extremidades e ponto sobre o tubo são sempre ativas; ponto médio, perpendicular e alinhamento têm o núcleo pronto (`editor/referenceSnaps.ts`) e aparecem como previstos até serem ligados às vistas.
+- Lado a lado, cada vista move a origem de desenho para o seu ponto de interesse; em redes extensas com as duas vistas em regiões distantes a precisão do desenho é a da vista navegada por último.
+- Validado em 1366 × 768, 1440 × 900 e 1920 × 1080. Em 1366 px, no ambiente Infra, a aba Visualizar com terreno e mapa quebra em duas linhas; abaixo de 1100 px todas as abas podem quebrar.

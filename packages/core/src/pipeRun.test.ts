@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { exportEpanet } from './epanet';
 import { addPipe, createProject, drawPipe } from './operations';
 import { isPipeRun, pipeRunOf, pipeRunSummary } from './pipeRun';
 import type { PipeSpec, Project } from './schema';
@@ -97,5 +98,61 @@ describe('tubulação contínua', () => {
     expect(pipeRunOf(bent, elbow.id)).toEqual([]);
     expect(pipeRunSummary(bent, [elbow.id])).toBeNull();
     expect(pipeRunOf(project, 'inexistente')).toEqual([]);
+  });
+});
+
+describe('EPANET: tubulação contínua é um trecho só', () => {
+  /** Linhas de dados de uma seção do INP (sem o cabeçalho comentado). */
+  const sectionOf = (inp: string, name: string): string[] => {
+    const lines = inp.split('\n');
+    const start = lines.indexOf(`[${name}]`);
+    const rows: string[] = [];
+    for (let i = start + 1; i < lines.length; i += 1) {
+      const line = lines[i] ?? '';
+      if (line.startsWith('[')) break;
+      if (line.trim() !== '' && !line.startsWith(';')) rows.push(line);
+    }
+    return rows;
+  };
+
+  it('as flexões viram vértices do traçado, não nós', () => {
+    // Três trechos ligados só pela deflexão da junta, um joelho de 45° e mais um tubo.
+    const p1 = vec3(6, 0, 0);
+    const p2 = at(p1, 3);
+    const p3 = at(p2, 6);
+    const p4 = at(p3, 51);
+    const { project } = polyline([vec3(0, 0, 0), p1, p2, p3, p4]);
+    expect(project.elements.filter((e) => e.kind === 'pipe')).toHaveLength(4);
+    expect(project.elements.filter((e) => e.kind === 'elbow')).toHaveLength(1);
+
+    const { inp, warnings } = exportEpanet(project);
+    const pipes = sectionOf(inp, 'PIPES');
+    // Um trecho para a tubulação contínua e outro para o tubo depois do joelho.
+    expect(pipes).toHaveLength(2);
+    expect(pipes[0]).toContain('(3 trechos sem peça)');
+    // Nós só nas extremidades e no joelho.
+    expect(sectionOf(inp, 'JUNCTIONS')).toHaveLength(3);
+    expect(sectionOf(inp, 'COORDINATES')).toHaveLength(3);
+    // As duas flexões são vértices do primeiro trecho, na ordem do percurso.
+    const vertices = sectionOf(inp, 'VERTICES').map((line) => line.trim().split(/\s+/));
+    expect(vertices).toHaveLength(2);
+    const link = pipes[0]?.trim().split(/\s+/)[0];
+    expect(vertices.every((v) => v[0] === link)).toBe(true);
+    expect(Number(vertices[0]?.[1])).toBeCloseTo(p1.x, 3);
+    expect(Number(vertices[1]?.[1])).toBeCloseTo(p2.x, 3);
+    expect(Number(vertices[1]?.[2])).toBeCloseTo(p2.y, 3);
+    // Comprimento do trecho único: soma dos tubos, descontado o que o joelho ocupa.
+    const run = pipeRunSummary(project, pipeRunOf(project, project.elements[0]?.id ?? ''));
+    expect(Number(pipes[0]?.trim().split(/\s+/)[3])).toBeCloseTo(run?.length ?? 0, 3);
+    expect(warnings.some((w) => w.includes('trecho único'))).toBe(true);
+  });
+
+  it('tubo isolado continua sendo exportado como antes, sem vértices', () => {
+    const { project } = polyline([vec3(0, 0, 0), vec3(6, 0, 0)]);
+    const { inp, warnings } = exportEpanet(project);
+    expect(sectionOf(inp, 'PIPES')).toHaveLength(1);
+    expect(sectionOf(inp, 'JUNCTIONS')).toHaveLength(2);
+    expect(sectionOf(inp, 'VERTICES')).toHaveLength(0);
+    expect(warnings.some((w) => w.includes('trecho único'))).toBe(false);
   });
 });

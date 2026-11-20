@@ -12,6 +12,7 @@ beforeEach(() => {
   editor().setTool('select');
   ui().setTask('model');
   ui().resetLayout();
+  useUiStore.setState({ maximizedView: null });
   useUiStore.setState({ dialog: null, validationOpen: false, planRequest: null, reveal: null });
 });
 
@@ -50,6 +51,8 @@ describe('preferências de layout', () => {
       panelOpen: ui().panelOpen,
       navWidth: ui().navWidth,
       panelWidth: ui().panelWidth,
+      workspaceLayout: ui().workspaceLayout,
+      splitRatio: ui().splitRatio,
     }).toEqual(DEFAULT_LAYOUT);
   });
 
@@ -57,6 +60,73 @@ describe('preferências de layout', () => {
     ui().setRibbonCollapsed(true);
     ui().setTask('view');
     expect(ui().ribbonCollapsed).toBe(false);
+  });
+});
+
+describe('vistas lado a lado', () => {
+  it('a disposição padrão é planta e modelo 3D lado a lado; o que for inválido volta a ela', () => {
+    expect(DEFAULT_LAYOUT.workspaceLayout).toBe('split');
+    expect(parseLayout(JSON.stringify({ workspaceLayout: 'single' })).workspaceLayout).toBe(
+      'single',
+    );
+    expect(parseLayout(JSON.stringify({ workspaceLayout: 'grade' })).workspaceLayout).toBe('split');
+    expect(parseLayout(JSON.stringify({ splitRatio: 5 })).splitRatio).toBe(0.75);
+    expect(parseLayout(JSON.stringify({ splitRatio: 'meio' })).splitRatio).toBe(0.5);
+  });
+
+  it('dividir, redimensionar e maximizar não alteram o projeto, a seleção nem o histórico', () => {
+    editor().setTool('pipe');
+    editor().commitPoint(vec3(0, 0, 0));
+    editor().commitPoint(vec3(2, 0, 0));
+    editor().setTool('select');
+    const { project, selection } = editor();
+    const history = editor().past.length;
+
+    ui().setWorkspaceLayout('single');
+    ui().setWorkspaceLayout('split');
+    ui().setSplitRatio(0.1);
+    expect(ui().splitRatio).toBe(0.25);
+    ui().setSplitRatio(0.6);
+    expect(ui().splitRatio).toBe(0.6);
+    ui().maximizeView('plan');
+    ui().maximizeView('plan');
+
+    expect(editor().project).toBe(project);
+    expect(editor().selection).toEqual(selection);
+    expect(editor().past).toHaveLength(history);
+  });
+
+  it('maximizar ativa a vista, e escolher a outra vista troca a que ocupa a área', () => {
+    ui().maximizeView('plan');
+    expect(ui().maximizedView).toBe('plan');
+    expect(editor().viewMode).toBe('plan');
+
+    editor().setViewMode('3d');
+    expect(ui().maximizedView).toBe('3d');
+
+    // O mesmo botão restaura as duas vistas; a ativa continua a mesma.
+    ui().maximizeView('3d');
+    expect(ui().maximizedView).toBeNull();
+    expect(editor().viewMode).toBe('3d');
+  });
+
+  it('apontar outra vista mantém a ferramenta e o trecho em andamento', () => {
+    editor().setTool('pipe');
+    editor().commitPoint(vec3(0, 0, 0));
+    editor().commitPoint(vec3(2, 0, 0));
+    const anchor = editor().anchor;
+    ui().activateWorkspaceView('plan');
+    expect(editor().viewMode).toBe('plan');
+    expect(editor().tool).toBe('pipe');
+    expect(editor().anchor).toBe(anchor);
+  });
+
+  it('a consulta BIM / IFC não muda a disposição das vistas', () => {
+    ui().setTask('bim');
+    ui().setWorkspaceLayout('single');
+    expect(ui().workspaceLayout).toBe('split');
+    ui().activateWorkspaceView('plan');
+    expect(editor().viewMode).toBe('bim');
   });
 });
 

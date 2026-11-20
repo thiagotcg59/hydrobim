@@ -61,6 +61,35 @@ export function checkCustomSource(input: {
   return { ok: true, value: { urlTemplate, attribution, maxZoom: input.maxZoom } };
 }
 
+/**
+ * Esri World Imagery pela ArcGIS Location Platform, com a chave de API do próprio usuário (a
+ * conta é gratuita e tem cota mensal de ladrilhos). Endereço e atribuição conforme a
+ * documentação da Esri: https://developers.arcgis.com/maplibre-gl-js/maps/raster-tile-basemaps/
+ * (ordem nível/linha/coluna, chave no parâmetro `token`). A chave nunca é embutida no editor.
+ */
+export const ESRI_WORLD_IMAGERY = {
+  name: 'Esri World Imagery',
+  signupUrl: 'https://location.arcgis.com/',
+  attribution: 'Powered by Esri — Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+  maxZoom: 19,
+} as const;
+
+/** Monta a fonte Esri World Imagery a partir da chave de API do usuário. */
+export function esriWorldImagerySource(apiKey: string): CustomSourceCheck {
+  const key = apiKey.trim();
+  if (key.length === 0) {
+    return { ok: false, message: 'Informe a chave de API da sua conta ArcGIS Location Platform.' };
+  }
+  if (/\s/.test(key)) {
+    return { ok: false, message: 'A chave de API não pode conter espaços: cole-a inteira.' };
+  }
+  return checkCustomSource({
+    urlTemplate: `https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${encodeURIComponent(key)}`,
+    attribution: ESRI_WORLD_IMAGERY.attribution,
+    maxZoom: ESRI_WORLD_IMAGERY.maxZoom,
+  });
+}
+
 /** A fonte personalizada como provedor de mapa (sem expor a chave na interface). */
 export function customProvider(source: CustomBasemapSource): BasemapProvider {
   const origin = new URL(source.urlTemplate.replace(/\{[zxy]\}/g, '0')).origin;

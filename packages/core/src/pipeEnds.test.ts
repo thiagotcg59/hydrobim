@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { getElement } from './connectivity';
+import { availableElbowAngles } from './elbowAngles';
 import { createFamilyCatalog } from './families';
 import {
   addPipe,
+  attachFitting,
   createProject,
   drawPipe,
   insertInline,
@@ -12,10 +14,11 @@ import {
 } from './operations';
 import { getPorts, pipeLength } from './ports';
 import { computeQuantities } from './quantities';
-import type { EndTreatment, Pipe, Project } from './schema';
+import type { EndTreatment, FittingFamily, Pipe, Project } from './schema';
 import { parseProject, serializeProject } from './serialization';
 import { applySpec } from './sizing';
 import { testSpec } from './testSupport';
+import { degToRad } from './units';
 import { validateProject } from './validation';
 import { vec3 } from './math';
 
@@ -248,17 +251,140 @@ describe('extremidades de tubos (tubos com flanges)', () => {
     if (!flanged.ok) throw new Error(flanged.error.message);
     const reopened = parseProject(serializeProject(flanged.value));
     if (!reopened.ok) throw new Error(reopened.error.message);
-    expect(reopened.value.schemaVersion).toBe(12);
+    expect(reopened.value.schemaVersion).toBe(13);
     expect(pipeOf(reopened.value, id).ends).toEqual({ start: flange });
 
     const v6 = parseProject(JSON.stringify({ ...project, schemaVersion: 6 }));
     if (!v6.ok) throw new Error(v6.error.message);
-    expect(v6.value.schemaVersion).toBe(12);
+    expect(v6.value.schemaVersion).toBe(13);
     expect(pipeOf(v6.value, id).ends).toBeUndefined();
 
     // Extremidade incoerente gravada à mão é apontada pela validação.
     const tampered = structuredClone(flanged.value);
     (tampered.elements[0] as Pipe).ends = { start: { ...flange, outerDiameter: 0.05 } };
     expect(validateProject(tampered).map((issue) => issue.code)).toEqual(['INVALID_PIPE_END']);
+  });
+});
+
+describe('tubulação flangeada: conexões flange × flange', () => {
+  /** Famílias de teste: joelho de bolsa (90° e 45°) e curva flangeada (só 90°). */
+  const elbowFamily = (
+    id: string,
+    endType: 'socket' | 'flange',
+    angleDeg: number,
+  ): FittingFamily => ({
+    id,
+    name: `Curva ${angleDeg}° (${endType})`,
+    kind: 'elbow',
+    specificationId: spec.specificationId,
+    endType,
+    angle: degToRad(angleDeg),
+    manufacturer: null,
+    standard: 'Teste',
+    source: 'Família de teste',
+    origin: 'builtin',
+    sizes: [
+      {
+        dn: 100,
+        centerToEnd: 0.15,
+        end:
+          endType === 'flange'
+            ? { length: flange.length, outerDiameter: flange.outerDiameter }
+            : { length: 0.08, outerDiameter: 0.14 },
+      },
+    ],
+  });
+  // A família de bolsa vem primeiro: sem a regra, seria a escolhida.
+  const families = [
+    elbowFamily('bolsa-90', 'socket', 90),
+    elbowFamily('bolsa-45', 'socket', 45),
+    elbowFamily('flange-90', 'flange', 90),
+  ];
+  const catalog = createFamilyCatalog(families);
+  const ends = { start: flange, end: flange, familyId: FAMILY };
+
+  function flangedRun() {
+    const first = addPipe(createProject('p'), {
+      start: vec3(0, 0, 0),
+      end: vec3(2, 0, 0),
+      spec,
+      ends,
+    });
+    if (!first.ok) throw new Error(first.error.message);
+    return first.value;
+  }
+
+  it('a mudança de direção a partir de um flange usa a curva flangeada', () => {
+    const first = flangedRun();
+    const result = drawPipe(first.project, {
+      fromPort: { elementId: first.elementId, portId: 'end' },
+      start: vec3(2, 0, 0),
+      end: vec3(2, 2, 0),
+      spec,
+      ends,
+      catalog,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const elbow = getElement(result.value.project, result.value.createdIds[0] ?? '');
+    expect(elbow?.kind).toBe('elbow');
+    if (elbow?.kind !== 'elbow') return;
+    expect(elbow.familyId).toBe('flange-90');
+    expect(elbow.ends.a?.type).toBe('flange');
+    expect(elbow.ends.b?.type).toBe('flange');
+    expect(validateProject(result.value.project)).toEqual([]);
+  });
+
+  it('sem curva flangeada para o ângulo, recusa em vez de usar peça de bolsa', () => {
+    const first = flangedRun();
+    const result = drawPipe(first.project, {
+      fromPort: { elementId: first.elementId, portId: 'end' },
+      start: vec3(2, 0, 0),
+      end: vec3(4, 2, 0),
+      spec,
+      ends,
+      catalog,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe('NO_FLANGED_FITTING');
+  });
+
+  it('tubo de ponta lisa continua usando a família disponível', () => {
+    const base = addPipe(createProject('p'), { start: vec3(0, 0, 0), end: vec3(2, 0, 0), spec });
+    if (!base.ok) throw new Error(base.error.message);
+    const result = drawPipe(base.value.project, {
+      fromPort: { elementId: base.value.elementId, portId: 'end' },
+      start: vec3(2, 0, 0),
+      end: vec3(2, 2, 0),
+      spec,
+      catalog,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const elbow = getElement(result.value.project, result.value.createdIds[0] ?? '');
+    expect(elbow?.kind === 'elbow' && elbow.familyId).toBe('bolsa-90');
+  });
+
+  it('peça colocada na porta flangeada é flangeada', () => {
+    const first = flangedRun();
+    const result = attachFitting(first.project, {
+      target: { elementId: first.elementId, portId: 'end' },
+      fitting: { kind: 'elbow', angle: degToRad(90) },
+      catalog,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const elbow = getElement(result.value.project, result.value.elementId);
+    expect(elbow?.kind === 'elbow' && elbow.familyId).toBe('flange-90');
+    expect(validateProject(result.value.project)).toEqual([]);
+    const refused = attachFitting(first.project, {
+      target: { elementId: first.elementId, portId: 'end' },
+      fitting: { kind: 'elbow', angle: degToRad(45) },
+      catalog,
+    });
+    expect(!refused.ok && refused.error.code).toBe('NO_FLANGED_FITTING');
+  });
+
+  it('a trava de ângulos considera só as curvas flangeadas', () => {
+    const toDeg = (angles: number[]) => angles.map((a) => Math.round((a * 180) / Math.PI));
+    expect(toDeg(availableElbowAngles(families, spec))).toEqual([45, 90]);
+    expect(toDeg(availableElbowAngles(families, spec, 'flange'))).toEqual([90]);
   });
 });

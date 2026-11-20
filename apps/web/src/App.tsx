@@ -3,7 +3,6 @@ import { BimTree } from './bim/BimTree';
 import { IfcLibraryDialog } from './bim/IfcLibraryDialog';
 import { IfcPanel } from './bim/IfcPanel';
 import { useKeyboardShortcuts } from './commands/useCommands';
-import { PlanView } from './plan/PlanView';
 import { isAnnotationTool, selectIsDirty, useEditorStore } from './state/editorStore';
 import { restoreSession } from './state/projectActions';
 import { useUiStore, type DialogId } from './state/uiStore';
@@ -22,8 +21,7 @@ import { StatusBar } from './ui/StatusBar';
 import { ToolBar } from './ui/ToolBar';
 import { ToolOptions } from './ui/ToolOptions';
 import { TopBar } from './ui/TopBar';
-import { ViewTabs } from './ui/ViewTabs';
-import { Viewport } from './viewport/Viewport';
+import { Workspace } from './ui/Workspace';
 
 /** Largura da régua de um painel recolhido. */
 const RAIL = 28;
@@ -151,18 +149,7 @@ export function App() {
         <SidePanel side="nav" title="Navegador do projeto">
           {bim ? <BimTree /> : <ProjectBrowser />}
         </SidePanel>
-        <main className="workspace">
-          <ViewTabs />
-          <div className="workspace__view" data-testid="workspace-view">
-            {!ready ? (
-              <div className="viewport-fallback">Carregando projeto…</div>
-            ) : viewMode === 'plan' ? (
-              <PlanView />
-            ) : (
-              <Viewport />
-            )}
-          </div>
-        </main>
+        <Workspace ready={ready} />
         <SidePanel side="panel" title="Propriedades">
           <RightPanel />
         </SidePanel>

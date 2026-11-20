@@ -228,7 +228,11 @@ test('planta baixa: traçar, travar ângulos, criar prumada e inserir conexões'
   await page.getByTestId('view-mode-3d').click();
   await expect(page.getByTestId('viewport-canvas')).toBeVisible();
   // A ferramenta continua ativa ao trocar de vista: Esc a encerra e, depois, limpa a seleção.
-  await expect(await ctl(page, 'tool-elbow')).toHaveAttribute('aria-pressed', 'true');
+  // (o botão Conexões mostra o comando em uso sem precisar abrir a lista)
+  await expect(page.getByTestId('ribbon-menu-fittings')).toHaveAttribute(
+    'data-active-command',
+    'tool.elbow',
+  );
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('element-count')).toHaveText('14');

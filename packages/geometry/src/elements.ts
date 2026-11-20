@@ -1,5 +1,6 @@
 import {
   add,
+  amphibiousLayout,
   elbowLegLength,
   getElementFrame,
   getPorts,
@@ -14,6 +15,7 @@ import {
   type Port,
   type Vec3,
 } from '@hydrobim/core';
+import { amphibiousPumpParts } from './amphibiousPump';
 import { box, loft, type ProfilePoint } from './loft';
 import { buildPbaParts, teeIsBuildable, type JeSocket, type PbaShape } from './pba';
 import { mapMesh } from './skin';
@@ -738,9 +740,30 @@ function localParts(element: HydroElement): MeshPart[] {
     case 'pump': {
       const [suction, discharge] = ports;
       if (!suction || !discharge) return [];
+      const layout = amphibiousLayout(element);
+      if (layout) {
+        const mouth = (port: Port) => ({
+          outer: port.spec.outerDiameter / 2,
+          inner: port.spec.innerDiameter / 2,
+          flange: port.end?.type === 'flange' ? port.end.length : 0,
+        });
+        return [
+          // Os flanges levam o mesmo revestimento do corpo da bomba.
+          ...[suction, discharge].flatMap(flangeParts).map((part) => coated(part.mesh)),
+          ...amphibiousPumpParts({
+            ...layout,
+            length: element.length,
+            footHoleDiameter: element.footHoleDiameter ?? 0,
+            stages: element.stages ?? 1,
+            suction: mouth(suction),
+            discharge: mouth(discharge),
+          }),
+        ];
+      }
       const length = element.length;
-      const volute = Math.max(element.dischargeHeight * 0.72, outer * 1.6);
-      const x = element.dischargeOffset;
+      const dischargeHeight = element.dischargeHeight ?? 0;
+      const volute = Math.max(dischargeHeight * 0.72, outer * 1.6);
+      const x = element.dischargeOffset ?? 0;
       return [
         ...flangeParts(suction),
         ...flangeParts(discharge),

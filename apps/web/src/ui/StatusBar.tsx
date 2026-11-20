@@ -1,19 +1,24 @@
 import { formatMeters, validateProject } from '@hydrobim/core';
-import { AlertTriangle, CheckCircle2, Magnet, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowUpToLine,
+  CheckCircle2,
+  Crosshair,
+  Move3d,
+  Ruler,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
+import { getCommand } from '../commands/commands';
 import { describeSnap } from '../editor/snapLabel';
 import { drawElevationOf, isAnnotationTool, useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
-import { PLAN_TOOL_HINTS, TOOL_HINTS, TOOL_LABELS } from './labels';
-
-const PLAN_SELECT_HINT =
-  'Clique para selecionar. Arraste o fundo para mover a vista, uma anotação para reposicioná-la e a alça de um tubo para esticá-lo. Setas: deslizam a peça na linha. Botão direito numa extremidade: criar tubo. Roda do mouse: zoom.';
-const BIM_HINT =
-  'Consulta BIM / IFC: selecione um elemento na vista ou na árvore para ver e completar as suas propriedades IFC. A modelagem fica suspensa nesta aba.';
+import { TOOL_LABELS } from './labels';
 
 /**
- * Barra de status: instrução da operação em andamento, coordenadas e elevação, estado da
- * captura e das restrições, mensagens e acesso às pendências de validação.
+ * Barra de status: ferramenta ativa e o seu estado, captura de pontos, coordenadas do cursor,
+ * unidades, mensagens da operação e acesso às pendências de validação. A instrução da
+ * operação e os controles de referência ficam na barra junto da área de desenho.
  */
 export function StatusBar() {
   const cursor = useEditorStore((s) => s.cursor);
@@ -21,11 +26,7 @@ export function StatusBar() {
   const anchor = useEditorStore((s) => s.anchor);
   const message = useEditorStore((s) => s.message);
   const project = useEditorStore((s) => s.project);
-  const viewMode = useEditorStore((s) => s.viewMode);
   const drawZ = useEditorStore(drawElevationOf);
-  const snapToGrid = useEditorStore((s) => s.snapToGrid);
-  const gridStep = useEditorStore((s) => s.gridStep);
-  const catalogOnly = useEditorStore((s) => s.toolOptions.lockElbowAngles);
   const open = useUiStore((s) => s.validationOpen);
   const setOpen = useUiStore((s) => s.setValidationOpen);
   const listRef = useRef<HTMLDivElement>(null);
@@ -42,26 +43,33 @@ export function StatusBar() {
   const mode =
     tool === 'pipe' ? (anchor ? 'aguardando ponto final' : 'aguardando ponto inicial') : 'pronto';
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
-  const instruction =
-    viewMode === 'bim'
-      ? BIM_HINT
-      : viewMode === 'plan' && tool === 'select'
-        ? PLAN_SELECT_HINT
-        : ((viewMode === 'plan' ? PLAN_TOOL_HINTS[tool] : undefined) ?? TOOL_HINTS[tool]);
+  const ToolIcon = getCommand(`tool.${tool}`).icon;
+  const capture = cursor ? (cursor.note ?? describeSnap(project, cursor)) : '—';
 
   return (
     <footer className="statusbar">
-      <span className="statusbar__instruction" data-testid="status-instruction" title={instruction}>
+      <span className="statusbar__tool" title="Ferramenta ativa e o que ela aguarda">
+        <ToolIcon size={16} aria-hidden />
         <strong data-testid="status-mode">
           {TOOL_LABELS[tool]}: {mode}
         </strong>
-        <span>{instruction}</span>
       </span>
 
-      <span className="statusbar__coords" data-testid="status-coords">
-        {cursor
-          ? `X ${formatMeters(cursor.point.x)}   Y ${formatMeters(cursor.point.y)}   Z ${formatMeters(cursor.point.z)}`
-          : 'X —   Y —   Z —'}
+      <span
+        className="statusbar__item statusbar__capture"
+        title={`Captura de pontos: ${capture === '—' ? 'aponte para a área de desenho' : capture}`}
+      >
+        <Crosshair size={15} aria-hidden />
+        <span data-testid="status-snap">{capture}</span>
+      </span>
+
+      <span className="statusbar__item" title="Coordenadas do cursor no modelo">
+        <Move3d size={15} aria-hidden />
+        <span className="statusbar__coords" data-testid="status-coords">
+          {cursor
+            ? `X ${formatMeters(cursor.point.x)}   Y ${formatMeters(cursor.point.y)}   Z ${formatMeters(cursor.point.z)}`
+            : 'X —   Y —   Z —'}
+        </span>
       </span>
       {modeling && (
         <span
@@ -69,31 +77,18 @@ export function StatusBar() {
           data-testid="status-elevation"
           title="Cota em que os pontos da ferramenta são criados (nível + elevação do eixo)"
         >
+          <ArrowUpToLine size={15} aria-hidden />
           Cota de desenho {formatMeters(drawZ, 2)}
         </span>
       )}
-      <span className="statusbar__item" data-testid="status-snap">
-        {cursor ? (cursor.note ?? describeSnap(project, cursor)) : '—'}
-      </span>
-      <button
-        type="button"
-        className={snapToGrid ? 'statusbar__button is-active' : 'statusbar__button'}
-        data-testid="status-grid"
-        aria-pressed={snapToGrid}
-        title={`Ajustar à grade (passo ${formatMeters(gridStep, 2)}). O passo é escolhido nas opções da ferramenta.`}
-        onClick={() => useEditorStore.getState().setSnapToGrid(!snapToGrid)}
+      <span
+        className="statusbar__item"
+        data-testid="status-units"
+        title="Unidades de apresentação: comprimentos e coordenadas em metros, diâmetros e dimensões de peças em milímetros, ângulos em graus. Internamente o modelo usa metros e radianos."
       >
-        <Magnet size={13} /> Grade {formatMeters(gridStep, 2)}
-      </button>
-      {modeling && (
-        <span
-          className="statusbar__item"
-          data-testid="status-restriction"
-          title="Restrição das peças criadas pela ferramenta; altere nas opções da ferramenta"
-        >
-          {catalogOnly ? 'Somente catálogo' : 'Peças genéricas permitidas'}
-        </span>
-      )}
+        <Ruler size={15} aria-hidden />
+        Unidades: m · mm · °
+      </span>
 
       <span
         className={`statusbar__message statusbar__message--${message?.level ?? 'info'}`}
@@ -118,11 +113,11 @@ export function StatusBar() {
           onClick={() => setOpen(!open)}
         >
           {errors > 0 ? (
-            <XCircle size={14} className="icon--error" />
+            <XCircle size={15} className="icon--error" />
           ) : warnings > 0 ? (
-            <AlertTriangle size={14} className="icon--warning" />
+            <AlertTriangle size={15} className="icon--warning" />
           ) : (
-            <CheckCircle2 size={14} className="icon--ok" />
+            <CheckCircle2 size={15} className="icon--ok" />
           )}
           {issues.length === 0 ? 'Modelo consistente' : `${errors} erro(s), ${warnings} aviso(s)`}
         </button>

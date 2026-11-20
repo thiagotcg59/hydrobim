@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronDown, Circle, Network } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useCommandContext } from '../commands/useCommands';
 import type { ProjectSummary } from '../persistence/ProjectRepository';
@@ -123,8 +123,8 @@ function FileMenu() {
 }
 
 /**
- * Cabeçalho compacto: identidade, menu Arquivo, nome do projeto com o estado de salvamento,
- * acesso rápido (salvar, desfazer, refazer) e o seletor de ambiente.
+ * Cabeçalho: identidade, menu Arquivo, nome do projeto, estado de salvamento, seletor de
+ * ambiente (MEP / Infra) e acesso rápido (salvar, desfazer, refazer).
  */
 export function TopBar() {
   const context = useCommandContext();
@@ -141,17 +141,23 @@ export function TopBar() {
     <header className="topbar">
       <div className="topbar__brand" aria-label="HydroBIM">
         {/* BASE_URL: no GitHub Pages o editor fica em /hydrobim/, não na raiz. */}
-        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={20} height={20} />
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={22} height={22} />
         <span>HydroBIM</span>
       </div>
 
       <FileMenu />
 
+      <span className="topbar__rule" aria-hidden />
+
       <label className="topbar__project">
+        <span className="topbar__caption" aria-hidden>
+          Projeto:
+        </span>
         <span className="visually-hidden">Nome do projeto</span>
         <input
           data-testid="project-name"
           value={draft}
+          size={Math.min(Math.max(draft.length, 12), 44)}
           title="Nome do projeto (clique para editar)"
           onChange={(event) => setDraft(event.target.value)}
           onBlur={() => setProjectName(draft.trim() || 'Projeto sem título')}
@@ -160,30 +166,30 @@ export function TopBar() {
             event.stopPropagation();
           }}
         />
-        <span
-          className={`topbar__dirty${saveState === 'salvo' ? '' : ' topbar__dirty--on'}`}
-          data-testid="dirty-indicator"
-          title={
-            dirty
-              ? 'Há alterações não salvas'
-              : persisted
-                ? 'Projeto salvo no navegador'
-                : 'Projeto ainda não salvo no navegador'
-          }
-        >
-          {saveState}
-        </span>
       </label>
 
-      <div className="topbar__group" role="group" aria-label="Acesso rápido">
-        <CommandButton id="file.save" context={context} variant="icon" />
-        <CommandButton id="edit.undo" context={context} variant="icon" />
-        <CommandButton id="edit.redo" context={context} variant="icon" />
-      </div>
+      <span
+        className={`topbar__dirty${saveState === 'salvo' ? '' : ' topbar__dirty--on'}`}
+        data-testid="dirty-indicator"
+        title={
+          dirty
+            ? 'Há alterações não salvas'
+            : persisted
+              ? 'Projeto salvo no navegador'
+              : 'Projeto ainda não salvo no navegador'
+        }
+      >
+        {saveState === 'salvo' ? (
+          <CheckCircle2 size={13} aria-hidden />
+        ) : (
+          <Circle size={8} fill="currentColor" strokeWidth={0} aria-hidden />
+        )}
+        {saveState}
+      </span>
 
       <div className="topbar__environment">
         <span className="topbar__caption" id="environment-caption">
-          Ambiente
+          Ambiente:
         </span>
         <div className="segmented" role="group" aria-labelledby="environment-caption">
           {(['mep', 'infra'] as const).map((value) => (
@@ -200,10 +206,23 @@ export function TopBar() {
                   : 'Ambiente Infra: redes de distribuição e adutoras. Muda a disciplina do projeto (especificação e grade padrão).'
               }
             >
+              {value === 'mep' ? (
+                <Building2 size={15} aria-hidden />
+              ) : (
+                <Network size={15} aria-hidden />
+              )}
               {value === 'mep' ? 'MEP' : 'Infra'}
             </button>
           ))}
         </div>
+      </div>
+
+      <span className="topbar__rule" aria-hidden />
+
+      <div className="topbar__group" role="group" aria-label="Acesso rápido">
+        <CommandButton id="file.save" context={context} variant="icon" />
+        <CommandButton id="edit.undo" context={context} variant="icon" />
+        <CommandButton id="edit.redo" context={context} variant="icon" />
       </div>
     </header>
   );
