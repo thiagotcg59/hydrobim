@@ -4,7 +4,7 @@
 
 HydroBIM é um editor BIM hidráulico paramétrico para web (instalações prediais/industriais — MEP — e redes de abastecimento/adutoras — Infra). É software de engenharia em evolução: cada recurso deve ser realmente operacional, testado e coerente com a prática de engenharia. Não é um visualizador IFC nem uma demonstração gráfica.
 
-Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md` e `docs/DOMAIN_MODEL.md` antes de alterar o domínio.
+Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md` e `docs/DOMAIN_MODEL.md` antes de alterar o domínio, `docs/INTERFACE.md` antes de alterar a organização da interface, e `docs/INFRA.md` antes de alterar o ambiente Infra.
 
 ## Organização
 
@@ -15,7 +15,7 @@ Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md
 | `packages/ifc` | Camada BIM (`src/bim`: modelo de informação, registro de propriedades, validação, IDS) e exportação IFC 4.3 (escritor IFC-SPF puro) | `core`, `geometry` |
 | `packages/dxf` | Exportação DXF (planta anotada em R2000 e modelo 3D em R12), escritor ASCII puro | `core`, `geometry` |
 | `packages/geometry` | Malhas paramétricas (sem motor gráfico) | `core` |
-| `apps/web` | Editor React/Three.js: `ui/`, `viewport/`, `plan/`, `bim/` (aba BIM / IFC), `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
+| `apps/web` | Editor React/Three.js: `ui/`, `commands/` (registro de comandos), `viewport/`, `plan/`, `infra/` (Planta Infra), `map/` (provedores de mapa), `bim/` (aba BIM / IFC), `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
 | `services/api` | API FastAPI (validação; verificação do IFC com IfcOpenShell nos testes) | contrato JSON do projeto |
 | `tests/integration`, `tests/e2e` | Integração entre pacotes e testes no navegador | — |
 | `examples/` | Projetos de exemplo, gerados por `npm run examples:generate` | — |
@@ -52,6 +52,7 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 - Operações de domínio são funções puras que devolvem `Result<T>`; não lançam exceções para erros previsíveis e nunca mutam o projeto recebido.
 - Erros de domínio têm `code` estável (usado em testes) e `message` em português, pronta para o usuário.
 - A interface não contém regras de modelagem: chama operações de `@hydrobim/core` por meio da store.
+- Comandos da interface entram pelo registro único (`apps/web/src/commands/commands.ts`): rótulo, atalho, disponibilidade (com o motivo) e execução; a faixa, os atalhos e a busca leem dele. Estado de interface (abas, painéis, layout) fica em `state/uiStore.ts`, nunca no projeto nem no histórico. Ver `docs/INTERFACE.md`.
 - Todo controle interativo relevante tem `data-testid` (os testes E2E dependem deles).
 - Comentários explicam o porquê (regra de engenharia, restrição), não o óbvio.
 - Sem credenciais, tokens ou serviços pagos. Novas dependências exigem justificativa em `docs/DECISIONS.md`.

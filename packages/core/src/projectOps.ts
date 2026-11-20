@@ -7,8 +7,10 @@ import { fail, ok, type Result } from './result';
 import {
   FittingFamilySchema,
   GeoreferenceSchema,
+  InfraSettingsSchema,
   type FittingFamily,
   type Georeference,
+  type InfraSettings,
   type HydraulicSystem,
   type Level,
   type Project,
@@ -201,6 +203,41 @@ export function setGeoreference(
     );
   }
   return ok({ ...project, updatedAt: now(), georeference });
+}
+
+/** Alteração parcial da configuração do ambiente Infra (cada grupo é mesclado). */
+export interface InfraSettingsPatch {
+  drawingScale?: number;
+  basemap?: Partial<InfraSettings['basemap']>;
+  layers?: Partial<InfraSettings['layers']>;
+  labels?: Partial<InfraSettings['labels']>;
+}
+
+/**
+ * Altera a configuração da Planta Infra (escala de documentação, mapa de fundo, camadas e
+ * rótulos). Não toca em nenhum dado de engenharia nem na planta do MEP.
+ */
+export function setInfraSettings(project: Project, patch: InfraSettingsPatch): Result<Project> {
+  const next: InfraSettings = {
+    drawingScale: patch.drawingScale ?? project.infra.drawingScale,
+    basemap: { ...project.infra.basemap, ...patch.basemap },
+    layers: { ...project.infra.layers, ...patch.layers },
+    labels: { ...project.infra.labels, ...patch.labels },
+  };
+  const parsed = InfraSettingsSchema.safeParse(next);
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path.join('.') ?? '';
+    return fail(
+      'INVALID_INFRA_SETTINGS',
+      field === 'drawingScale'
+        ? 'Escala inválida: informe um denominador positivo (ex.: 1000).'
+        : field === 'basemap.opacity'
+          ? 'Opacidade inválida: informe um valor entre 0 e 100%.'
+          : 'Configuração do ambiente Infra inválida.',
+    );
+  }
+  if (JSON.stringify(parsed.data) === JSON.stringify(project.infra)) return ok(project);
+  return ok({ ...project, updatedAt: now(), infra: parsed.data });
 }
 
 export function setTerrain(project: Project, terrain: Terrain | null): Project {

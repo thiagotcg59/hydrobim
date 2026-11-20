@@ -2,7 +2,14 @@ import { MIN_PIPE_LENGTH } from './dimensions';
 import { quatNormalize } from './math';
 import { pipeLength } from './ports';
 import { fail, ok, type Result } from './result';
-import { PROJECT_FORMAT, ProjectSchema, SCHEMA_VERSION, type Project } from './schema';
+import {
+  defaultInfraSettings,
+  PROJECT_FORMAT,
+  ProjectSchema,
+  SCHEMA_VERSION,
+  surveySource,
+  type Project,
+} from './schema';
 
 /**
  * Migrações de esquema: `MIGRATIONS[n]` converte um documento da versão `n` para `n + 1`.
@@ -48,6 +55,41 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   // `bendRadius` (curvas ponta e bolsa); em válvulas e famílias, `bonnetLength` (castelo
   // retangular das gavetas). Todos opcionais: documentos v9 já são válidos.
   9: (doc) => ({ ...doc, schemaVersion: 10 }),
+  // v10 → v11: configuração do ambiente Infra (`infra`) e referência altimétrica da
+  // georreferência (`verticalDatum`, não informada). A escala que um projeto Infra usava na
+  // planta passa a ser a escala da Planta Infra; nada geográfico é presumido. O tipo
+  // `flowMeter` (medidor de vazão) entrou neste mesmo esquema, ainda não publicado: é só um
+  // valor novo de `valveType` e não exige migração. O mesmo vale para `jointDeflection` na
+  // especificação (deflexão admitida na junta): opcional, e ausente = junta rígida.
+  10: (doc) => ({
+    infra: defaultInfraSettings(
+      doc.discipline === 'infra' && typeof doc.drawingScale === 'number' && doc.drawingScale > 0
+        ? doc.drawingScale
+        : undefined,
+    ),
+    ...doc,
+    schemaVersion: 11,
+    georeference:
+      typeof doc.georeference === 'object' && doc.georeference !== null
+        ? { verticalDatum: null, ...doc.georeference }
+        : doc.georeference,
+  }),
+  // v11 → v12: a superfície do terreno passa a registrar o limite (contorno e furos), as
+  // linhas de quebra e a procedência dos dados. Um terreno antigo é um levantamento por pontos
+  // sem limite informado (envoltória convexa); datum, exatidão e data continuam não informados.
+  11: (doc) => ({
+    ...doc,
+    schemaVersion: 12,
+    terrain:
+      typeof doc.terrain === 'object' && doc.terrain !== null
+        ? {
+            boundary: null,
+            breaklines: [],
+            source: surveySource(null, null),
+            ...doc.terrain,
+          }
+        : doc.terrain,
+  }),
 };
 
 export function serializeProject(project: Project): string {

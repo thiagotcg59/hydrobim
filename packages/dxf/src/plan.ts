@@ -205,7 +205,7 @@ export function exportPlanDxf(project: Project, options: PlanDxfOptions = {}): s
   const blockCount = new Map<string, number>();
   drawn.forEach(({ element }, index) => {
     const layer = layers[ELEMENT_LAYER[element.kind]];
-    const lines = visible[index] ?? new Float32Array(0);
+    const lines = visible[index] ?? new Float64Array(0);
     // Referencial do elemento em planta: origem e direção do eixo X. Nos tubos, o início e
     // a direção do trecho; nos demais, a posição e o eixo local X.
     let position: { x: number; y: number };

@@ -1,11 +1,17 @@
+import { FLANGED_PIPE_FAMILIES } from '@hydrobim/catalog';
 import {
   buildProfile,
+  MAX_TERRAIN_POINTS,
+  computeQuantities,
   degToRad,
   detectClashes,
+  findProjectedCrs,
   formatMeters,
   formatMillimeters,
+  georeferenceStatus,
   getElement,
   radToDeg,
+  SUPPORTED_CRS_SUMMARY,
   SYSTEM_KINDS,
   type Georeference,
   type Profile,
@@ -13,22 +19,35 @@ import {
 } from '@hydrobim/core';
 import { FileUp, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { selectPrimaryId, useEditorStore } from '../state/editorStore';
-import { importTerrainFile } from '../state/projectActions';
+import {
+  familiesOf,
+  selectPrimaryId,
+  useEditorStore,
+  type ProjectDialogTab,
+} from '../state/editorStore';
+import { exportQuantitiesFile, importTerrainFile } from '../state/projectActions';
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
 import { SYSTEM_KIND_LABELS } from './labels';
 
 const actions = () => useEditorStore.getState();
 
-type Tab = 'levels' | 'systems' | 'georeference' | 'terrain' | 'profile' | 'clashes';
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'levels', label: 'Níveis' },
-  { id: 'systems', label: 'Sistemas' },
-  { id: 'georeference', label: 'Georreferência' },
-  { id: 'terrain', label: 'Terreno' },
-  { id: 'profile', label: 'Perfil' },
-  { id: 'clashes', label: 'Interferências' },
+type Tab = ProjectDialogTab;
+/** Configuração do projeto (aba Gerenciar) e resultados (aba Análise) não se misturam. */
+type Group = 'manage' | 'analysis';
+const TABS: { id: Tab; label: string; group: Group }[] = [
+  { id: 'levels', label: 'Níveis', group: 'manage' },
+  { id: 'systems', label: 'Sistemas', group: 'manage' },
+  { id: 'georeference', label: 'Georreferência', group: 'manage' },
+  { id: 'terrain', label: 'Terreno', group: 'manage' },
+  { id: 'clashes', label: 'Interferências', group: 'analysis' },
+  { id: 'quantities', label: 'Quantitativo', group: 'analysis' },
+  { id: 'profile', label: 'Perfil longitudinal', group: 'analysis' },
 ];
+const GROUP_TITLES: Record<Group, string> = {
+  manage: 'Gerenciar projeto',
+  analysis: 'Análises do modelo',
+};
+const groupOf = (tab: Tab): Group => TABS.find((item) => item.id === tab)?.group ?? 'manage';
 
 function LevelsTab() {
   const levels = useEditorStore((s) => s.project.levels);
@@ -205,6 +224,7 @@ function SystemsTab() {
 }
 
 const EMPTY_GEO: Georeference = {
+  verticalDatum: null,
   crsName: '',
   epsg: null,
   eastings: 0,
@@ -213,29 +233,44 @@ const EMPTY_GEO: Georeference = {
   rotation: 0,
 };
 
-function GeoreferenceTab() {
+function GeoreferenceTab({ onClose }: { onClose: () => void }) {
   const current = useEditorStore((s) => s.project.georeference);
+  const infra = useEditorStore((s) => s.project.discipline === 'infra');
   const [draft, setDraft] = useState<Georeference>(current ?? EMPTY_GEO);
   useEffect(() => setDraft(current ?? EMPTY_GEO), [current]);
+  // O estado é o do rascunho: o usuário vê a validação antes de gravar.
+  const status = useMemo(() => georeferenceStatus(draft), [draft]);
+  const saved = useMemo(() => georeferenceStatus(current), [current]);
+  const origin =
+    status.state === 'ready' ? status.transform.localToGeographic({ x: 0, y: 0 }) : null;
+  const factors = status.state === 'ready' ? status.transform.factorsAt({ x: 0, y: 0 }) : null;
   return (
     <Section title="Georreferência" testId="tab-georeference">
       <span className="muted">
         Posição da origem local (0; 0; 0) do modelo no sistema de coordenadas projetado. Nada é
         preenchido automaticamente: informe o sistema de referência e as coordenadas do seu
-        levantamento. Exportada no IFC como IfcProjectedCRS + IfcMapConversion.
+        levantamento. Exportada no IFC como IfcProjectedCRS + IfcMapConversion. Os comprimentos e as
+        cotas do projeto são sempre medidos nas coordenadas locais do modelo.
       </span>
+      <NumberField
+        label="Código EPSG"
+        digits={0}
+        value={draft.epsg ?? 0}
+        title={`Código do sistema projetado. Sistemas que posicionam o mapa: ${SUPPORTED_CRS_SUMMARY}. Outros códigos valem para o IFC, sem mapa. Deixe 0 para informar só o nome.`}
+        onCommit={(v) => {
+          const epsg = v > 0 ? Math.round(v) : null;
+          const known = epsg === null ? null : findProjectedCrs(epsg);
+          // O nome oficial vem do código digitado; sem código reconhecido, vale o que o
+          // usuário escrever.
+          setDraft({ ...draft, epsg, crsName: known ? known.name : draft.crsName });
+        }}
+        testId="geo-epsg"
+      />
       <TextField
         label="Sistema de referência"
         value={draft.crsName}
         onCommit={(crsName) => setDraft({ ...draft, crsName })}
         testId="geo-crs"
-      />
-      <NumberField
-        label="Código EPSG (opcional)"
-        digits={0}
-        value={draft.epsg ?? 0}
-        onCommit={(v) => setDraft({ ...draft, epsg: v > 0 ? Math.round(v) : null })}
-        testId="geo-epsg"
       />
       <NumberField
         label="Este (E)"
@@ -252,21 +287,85 @@ function GeoreferenceTab() {
         testId="geo-n"
       />
       <NumberField
-        label="Altitude da origem"
-        unit="m"
-        value={draft.orthogonalHeight}
-        onCommit={(orthogonalHeight) => setDraft({ ...draft, orthogonalHeight })}
-        testId="geo-h"
-      />
-      <NumberField
         label="Rotação do eixo X"
         unit="°"
         digits={4}
         value={radToDeg(draft.rotation)}
-        title="Ângulo do eixo X local em relação ao leste, sentido anti-horário"
+        title="Ângulo do eixo X local em relação ao leste da quadrícula, sentido anti-horário"
         onCommit={(v) => setDraft({ ...draft, rotation: degToRad(v) })}
         testId="geo-rotation"
       />
+      <NumberField
+        label="Altitude da origem"
+        unit="m"
+        value={draft.orthogonalHeight}
+        title="Altitude, na referência altimétrica abaixo, do ponto de cota local Z = 0"
+        onCommit={(orthogonalHeight) => setDraft({ ...draft, orthogonalHeight })}
+        testId="geo-h"
+      />
+      <TextField
+        label="Referência altimétrica"
+        value={draft.verticalDatum ?? ''}
+        onCommit={(text) => setDraft({ ...draft, verticalDatum: text.trim() || null })}
+        testId="geo-vertical"
+      />
+      <span className="muted">
+        Referência altimétrica: o datum vertical das cotas (ex.: Imbituba, Santana, ou "local"). Em
+        branco = não informada; as cotas valem apenas como cotas do projeto.
+      </span>
+      <ReadOnlyRow
+        label="Validação"
+        value={
+          <span
+            data-testid="geo-validation"
+            data-state={status.state}
+            className={status.state === 'ready' ? undefined : 'warn'}
+          >
+            {draft.crsName.trim().length === 0
+              ? 'Informe o sistema de referência.'
+              : status.state === 'ready'
+                ? `Transformação disponível: ${status.message}`
+                : status.message}
+          </span>
+        }
+      />
+      {origin && factors && status.state === 'ready' && (
+        <>
+          <ReadOnlyRow
+            label="Origem (latitude; longitude)"
+            value={
+              <span data-testid="geo-origin-geographic">
+                {origin.lat.toFixed(6)}°; {origin.lon.toFixed(6)}° ({status.crs.datum})
+              </span>
+            }
+          />
+          <ReadOnlyRow
+            label="Fator de escala da projeção"
+            value={
+              <span
+                data-testid="geo-scale-factor"
+                title="Distância na quadrícula ÷ distância no elipsoide, na origem. O modelo usa escala 1: em redes longas, a diferença entre a quadrícula e o terreno é a indicada"
+              >
+                {factors.scale.toFixed(6).replace('.', ',')} (
+                {((factors.scale - 1) * 1000).toFixed(2).replace('.', ',')} m por km)
+              </span>
+            }
+          />
+          <ReadOnlyRow
+            label="Convergência meridiana"
+            value={
+              <span data-testid="geo-convergence">
+                {radToDeg(factors.convergence).toFixed(4).replace('.', ',')}°
+              </span>
+            }
+          />
+          <span className="muted">
+            Confira a latitude e a longitude da origem com um ponto conhecido do levantamento.
+            {status.crs.datumToMapAccuracy > 0 &&
+              ` A passagem de ${status.crs.datum} para o WGS 84 do mapa é a transformação nula do banco EPSG (exatidão de ${status.crs.datumToMapAccuracy} m).`}
+          </span>
+        </>
+      )}
       <div className="chips">
         <button
           type="button"
@@ -276,6 +375,20 @@ function GeoreferenceTab() {
         >
           Definir georreferência
         </button>
+        {infra && (
+          <button
+            type="button"
+            className="btn"
+            data-testid="geo-open-map"
+            onClick={() => {
+              actions().setGeoPicker(true);
+              onClose();
+            }}
+            title="Abrir o mapa (satélite ou ruas) e clicar no ponto que será a origem do modelo"
+          >
+            Definir pelo mapa…
+          </button>
+        )}
         {current && (
           <button
             type="button"
@@ -290,8 +403,16 @@ function GeoreferenceTab() {
       <ReadOnlyRow
         label="Estado"
         value={
-          <span data-testid="geo-state">
-            {current ? `Definida — ${current.crsName}` : 'Não definida'}
+          <span data-testid="geo-state" data-state={saved.state}>
+            {current
+              ? `Definida — ${current.crsName}${
+                  saved.state === 'ready'
+                    ? ''
+                    : saved.state === 'invalid'
+                      ? ' (origem fora do fuso: sem mapa)'
+                      : ' (sem transformação para o mapa)'
+                }`
+              : 'Não definida'}
           </span>
         }
       />
@@ -317,7 +438,9 @@ function TerrainTab() {
       <span className="muted">
         Importe um arquivo de texto com um ponto por linha — "X Y Z" em metros, nas coordenadas
         locais do modelo (separados por espaço, vírgula, tabulação ou ponto e vírgula). Os pontos
-        são triangulados (TIN). Limite atual: 4.000 pontos.
+        são triangulados (TIN). Limite atual: {MAX_TERRAIN_POINTS.toLocaleString('pt-BR')} pontos.
+        No ambiente Infra, a superfície também pode ser gerada dentro de uma área, a partir de DEM,
+        GeoTIFF ou levantamento com linhas de quebra: Modelagem › Terreno › Superfície do terreno.
       </span>
       <input
         ref={fileRef}
@@ -357,6 +480,39 @@ function TerrainTab() {
           <ReadOnlyRow
             label="Cotas"
             value={`${formatMeters(range.min, 2)} a ${formatMeters(range.max, 2)}`}
+          />
+          <ReadOnlyRow
+            label="Fonte"
+            value={
+              <span data-testid="terrain-source">
+                {terrain.source.kind === 'dem' ? 'DEM' : 'Levantamento'} — {terrain.source.provider}
+                {terrain.source.dataset ? ` (${terrain.source.dataset})` : ''}
+              </span>
+            }
+          />
+          <ReadOnlyRow
+            label="Referência altimétrica"
+            value={terrain.source.verticalDatum ?? 'não declarada pela fonte'}
+          />
+          <ReadOnlyRow
+            label="Resolução do raster"
+            value={
+              terrain.source.resolution !== null
+                ? formatMeters(terrain.source.resolution, 1)
+                : 'não se aplica (pontos)'
+            }
+          />
+          <ReadOnlyRow
+            label="Exatidão altimétrica"
+            value={
+              terrain.source.verticalAccuracy !== null
+                ? formatMeters(terrain.source.verticalAccuracy, 2)
+                : 'não declarada pela fonte'
+            }
+          />
+          <ReadOnlyRow
+            label="Limite e linhas de quebra"
+            value={`${terrain.boundary ? `${terrain.boundary.length} anel(is)` : 'envoltória dos pontos'} · ${terrain.breaklines.length} linha(s) de quebra`}
           />
         </>
       ) : (
@@ -556,15 +712,89 @@ function ClashesTab() {
   );
 }
 
+/** Lista de materiais em tela: as mesmas linhas da exportação em CSV. */
+function QuantitiesTab() {
+  const project = useEditorStore((s) => s.project);
+  const rows = useMemo(
+    () => computeQuantities(project, [...familiesOf(project), ...FLANGED_PIPE_FAMILIES]),
+    [project],
+  );
+  const systems = new Map(project.systems.map((system) => [system.id, system.name]));
+  return (
+    <Section title="Quantitativo" testId="tab-quantities">
+      <span className="muted">
+        Tubos somados pelo comprimento entre portas; conexões, válvulas e equipamentos por unidade.
+        Não inclui perdas de corte, juntas, parafusos nem acessórios de montagem.
+      </span>
+      {rows.length === 0 ? (
+        <span className="muted" data-testid="quantities-empty">
+          O projeto não tem elementos para quantificar.
+        </span>
+      ) : (
+        <div className="quantities">
+          <table data-testid="quantities-table">
+            <thead>
+              <tr>
+                <th>Sistema</th>
+                <th>Categoria</th>
+                <th>Descrição</th>
+                <th>Especificação</th>
+                <th>Diâmetro</th>
+                <th className="num">Quantidade</th>
+                <th>Família</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={index} data-testid="quantities-row">
+                  <td>{systems.get(row.system) ?? row.system}</td>
+                  <td>{row.category}</td>
+                  <td>{row.description}</td>
+                  <td>{row.specification}</td>
+                  <td>{row.size}</td>
+                  <td className="num">
+                    {row.unit === 'm' ? row.quantity.toFixed(2).replace('.', ',') : row.quantity}{' '}
+                    {row.unit}
+                  </td>
+                  <td>{row.family}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="chips">
+        <button
+          type="button"
+          className="btn"
+          data-testid="quantities-export"
+          disabled={rows.length === 0}
+          onClick={exportQuantitiesFile}
+        >
+          Exportar em CSV
+        </button>
+      </div>
+    </Section>
+  );
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Aba pedida por uma vista (ex.: georreferência, perfil); `nonce` distingue os pedidos. */
+  request?: { tab: Tab; nonce: number } | null;
 }
 
-/** Dados de projeto e análises: níveis, sistemas, georreferência, terreno, perfil e interferências. */
-export function ProjectDialog({ open, onClose }: Props) {
+/**
+ * Diálogo de configuração do projeto (níveis, sistemas, georreferência, terreno) ou de análises
+ * (interferências, quantitativo, perfil), conforme a aba pedida: os dois grupos não se misturam.
+ */
+export function ProjectDialog({ open, onClose, request }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [tab, setTab] = useState<Tab>('levels');
+  useEffect(() => {
+    if (request) setTab(request.tab);
+  }, [request]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -582,7 +812,7 @@ export function ProjectDialog({ open, onClose }: Props) {
       onKeyDown={(event) => event.stopPropagation()}
     >
       <header className="dialog__header">
-        <h2>Projeto e análises</h2>
+        <h2 data-testid="project-dialog-title">{GROUP_TITLES[groupOf(tab)]}</h2>
         <button
           type="button"
           className="btn btn--icon"
@@ -594,7 +824,7 @@ export function ProjectDialog({ open, onClose }: Props) {
         </button>
       </header>
       <nav className="tabs" role="tablist">
-        {TABS.map((item) => (
+        {TABS.filter((item) => item.group === groupOf(tab)).map((item) => (
           <button
             key={item.id}
             type="button"
@@ -611,10 +841,11 @@ export function ProjectDialog({ open, onClose }: Props) {
       <div className="dialog__body dialog__body--tall">
         {open && tab === 'levels' && <LevelsTab />}
         {open && tab === 'systems' && <SystemsTab />}
-        {open && tab === 'georeference' && <GeoreferenceTab />}
+        {open && tab === 'georeference' && <GeoreferenceTab onClose={onClose} />}
         {open && tab === 'terrain' && <TerrainTab />}
         {open && tab === 'profile' && <ProfileTab />}
         {open && tab === 'clashes' && <ClashesTab />}
+        {open && tab === 'quantities' && <QuantitiesTab />}
       </div>
     </dialog>
   );

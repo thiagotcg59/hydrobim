@@ -1,6 +1,7 @@
 import {
   flangedPipeFamiliesFor,
   getSpecification,
+  jointDeflectionDegrees,
   PIPE_END_CONFIGURATION_LABELS,
   PIPE_END_CONFIGURATIONS,
 } from '@hydrobim/catalog';
@@ -24,6 +25,7 @@ import {
 } from '../state/editorStore';
 import { NumberField, SelectField } from './fields';
 import { PLAN_TOOL_HINTS, TOOL_HINTS, TOOL_LABELS, VALVE_TYPE_LABELS } from './labels';
+import { SegmentEntry } from './SegmentEntry';
 import { SpecSelector } from './SpecSelector';
 
 const GRID_STEPS = [0.01, 0.05, 0.1, 0.25, 0.5, 1, 5, 10];
@@ -299,6 +301,8 @@ export function ToolOptions() {
   const catalogAngles = elbowAnglesOf(project, activeSpec).map(
     (angle) => Math.round(radToDeg(angle) * 100) / 100,
   );
+  const jointTable = getSpecification(activeSpec.specificationId)?.jointDeflection;
+  const jointDegrees = jointDeflectionDegrees(jointTable, activeSpec.dn);
   const catalogOnly = (
     <label
       className="check"
@@ -327,6 +331,20 @@ export function ToolOptions() {
             ? `Não há joelho de catálogo para ${activeSpec.sizeLabel} nesta especificação: o traçado só prolonga em linha reta e a inserção de joelho é recusada.`
             : 'Não há joelho de catálogo para esta especificação: o ângulo é livre e a peça é genérica.'}
       </span>
+      <span
+        className="muted"
+        data-testid="option-joint-deflection"
+        data-degrees={jointDegrees ?? 0}
+        title={
+          jointTable && jointDegrees !== undefined
+            ? `Fonte: ${jointTable.source}${jointTable.remarks ? ` — ${jointTable.remarks}` : ''}`
+            : 'A especificação não traz deflexão admitida na junta (junta soldada, por termofusão ou sem dado de fabricante).'
+        }
+      >
+        {jointDegrees !== undefined
+          ? `Junta elástica: até ${String(jointDegrees).replace('.', ',')}° de deflexão por junta em ${activeSpec.sizeLabel}, sem peça. Acima disso, joelho.`
+          : 'Junta rígida nesta especificação: mudança de direção só com joelho.'}
+      </span>
     </>
   );
 
@@ -339,6 +357,7 @@ export function ToolOptions() {
   return (
     <aside className="options" aria-label="Opções da ferramenta" data-testid="tool-options">
       <header className="options__header">
+        <span className="options__badge">Próximo elemento</span>
         <strong>{TOOL_LABELS[tool]}</strong>
         <span className="muted">
           {(viewMode === 'plan' ? PLAN_TOOL_HINTS[tool] : undefined) ?? TOOL_HINTS[tool]}
@@ -405,8 +424,52 @@ export function ToolOptions() {
 
       {tool === 'pipe' && (
         <div className="options__group">
-          <span className="options__caption">Mudança de direção</span>
+          <span className="options__caption">Restrições de direção</span>
           {angleLock}
+        </div>
+      )}
+
+      {tool === 'pipe' && discipline === 'infra' && (
+        <div className="options__group" data-testid="terrain-cover-options">
+          <span className="options__caption">Assentamento no terreno</span>
+          <label
+            className="check"
+            title="Na Planta Infra, a cota do eixo de cada ponto clicado passa a vir do terreno: a geratriz superior do tubo fica o recobrimento abaixo da superfície"
+          >
+            <input
+              type="checkbox"
+              data-testid="option-terrain-cover"
+              checked={options.terrainCover.enabled && project.terrain !== null}
+              disabled={project.terrain === null}
+              onChange={(event) =>
+                setToolOptions({
+                  terrainCover: { ...options.terrainCover, enabled: event.target.checked },
+                })
+              }
+            />
+            Seguir o terreno pelo recobrimento
+          </label>
+          <NumberField
+            label="Recobrimento"
+            unit="m"
+            digits={2}
+            value={options.terrainCover.cover}
+            disabled={project.terrain === null}
+            title="Distância vertical do terreno à geratriz superior externa do tubo. É uma decisão de projeto: o editor não traz mínimos de norma"
+            onCommit={(value) =>
+              setToolOptions({
+                terrainCover: { ...options.terrainCover, cover: Math.max(0, value) },
+              })
+            }
+            testId="option-terrain-cover-value"
+          />
+          <span className="muted" data-testid="option-terrain-cover-note">
+            {project.terrain === null
+              ? 'O projeto não tem superfície de terreno (Modelagem › Terreno › Superfície do terreno).'
+              : options.terrainCover.enabled
+                ? `Eixo = terreno − ${options.terrainCover.cover.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} m − meio diâmetro externo (${activeSpec.sizeLabel}: ${(activeSpec.outerDiameter * 500).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mm). Vale nos pontos clicados na Planta Infra; entre eles o tubo é reto, e o recobrimento real do trecho é informado ao criá-lo. Fora da superfície o ponto é recusado.`
+                : 'Desligado: os pontos usam a elevação do eixo acima do nível.'}
+          </span>
         </div>
       )}
 
@@ -506,11 +569,9 @@ export function ToolOptions() {
         </div>
       )}
 
-      {POINT_TOOLS.has(tool) && <CoordinateEntry />}
-
       {tool !== 'select' && (
         <div className="options__group">
-          <span className="options__caption">Plano de trabalho</span>
+          <span className="options__caption">Nível e elevação</span>
           <SelectField
             label="Nível"
             testId="option-level"
@@ -552,6 +613,15 @@ export function ToolOptions() {
               </span>
             </>
           )}
+        </div>
+      )}
+
+      {tool === 'pipe' && <SegmentEntry />}
+      {POINT_TOOLS.has(tool) && <CoordinateEntry />}
+
+      {tool !== 'select' && (
+        <div className="options__group" data-testid="capture-options">
+          <span className="options__caption">Captura e grade</span>
           <SelectField
             label="Passo da grade"
             value={String(gridStep)}

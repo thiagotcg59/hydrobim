@@ -10,6 +10,7 @@ export const VALVE_TYPE_LABELS: Record<ValveType, string> = {
   airRelease: 'Ventosa',
   pressureReducing: 'Redutora de pressão',
   strainer: 'Filtro Y',
+  flowMeter: 'Medidor de vazão',
 };
 
 export const SYSTEM_KIND_LABELS: Record<SystemKind, string> = {
@@ -38,7 +39,7 @@ export const TOOL_LABELS: Record<ToolId, string> = {
 
 export const TOOL_HINTS: Record<ToolId, string> = {
   select:
-    'Clique em um elemento para selecioná-lo ou arraste uma janela em volta dos elementos (Ctrl/Shift soma à seleção). Órbita: botão do meio ou Alt + arrastar.',
+    'Clique em um elemento para selecioná-lo ou arraste uma janela em volta dos elementos (Ctrl/Shift soma à seleção). Tubo selecionado: arraste a alça da extremidade para esticar ou encolher. Setas: deslizam a peça ao longo da linha (Shift ×10, Ctrl ÷10). Botão direito numa extremidade livre: criar tubo. Órbita: botão do meio ou Alt + arrastar.',
   pipe: 'Clique o ponto inicial e o final. Shift: trecho vertical. Esc: encerrar. Partindo da extremidade de um tubo, o joelho é criado automaticamente. Começando ou terminando sobre um tubo existente, o tê é inserido automaticamente.',
   elbow: 'Clique em uma extremidade livre para acoplar o joelho.',
   tee: 'Clique sobre um tubo para inserir em linha, ou em uma extremidade livre.',

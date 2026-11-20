@@ -386,3 +386,23 @@ def test_catalog_tank_geometry_survives_reimport(example):
         assert max(xs) - origin["x"] >= reach - 1e-4
         assert origin["x"] - min(xs) >= reach - 1e-4
         assert max(ys) - min(ys) >= source["diameter"] - 1e-3
+
+
+@pytest.mark.parametrize("example", PARAMETERS, ids=IDS)
+def test_every_body_item_has_a_surface_style(example):
+    """Sem estilo de superfície os visualizadores mostram o modelo todo em branco."""
+    model = ifcopenshell.open(str(example))
+    for product in model.by_type("IfcDistributionElement"):
+        for representation in product.Representation.Representations:
+            for item in representation.Items:
+                assert item.StyledByItem, f"{product.Name}: item sem estilo"
+                style = item.StyledByItem[0].Styles[0]
+                assert style.is_a("IfcSurfaceStyle")
+                rendering = style.Styles[0]
+                assert rendering.is_a("IfcSurfaceStyleRendering")
+                assert rendering.ReflectanceMethod == "PHYSICAL"
+                colour = rendering.SurfaceColour
+                assert all(0 <= v <= 1 for v in (colour.Red, colour.Green, colour.Blue))
+                assert rendering.DiffuseColour == colour
+                assert 0 <= rendering.SpecularColour.wrappedValue <= 1
+                assert 0 <= rendering.SpecularHighlight.wrappedValue <= 1

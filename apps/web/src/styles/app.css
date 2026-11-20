@@ -347,6 +347,72 @@ code {
   background: rgba(62, 143, 255, 0.14);
 }
 
+/* Alça de extremidade do tubo selecionado (esticar/encolher). */
+.pipe-grip {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 2px;
+  background: #e8590c;
+  box-shadow: 0 0 0 1px rgba(12, 17, 24, 0.6);
+  cursor: move;
+  touch-action: none;
+}
+
+.pipe-grip:hover,
+.pipe-grip--active {
+  background: #ffd166;
+  transform: scale(1.25);
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 200px;
+  max-width: 240px;
+  padding: 4px;
+  border: 1px solid #2c3644;
+  border-radius: var(--radius);
+  background: #161d27;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.context-menu__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu__item span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.context-menu__item small {
+  opacity: 0.7;
+  font-size: 11px;
+}
+
+.context-menu__item:hover:not(:disabled) {
+  background: var(--accent-strong);
+  color: #fff;
+}
+
+.context-menu__item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .viewport-label--snap {
   display: inline-block;
   margin: 14px 0 0 14px;
@@ -1778,4 +1844,495 @@ code {
 }
 .ifc-library {
   margin-top: 12px;
+}
+
+/* ---------- Planta Infra ---------- */
+
+.infra__range {
+  width: 90px !important;
+  padding: 0 !important;
+}
+
+.infra__goto {
+  width: 170px !important;
+}
+
+.infra__menu {
+  position: relative;
+}
+
+.infra__menu > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.infra__menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.infra__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 8;
+  width: 330px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(18, 26, 37, 0.98);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.infra__geo--pending,
+.infra__geo--unsupported,
+.infra__geo--invalid {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.infra__geo--ready {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.infra__north {
+  position: absolute;
+  top: 110px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #c3ccd8;
+  border-radius: var(--radius);
+  color: #0c1118;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: auto;
+}
+
+.infra__north-pending {
+  padding: 6px 4px;
+  color: #8a5a00;
+}
+
+.infra__footer {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 10px;
+  pointer-events: none;
+  font-size: 11.5px;
+}
+
+.infra__footer > div {
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #c3ccd8;
+  border-radius: 4px;
+  color: #0c1118;
+  pointer-events: auto;
+}
+
+.infra__scalebar,
+.infra__cursor,
+.infra__basemap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.infra__scalebar-rule {
+  display: inline-block;
+  height: 6px;
+  border: 1.5px solid #0c1118;
+  border-top: 0;
+}
+
+.infra__dim {
+  color: #4a586a;
+}
+
+.infra__note {
+  color: #5b3d00;
+}
+
+.infra__basemap[data-state='unavailable'],
+.infra__basemap[data-state='offline'],
+.infra__basemap[data-state='blocked'],
+.infra__basemap[data-state='partial'] {
+  border-color: #c98a00;
+  color: #5b3d00;
+}
+
+.infra__attribution {
+  margin-left: auto;
+  max-width: 100%;
+  font-size: 10.5px;
+}
+
+.infra__attribution a {
+  color: #0b4f9e;
+}
+
+/* ---------- Entrada dinâmica do trecho e fechamento de extremidades ---------- */
+
+.entry__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
+
+.entry__field {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  position: relative;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.entry__field input,
+.entry__field select {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 22px 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.entry__field select {
+  padding-right: 4px;
+  font-family: var(--font);
+}
+
+.entry__field em {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font-style: normal;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.entry__preview--error {
+  color: var(--error);
+}
+
+.entry__risers,
+.close__pair {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Georreferência pelo mapa */
+.geopicker {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: #dfe5ec;
+}
+
+.geopicker__map {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.geopicker__map img {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+
+.geopicker__marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  color: #e8590c;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+  pointer-events: none;
+}
+
+.geopicker__panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(18, 26, 37, 0.96);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.geopicker__panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.geopicker__panel .plan__field select {
+  flex: 1;
+  min-width: 0;
+}
+
+.geopicker__result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--bg-2);
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.geopicker__attribution {
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.geopicker__attribution a {
+  color: var(--accent);
+}
+
+.infra__custom-toggle > summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.infra__custom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.infra__custom .plan__field input {
+  width: 100%;
+}
+
+.infra__custom .plan__field:not(.plan__field--block) input {
+  width: 60px;
+}
+
+/* ----- Terreno (Planta Infra) ----- */
+
+.terrain {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 6;
+  width: 340px;
+  max-height: calc(100% - 20px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  font-size: 12px;
+}
+
+.terrain__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.terrain__header strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terrain__body {
+  overflow-y: auto;
+  padding: 4px 10px 10px;
+}
+
+.terrain__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.terrain__section:last-child {
+  border-bottom: 0;
+}
+
+.terrain__section h4 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.terrain__section p {
+  margin: 0;
+}
+
+.terrain__actions,
+.terrain__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.terrain__actions .btn,
+.terrain__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.terrain__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.terrain__key {
+  color: var(--text-dim);
+  flex: none;
+}
+
+.terrain__value {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.terrain__missing {
+  color: var(--warning);
+}
+
+.terrain__error {
+  color: var(--error);
+}
+
+.terrain__warning {
+  color: var(--warning);
+}
+
+.terrain__attribution {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.terrain__attribution a {
+  color: inherit;
+}
+
+.terrain__token {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 4px;
+}
+
+.terrain .plan__field--block input,
+.terrain .plan__field--block select {
+  width: 100%;
+}
+
+.terrain__job {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: var(--bg-2);
+  border-radius: 4px;
+}
+
+.terrain__job progress {
+  width: 100%;
+  height: 8px;
+}
+
+.terrain__warnings {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--warning);
+}
+
+.terrain__legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.terrain__ramp {
+  flex: 1;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--line-strong);
+}
+
+.terrain-profile {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 96px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  font-size: 12px;
+}
+
+.terrain-profile__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.terrain-profile__spacer {
+  flex: 1;
+}
+
+.terrain-profile__chart {
+  max-height: 34vh;
+  cursor: crosshair;
+}
+
+.terrain-profile__probe {
+  fill: var(--text);
+  font-size: 11px;
 }

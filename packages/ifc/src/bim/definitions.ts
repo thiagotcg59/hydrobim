@@ -30,13 +30,15 @@ import type {
  */
 
 /** Classe de elemento do HydroBIM, para a aplicabilidade das definições. */
-export type IfcElementClass = 'pipe' | 'fitting' | 'valve' | 'strainer' | 'pump' | 'tank';
+export type IfcElementClass =
+  'pipe' | 'fitting' | 'valve' | 'strainer' | 'flowMeter' | 'pump' | 'tank';
 
 export const IFC_CLASS_ENTITIES: Record<IfcElementClass, string> = {
   pipe: 'IfcPipeSegment',
   fitting: 'IfcPipeFitting',
   valve: 'IfcValve',
   strainer: 'IfcFilter',
+  flowMeter: 'IfcFlowMeter',
   pump: 'IfcPump',
   tank: 'IfcTank',
 };
@@ -50,7 +52,11 @@ export function elementClass(element: HydroElement): IfcElementClass {
     case 'reducer':
       return 'fitting';
     case 'valve':
-      return element.valveType === 'strainer' ? 'strainer' : 'valve';
+      return element.valveType === 'strainer'
+        ? 'strainer'
+        : element.valveType === 'flowMeter'
+          ? 'flowMeter'
+          : 'valve';
     case 'pump':
       return 'pump';
     case 'tank':
@@ -273,8 +279,23 @@ function axisLength(element: HydroElement): number | null {
 const horizontalRun = (pipe: Pipe): number =>
   Math.hypot(pipe.end.x - pipe.start.x, pipe.end.y - pipe.start.y);
 
-const ALL: readonly IfcElementClass[] = ['pipe', 'fitting', 'valve', 'strainer', 'pump', 'tank'];
-const NOT_PIPE: readonly IfcElementClass[] = ['fitting', 'valve', 'strainer', 'pump', 'tank'];
+const ALL: readonly IfcElementClass[] = [
+  'pipe',
+  'fitting',
+  'valve',
+  'strainer',
+  'flowMeter',
+  'pump',
+  'tank',
+];
+const NOT_PIPE: readonly IfcElementClass[] = [
+  'fitting',
+  'valve',
+  'strainer',
+  'flowMeter',
+  'pump',
+  'tank',
+];
 /** Reservatório de catálogo: fabricante, modelo e tipo vêm da família (ver `tankSets.ts`). */
 const notCatalogTank = ({ element }: IfcDefinitionContext): boolean =>
   !(element.kind === 'tank' && tankTypeOf(element) !== 'generic');
@@ -294,6 +315,7 @@ const VALVE_LABELS: Record<Valve['valveType'], string> = {
   airRelease: 'Ventosa',
   pressureReducing: 'Válvula redutora de pressão',
   strainer: 'Filtro Y',
+  flowMeter: 'Medidor de vazão',
 };
 
 const FITTING_LABEL = (element: HydroElement): string =>
@@ -759,21 +781,40 @@ export const IFC_PROPERTY_DEFINITIONS: readonly IfcPropertyDefinition[] = [
     resolve: ({ element }) => value(element.spec.sizeLabel, 'catalog'),
   }),
 
-  // ----- Dimensões gerais (válvulas, filtros e bombas) ------------------------------------
-  std(SIZE, 'NominalLength', 'Comprimento', 'type', ['valve', 'strainer', 'pump'], {
+  // ----- Medidor de vazão ------------------------------------------------------------------
+  // Os conjuntos padronizados do IfcFlowMeter não constam de `schemaData.ts`: só entram
+  // propriedades próprias, com o que o modelo realmente conhece.
+  own('HydroBIM_Medidor', 'MeterType', 'Tipo de medidor', 'type', ['flowMeter'], 'IfcLabel', {
+    resolve: () => value('Medidor de vazão em linha', 'model'),
+  }),
+  own('HydroBIM_Medidor', 'EndTypes', 'Extremidades', 'type', ['flowMeter'], 'IfcLabel', {
+    resolve: ({ element }) => value(endTypes(element), dimensional(element)),
+  }),
+  own(
+    'HydroBIM_Medidor',
+    'NominalDiameter',
+    'Diâmetro nominal',
+    'type',
+    ['flowMeter'],
+    'IfcLabel',
+    { resolve: ({ element }) => value(element.spec.sizeLabel, 'catalog') },
+  ),
+
+  // ----- Dimensões gerais (válvulas, filtros, medidores e bombas) --------------------------
+  std(SIZE, 'NominalLength', 'Comprimento', 'type', ['valve', 'strainer', 'flowMeter', 'pump'], {
     resolve: ({ element }) =>
       element.kind === 'valve' || element.kind === 'pump'
         ? value(element.length, dimensional(element))
         : null,
     binding: 'Família: comprimento face a face',
   }),
-  std(SIZE, 'NominalHeight', 'Altura', 'type', ['valve', 'strainer'], {
+  std(SIZE, 'NominalHeight', 'Altura', 'type', ['valve', 'strainer', 'flowMeter'], {
     when: ({ element }) => isValve(element) && element.height !== undefined,
     resolve: ({ element }) =>
       isValve(element) ? value(element.height, dimensional(element)) : null,
     binding: 'Família: altura',
   }),
-  std(SIZE, 'NominalWidth', 'Largura', 'type', ['valve', 'strainer'], {
+  std(SIZE, 'NominalWidth', 'Largura', 'type', ['valve', 'strainer', 'flowMeter'], {
     when: ({ element }) => isValve(element) && element.width !== undefined,
     resolve: ({ element }) =>
       isValve(element) ? value(element.width, dimensional(element)) : null,

@@ -119,6 +119,9 @@ export function classifyElement(element: HydroElement): IfcClassification {
       // O filtro Y é um tipo interno de "válvula" (peça em linha), mas no IFC é IfcFilter.
       if (element.valveType === 'strainer')
         return { entity: 'IfcFilter', predefinedType: 'STRAINER', objectType: 'strainer' };
+      // Macromedidor de água: IfcFlowMeter/WATERMETER (conferido em schemaData.ts).
+      if (element.valveType === 'flowMeter')
+        return { entity: 'IfcFlowMeter', predefinedType: 'WATERMETER', objectType: 'flowMeter' };
       return {
         entity: 'IfcValve',
         predefinedType: {
@@ -273,6 +276,7 @@ const VALVE_NAMES: Record<string, string> = {
   airRelease: 'Ventosa',
   pressureReducing: 'Válvula redutora de pressão',
   strainer: 'Filtro Y',
+  flowMeter: 'Medidor de vazão',
 };
 
 /** Designação do diâmetro (ou das dimensões) de um tipo. */

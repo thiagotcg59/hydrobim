@@ -37,6 +37,12 @@ export function formatAngleList(angles: readonly number[]): string {
   return angles.map((angle) => formatDegrees(angle, 2)).join(', ');
 }
 
+/**
+ * Abaixo deste desvio (rad) o traçado com o cursor continua reto, mesmo em junta que admite
+ * deflexão: metade do limite, no máximo 1°. Evita deflexões involuntárias ao prolongar.
+ */
+export const straightSnapOf = (jointLimit: number): number => Math.min(jointLimit / 2, degToRad(1));
+
 const snapLength = (value: number, step: number): number =>
   step > 0 ? Math.round(value / step) * step : value;
 
@@ -48,6 +54,11 @@ const snapLength = (value: number, step: number): number =>
  * Sem ângulos (não há joelho de catálogo), só o prolongamento reto é possível. Quando o
  * ponto pedido está sobre a origem ou no sentido oposto ao eixo (direção indefinida),
  * devolve o ponto pedido sem alteração.
+ *
+ * `jointLimit` (rad) é a deflexão que a junta admite sem peça (0 = junta rígida). Com ela:
+ *  - perto do eixo (até `straightSnapOf(jointLimit)`) o trecho continua reto;
+ *  - daí até o limite, o ponto pedido é mantido — a deflexão fica na junta;
+ *  - acima do limite, vale o mais próximo entre o próprio limite e os ângulos de catálogo.
  */
 export function constrainDeflection(
   origin: Vec3,
@@ -55,14 +66,19 @@ export function constrainDeflection(
   target: Vec3,
   angles: readonly number[],
   lengthStep = 0,
+  jointLimit = 0,
 ): Vec3 {
   const u = tryNormalize(axis);
   const v = sub(target, origin);
   if (!u || length(v) < 1e-9) return target;
 
   const deflection = angleBetween(u, v);
-  let chosen = 0;
-  for (const angle of angles) {
+  const withinJoint = jointLimit > 0 && deflection <= jointLimit;
+  if (withinJoint && deflection > straightSnapOf(jointLimit)) return target;
+  // Dentro do cone da junta resta o prolongamento reto. Fora dele concorrem os ângulos de
+  // catálogo e, conforme a junta, o prolongamento reto (rígida) ou a deflexão máxima.
+  let chosen = jointLimit > 0 && !withinJoint ? jointLimit : 0;
+  for (const angle of withinJoint ? [] : angles) {
     if (Math.abs(angle - deflection) < Math.abs(chosen - deflection)) chosen = angle;
   }
 

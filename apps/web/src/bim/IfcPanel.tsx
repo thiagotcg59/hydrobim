@@ -14,11 +14,10 @@ import {
   type IfcScope,
   type IfcTypeInfo,
 } from '@hydrobim/ifc';
-import { Download, Library, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { selectPrimaryId, useEditorStore } from '../state/editorStore';
 import { useIfcState, type IfcState } from '../state/ifcModel';
-import { exportIdsFile, exportIfcFile } from '../state/projectActions';
 import { ReadOnlyRow, Section, TextField } from '../ui/fields';
 import { displayOf, editTextOf, formatIfcValue, parseIfcInput } from '../ui/ifcFormat';
 
@@ -465,7 +464,7 @@ function ElementPanel({ element, state }: { element: IfcElementInfo; state: IfcS
   );
 }
 
-function ProjectOverview({ state, onLibrary }: { state: IfcState; onLibrary: () => void }) {
+function ProjectOverview({ state }: { state: IfcState }) {
   const classFilter = useEditorStore((s) => s.bimClassFilter);
   const { model, issues, conformity } = state;
   const byEntity = new Map<string, number>();
@@ -528,37 +527,6 @@ function ProjectOverview({ state, onLibrary }: { state: IfcState; onLibrary: () 
           foram informadas — nada é preenchido com valores fictícios.
         </p>
       </Section>
-      <Section title="Exportação" testId="ifc-section-export">
-        <div className="chips">
-          <button
-            type="button"
-            className="btn btn--compact"
-            data-testid="bim-export-ifc"
-            onClick={exportIfcFile}
-            title="Exportar o modelo em IFC 4.3 com os tipos, conjuntos de propriedades e quantidades desta aba"
-          >
-            <Download size={13} /> IFC 4.3
-          </button>
-          <button
-            type="button"
-            className="btn btn--compact"
-            data-testid="bim-export-ids"
-            onClick={exportIdsFile}
-            title="Exportar os requisitos de informação do projeto em IDS 1.0 (buildingSMART)"
-          >
-            <Download size={13} /> IDS
-          </button>
-          <button
-            type="button"
-            className="btn btn--compact"
-            data-testid="bim-library"
-            onClick={onLibrary}
-            title="Mapeamento IFC de todas as famílias da biblioteca"
-          >
-            <Library size={13} /> Biblioteca
-          </button>
-        </div>
-      </Section>
       <Section title="Pendências do modelo" testId="ifc-section-issues">
         <IssueList issues={issues.slice(0, 200)} onPick={pick} />
         {issues.length > 200 && (
@@ -570,7 +538,7 @@ function ProjectOverview({ state, onLibrary }: { state: IfcState; onLibrary: () 
 }
 
 /** Painel de propriedades IFC da aba BIM / IFC: elemento selecionado ou visão do modelo. */
-export function IfcPanel({ onLibrary }: { onLibrary: () => void }) {
+export function IfcPanel() {
   const state = useIfcState();
   const primaryId = useEditorStore(selectPrimaryId);
   const selectionSize = useEditorStore((s) => s.selection.length);
@@ -601,7 +569,7 @@ export function IfcPanel({ onLibrary }: { onLibrary: () => void }) {
         {element ? (
           <ElementPanel element={element} state={state} />
         ) : (
-          <ProjectOverview state={state} onLibrary={onLibrary} />
+          <ProjectOverview state={state} />
         )}
       </div>
     </aside>

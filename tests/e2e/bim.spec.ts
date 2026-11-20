@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { ctl } from './ui';
 
 /**
  * Aba BIM / IFC no navegador real: classificação IFC, tipos, conjuntos de propriedades,
@@ -19,7 +20,7 @@ function trackErrors(page: Page): string[] {
 async function openBim(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('view-mode-bim').click();
+  await page.getByTestId('task-bim').click();
   await expect(page.getByTestId('app')).toHaveAttribute('data-view-mode', 'bim');
   await expect(page.getByTestId('bim-tree')).toBeVisible();
   await expect(page.locator('canvas')).toBeVisible();
@@ -38,7 +39,7 @@ async function setValue(page: Page, key: string, value: string): Promise<void> {
 
 async function download(page: Page, testId: string): Promise<string> {
   const pending = page.waitForEvent('download');
-  await page.getByTestId(testId).click();
+  await (await ctl(page, testId)).click();
   const path = await (await pending).path();
   return readFile(path, 'utf8');
 }
@@ -189,7 +190,7 @@ test('aba BIM / IFC: consulta, edição, validação, exportação e persistênc
   await expect(page.getByTestId('dirty-indicator')).toHaveText('salvo');
   await page.reload();
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('view-mode-bim').click();
+  await page.getByTestId('task-bim').click();
   await page
     .locator(`[data-testid="bim-item"][data-element-id="${pipeId}"] .bim-tree__label`)
     .click();
@@ -207,6 +208,6 @@ test('aba BIM / IFC: consulta, edição, validação, exportação e persistênc
   await page.getByTestId('view-mode-3d').click();
   await expect(page.getByTestId('app')).toHaveAttribute('data-view-mode', '3d');
   await expect(page.getByTestId('bim-tree')).toHaveCount(0);
-  await expect(page.getByTestId('element-properties')).toBeVisible();
+  await expect(await ctl(page, 'element-properties')).toBeVisible();
   expect(errors).toEqual([]);
 });

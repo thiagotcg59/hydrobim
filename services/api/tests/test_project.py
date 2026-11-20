@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 10
+    assert project.schema_version == 12
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 11),
+        (("schemaVersion",), 13),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 10.0
+    project_document["schemaVersion"] = 12.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -184,6 +184,139 @@ def test_migrates_v9_without_changes(project_document):
     before = deepcopy(legacy)
     assert Project.model_validate(legacy).model_dump() == project_document
     assert legacy == before
+
+
+GEOREFERENCE_V10 = {
+    "crsName": "SIRGAS 2000 / UTM zone 23S",
+    "epsg": 31983,
+    "eastings": 333287.0215,
+    "northings": 7394586.0934,
+    "orthogonalHeight": 760,
+    "rotation": 0.3,
+}
+
+
+def test_migrates_v10_adding_infra_settings(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 10
+    del legacy["infra"]
+    before = deepcopy(legacy)
+    assert Project.model_validate(legacy).model_dump() == project_document
+    assert legacy == before
+
+
+def test_migrates_v10_infra_scale_and_vertical_datum(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 10
+    del legacy["infra"]
+    legacy["discipline"] = "infra"
+    legacy["drawingScale"] = 500
+    legacy["georeference"] = dict(GEOREFERENCE_V10)
+    migrated = Project.model_validate(legacy).model_dump()
+    # A escala da planta de um projeto Infra passa a ser a da Planta Infra.
+    assert migrated["infra"]["drawingScale"] == 500
+    assert migrated["infra"]["basemap"]["sourceId"] is None
+    # A georreferência é preservada; a referência altimétrica fica não informada.
+    assert migrated["georeference"] == {**GEOREFERENCE_V10, "verticalDatum": None}
+    assert "verticalDatum" not in legacy["georeference"]
+
+
+TERRAIN_V11 = {
+    "name": "Levantamento",
+    "points": [
+        {"x": 0, "y": 0, "z": 10},
+        {"x": 10, "y": 0, "z": 10},
+        {"x": 0, "y": 10, "z": 12},
+    ],
+    "triangles": [0, 1, 2],
+}
+
+
+def test_migrates_v11_terrain_as_survey_without_presumed_data(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 11
+    legacy["terrain"] = deepcopy(TERRAIN_V11)
+    before = deepcopy(legacy)
+    migrated = Project.model_validate(legacy).model_dump()
+    assert legacy == before
+    assert migrated["schemaVersion"] == 12
+    terrain = migrated["terrain"]
+    assert terrain["points"] == TERRAIN_V11["points"]
+    assert terrain["boundary"] is None
+    assert terrain["breaklines"] == []
+    # Nada é presumido: datum, exatidão, resolução e data ficam não informados.
+    assert terrain["source"] == {
+        "kind": "survey",
+        "provider": "Pontos XYZ",
+        "dataset": None,
+        "horizontalCrs": None,
+        "verticalDatum": None,
+        "resolution": None,
+        "verticalAccuracy": None,
+        "acquiredAt": None,
+        "attribution": None,
+        "notes": None,
+    }
+
+
+def test_terrain_requires_source_and_valid_boundary(project_document):
+    terrain = {
+        **deepcopy(TERRAIN_V11),
+        "boundary": None,
+        "breaklines": [],
+        "source": {
+            "kind": "dem",
+            "provider": "GeoTIFF",
+            "dataset": "gleba.tif",
+            "horizontalCrs": "EPSG:31983",
+            "verticalDatum": None,
+            "resolution": 30,
+            "verticalAccuracy": None,
+            "acquiredAt": "2026-11-19T12:00:00.000Z",
+            "attribution": None,
+            "notes": None,
+        },
+    }
+    project_document["terrain"] = terrain
+    assert Project.model_validate(project_document).model_dump() == project_document
+    # Um anel de limite precisa de três vértices; a resolução, quando informada, é positiva.
+    project_document["terrain"] = {**terrain, "boundary": [terrain["points"][:2]]}
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
+    project_document["terrain"] = {**terrain, "source": {**terrain["source"], "resolution": 0}}
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
+    del terrain["source"]
+    project_document["terrain"] = terrain
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("infra", "drawingScale"), 0),
+        (("infra", "basemap", "opacity"), 1.5),
+        (("infra", "basemap", "sourceId"), ""),
+        (("infra", "layers", "network"), None),
+        (("infra", "labels"), {}),
+    ],
+)
+def test_rejects_invalid_infra_settings(project_document, path, value):
+    target = project_document
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
+
+
+def test_accepts_georeference_with_vertical_datum(project_document):
+    project_document["georeference"] = {**GEOREFERENCE_V10, "verticalDatum": "Imbituba"}
+    assert Project.model_validate(project_document).model_dump() == project_document
+    project_document["georeference"]["verticalDatum"] = ""
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
 
 
 def test_accepts_elbow_with_straight_legs(project_document):
@@ -438,6 +571,17 @@ def test_y_strainer_with_drilled_flanges(project_document):
     }
     project = Project.model_validate(project_document)
     assert project.model_dump(by_alias=True) == project_document
+
+
+def test_flow_meter_is_an_inline_valve_type(project_document):
+    valve = next(e for e in project_document["elements"] if e["kind"] == "valve")
+    valve["valveType"] = "flowMeter"
+    valve["height"] = 0.2925
+    project = Project.model_validate(project_document)
+    assert project.model_dump(by_alias=True) == project_document
+    valve["valveType"] = "meter"
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
 
 
 @pytest.mark.parametrize("count", [0, -4, 2.5, "8", True])

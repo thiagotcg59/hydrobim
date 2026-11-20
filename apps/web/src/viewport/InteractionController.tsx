@@ -1,4 +1,11 @@
-import { constrainDeflection, degToRad, vec3, type Vec3 } from '@hydrobim/core';
+import {
+  closestPointOnLine,
+  constrainDeflection,
+  degToRad,
+  distance,
+  vec3,
+  type Vec3,
+} from '@hydrobim/core';
 import { useThree } from '@react-three/fiber';
 import { useEffect, type RefObject } from 'react';
 import {
@@ -13,7 +20,9 @@ import {
   type PerspectiveCamera,
 } from 'three';
 import { ndcRectFromPixels, verticesInsideRect } from '../editor/boxSelection';
-import { pickPoint, type PickResult, type PixelScale, type Ray } from '../editor/picking';
+import { arrowPreferences, contextTargetOf, CONTEXT_PX, nudgeStep } from '../editor/directEdit';
+import { toCanonical } from '../editor/renderOrigin';
+import { pickPoint, pickPort, type PickResult, type PixelScale, type Ray } from '../editor/picking';
 import { visibleFreePortsOf } from '../editor/visibility';
 import {
   deflectionConstraintOf,
@@ -58,6 +67,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     const raycaster = new Raycaster();
     const pointer = new Vector2();
     let down: { x: number; y: number; box: boolean } | null = null;
+    let rightDown: { x: number; y: number } | null = null;
     let boxOverlay: HTMLDivElement | null = null;
     const viewProjection = new Matrix4();
     const mvp = new Matrix4();
@@ -78,19 +88,22 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       return { constant: 0, perDistance: (2 * Math.tan(fov / 2)) / height };
     };
 
-    const resolve = (
-      event: PointerEvent,
-    ): { pick: PickResult | null; hit: { elementId: string; point: Vec3 } | null } => {
+    /** Raio do cursor no modelo e o elemento que ele atinge. */
+    const cast = (
+      event: MouseEvent,
+    ): { ray: Ray; hit: { elementId: string; point: Vec3 } | null } => {
       const rect = canvas.getBoundingClientRect();
       pointer.set(
         ((event.clientX - rect.left) / rect.width) * 2 - 1,
         -((event.clientY - rect.top) / rect.height) * 2 + 1,
       );
       raycaster.setFromCamera(pointer, camera);
-      const state = useEditorStore.getState();
       const { origin, direction } = raycaster.ray;
+      // A cena é desenhada em relação à origem de renderização: o raio e o ponto atingido
+      // voltam às coordenadas do projeto antes de chegar às regras de captura.
+      const drawOrigin = useEditorStore.getState().renderOrigin;
       const ray: Ray = {
-        origin: vec3(origin.x, origin.y, origin.z),
+        origin: toCanonical(vec3(origin.x, origin.y, origin.z), drawOrigin),
         direction: vec3(direction.x, direction.y, direction.z),
       };
 
@@ -101,9 +114,20 @@ export function InteractionController({ elementsRef, onHover }: Props) {
         intersection && elementId
           ? {
               elementId,
-              point: vec3(intersection.point.x, intersection.point.y, intersection.point.z),
+              point: toCanonical(
+                vec3(intersection.point.x, intersection.point.y, intersection.point.z),
+                drawOrigin,
+              ),
             }
           : null;
+      return { ray, hit };
+    };
+
+    const resolve = (
+      event: PointerEvent,
+    ): { pick: PickResult | null; hit: { elementId: string; point: Vec3 } | null } => {
+      const { ray, hit } = cast(event);
+      const state = useEditorStore.getState();
 
       const usesPoints = state.tool !== 'select';
       const gridStep = state.snapToGrid ? state.gridStep : 0;
@@ -138,6 +162,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
                 picked.point,
                 constraint.angles,
                 gridStep,
+                constraint.jointLimit,
               ),
               snap: 'angle',
               port: null,
@@ -180,11 +205,64 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       });
     };
 
+    /** Setas: deslizam a seleção ao longo da linha, no sentido em que a seta aponta na tela. */
+    const nudge = (event: KeyboardEvent): void => {
+      const state = useEditorStore.getState();
+      if (state.tool !== 'select' || state.viewMode !== '3d' || state.selection.length === 0) {
+        return;
+      }
+      if (event.altKey) return;
+      camera.updateMatrixWorld();
+      const m = camera.matrixWorld.elements;
+      const column = (i: number): Vec3 => vec3(m[i] ?? 0, m[i + 1] ?? 0, m[i + 2] ?? 0);
+      // Colunas da matriz da câmera: direita, cima e o eixo que aponta para o observador.
+      const preferences = arrowPreferences(event.key, column(0), column(4), column(8));
+      if (!preferences) return;
+      event.preventDefault();
+      state.nudgeSelection(preferences, nudgeStep(state.gridStep, event));
+    };
+
+    /**
+     * Botão direito sem arrasto (o arrasto desloca a câmera): junto a uma extremidade de tubo
+     * ou a uma conexão, abre o menu com "Criar tubo".
+     */
+    const onContextMenu = (event: MouseEvent): void => {
+      event.preventDefault();
+      const start = rightDown;
+      rightDown = null;
+      const state = useEditorStore.getState();
+      if (state.viewMode !== '3d') return;
+      if (
+        start &&
+        Math.hypot(event.clientX - start.x, event.clientY - start.y) > CLICK_TOLERANCE_PX
+      ) {
+        return;
+      }
+      const { ray, hit } = cast(event);
+      const scale = pixelScale();
+      const target = contextTargetOf(
+        state.project,
+        hit?.elementId ?? null,
+        (ports) => pickPort(ray, ports, scale, 0, CONTEXT_PX)?.port ?? null,
+        (port) =>
+          distance(
+            closestPointOnLine(ray.origin, ray.direction, port.position).point,
+            port.position,
+          ),
+      );
+      if (target) state.openContextMenu({ x: event.clientX, y: event.clientY, ...target });
+      else state.closeContextMenu();
+    };
+
     // Tab alterna entre as portas sob o cursor (como na planta); fora disso, o Tab é do navegador.
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Tab' || stacked <= 1 || !lastEvent) return;
       const target = event.target;
       if (target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return;
+      if (event.key.startsWith('Arrow')) {
+        nudge(event);
+        return;
+      }
+      if (event.key !== 'Tab' || stacked <= 1 || !lastEvent) return;
       event.preventDefault();
       cycle += event.shiftKey ? -1 : 1;
       hover(lastEvent);
@@ -281,6 +359,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     }
 
     const onPointerDown = (event: PointerEvent): void => {
+      if (event.button === 2) rightDown = { x: event.clientX, y: event.clientY };
       if (event.button !== 0) return;
       // Em Selecionar, o arrasto com o botão esquerdo abre a janela de seleção; a órbita fica
       // no botão do meio ou em Alt + arrasto. O canvas recebe o evento antes dos controles de
@@ -319,6 +398,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointerleave', onPointerLeave);
+    canvas.addEventListener('contextmenu', onContextMenu);
     window.addEventListener('keydown', onKeyDown);
     return () => {
       if (frame) cancelAnimationFrame(frame);
@@ -327,6 +407,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointerleave', onPointerLeave);
+      canvas.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [gl, camera, getThree, elementsRef, onHover]);

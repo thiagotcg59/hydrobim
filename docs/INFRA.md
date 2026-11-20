@@ -1,0 +1,255 @@
+# Ambiente Infra
+
+Redes externas — loteamentos, redes urbanas e adutoras de vários quilômetros — têm necessidades diferentes das instalações prediais: referencial geográfico, mapa de fundo, escalas de 1:500 a 1:10.000, coordenadas grandes, terreno e perfil. Este documento registra o diagnóstico que orientou o ambiente Infra, a arquitetura adotada, o que a primeira entrega contém e o que fica para as etapas seguintes.
+
+Decisão correspondente: [ADR-036](DECISIONS.md).
+
+## Diagnóstico (antes desta entrega)
+
+| Recurso | Situação encontrada |
+| --- | --- |
+| Ambiente | `discipline: 'infra'` trocava só a especificação padrão, o passo da grade e a escala inicial; a planta era a mesma do MEP |
+| Georreferência | Seis campos digitados, sem validação; servia só ao `IfcMapConversion`. Nenhuma transformação para coordenadas geográficas |
+| Mapa | Inexistente |
+| Coordenadas grandes | A projeção em planta (`PlanOutline`) era gravada em precisão simples e o SVG recebia coordenadas absolutas: em N ≈ 7.400.000 m o passo representável é de 0,5 m. No 3D, o terreno ia para a placa de vídeo em coordenadas absolutas |
+| Planta | Sempre a geometria completa de todos os elementos (projeção com linhas ocultas), sem recorte pela janela nem nível de detalhe; zoom limitado a 10 m por pixel |
+| Terreno e perfil | TIN de pontos XYZ (até 4.000 pontos) e perfil longitudinal no diálogo de projeto, com recobrimento até a geratriz superior e `null` fora do TIN — corretos, mas sem ligação com a planta |
+| Exportação | IFC com `IfcProjectedCRS` (só nome) e `IfcMapConversion`; DXF e SVG da planta nas coordenadas do projeto |
+
+## Arquitetura
+
+```
+packages/core/src/geo/         referenciais e transformações (puro, só matemática)
+  crs.ts                       registro dos sistemas projetados suportados (por EPSG)
+  projection.ts                Transversa de Mercator (séries de Krüger), escala e convergência
+  transform.ts                 cadeia local ⇄ projetado ⇄ geográfico; estado do georreferenciamento
+  webMercator.ts               esquema de ladrilhos dos serviços de mapa
+packages/core/src/schema.ts    InfraSettings (escala, mapa, camadas, rótulos); verticalDatum
+apps/web/src/map/              provedores de mapa e cálculo dos ladrilhos (não conhece hidráulica)
+apps/web/src/infra/            camadas e controles da Planta Infra (React) + regras puras
+apps/web/src/editor/renderOrigin.ts   origem de renderização das vistas
+```
+
+O domínio hidráulico não conhece o mapa: guarda apenas o identificador da fonte escolhida (`project.infra.basemap.sourceId`). O módulo `map/` não conhece tubos: recebe uma janela em coordenadas locais e a cadeia de transformações, e devolve ladrilhos posicionados.
+
+### Referenciais
+
+```
+local do modelo (x, y, z; m)
+  ⇄ projetado do projeto (E, N; m)   translação + rotação da georreferência = IfcMapConversion
+  ⇄ geográfico no datum do sistema   Transversa de Mercator (Krüger, ordem n⁴)
+  ⇄ geográfico do mapa (WGS 84)      transformação de datum declarada no registro
+  ⇄ ladrilho Web Mercator            só para pedir e posicionar imagens
+```
+
+- **Medidas de engenharia** (comprimentos, cotas, deflexões, recobrimentos) são sempre tomadas no referencial local. Nada é medido em pixels nem em Web Mercator.
+- **Sistemas suportados para o mapa:** SIRGAS 2000 / UTM (EPSG 31965–31985, 5396, 6210, 6211) e WGS 84 / UTM (32601–32660, 32701–32760). Nome, meridiano central, falso norte e elipsoide foram conferidos com o banco EPSG do PROJ 9.8.1. SAD69, Córrego Alegre, sistemas geográficos e outras projeções **não** são aproximados: a georreferência continua valendo para o IFC e a planta informa que não há transformação para o mapa.
+- **Datum:** SIRGAS 2000 → WGS 84 é a transformação nula do banco EPSG (código 15485), com exatidão declarada de 1 m. O registro guarda esse valor (`datumToMapAccuracy`) e a interface o mostra.
+- **Estados** (`georeferenceStatus`): `pending` (nada informado), `unsupported` (sem EPSG ou sistema fora do registro), `invalid` (origem fora do domínio do fuso) e `ready`. Nenhum EPSG, fuso, coordenada ou altitude é preenchido automaticamente; o nome do sistema só é completado a partir do código que o usuário digitou.
+- **Altimetria:** `orthogonalHeight` é a altitude do ponto de cota local Z = 0; `verticalDatum` nomeia a referência altimétrica (ex.: Imbituba) e pode ficar não informada. Imagem de satélite não fornece cotas.
+- **Limitação declarada:** a conversão local → projetado usa escala 1 (a mesma do `IfcMapConversion` exportado). O diálogo de georreferência mostra o fator de escala da projeção e a convergência meridiana na origem, para que o projetista saiba quanto a quadrícula difere do terreno (até cerca de 1 m por km na borda de um fuso). O fator de escala combinado como parâmetro do projeto está nas etapas seguintes.
+
+### Tolerâncias
+
+| Verificação | Tolerância | Justificativa |
+| --- | --- | --- |
+| Projeção direta e inversa contra o PROJ (13 pontos de controle, 8 sistemas) | 0,01 mm em E/N; 1e-10 grau | Erro de truncamento das séries de ordem n⁴ dentro de um fuso |
+| Ida e volta local ⇄ projetado ⇄ geográfico (`GEO_ROUNDTRIP_TOLERANCE`) | 0,1 mm | Cinco vezes menor que a tolerância de acoplamento das portas (0,5 mm): converter um ponto nunca desfaz uma conexão. O erro medido é inferior a 1 µm em uma rede de 20 km |
+| Colocação afim de cada ladrilho (níveis 10 a 14) | 0,5 pixel da imagem | Abaixo da resolução da própria imagem; medido no pior caso (borda do fuso, quadrícula girada) |
+| Ponto de controle do modelo × mapa, no navegador | 1 pixel de tela | Limite do que é visível; verificado após zoom, deslocamento e reabertura |
+
+A exatidão do **conjunto** mapa + modelo é limitada pela imagem (10 m por pixel na fonte padrão) e pela transformação de datum (1 m), não pelas contas. O mapa é referência espacial, não levantamento.
+
+### Georreferência pelo mapa
+
+O estado "georreferenciamento pendente" da Planta Infra abre um mapa navegável (`infra/GeoPicker.tsx`), nos temas satélite e ruas. O usuário vai até a área do projeto (arraste, roda do mouse ou latitude; longitude), escolhe o fuso e clica no ponto que será a origem local (0; 0). As coordenadas E/N desse ponto são calculadas pela projeção do fuso e gravadas como georreferência, com rotação nula; a planta abre nesse ponto, na mesma ampliação, com o mapa ao fundo, pronta para modelar.
+
+- **Fuso inicial: SIRGAS 2000 / UTM 21S (EPSG:31981)**, por decisão do responsável pelo projeto (2026-11-18); o 22S e os demais fusos do território brasileiro (18S a 25S) são opções. É só a opção pré-selecionada: nada é gravado antes de o usuário confirmar um ponto.
+- Um ponto a mais de 3,5° do meridiano central do fuso escolhido não pode ser confirmado: o editor informa o fuso a que ele pertence.
+- A altitude da origem e a referência altimétrica **não** vêm do mapa: ficam como estavam (ou não informadas).
+- A resolução do clique é a de um pixel do mapa (≈ 0,3 m no maior nível do tema de ruas; a imagem de satélite tem 10 m). Para amarrar o projeto a um levantamento, as coordenadas E/N do marco continuam sendo informadas no formulário (botão "Informar coordenadas…").
+
+### Mapa de fundo
+
+Fontes embutidas: satélite e ruas.
+
+**Ruas — OpenStreetMap** (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`, até o nível 19, dados sob ODbL). Conferido em 2026-11-18 na política de uso dos ladrilhos (<https://operations.osmfoundation.org/policies/tiles/>): atribuição visível obrigatória; proibidos o download em massa, o pré-carregamento e o uso sem conexão; sem garantia de disponibilidade, com bloqueio possível em caso de uso intenso. Usado só para exibição na tela; não entra em exportações.
+
+**Satélite — Sentinel-2 cloudless 2016, da EOX** (camada `s2cloudless_3857` do serviço WMTS `tiles.maps.eox.at`), licença **CC BY 4.0**, sem chave. Conferido em 2026-11-18 no documento de capacidades do serviço (licença e atribuição da camada) e em <https://maps.eox.at/> (condições do serviço).
+
+| Aspecto | Situação |
+| --- | --- |
+| Atribuição | "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)", sempre visível com a imagem, com a licença, a data e a resolução |
+| Resolução | ≈ 10 m (bandas visíveis do Sentinel-2). Ladrilhos reais até o nível 14; acima disso a planta apenas amplia a imagem e avisa |
+| Impressão e exportação | Permitidas pela CC BY 4.0, com a atribuição. Nesta entrega a planta é exportada **sem** a imagem |
+| Cache e uso sem conexão | Não previsto pelo serviço: nada é pré-carregado nem guardado |
+| Limites | Serviço de demonstração, sem garantia de disponibilidade e com limite de requisições |
+
+**Fonte personalizada (alta resolução).** As fontes embutidas não passam de 10 m por pixel em imagem de satélite: os serviços de alta resolução (Esri, Google, Bing, Mapbox, MapTiler) exigem conta ou chave, que não podem estar no repositório. Para usá-los — ou para usar ortofotos servidas pela própria empresa — o usuário cadastra em *Camadas › Fonte de mapa própria* (ou no seletor de georreferência) o endereço de ladrilhos em Web Mercator (`https`, com `{z}`, `{x}` e `{y}`), a atribuição exigida e o nível máximo de zoom. O endereço, que pode conter a chave do usuário, fica só no `localStorage` do navegador (`map/customSource.ts`): o projeto guarda apenas `sourceId: "custom"`, e em outro navegador a planta avisa que a fonte não está cadastrada. Como o editor não conhece a licença dessa fonte, ela nunca entra em exportações; cabe ao usuário cumprir os termos do serviço.
+
+No seletor de georreferência, ampliar além da resolução da fonte mostra um aviso e sugere o tema Ruas ou uma fonte própria.
+
+Fontes avaliadas e **não** adotadas: camadas EOX de 2018 em diante (CC BY-NC-SA, incompatível com uso profissional); camada EOX de 2017 (CC BY 4.0, mas respondeu ladrilhos vazios sobre o Brasil na conferência); Esri World Imagery (regida pelo contrato da Esri, exige conta e proíbe exportar ladrilhos); NASA GIBS (dados abertos, mas produtos diários com nuvens, não um mosaico); mosaicos do INPE (serviço WMS aberto, licença e atribuição não confirmadas).
+
+Funcionamento: os ladrilhos são elementos `<image>` do SVG, posicionados por uma transformação afim por ladrilho calculada pela cadeia de referenciais. Só a região visível é pedida (no máximo 64 ladrilhos), depois que a vista assenta por 140 ms; ao sair da vista, o elemento é removido e o navegador cancela a requisição. Falha de rede, serviço fora do ar ou navegador sem conexão apenas deixam o fundo sem imagem, com o estado indicado e a opção de tentar de novo — a edição nunca depende do mapa.
+
+### Planta Infra
+
+- **Própria do ambiente:** aparece quando `discipline` é `infra`. Tem escala de documentação (`infra.drawingScale`, 1:200 a 1:10.000), camadas e rótulos independentes da planta do MEP (`drawingScale`).
+- **Zoom × escala:** a barra de escala e a indicação "vista ≈ 1:n" referem-se ao zoom de navegação; a escala de documentação define o tamanho de textos, cotas e traços na impressão.
+- **Camadas:** rede, equipamentos, terreno (limite, linhas de quebra, curvas de nível e, se ligada, a triangulação), referências (malha de coordenadas E/N ou X/Y) e anotações. Rótulos: identificação, comprimento dos trechos e cotas (eixo, geratriz superior, terreno e recobrimento; "terreno: sem dado" sem levantamento ou fora dele).
+- **Nível de detalhe:** quando a geometria real de um elemento ocuparia menos de 3 px, ele é desenhado como eixo (tubos) ou símbolo de tamanho fixo na tela (conexões e equipamentos), marcado `data-lod="symbol"` e avisado como fora de escala. As dimensões do modelo não mudam; ao aproximar volta a geometria das peças.
+- **Rótulos sem sobreposição:** aceitos por prioridade (nós antes de trechos, trechos longos antes dos curtos), em pixels de tela, até 250 por vista.
+- **Norte:** seta do norte da quadrícula (NQ), com a convergência meridiana informada; sem georreferência, "N ?".
+- **Modelagem:** as mesmas ferramentas, operações e regras de catálogo do MEP, pela mesma store. O mapa é só fundo.
+
+### Origem de renderização
+
+O SVG e a placa de vídeo trabalham em precisão simples. As vistas desenham em relação a `renderOrigin` (estado de sessão, múltiplo de 1.000 m), reposicionada quando o ponto observado se afasta mais de 5 km — onde o passo da precisão simples é de 0,5 mm. Na planta, cada elemento tem ainda uma âncora própria e os caminhos são escritos em relação a ela. No 3D, o conteúdo do modelo fica em um grupo transladado, a câmera acompanha a troca de origem e os raios de captura voltam às coordenadas do projeto antes de chegar às regras. O projeto, os identificadores, a conectividade e as exportações nunca passam pela origem de renderização.
+
+## Superfície do terreno
+
+Decisão correspondente: [ADR-040](DECISIONS.md). Estrutura de dados: `docs/DOMAIN_MODEL.md`, seção Terreno.
+
+```
+packages/core/src/terrain/     núcleo puro (sem interface, sem rede)
+  polygon.ts                   área de recorte (contorno e furos), validação e GeoJSON
+  delaunay.ts                  triangulação de Delaunay com restrições (limite e linhas de quebra)
+  surface.ts                   construção da superfície; cota, declividade e estatísticas
+  dem.ts                       raster de elevação, posição pela georreferência, pontos da área
+  survey.ts                    linhas de quebra, recorte de levantamento, estrutura de intercâmbio
+  contours.ts, profile.ts      curvas de nível e corte longitudinal
+apps/web/src/terrain/          fontes, arquivos, processamento e interface
+  elevationProviders.ts        registro das fontes de elevação em ladrilhos
+  elevationTiles.ts            ladrilhos da área, download com progresso e cancelamento, cache da sessão
+  geotiff.ts                   leitor de GeoTIFF (sem dependências)
+  terrainJob.ts, terrainWorker.ts, terrainRunner.ts   geração fora do fluxo da interface
+  terrainActions.ts, terrainStore.ts                  casos de uso e estado de sessão
+  TerrainPanel.tsx, TerrainLayers.tsx, TerrainProfilePanel.tsx, TerrainDisplayControls.tsx
+apps/web/src/viewport/TerrainSurface.tsx   superfície no modelo 3D
+```
+
+### Fluxo
+
+1. **Área** (Modelagem › Terreno › Superfície do terreno): o contorno é desenhado na Planta Infra clicando os vértices (fecha no primeiro ponto ou com Enter), com furos opcionais, ou importado de um GeoJSON (longitude e latitude, WGS 84 — um arquivo em coordenadas projetadas é recusado). Contornos que se cruzam e furos fora do contorno são recusados com o motivo. A área em edição é estado de sessão; o limite da superfície gerada é que vai para o projeto, e pode ser retomado como área.
+2. **Fonte de elevação**: DEM online, GeoTIFF ou levantamento.
+3. **Geração** em um Web Worker, com etapas, andamento dos ladrilhos e cancelamento. O resultado é a superfície gravada no projeto (com desfazer) ou uma mensagem de erro — nunca uma superfície parcial.
+
+### Fontes de elevação
+
+| Fonte | Acesso | O que a documentação declara | Conferido em |
+| --- | --- | --- | --- |
+| **Terrain Tiles (Mapzen/Tilezen)**, dados abertos na AWS | `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`, sem chave ("No AWS account required") | Ladrilhos de 256 px, níveis 0 a 15, codificação Terrarium `(R × 256 + G + B ÷ 256) − 32768` m. Em terra, fora das regiões com levantamento regional, o dado é o SRTM (30 m nominais); no nível 15 a maior parte dos valores é SRTM do nível 12 sobreamostrado. **Não declara** referência altimétrica nem exatidão | 2026-11-19, em <https://registry.opendata.aws/terrain-tiles/> e <https://github.com/tilezen/joerd/tree/master/docs> |
+| **Mapbox Terrain-RGB v1** (Raster Tiles API) | `https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=…`, com a chave pública da conta do usuário | Codificação `−10000 + (R × 256² + G × 256 + B) × 0,1` m; dado até o nível 15 (256 px); sem atualizações desde 2021-12-01; fontes e **referências altimétricas variam com o local** (NAVD 88, EGM 96, Ordnance Datum Newlyn…). Não declara exatidão nem a resolução de origem por local | 2026-11-19, em <https://docs.mapbox.com/data/tilesets/reference/mapbox-terrain-rgb-v1/> |
+| **GeoTIFF do usuário** | Arquivo local | O que o arquivo declara nas chaves GeoTIFF | — |
+
+- **Mapbox Terrain-DEM v1** (`mapbox.mapbox-terrain-dem-v1`, sucessor do Terrain-RGB, mesma codificação): a documentação da Mapbox diz que o conjunto só está disponível pelos SDKs dela, não pela Raster Tiles API. Por isso o padrão é o Terrain-RGB; o identificador do conjunto é um campo que o usuário pode trocar se a conta dele der esse acesso. **Não foi testado com uma chave real** (o repositório não tem credenciais): o caminho Mapbox está coberto por teste com o serviço simulado (URL, codificação, chave recusada).
+- **Chave de acesso**: fica só no navegador (`localStorage`, `hydrobim.terrain.mapbox`), nunca no projeto, no arquivo ou em exportações; o cache de ladrilhos não a usa como identificador.
+- **Atribuição** da fonte é gravada com a superfície (`source.attribution`) e mostrada no painel. O uso dos dados segue os termos de cada serviço; cabe ao usuário cumpri-los.
+
+### GeoTIFF
+
+Leitor próprio, sem dependências: TIFF clássico, faixas ou blocos, sem compressão, Deflate ou LZW, preditor horizontal ou de ponto flutuante, uma banda, amostras inteiras de 8/16/32 bits ou reais de 32/64 bits, ordem de bytes direta ou invertida. Recusados com o motivo: BigTIFF, mais de uma banda, outras compressões, raster girado, mais de 36 milhões de células, cotas em unidade diferente do metro.
+
+- **Sistema de referência**: lido das chaves GeoTIFF (código EPSG). Aceitos o sistema do projeto, outro fuso UTM do registro, Web Mercator e os geográficos WGS 84 (EPSG:4326) e SIRGAS 2000 (EPSG:4674). Sem código EPSG, ou em outro sistema, o arquivo é recusado: a posição de um raster nunca é presumida.
+- **Célula e nó**: com `PixelIsArea` (o padrão) o nó fica no centro da célula; com `PixelIsPoint`, no ponto de amarração.
+- **Sem dado**: o valor `GDAL_NODATA` e os valores não finitos viram lacunas.
+- **Referência altimétrica**: a das chaves verticais do arquivo, quando existem; caso contrário, não informada.
+
+### Do raster à superfície
+
+- **Posição**: nó do raster → sistema de origem → geográfico → local, pela mesma cadeia de referenciais do mapa (`rasterFrame`). Exige o projeto georreferenciado.
+- **Cota local** = altitude do raster − `georeference.orthogonalHeight` (a altitude do ponto de cota local Z = 0). Nenhuma conversão de datum vertical é aplicada: se a referência da fonte difere da do projeto, ou não é declarada, a interface avisa.
+- **Vértices** = nós do raster dentro da área. Com muitas amostras, usa-se uma a cada *n* (GeoTIFF) ou um nível de ladrilho mais grosso (DEM online); as demais não são usadas e nenhuma é interpolada. O limite de 25.000 vértices é o do arquivo do projeto.
+- **Limite**: os lados do contorno são adensados no espaçamento das amostras e cotados por interpolação bilinear dentro da célula (a única interpolação do processo). Se o raster não tem dado em um ponto do limite, a geração é recusada.
+- **Lacunas**: nó sem dado não vira vértice, e os triângulos sobre a lacuna são removidos — a superfície fica aberta ali.
+- **Resolução ≠ exatidão**: `source.resolution` é o espaçamento real das amostras usadas; `source.verticalAccuracy` só existe quando declarada. Acima da resolução nominal do dado de origem, o painel avisa que o serviço entrega valores sobreamostrados ("mais vértices, nenhum detalhe real a mais") e esses níveis não são o padrão.
+
+### Levantamento topográfico
+
+Pontos "X Y Z" e, opcionalmente, linhas de quebra (blocos de "X Y Z" separados por linha em branco), em coordenadas locais ou em E, N e altitude do sistema do projeto. O levantamento **substitui** a superfície vinda de DEM (a troca pode ser desfeita). Com recorte pela área, o limite é cotado pela própria triangulação do levantamento (interseção exata do contorno com as arestas do TIN); um contorno que sai da região levantada é recusado. A exatidão altimétrica é a informada pelo responsável — ou fica não informada.
+
+### Consulta e visualização
+
+| Recurso | Como funciona |
+| --- | --- |
+| Cota e declividade | Sob o cursor, na barra da Planta Infra, e ponto fixado por **Consultar cota**. Fora da superfície: "sem dado" — nada é extrapolado |
+| Curvas de nível | Interseção exata do plano horizontal com os triângulos, sem suavização; intervalo configurável (sugerido pelo desnível), mestras a cada cinco. Um intervalo mais fino que a exatidão dos dados não acrescenta informação real |
+| Corte longitudinal | Poligonal traçada na planta; uma estaca em cada aresta atravessada; trechos fora da superfície ficam sem cota. Gráfico com escala real 1:1 ou exagero vertical indicado; exportação em CSV |
+| Modelo 3D | `BufferGeometry` com a normal de cada face (um TIN é feito de faces planas; normais suavizadas esconderiam as linhas de quebra), cor por altitude, por classes de declividade ou lisa, curvas de nível e arestas da triangulação |
+| Escala vertical | **1:1 por padrão** (terreno natural, escala real). O exagero (2× a 10×) estica só o desenho do terreno no 3D, com aviso de que a rede deixa de coincidir com ele; "Terreno natural 1:1" volta à escala real |
+| Origem de renderização | A malha é desenhada em relação ao centro da superfície, dentro do grupo que já aplica a origem de renderização do modelo: coordenadas UTM não perdem precisão na placa de vídeo |
+
+As opções de visualização (cor, curvas, intervalo, triangulação, escala vertical) são estado de sessão: não alteram a superfície, o projeto nem as exportações.
+
+### Assentamento por recobrimento
+
+Na ferramenta Tubulação, no ambiente Infra, o grupo **Assentamento no terreno** (aba Ferramenta do painel direito) liga "Seguir o terreno pelo recobrimento" e recebe o recobrimento em metros.
+
+- **Regra** (`terrain/cover.ts`): em cada ponto livre clicado na Planta Infra, cota do eixo = cota do terreno − recobrimento − meio diâmetro externo da especificação ativa. O recobrimento é medido até a geratriz superior externa, como no perfil e nos rótulos da planta.
+- **O valor é do projetista.** O editor não traz mínimos de norma; o valor inicial (0,80 m) é só um ponto de partida.
+- **Portas e tubos existentes mantêm a própria cota**: é neles que a rede se conecta. A cota pelo terreno vale para pontos livres.
+- **Fora da superfície o ponto é recusado**: não há cota de terreno a usar, e nenhuma é presumida.
+- **O tubo é reto entre os pontos; o terreno não.** Ao criar o trecho, o editor confere o recobrimento em cada aresta da triangulação atravessada e informa o menor e o maior valor. Se o menor ficar abaixo do definido (o terreno afunda ou o tubo corta uma elevação entre os pontos), a mensagem diz a que distância do início — a correção é um ponto intermediário ou um trecho mais fundo.
+- **As regras de modelagem não mudam**: a mudança de direção vertical em cada vértice continua exigindo joelho de catálogo ou deflexão admitida na junta. Em relevo acidentado, com "Somente peças de catálogo" ligado, o núcleo recusa o trecho e explica o motivo.
+- **Limites**: vale para os cliques na Planta Infra, não para a entrada por coordenadas, para o trecho por valores nem para o modelo 3D. Trechos já criados não são reassentados quando o terreno ou o recobrimento mudam.
+
+### Transparência da superfície
+
+Visualizar › Terreno › **Transparência (3D)**, de 0 a 90 % (40 % por padrão). A superfície translúcida não grava profundidade, para que a rede enterrada apareça através dela; com 0 % ela volta a encobrir o que está abaixo. É opção de visualização da sessão.
+### Cache, falhas e desempenho
+
+- **Cache**: os ladrilhos decodificados ficam em memória durante a sessão (96 ladrilhos): trocar a resolução ou ajustar a área não refaz os pedidos. Nada é gravado em disco nem pré-carregado, e uma busca pede no máximo 36 ladrilhos. O GeoTIFF e os arquivos do levantamento ficam em memória até a página ser fechada.
+- **Falhas**: serviço fora do ar, sem conexão, chave recusada, área fora da cobertura e arquivo ilegível terminam em mensagem, sem superfície. Uma busca cancelada não deixa resíduo.
+- **Tolerâncias e medidas** (Vitest):
+
+| Verificação | Resultado exigido |
+| --- | --- |
+| Posição do raster em ladrilhos sobre o projeto (relevo sintético, nível 13) | cota conferida a 0,05 m em pontos quaisquer; um deslocamento de um pixel daria 0,7 m |
+| GeoTIFF escrito pela libtiff (LZW, real de 32 bits; Deflate, inteiro) | valores idênticos, célula a célula |
+| Triangulação de 20.000 pontos e 2.000 consultas de cota | meta 1 s e 0,1 s (limites do teste: 8 s e 1 s) |
+| Área da superfície × área do polígono (com furo) | 1e-6 m² em coordenadas inteiras; 0,1 m² com contorno arredondado a 0,1 mm |
+
+### Limitações declaradas
+
+- Uma superfície por projeto; sem edição de vértices, sem fusão de DEM com levantamento em regiões diferentes.
+- Curvas de nível e corte são vistas: ainda não entram no DXF/SVG da planta nem viram anotações.
+- LandXML e a entidade IFC do terreno ainda não são exportados (a estrutura de dados está pronta: `terrainExchange`). O DXF do modelo 3D já leva a malha.
+- O perfil do terreno e o perfil da rede (Análise › Perfil longitudinal) são painéis separados.
+- Abrir o Modelo 3D com um tubo selecionado emite no console um aviso do React ("Attempted to synchronously unmount a root…") vindo das alças do tubo; não é causado pelo terreno e não afeta o resultado, mas ainda não foi corrigido.
+- O caminho Mapbox não foi exercitado com uma chave real; a fonte aberta (Terrain Tiles) não foi exercitada contra o serviço real nos testes automatizados, que interceptam a rede.
+## Persistência
+
+| O quê | Onde | Observação |
+| --- | --- | --- |
+| Georreferência e referência altimétrica | `project.georeference` | Dado de engenharia |
+| Escala de documentação, fonte e opacidade do mapa, camadas, rótulos | `project.infra` | Reabre a planta como foi deixada |
+| Superfície do terreno (malha, limite, linhas de quebra, procedência) | `project.terrain` | Dado de engenharia, com desfazer |
+| Zoom, centro, origem de renderização, estado do mapa, área do terreno em edição, corte, opções de visualização do terreno | Estado de sessão | Não entra no arquivo |
+| Chave de acesso de fonte de elevação | `localStorage` do navegador | Nunca entra no projeto |
+
+Esquema v12; documentos anteriores são migrados ao abrir (v10 → v11: configuração padrão, escala da planta levada para a Planta Infra nos projetos Infra, referência altimétrica não informada; v11 → v12: terreno existente vira levantamento por pontos, sem limite informado e sem datum, exatidão ou data presumidos).
+
+## Desempenho
+
+Cenário reproduzível: adutora de 10 km com 2.000 trechos de 5 m (`apps/web/src/infra/infraPlan.test.ts`).
+
+| Operação (a cada movimento da vista) | Meta | Onde é verificada |
+| --- | --- | --- |
+| Recorte pela janela e nível de detalhe de toda a rede | < 50 ms | Vitest (limite do teste: 250 ms) |
+| Rótulos de toda a rede com controle de sobreposição | < 100 ms | Vitest (limite do teste: 500 ms) |
+| Ladrilhos pedidos por vista | ≤ 64 | Vitest e E2E |
+
+O limite de cada teste é cinco vezes a meta: o tempo medido oscila com a máquina ocupada (em uma execução com outros processos pesados o segundo caso levou 211 ms), e o teste existe para acusar regressões de ordem de grandeza. Ainda não medido: tempo de quadro no navegador com milhares de elementos em detalhe, e o modelo 3D de redes extensas (uma malha por elemento, sem instanciamento).
+
+## Etapas seguintes
+
+1. **Seleção e captura em redes extensas:** seleção por janela na planta, por filtros (sistema, material, DN, categoria) e de conjuntos conectados; índice espacial para captura de portas e eixos; prévia das peças afetadas antes da confirmação.
+2. **Traçado contínuo:** polilinha por vértices com entrada de coordenadas E/N, distâncias, azimutes e cotas; deflexões resolvidas por curvas de catálogo ou por deflexão de junta **documentada** no catálogo (hoje nenhuma família traz esse dado — nada será presumido).
+3. **Alinhamentos e estaqueamento:** alinhamento de referência como entidade distinta da tubulação; estacas; a rede só passa a existir quando conexões, dimensões e compatibilidade estiverem resolvidas.
+4. **Assentamento por recobrimento:** já existe nos cliques da Planta Infra (ver Superfície do terreno); faltam a entrada por valores e o 3D, reassentar trechos existentes, pontos intermediários automáticos onde o recobrimento cai e as pendências de recobrimento na validação.
+5. **Perfil como vista:** perfil longitudinal na área de trabalho, sincronizado com a seleção e a posição na planta e no 3D (hoje abre no diálogo de análises, pelo botão Perfil… ou por Análise › Perfil longitudinal).
+6. **Terreno:** importação e exportação LandXML, entidade IFC do terreno, curvas de nível e corte na documentação (DXF/SVG, anotações), mais de uma superfície por projeto, BigTIFF e rasters maiores lidos por janela.
+7. **Mapa:** ortofoto georreferenciada em arquivo (GeoTIFF) fornecida pelo usuário; imagem na exportação quando a licença da fonte permitir; satélite no modelo 3D.
+8. **Documentação:** prancha com carimbo, legenda, norte e malha de coordenadas; exportação em PDF; fator de escala combinado no projeto.
+9. **Desempenho do 3D:** instanciamento e níveis de detalhe para milhares de elementos.
