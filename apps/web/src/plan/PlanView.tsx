@@ -76,6 +76,7 @@ import {
 import { useUiStore } from '../state/uiStore';
 import { cursorElementOf } from '../state/viewPreview';
 import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
+import { planDrawOrder } from './drawOrder';
 import { PlanPreviewLayer } from './PlanPreviewLayer';
 import { TerrainPanel } from '../terrain/TerrainPanel';
 import { TerrainProfilePanel } from '../terrain/TerrainProfilePanel';
@@ -965,19 +966,15 @@ export function PlanView() {
     });
   };
 
-  const { elements, systems: systemList } = project;
+  const { elements, systems: systemList, connections } = project;
   const systems = useMemo(() => new Map(systemList.map((s) => [s.id, s])), [systemList]);
-  // Algoritmo do pintor: os elementos mais altos são desenhados por último.
+  // Algoritmo do pintor: os elementos mais altos por último; as peças sobre os seus tubos.
   const ordered = useMemo(
     () =>
-      visibleElementsOf({ elements, systems: systemList })
-        .map((element) => ({
-          element,
-          z: infra ? topOf(element) : outlineOf(element).outline.maxZ,
-        }))
-        .sort((a, b) => a.z - b.z)
-        .map((entry) => entry.element),
-    [elements, systemList, infra],
+      planDrawOrder(visibleElementsOf({ elements, systems: systemList }), connections, (element) =>
+        infra ? topOf(element) : outlineOf(element).outline.maxZ,
+      ),
+    [elements, systemList, connections, infra],
   );
 
   /** Janela visível, em coordenadas do projeto (m). */
