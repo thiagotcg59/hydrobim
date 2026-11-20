@@ -602,10 +602,14 @@ export const COMMANDS: readonly Command[] = [
   {
     id: 'view.fit',
     label: 'Enquadrar',
-    description: 'Enquadra todo o projeto na vista.',
+    description: 'Enquadra os elementos selecionados ou, sem seleção, todo o projeto.',
     icon: Maximize,
     testId: 'view-fit',
-    run: () => editor().requestView('fit'),
+    // Com seleção, enquadrar o projeto inteiro tiraria de vista justamente o que se está editando.
+    run: () =>
+      editor().selection.length > 0
+        ? editor().requestView('fit', { selection: true })
+        : editor().requestView('fit'),
   },
   {
     id: 'view.fitSelection',

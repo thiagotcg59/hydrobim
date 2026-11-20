@@ -112,6 +112,18 @@ describe('registro de comandos', () => {
 });
 
 describe('disponibilidade dos comandos', () => {
+  it('enquadrar usa a seleção quando há elementos selecionados', () => {
+    drawBend();
+    runCommand('view.fit');
+    expect(editor().viewRequest?.selection).toBeUndefined();
+
+    const pipe = editor().project.elements.find((element) => element.kind === 'pipe');
+    if (!pipe) throw new Error('Modelo de teste incompleto.');
+    editor().select(pipe.id);
+    runCommand('view.fit');
+    expect(editor().viewRequest).toMatchObject({ preset: 'fit', selection: true });
+  });
+
   it('modificar depende da seleção e explica o que falta', () => {
     drawBend();
     expect(stateOf('modify.move')).toMatchObject({ enabled: false });
