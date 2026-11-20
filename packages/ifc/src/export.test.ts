@@ -13,7 +13,7 @@ import {
   type Result,
   type ValveType,
 } from '@hydrobim/core';
-import { buildElementGeometry } from '@hydrobim/geometry';
+import { buildElementGeometry, partFinish } from '@hydrobim/geometry';
 import { describe, expect, it } from 'vitest';
 import { buildIfcModel } from './bim/model';
 import { exportIfc } from './export';
@@ -381,11 +381,17 @@ describe('exportação IFC 4.3', () => {
       northings: 7800000,
       orthogonalHeight: 123,
       rotation: Math.PI / 3,
+      verticalDatum: epsg ? 'Imbituba' : null,
     };
     const all = entities(exportIfc(project, { timestamp }));
-    expect(byType(all, 'IfcProjectedCRS')[0]?.args.slice(0, 2)).toEqual([
+    // Datum, projeção e fuso vêm do registro de CRS; sem EPSG nada disso é presumido.
+    expect(byType(all, 'IfcProjectedCRS')[0]?.args.slice(0, 6)).toEqual([
       `'${epsg ? `EPSG:${epsg}` : project.georeference.crsName}'`,
       `'${project.georeference.crsName}'`,
+      epsg ? "'SIRGAS 2000'" : '$',
+      epsg ? "'Imbituba'" : '$',
+      epsg ? "'UTM'" : '$',
+      epsg ? "'23S'" : '$',
     ]);
     const conversion = byType(all, 'IfcMapConversion')[0]!;
     expect(conversion.args[0]).toBe(byType(all, 'IfcGeometricRepresentationContext')[0]?.ref);
@@ -413,5 +419,71 @@ describe('exportação IFC 4.3', () => {
     const empty = entities(exportIfc(createProject('Vazio'), { timestamp }));
     expect(byType(empty, 'IfcRelContainedInSpatialStructure')).toHaveLength(0);
     expect(byType(empty, 'IfcDistributionSystem')).toHaveLength(0);
+  });
+
+  it('grava em cada item geométrico o acabamento que a vista 3D usa', () => {
+    const project = sample();
+    const all = entities(exportIfc(project, { timestamp }));
+    const refs = new Map(all.map((e) => [e.ref, e]));
+    const styled = new Map(byType(all, 'IfcStyledItem').map((e) => [e.args[0], e]));
+    const items = [
+      ...byType(all, 'IfcExtrudedAreaSolid'),
+      ...byType(all, 'IfcTriangulatedFaceSet'),
+    ];
+    // Nenhum item sem estilo: é isso que os visualizadores mostram em branco.
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) expect(styled.has(item.ref)).toBe(true);
+
+    /** Cor, metalicidade e rugosidade gravadas para um item. */
+    const finishOf = (item: Entity): { colour: string[]; metalness: string; roughness: string } => {
+      const style = refs.get(styled.get(item.ref)!.args[1]!.slice(1, -1))!;
+      expect(style.type).toBe('IFCSURFACESTYLE');
+      expect(style.args[1]).toBe('.BOTH.');
+      const rendering = refs.get(style.args[2]!.slice(1, -1))!;
+      expect(rendering.type).toBe('IFCSURFACESTYLERENDERING');
+      expect(rendering.args[8]).toBe('.PHYSICAL.');
+      // A cor base (difusa) é a mesma cor da superfície.
+      expect(rendering.args[2]).toBe(rendering.args[0]);
+      return {
+        colour: refs.get(rendering.args[0]!)!.args.slice(1),
+        metalness: rendering.args[6]!,
+        roughness: rendering.args[7]!,
+      };
+    };
+    const rgb = (hex: string): number[] =>
+      [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
+
+    // Tubo de PVC: o marrom, a rugosidade e a metalicidade do acabamento da tela.
+    const pvc = partFinish('body', 'pvc');
+    const pipe = finishOf(byType(all, 'IfcExtrudedAreaSolid')[0]!);
+    expect(pipe.colour.map(Number)).toEqual(rgb(pvc.color).map((v) => expect.closeTo(v, 12)));
+    expect(pipe.metalness).toBe('IFCNORMALISEDRATIOMEASURE(0.)');
+    expect(pipe.roughness).toBe(`IFCSPECULARROUGHNESS(${pvc.roughness})`);
+
+    // Partes de papéis diferentes (corpo, acionamento…) saem com estilos diferentes, e
+    // acabamentos iguais compartilham um único estilo.
+    const styles = byType(all, 'IfcSurfaceStyle');
+    expect(styles.length).toBeGreaterThan(1);
+    expect(new Set(styles.map((style) => style.args[0])).size).toBe(styles.length);
+    expect(styles.length).toBeLessThan(items.length);
+  });
+
+  it('usa a cor do sistema hidráulico, menos nas partes de cor fixa', () => {
+    const project = sample();
+    project.systems[0]!.color = '#3366CC';
+    const all = entities(exportIfc(project, { timestamp }));
+    const colours = byType(all, 'IfcColourRgb').map((e) => e.args.slice(1).map(Number));
+    const has = (hex: string): boolean =>
+      colours.some((colour) =>
+        [1, 3, 5].every(
+          (offset, i) =>
+            Math.abs(colour[i]! - Number.parseInt(hex.slice(offset, offset + 2), 16) / 255) < 1e-9,
+        ),
+      );
+    expect(has('#3366CC')).toBe(true);
+    // O corpo deixa de usar a cor do material...
+    expect(has(partFinish('body', 'pvc').color)).toBe(false);
+    // ...mas o acionamento das válvulas mantém a sua.
+    expect(has(partFinish('accent', 'pvc').color)).toBe(true);
   });
 });

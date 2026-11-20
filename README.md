@@ -28,6 +28,7 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 - Exportação **DXF**: planta baixa em R2000 (camadas `REDE_*` por categoria, cotas como `DIMENSION`, conexões como blocos, textos e etiquetas) e modelo 3D em malhas (metros).
 - Quantitativo em CSV e rede em formato EPANET (INP).
 - Georreferência informada pelo usuário, terreno por pontos XYZ, perfil longitudinal com recobrimento e detecção de interferências entre tubos.
+- Superfície do terreno por área na Planta Infra: DEM em ladrilhos, GeoTIFF ou levantamento com linhas de quebra; curvas de nível, consulta de cota, corte longitudinal e visualização 3D em escala real (`docs/INFRA.md`).
 - Salvar/abrir no navegador e em arquivo JSON versionado (projetos antigos são migrados).
 
 ## Requisitos
@@ -75,18 +76,20 @@ Documentação interativa em <http://localhost:8000/docs>. O editor ainda não d
 
 ## Como usar (roteiro rápido)
 
+A tela tem o cabeçalho (menu **Arquivo**, nome do projeto, salvar/desfazer/refazer e o **Ambiente** MEP/Infra), a faixa de comandos com uma aba por tarefa (**Modelagem**, **Documentação**, **Visualizar**, **Análise**, **BIM / IFC**, **Exportação**, **Gerenciar**), o navegador do projeto à esquerda, as abas de vista (**Modelo 3D** e **Planta**) sobre a área de desenho e, à direita, o painel com as abas **Ferramenta** (opções do próximo elemento) e **Propriedades** (seleção). `Ctrl+K` busca qualquer comando. Detalhes em [docs/INTERFACE.md](docs/INTERFACE.md).
+
 1. **Tubulação** (`T`): escolha especificação e diâmetro, clique o ponto inicial e os seguintes. `Shift` restringe à vertical; `Esc` encerra. Também é possível digitar X, Y, Z e usar **Adicionar ponto**.
-2. **Selecionar** (`S`): clique em um elemento ou escolha-o na lista **Elementos** do painel direito. Na vista 3D, arraste com o botão esquerdo para abrir uma janela e selecionar os elementos inteiramente dentro dela (`Ctrl`/`Shift` soma à seleção); nessa ferramenta a câmera orbita com o botão do meio ou `Alt` + arrastar.
+2. **Selecionar** (`S`): clique em um elemento ou escolha-o no navegador do projeto, à esquerda. Na vista 3D, arraste com o botão esquerdo para abrir uma janela e selecionar os elementos inteiramente dentro dela (`Ctrl`/`Shift` soma à seleção); nessa ferramenta a câmera orbita com o botão do meio ou `Alt` + arrastar.
 3. No painel **Propriedades**: altere diâmetro/material, comprimento e coordenadas de extremidades livres; em **Portas de conexão**, acople joelho, tê, válvula ou redução a uma extremidade livre; em **Inserir em linha**, divida o tubo com um tê ou uma válvula.
 4. **Joelho** (`J`), **Tê** (`E`), **Redução** (`R`), **Válvula** (`V`): clique em uma extremidade livre (marcadores ciano) ou, para tê e válvula, sobre um tubo.
 5. **Bomba** (`B`) e **Reservatório** (`Q`): clique um ponto ou informe as coordenadas.
 6. **Trocar diâmetro**: no painel, escolha o novo diâmetro. Com "Somente esta peça" as reduções são criadas automaticamente; com "Todo o trecho conectado" a alteração se propaga.
-7. **Catálogo**: abre as famílias de conexões (consulta e edição), os reservatórios e a biblioteca de produtos 3D.
-8. **Projeto**: níveis, sistemas, georreferência, terreno, perfil e interferências.
-9. **Salvar** (`Ctrl+S`) grava no navegador; os botões **JSON**, **IFC**, **DXF 3D**, **Quantitativo** e **EPANET** exportam arquivos (a planta em SVG ou DXF é exportada pela vista **Planta**); **Abrir** lista os projetos salvos e importa arquivos. `Ctrl+clique` seleciona vários elementos.
-10. **Planta baixa** (alternador no alto da área de trabalho, ou qualquer ferramenta de **Documentar**): **Cota** (`C`) — dois pontos e a posição da linha; **Texto** (`X`); **Chamada** (`L`) — ponto indicado e posição do texto; **Etiqueta** (`I`) — elemento e posição. Com **Selecionar**, arraste uma anotação para reposicioná-la e edite-a no quadro à direita; `Delete` exclui. Escolha a **Escala** e use **Exportar SVG** para gerar o desenho.
+7. **Catálogo** (Modelagem ou Gerenciar): abre as famílias de conexões (consulta e edição), os reservatórios e a biblioteca de produtos 3D.
+8. **Gerenciar**: níveis, sistemas, georreferência e terreno. **Análise**: pendências, interferências, quantitativo e perfil longitudinal.
+9. **Salvar** (`Ctrl+S`) grava no navegador; **Arquivo › Baixar arquivo** gera o `.hydrobim.json`; a aba **Exportação** reúne IFC, IDS, DXF (planta e modelo 3D), SVG da planta, CSV do quantitativo e INP do EPANET, com o conteúdo e os requisitos de cada saída; **Arquivo › Abrir** lista os projetos salvos e importa arquivos. `Ctrl+clique` seleciona vários elementos.
+10. **Planta** (aba de vista sobre a área de desenho, ou qualquer ferramenta de **Documentação**): **Cota** (`C`) — dois pontos e a posição da linha; **Texto** (`X`); **Chamada** (`L`) — ponto indicado e posição do texto; **Etiqueta** (`I`) — elemento e posição. Com **Selecionar**, arraste uma anotação para reposicioná-la e edite-a no quadro à direita; `Delete` exclui. Escolha a **Escala** em Documentação e use Exportação › **SVG da planta** para gerar o desenho.
 
-A barra inferior mostra coordenadas, modo da ferramenta, mensagens e o resultado da validação (clique para ver as pendências).
+A barra inferior mostra a instrução da operação, coordenadas, captura, grade, mensagens e o resultado da validação (clique para ver as pendências).
 
 ## Qualidade
 
@@ -125,6 +128,7 @@ docs/                Arquitetura, modelo de domínio, mapeamento IFC, decisões,
 - [Modelo de domínio](docs/DOMAIN_MODEL.md)
 - [Catálogos e famílias](docs/CATALOGS.md)
 - [Mapeamento IFC](docs/IFC_MAPPING.md)
+- [Ambiente Infra](docs/INFRA.md)
 - [Decisões técnicas](docs/DECISIONS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Instruções para agentes e colaboradores](AGENTS.md)

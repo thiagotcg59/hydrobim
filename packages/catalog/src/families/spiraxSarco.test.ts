@@ -67,12 +67,13 @@ describe('filtro Y Spirax Sarco CI (TI-D245-01)', () => {
     }
   });
 
-  it('é resolvido pelo catálogo no aço-carbono e não é oferecido ao ferro dúctil', () => {
+  it('é resolvido pelo catálogo no ferro fundido dúctil e não é oferecido ao aço-carbono', () => {
+    expect(family.specificationId).toBe('ferro-ductil-nbr7675-k9');
     const catalog = createFamilyCatalog(BUILTIN_FAMILIES);
     const steel = resolvePipeSpec('aco-carbono-b3610-sch40', 100);
     const ductile = resolvePipeSpec('ferro-ductil-nbr7675-k9', 100);
     if (!steel || !ductile) throw new Error('especificação ausente');
-    const dims = catalog.valve(steel, 'strainer');
+    const dims = catalog.valve(ductile, 'strainer');
     expect(dims.familyId).toBe('spirax-sarco-ci-125');
     expect(dims.length).toBeCloseTo(0.37);
     expect(dims.height).toBeCloseTo(0.265);
@@ -85,7 +86,7 @@ describe('filtro Y Spirax Sarco CI (TI-D245-01)', () => {
       boltHoleDiameter: expect.closeTo(0.01905, 9),
     });
     expect(dims.ends.b).toEqual(dims.ends.a);
-    // Flange ASME 125 não casa com o flange PN do ferro dúctil: sem família, dimensão genérica.
-    expect(catalog.valve(ductile, 'strainer').familyId).toBeNull();
+    // No aço-carbono não há família de filtro: dimensão genérica.
+    expect(catalog.valve(steel, 'strainer').familyId).toBeNull();
   });
 });

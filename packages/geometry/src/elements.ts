@@ -18,6 +18,7 @@ import { box, loft, type ProfilePoint } from './loft';
 import { buildPbaParts, teeIsBuildable, type JeSocket, type PbaShape } from './pba';
 import { mapMesh } from './skin';
 import { flangeDisc, flangeHubRadius } from './flange';
+import { flowMeterParts } from './flowMeter';
 import { gateValveParts } from './gateValve';
 import { pilotValveParts } from './pilotValve';
 import { accent, body, coated, cylinder, ORIGIN, torus, turned, upFor, X, Z } from './primitives';
@@ -390,6 +391,9 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
       case 'strainer':
         // O corpo do filtro é uma luva cilíndrica própria (strainerParts), sem bojo.
         return undefined;
+      case 'flowMeter':
+        // A carcaça das bobinas é um cilindro próprio (flowMeterParts), sem bojo.
+        return undefined;
       default:
         return { center: length / 2, half: Math.min(length * 0.4, d * 1.2), radius: d * 0.75 };
     }
@@ -446,6 +450,21 @@ function valveParts(element: Extract<HydroElement, { kind: 'valve' }>, ports: Po
                     : flange.outerDiameter * 0.4,
               }
             : {}),
+        }),
+      ];
+    }
+    case 'flowMeter': {
+      // Carretel e flanges com a pintura azul do fabricante; carcaça e cabeçote à parte.
+      const flange = a.end?.type === 'flange' ? a.end : undefined;
+      return [
+        ...parts.map((part) => (part.role === 'body' ? coated(part.mesh) : part)),
+        ...flowMeterParts({
+          pipeDiameter: d,
+          boreDiameter: element.spec.innerDiameter,
+          length,
+          top,
+          flangeDiameter: flange?.outerDiameter ?? 0,
+          flangeThickness: flange?.length ?? 0,
         }),
       ];
     }

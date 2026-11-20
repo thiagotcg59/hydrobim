@@ -112,6 +112,11 @@ export function exportEpanet(project: Project): EpanetExport {
               `"${element.name}" (redutora de pressão) foi exportada como trecho aberto; defina a válvula PRV e a pressão de ajuste no EPANET.`,
             );
           }
+          if (element.valveType === 'flowMeter') {
+            warnings.push(
+              `"${element.name}" (medidor de vazão) foi exportado como trecho aberto; a perda de carga do medidor não é representada.`,
+            );
+          }
           if (element.valveType === 'strainer') {
             warnings.push(
               `"${element.name}" (filtro Y) foi exportado como trecho aberto; a perda de carga do elemento filtrante não é representada.`,

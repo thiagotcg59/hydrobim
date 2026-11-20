@@ -3,6 +3,7 @@ import {
   AXIS_Y,
   AXIS_Z,
   ZERO,
+  findProjectedCrs,
   pipeLength,
   rotate,
   sub,
@@ -10,7 +11,13 @@ import {
   type Project,
   type Vec3,
 } from '@hydrobim/core';
-import { buildElementGeometry, type ElementGeometry } from '@hydrobim/geometry';
+import {
+  buildElementGeometry,
+  partFinish,
+  type ElementGeometry,
+  type PartRole,
+  type SurfaceFinish,
+} from '@hydrobim/geometry';
 import { buildIfcModel, type IfcModelOptions } from './bim/model';
 import type { IfcPropertyInfo, IfcPropertySetInfo, IfcValue } from './bim/types';
 import { isIntegerIfcType } from './bim/values';
@@ -147,14 +154,17 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
 
   if (project.georeference) {
     const geo = project.georeference;
+    // Datum, projeção e fuso só são escritos quando o EPSG está no registro do HydroBIM
+    // (parâmetros conferidos); a referência altimétrica, só quando o usuário a informou.
+    const known = geo.epsg === null ? null : findProjectedCrs(geo.epsg);
     const crs = writer.entity(
       'IfcProjectedCRS',
       str(geo.epsg === null ? geo.crsName : `EPSG:${geo.epsg}`),
       str(geo.crsName),
-      '$',
-      '$',
-      '$',
-      '$',
+      known ? str(known.datum) : '$',
+      geo.verticalDatum === null ? '$' : str(geo.verticalDatum),
+      known ? str('UTM') : '$',
+      known ? str(`${known.zone}${known.hemisphere}`) : '$',
       metre,
     );
     writer.entity(
@@ -258,8 +268,46 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
   const isSweptPipe = (element: HydroElement): boolean =>
     element.kind === 'pipe' && Object.keys(element.ends ?? {}).length === 0;
 
+  // Aparência: cada item geométrico recebe o acabamento que a vista 3D usa na parte
+  // (cor do material ou do sistema, rugosidade e metalicidade). Sem estilo, os
+  // visualizadores mostram tudo em branco. Acabamentos iguais compartilham o estilo.
+  const systemColors = new Map(project.systems.map((system) => [system.id, system.color]));
+  const styles = new Map<string, string>();
+  const surfaceStyle = (finish: SurfaceFinish): string => {
+    const key = `${finish.color}|${finish.roughness}|${finish.metalness}`;
+    let style = styles.get(key);
+    if (!style) {
+      const channel = (offset: number): string =>
+        real(Number.parseInt(finish.color.slice(offset, offset + 2), 16) / 255);
+      const colour = writer.entity('IfcColourRgb', '$', channel(1), channel(3), channel(5));
+      // Método PHYSICAL do IFC 4.3: DiffuseColour é a cor base, SpecularColour o fator
+      // metálico e SpecularHighlight a rugosidade — os parâmetros do material da vista 3D.
+      const rendering = writer.entity(
+        'IfcSurfaceStyleRendering',
+        colour,
+        real(0),
+        colour,
+        '$',
+        '$',
+        '$',
+        `IFCNORMALISEDRATIOMEASURE(${real(finish.metalness)})`,
+        `IFCSPECULARROUGHNESS(${real(finish.roughness)})`,
+        '.PHYSICAL.',
+      );
+      style = writer.entity('IfcSurfaceStyle', str(finish.label), '.BOTH.', list([rendering]));
+      styles.set(key, style);
+    }
+    return style;
+  };
+
   const representation = (element: HydroElement, geometry: ElementGeometry): string => {
     const items: string[] = [];
+    const systemColor = systemColors.get(element.systemId);
+    const styled = (item: string, role: PartRole): string => {
+      const style = surfaceStyle(partFinish(role, element.spec.material, systemColor));
+      writer.entity('IfcStyledItem', item, list([style]), '$');
+      return item;
+    };
     if (element.kind === 'pipe' && isSweptPipe(element)) {
       const profile = writer.entity(
         'IfcCircleHollowProfileDef',
@@ -271,12 +319,15 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
       );
       // O perfil XY do sólido é colocado no plano YZ do elemento; seu +Z vira +X.
       items.push(
-        writer.entity(
-          'IfcExtrudedAreaSolid',
-          profile,
-          axis(ZERO, AXIS_X, AXIS_Y),
-          direction(AXIS_Z),
-          real(pipeLength(element)),
+        styled(
+          writer.entity(
+            'IfcExtrudedAreaSolid',
+            profile,
+            axis(ZERO, AXIS_X, AXIS_Y),
+            direction(AXIS_Z),
+            real(pipeLength(element)),
+          ),
+          'body',
         ),
       );
     } else {
@@ -286,13 +337,16 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
           throw new Error(`Malha sem faces válidas em "${element.name}".`);
         const points = writer.entity('IfcCartesianPointList3D', list(mesh.points.map(vector)), '$');
         items.push(
-          writer.entity(
-            'IfcTriangulatedFaceSet',
-            points,
-            '$',
-            mesh.closed ? '.T.' : '.F.',
-            list(mesh.triangles.map((face) => list(face.map(String)))),
-            '$',
+          styled(
+            writer.entity(
+              'IfcTriangulatedFaceSet',
+              points,
+              '$',
+              mesh.closed ? '.T.' : '.F.',
+              list(mesh.triangles.map((face) => list(face.map(String)))),
+              '$',
+            ),
+            part.role,
           ),
         );
       }

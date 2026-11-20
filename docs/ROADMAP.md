@@ -18,17 +18,21 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ✅ Famílias editáveis por projeto, com reaplicação às peças existentes.
 - ✅ Válvulas de gaveta com cunha de borracha EURO 21 a 25 (flanges PN e ANSI, bolsas PBA e ferro dúctil), com castelo retangular K × K1.
 - ✅ Filtro Y de ferro fundido (Spirax Sarco CI, ASME 125) e flanges com a furação da norma na geometria.
+- ✅ Macromedidor eletromagnético flangeado (Sanecom, DN 50 a 1000, flange PN 10) como tipo de peça em linha `flowMeter`, exportado como `IfcFlowMeter`.
 - ✅ Flanges padronizados: tabela única PN 10/16/25/40 (Catálogo Geral, p. 246–249) usada por todas as peças flangeadas PN, com furação e ressalto na geometria; aba "Flanges e tubos flangeados" no Catálogo. Esquema v7.
 - ✅ Tubos de ferro fundido dúctil com flanges (flange e flange, flange e ponta em qualquer extremidade, ponta e ponta), com comprimento livre e classe PN 10/16/25/40.
 - ✅ Troca de diâmetro que altera só a peça e insere, ajusta ou remove reduções.
 - ✅ Tê de redução; extremidades com bolsa, flange ou ponta lisa.
 - ✅ Seleção múltipla, mover e copiar por deslocamento; sistemas com cor e visibilidade.
 - ✅ Biblioteca de produtos com modelo 3D de catálogo: linha PBA Amanco Wavin completa (tubos classes 12/15/20, curvas, tês, cruzetas, redução, luvas, cap, adaptador DEFoFo, colar de tomada e anéis). Tê e redução PBA da rede usam a mesma geometria.
+- ✅ Edição direta do traçado, na planta e no 3D: alças nas extremidades do tubo selecionado (arrastar estica ou encolhe ao longo do eixo; a peça ligada desliza junto e o tubo vizinho compensa), setas do teclado que deslizam tubos, conexões e válvulas ao longo da linha (passo da grade; Shift ×10, Ctrl ÷10) e menu do botão direito junto a uma extremidade livre com "Criar tubo".
 - ⬜ Inserção na rede dos produtos da biblioteca que ainda não têm tipo de elemento: curvas ponta e bolsa (famílias com extremidades mistas), cruzeta, cap, luvas, adaptador e colar de tomada — exige alteração do esquema.
 - ⬜ Peças de transição entre especificações (adaptadores, tocos com flange, luvas de correr).
 - ⬜ Verificação de compatibilidade do tipo de extremidade (flange × ponta, bolsa × bolsa).
-- ⬜ Snapping avançado (ponto médio, perpendicular, projeção) e manipuladores no viewport.
-- ⬜ Seleção por janela; fechamento automático entre duas extremidades.
+- ✅ Captura de pontos consistente nas duas vistas: raio em pixels em qualquer zoom e projeção, portas de sistemas ocultos fora da captura, rótulo com tipo, elemento, porta e cota, Tab para portas sobrepostas também no 3D. Na planta, tubo em outra cota é só referência (o cruzamento não cria tê nem conexão).
+- 🟡 Capturas de referência (extremidade, ponto médio, perpendicular, alinhamento) e planos de trabalho XY/XZ/YZ/pela porta com trava de eixo: núcleos puros testados (`apps/web/src/editor/referenceSnaps.ts`, `workPlane.ts`), ainda não ligados às vistas.
+- 🟡 Seleção por janela: contenção no modelo 3D ✅; cruzamento pelo sentido do arrasto, janela na planta e filtros por categoria e sistema com núcleo testado (`crossingSelection.ts`), ainda não ligados às vistas.
+- ✅ Fechamento assistido entre duas extremidades livres (`closePorts`): tubo reto, um joelho no cruzamento dos eixos ou dois joelhos no desvio paralelo, só com peças da especificação e sem tolerância de encaixe; pelo painel de propriedades, com dois elementos selecionados. Recusa extremidades flangeadas, eixos reversos e ângulos sem joelho de catálogo. ⬜ Escolha das duas extremidades diretamente na vista; retorno em "U".
 - ⬜ Catálogo de conexões de PEAD e curvas PBA; catálogos brasileiros de ferro dúctil e válvulas.
 
 ## Fase 3 — IFC 🟡
@@ -52,7 +56,7 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 
 - ✅ Níveis/pavimentos e plano de trabalho por nível.
 - ✅ Bomba e reservatório (representações genéricas) e ventosa.
-- ✅ Projeção ortográfica (planta e elevação em verdadeira grandeza).
+- ✅ Projeção ortográfica (planta e elevação em verdadeira grandeza); isométrica ortográfica verdadeira por quadrante, perspectiva como comando separado e enquadramento da seleção. Trocar entre planta e modelo 3D mantém a ferramenta, o trecho em andamento e o ponto de interesse.
 - ✅ Quantitativo exportável em CSV.
 - ✅ Reservatórios metálicos de catálogo: oito famílias TRAMEC (taça com e sem água na coluna, tubular alto, australiano, vertical apoiado, fundo cônico com pés, montado na obra e cilíndrico horizontal), 113 modelos comerciais tabulados, dimensões personalizadas, origem de cada parâmetro (catálogo × derivado × estimado × usuário), acessórios, bocais adicionais (extravasor, descarga) e exportação IFC com `IfcTankType` e conjuntos de propriedades (esquema v6). Seção **Catálogo** com a aba Reservatórios; famílias podem ser duplicadas como personalizadas do projeto, com tabela editável e reaplicação aos reservatórios inseridos (esquema v8).
 - ⬜ Reservatórios: divisão interna de células e plataformas desenhadas, bocais verticais (descarga no vértice do cone, respiro), instalação enterrada do horizontal, pesos.
@@ -62,21 +66,41 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ✅ Na planta, Tab alterna entre extremidades sobrepostas sob o cursor; a trava de ângulos também vale ao editar o ângulo de um joelho existente.
 - ✅ Somente peças de catálogo (padrão): o editor recusa criar joelho, tê, redução ou válvula de dimensões genéricas e alterar dimensões de peças de catálogo; sem joelho de catálogo, o traçado só prolonga em linha reta. Pode ser desligado nas opções da ferramenta.
 - ⬜ Curvas PBA (ponta e bolsa) e conexões de PEAD como famílias, para que essas especificações possam mudar de direção com a política de catálogo ligada.
-- ⬜ Modelagem pela planta: declividade do trecho e inserção em linha em tubo vertical.
+- ✅ Trecho por valores no painel da ferramenta: comprimento real, projeção horizontal, ângulo (dos joelhos de catálogo), ΔX/ΔY/ΔZ, cota final e declividade, com a prévia real da montagem (peças criadas, tubos ajustados ou a recusa do núcleo) antes de confirmar; subir e descer até o pavimento vizinho mantendo a altura do eixo sobre o piso. A prévia roda a mesma operação da confirmação.
+- ✅ Deflexão na junta: tubos de junta elástica mudam de direção sem peça até o limite do fabricante (ferro dúctil JGS 5°/4°/3° conforme o DN; PVC PBA e DEFoFo 1°), no traçado com o cursor, por valores e no fechamento entre extremidades; acima do limite, joelho. Fontes em `docs/CATALOGS.md`.
+- 🟡 Declividade: aceita a partir de ponto livre, de mudança de direção fora do plano e, em prolongamento de um tubo, até a deflexão que a junta admite. Em juntas rígidas (PVC soldável, aço, PEAD) o prolongamento com declividade segue recusado acima de 0,5°.
+- ⬜ Curvatura a frio do próprio tubo (PVC, PEAD): exige um elemento de tubo curvo.
+- ⬜ Prévia das peças desenhada nas vistas (hoje é textual, no painel); inserção em linha em tubo vertical pela planta.
 - ✅ Exportação DXF: planta baixa em R2000, em metros e nas coordenadas do projeto, com camadas `REDE_*` por categoria (cor, tipo e espessura de linha), cotas como `DIMENSION`, conexões/registros/equipamentos como blocos (`INSERT`), contornos em `LWPOLYLINE`, textos, chamadas e etiquetas; modelo 3D em malhas poliface (R12). Conferido com `ezdxf`; ainda não aberto em AutoCAD/Civil 3D.
 - ⬜ Planta: balões de item ligados ao quantitativo, cotas de nível, angulares e em cadeia, setas de fluxo, hachuras, seta de norte, linhas de centro e simbologia convencional.
 - ⬜ Planta por nível/faixa de corte, cortes e elevações documentados, vistas salvas, pranchas com carimbo e exportação em PDF; no DXF, cotas de nível em `REDE_COTAS_ALTIMETRICAS` (hoje vazia), cotas associativas aos objetos e sólidos 3D.
 - ⬜ Persistência em servidor (API + PostgreSQL).
 
+- ✅ Interface por tarefa (ver `docs/INTERFACE.md`): cabeçalho com menu Arquivo e seletor de ambiente; faixa de comandos com as abas Modelagem, Documentação, Visualizar, Análise, BIM / IFC, Exportação e Gerenciar; navegador do projeto (vistas, níveis, sistemas com visibilidade, elementos com busca); abas de vista fixas com controles de navegação; painel direito com as opções da ferramenta separadas das propriedades; barra de status com a instrução da operação. Painéis recolhíveis e redimensionáveis, com preferências guardadas fora do projeto. Registro único de comandos (botões, atalhos, busca com Ctrl+K), com o motivo de cada indisponibilidade. Exportações centralizadas, com conteúdo e requisitos de cada saída; quantitativo em tela.
+- ⬜ Interface: inspetor de anotações no painel direito; escolha do sistema do próximo elemento na ferramenta; consulta BIM / IFC também sobre a planta; atalhos e faixa personalizáveis.
+
 ## Fase 5 — Infraestrutura 🟡
 
-- ✅ Georreferência informada pelo usuário.
-- ✅ Importação de terreno por pontos XYZ, triangulado (TIN), até 4.000 pontos.
+- ✅ Georreferência informada pelo usuário, validada: registro de sistemas projetados (SIRGAS 2000 / UTM e WGS 84 / UTM), transformações local ⇄ projetado ⇄ geográfico conferidas com o PROJ, estado pendente/sem transformação/inválida/pronta, referência altimétrica (esquema v11). Ver `docs/INFRA.md`.
+- ✅ Ambiente Infra com configuração própria (`project.infra`): **Planta Infra** com escala de documentação de 1:200 a 1:10.000, camadas (rede, equipamentos, terreno, referências, anotações), rótulos de nós e trechos sem sobreposição, malha de coordenadas, norte da quadrícula, barra de escala, coordenadas do cursor (locais, E/N, latitude/longitude) e navegação por coordenadas. Independente da planta do MEP.
+- ✅ Mapa georreferenciado ao fundo da Planta Infra, em dois temas sem chave — satélite (Sentinel-2 cloudless 2016, EOX, CC BY 4.0) e ruas (OpenStreetMap): visibilidade, opacidade, atribuição, carregamento só da região visível e tolerância a falhas do serviço.
+- ✅ Fonte de mapa própria (alta resolução): endereço de ladrilhos do serviço do usuário, guardado só no navegador; aviso quando a ampliação passa da resolução da fonte.
+- ✅ Georreferência pelo mapa: o estado pendente abre um mapa navegável; o clique define a origem do modelo no fuso escolhido (SIRGAS 2000 / UTM 21S por padrão, demais fusos brasileiros como opção) e a planta abre nesse ponto para modelar sobre o mapa.
+- ✅ Vistas gerais: eixos e símbolos fora de escala quando a geometria real não é legível, com recorte pela janela.
+- ✅ Importação de terreno por pontos XYZ, triangulado (TIN), até 25.000 pontos.
+- ✅ Superfície do terreno por área (esquema v12, `docs/INFRA.md`): contorno desenhado na Planta Infra ou importado de GeoJSON, com furos; DEM em ladrilhos (Terrain Tiles abertos na AWS; Mapbox Terrain-RGB com a chave do usuário), GeoTIFF e levantamento com pontos XYZ e linhas de quebra; triangulação restrita ao limite; procedência gravada (sistema de origem, referência altimétrica, resolução e exatidão — nulas quando a fonte não declara); geração em Web Worker com andamento, cancelamento, cache da sessão e tratamento de falhas.
+- ✅ Terreno: curvas de nível configuráveis, cota e declividade sob o cursor e por ponto, corte longitudinal com exportação CSV; no 3D, cor por altitude ou declividade, triangulação opcional e escala vertical real 1:1 por padrão (exagero opcional e indicado).
+- 🟡 Mapbox: implementado e testado com o serviço simulado; não exercitado com uma chave real. O conjunto Terrain-DEM v1 só é oferecido como identificador alternativo (a documentação o restringe aos SDKs da Mapbox).
 - ✅ Perfil longitudinal com cota do terreno e recobrimento.
-- ⬜ Origem de cena deslocada para coordenadas grandes (hoje use coordenadas locais).
-- ⬜ Traçado por alinhamento (vértices, deflexões por junta), assentamento por recobrimento.
+- ✅ Origem de renderização deslocada na planta e no 3D: redes modeladas em coordenadas UTM mantêm a precisão; o projeto e as exportações não são alterados.
+- ⬜ Seleção por janela, por filtros (sistema, material, DN, categoria) e de conjuntos conectados na planta; índice espacial para captura.
+- 🟡 Assentamento por recobrimento: na ferramenta Tubulação da Planta Infra, o eixo de cada ponto clicado fica o recobrimento definido abaixo do terreno (até a geratriz superior), com conferência do recobrimento real ao longo do trecho; transparência ajustável da superfície no 3D. Falta: entrada por valores e 3D, reassentar trechos existentes, pendências na validação.
+- ⬜ Traçado por alinhamento (vértices, deflexões por junta).
 - ⬜ Cadastro de nós e trechos; descargas, hidrantes, caixas.
-- ⬜ Terrenos grandes (LandXML, GeoTIFF) e curvas de nível.
+- ⬜ Terreno: LandXML (importação e exportação), entidade IFC do terreno, curvas de nível e corte na documentação (DXF/SVG), mais de uma superfície por projeto, BigTIFF e rasters lidos por janela.
+- ⬜ Perfil longitudinal como vista sincronizada com a planta e o 3D (hoje no diálogo de análises, por Análise › Perfil longitudinal ou pelo botão Perfil… junto das abas de vista).
+- ⬜ Ortofoto do usuário como fundo; imagem na exportação quando a licença permitir; satélite no 3D; prancha com carimbo, legenda e norte; fator de escala combinado.
+- ⬜ Instanciamento e níveis de detalhe no modelo 3D para milhares de elementos.
 
 ## Fase 6 — Engenharia e integrações 🟡
 

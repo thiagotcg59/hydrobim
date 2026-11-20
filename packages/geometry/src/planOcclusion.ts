@@ -17,7 +17,7 @@ const EPS = 1e-9;
  * `outlines` na ordem de desenho (os últimos cobrem os primeiros). Devolve, para cada um,
  * os segmentos (4 números por segmento) que continuam visíveis.
  */
-export function occludedPlanLines(outlines: readonly PlanOutline[]): Float32Array[] {
+export function occludedPlanLines(outlines: readonly PlanOutline[]): Float64Array[] {
   return outlines.map((outline, index) => {
     const occluders = outlines
       .slice(index + 1)
@@ -91,7 +91,7 @@ export function occludedPlanLines(outlines: readonly PlanOutline[]): Float32Arra
       }
       emit(cursor, 1);
     }
-    return new Float32Array(visible);
+    return new Float64Array(visible);
   });
 }
 

@@ -66,6 +66,7 @@ describe('classificação IFC da biblioteca de famílias', () => {
     expect(entities('Tubos com flanges')).toEqual(['IfcPipeSegment']);
     expect(entities('Conexões e válvulas').sort()).toEqual([
       'IfcFilter',
+      'IfcFlowMeter',
       'IfcPipeFitting',
       'IfcValve',
     ]);

@@ -1,14 +1,15 @@
 import {
+  alignmentTolerance,
   autoConnectElement,
   connectPorts,
   connectedComponent,
   findConnection,
   getElement,
   isPortFree,
+  jointDeflectionLimit,
   resolvePort,
 } from './connectivity';
 import {
-  ANGLE_TOLERANCE,
   elbowPortDistances,
   MAX_ELBOW_ANGLE,
   MIN_ELBOW_ANGLE,
@@ -47,6 +48,7 @@ import { getPort, pipeLength, type Port } from './ports';
 import { reconcile, setPipeEnd, translateFitting, verifyCoupling } from './reconcile';
 import { fail, ok, type Result } from './result';
 import {
+  defaultInfraSettings,
   PROJECT_FORMAT,
   SCHEMA_VERSION,
   type Discipline,
@@ -110,6 +112,7 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     connections: [],
     annotations: [],
     drawingScale: discipline === 'infra' ? 500 : 50,
+    infra: defaultInfraSettings(),
   };
 }
 
@@ -271,8 +274,12 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
   const spec = port.spec;
   const systemId = host.systemId;
   const deflection = angleBetween(port.direction, direction);
+  // Junta elástica: a deflexão que o fabricante admite dispensa a peça. O tubo novo sai de
+  // ponta lisa, salvo o flange pedido em `ends.start` (flange não deflete).
+  const newSide = { spec, end: input.ends?.start ?? null };
+  const jointLimit = jointDeflectionLimit(port, newSide);
 
-  if (deflection <= ANGLE_TOLERANCE) {
+  if (deflection <= alignmentTolerance(port, newSide)) {
     return addPipe(project, {
       start: corner,
       end: input.end,
@@ -285,7 +292,9 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
   if (host.kind !== 'pipe') {
     return fail(
       'OFF_AXIS',
-      'A partir de uma conexão, o tubo deve seguir o eixo da porta. Insira um joelho para mudar de direção.',
+      jointLimit > 0
+        ? `A partir de uma conexão, o tubo deve seguir o eixo da porta; a junta admite deflexão de até ${formatDegrees(jointLimit, 2)}, e a pedida é de ${formatDegrees(deflection, 2)}. Insira um joelho para mudar de direção.`
+        : 'A partir de uma conexão, o tubo deve seguir o eixo da porta. Insira um joelho para mudar de direção.',
     );
   }
   if (deflection > MAX_ELBOW_ANGLE) {
@@ -297,7 +306,11 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
   if (input.elbowAngles?.length && matchElbowAngle(input.elbowAngles, deflection) === null) {
     return fail(
       'NO_ELBOW_FOR_ANGLE',
-      `Não há joelho de ${formatDegrees(deflection, 2)} no catálogo para ${spec.sizeLabel}. Ângulos disponíveis: ${formatAngleList(input.elbowAngles)}.`,
+      `Não há joelho de ${formatDegrees(deflection, 2)} no catálogo para ${spec.sizeLabel}. Ângulos disponíveis: ${formatAngleList(input.elbowAngles)}.${
+        jointLimit > 0
+          ? ` Sem peça, a junta admite deflexão de até ${formatDegrees(jointLimit, 2)}.`
+          : ''
+      }`,
     );
   }
 
@@ -520,6 +533,9 @@ export function buildFitting(
         ...base,
         // O filtro Y é uma peça em linha tratada como "válvula", mas não leva esse nome.
         ...(valveType === 'strainer' ? { name: nextName(project, 'valve', 'Filtro Y') } : {}),
+        ...(valveType === 'flowMeter'
+          ? { name: nextName(project, 'valve', 'Medidor de vazão') }
+          : {}),
         kind: 'valve',
         placement,
         familyId: dims.familyId,

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { ctl } from './ui';
 
 /**
  * Planta baixa (documentação técnica): projeção do modelo, cotas, textos, chamadas,
@@ -16,7 +17,7 @@ function trackErrors(page: Page): string[] {
 }
 
 async function setField(page: Page, testId: string, value: string): Promise<void> {
-  const field = page.getByTestId(testId);
+  const field = await ctl(page, testId);
   await field.fill(value);
   await field.press('Enter');
 }
@@ -25,7 +26,7 @@ async function addPoint(page: Page, x: string, y: string, z: string): Promise<vo
   await setField(page, 'coord-x', x);
   await setField(page, 'coord-y', y);
   await setField(page, 'coord-z', z);
-  await page.getByTestId('coord-add').click();
+  await (await ctl(page, 'coord-add')).click();
 }
 
 const annotations = (page: Page, kind: string) =>
@@ -37,18 +38,18 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   const errors = trackErrors(page);
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('action-new').click();
+  await (await ctl(page, 'action-new')).click();
   await expect(page.getByTestId('element-count')).toHaveText('0');
 
   // Rede em "L": 3 m ao longo de X e 4 m ao longo de Y, com joelho automático.
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   await addPoint(page, '0', '0', '0');
   await addPoint(page, '3', '0', '0');
   await addPoint(page, '3', '4', '0');
   await page.keyboard.press('Escape');
 
   // A ferramenta de cota abre a planta baixa.
-  await page.getByTestId('tool-dimension').click();
+  await (await ctl(page, 'tool-dimension')).click();
   await expect(page.getByTestId('plan-view')).toBeVisible();
   await expect(page.getByTestId('view-mode-plan')).toHaveAttribute('aria-pressed', 'true');
   const svg = page.getByTestId('plan-svg');
@@ -69,7 +70,7 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   const midY = horizontal.y + horizontal.height / 2;
 
   // Cota horizontal entre a extremidade livre e o vértice (captura nos pontos notáveis).
-  await page.getByTestId('plan-dimension-mode').selectOption('horizontal');
+  await (await ctl(page, 'plan-dimension-mode')).selectOption('horizontal');
   await page.mouse.click(horizontal.x + 3, midY);
   await page.mouse.click(vertical.x + vertical.width / 2, vertical.y + 3);
   await page.mouse.click(horizontal.x + horizontal.width / 2, midY + 70);
@@ -84,14 +85,14 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   await expect(annotations(page, 'dimension').locator('text')).toHaveText('3,00');
 
   // Etiqueta do tubo vertical: designação e comprimento derivados do elemento.
-  await page.getByTestId('tool-tag').click();
+  await (await ctl(page, 'tool-tag')).click();
   await page.mouse.click(vertical.x + vertical.width / 2, vertical.y + vertical.height / 2);
   await page.mouse.click(vertical.x + 60, vertical.y + vertical.height / 2);
   await expect(annotations(page, 'tag')).toHaveCount(1);
   await expect(page.getByTestId('annotation-tag-text')).toContainText(' m');
 
   // Chamada: ponto indicado, posição do texto e conteúdo.
-  await page.getByTestId('tool-leader').click();
+  await (await ctl(page, 'tool-leader')).click();
   await page.mouse.click(horizontal.x + horizontal.width / 2, midY);
   await page.mouse.click(horizontal.x + horizontal.width / 2 - 80, midY - 90);
   await expect(page.getByTestId('annotation-text')).toBeFocused();
@@ -107,12 +108,12 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   await expect(annotations(page, 'text').locator('text')).toHaveText('RECALQUE');
 
   // Texto livre, depois excluído pela tecla Delete.
-  await page.getByTestId('tool-text').click();
+  await (await ctl(page, 'tool-text')).click();
   await page.mouse.click(horizontal.x + 40, midY - 200);
   await page.getByTestId('annotation-text').fill('CASA DE MÁQUINAS');
   await page.getByTestId('annotation-text').press('Enter');
   await expect(annotations(page, 'text')).toHaveCount(2);
-  await page.getByTestId('tool-select').click();
+  await (await ctl(page, 'tool-select')).click();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('annotation-inspector')).toHaveCount(0);
   await svg.getByText('CASA DE MÁQUINAS').click();
@@ -121,19 +122,19 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   await expect(annotations(page, 'text')).toHaveCount(1);
 
   // Escala do desenho.
-  await page.getByTestId('plan-scale').selectOption('25');
-  await expect(page.getByTestId('plan-scale')).toHaveValue('25');
+  await (await ctl(page, 'plan-scale')).selectOption('25');
+  await expect(await ctl(page, 'plan-scale')).toHaveValue('25');
 
   // Linhas finas (padrão): traço de 1 px na tela, sem alterar as espessuras de papel do desenho.
   // Desligadas, a planta mostra as espessuras de plotagem.
   const outlinePath = svg.locator('[data-element-kind="pipe"] path[fill="none"]').first();
   const paperWidth = await outlinePath.getAttribute('stroke-width');
   const strokeWidth = () => outlinePath.evaluate((node) => getComputedStyle(node).strokeWidth);
-  await expect(page.getByTestId('plan-thin-lines')).toHaveAttribute('aria-pressed', 'true');
-  await page.getByTestId('plan-thin-lines').click();
-  await expect(page.getByTestId('plan-thin-lines')).toHaveAttribute('aria-pressed', 'false');
+  await expect(await ctl(page, 'plan-thin-lines')).toHaveAttribute('aria-pressed', 'true');
+  await (await ctl(page, 'plan-thin-lines')).click();
+  await expect(await ctl(page, 'plan-thin-lines')).toHaveAttribute('aria-pressed', 'false');
   expect(await strokeWidth()).not.toBe('1px');
-  await page.getByTestId('plan-thin-lines').click();
+  await (await ctl(page, 'plan-thin-lines')).click();
   expect(await strokeWidth()).toBe('1px');
   expect(await outlinePath.evaluate((node) => getComputedStyle(node).vectorEffect)).toBe(
     'non-scaling-stroke',
@@ -146,7 +147,7 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   expect(await fillPath.getAttribute('data-role')).toBe('body');
 
   // Tema preto e branco: preenchimento branco, traço preto.
-  await page.getByTestId('plan-theme').selectOption('mono');
+  await (await ctl(page, 'plan-theme')).selectOption('mono');
   await expect(page.getByTestId('plan-view')).toHaveAttribute('data-theme', 'mono');
   for (const path of await svg.locator('[data-layer="elements"] path:first-child').all()) {
     expect(await path.getAttribute('fill')).toBe('#ffffff');
@@ -155,7 +156,7 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
 
   // Exportação em SVG: tamanho físico, legenda com a escala e sem auxiliares de tela.
   const svgDownload = page.waitForEvent('download');
-  await page.getByTestId('plan-export-svg').click();
+  await (await ctl(page, 'plan-export-svg')).click();
   const svgFile = await (await svgDownload).path();
   const svgText = await readFile(svgFile, 'utf8');
   expect(svgText).toContain('<svg');
@@ -175,7 +176,7 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
     new RegExp(`\\n${type}\\n5\\n[0-9A-F]+\\n330\\n[0-9A-F]+\\n100\\nAcDbEntity\\n8\\n${layer}\\n`);
   const planDxfDownload = await Promise.all([
     page.waitForEvent('download'),
-    page.getByTestId('plan-export-dxf').click(),
+    (await ctl(page, 'plan-export-dxf')).click(),
   ]).then(([download]) => download);
   expect(planDxfDownload.suggestedFilename()).toMatch(/-planta\.dxf$/);
   const planDxf = await readFile(await planDxfDownload.path(), 'latin1');
@@ -198,7 +199,7 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
   // Exportação em DXF do modelo 3D: uma malha poliface por parte de cada elemento.
   const modelDxfDownload = await Promise.all([
     page.waitForEvent('download'),
-    page.getByTestId('action-export-dxf').click(),
+    (await ctl(page, 'action-export-dxf')).click(),
   ]).then(([download]) => download);
   expect(modelDxfDownload.suggestedFilename()).toMatch(/-3d\.dxf$/);
   const modelDxf = await readFile(await modelDxfDownload.path(), 'latin1');
@@ -208,13 +209,13 @@ test('planta baixa: cotar, anotar, etiquetar, exportar e reabrir', async ({ page
 
   // As anotações fazem parte do projeto exportado.
   const jsonDownload = page.waitForEvent('download');
-  await page.getByTestId('action-export').click();
+  await (await ctl(page, 'action-export')).click();
   const exported = JSON.parse(await readFile(await (await jsonDownload).path(), 'utf8')) as {
     schemaVersion: number;
     drawingScale: number;
     annotations: { kind: string }[];
   };
-  expect(exported.schemaVersion).toBe(10);
+  expect(exported.schemaVersion).toBe(12);
   expect(exported.drawingScale).toBe(25);
   expect(exported.annotations.map((a) => a.kind).sort()).toEqual(['dimension', 'tag', 'text']);
 

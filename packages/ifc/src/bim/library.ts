@@ -9,7 +9,7 @@ import type { IfcClassification } from './types';
  * (`ifcopenshell.util.doc`); ver docs/IFC_MAPPING.md.
  */
 
-const VALVE_TYPES: Record<Exclude<ValveType, 'strainer'>, string> = {
+const VALVE_TYPES: Record<Exclude<ValveType, 'strainer' | 'flowMeter'>, string> = {
   gate: 'ISOLATING',
   ball: 'ISOLATING',
   butterfly: 'ISOLATING',
@@ -32,9 +32,11 @@ export function classifyFittingFamily(
       return { entity: 'IfcPipeFitting', predefinedType: 'TRANSITION', objectType: 'reducer' };
     case 'valve': {
       const type = family.valveType ?? 'gate';
-      return type === 'strainer'
-        ? { entity: 'IfcFilter', predefinedType: 'STRAINER', objectType: 'strainer' }
-        : { entity: 'IfcValve', predefinedType: VALVE_TYPES[type], objectType: type };
+      if (type === 'strainer')
+        return { entity: 'IfcFilter', predefinedType: 'STRAINER', objectType: 'strainer' };
+      if (type === 'flowMeter')
+        return { entity: 'IfcFlowMeter', predefinedType: 'WATERMETER', objectType: 'flowMeter' };
+      return { entity: 'IfcValve', predefinedType: VALVE_TYPES[type], objectType: type };
     }
   }
 }

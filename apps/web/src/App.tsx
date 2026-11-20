@@ -1,65 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { BimTree } from './bim/BimTree';
 import { IfcLibraryDialog } from './bim/IfcLibraryDialog';
 import { IfcPanel } from './bim/IfcPanel';
-import { isAnnotationTool, selectIsDirty, useEditorStore } from './state/editorStore';
-import { restoreSession, saveCurrentProject } from './state/projectActions';
-import { ErrorBoundary } from './ui/ErrorBoundary';
+import { useKeyboardShortcuts } from './commands/useCommands';
 import { PlanView } from './plan/PlanView';
+import { isAnnotationTool, selectIsDirty, useEditorStore } from './state/editorStore';
+import { restoreSession } from './state/projectActions';
+import { useUiStore, type DialogId } from './state/uiStore';
+import { CommandPalette } from './ui/CommandPalette';
+import { ContextMenu } from './ui/ContextMenu';
+import { ErrorBoundary } from './ui/ErrorBoundary';
+import { ExportDialog } from './ui/ExportDialog';
 import { FamiliesDialog } from './ui/FamiliesDialog';
+import { TOOL_LABELS } from './ui/labels';
 import { OpenProjectDialog } from './ui/OpenProjectDialog';
+import { ProjectBrowser } from './ui/ProjectBrowser';
 import { ProjectDialog } from './ui/ProjectDialog';
 import { PropertiesPanel } from './ui/PropertiesPanel';
+import { SidePanel } from './ui/SidePanel';
 import { StatusBar } from './ui/StatusBar';
-import { ToolBar, TOOL_SHORTCUTS } from './ui/ToolBar';
+import { ToolBar } from './ui/ToolBar';
 import { ToolOptions } from './ui/ToolOptions';
 import { TopBar } from './ui/TopBar';
+import { ViewTabs } from './ui/ViewTabs';
 import { Viewport } from './viewport/Viewport';
 
-function isTyping(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.tagName === 'INPUT' ||
-      target.tagName === 'SELECT' ||
-      target.tagName === 'TEXTAREA' ||
-      target.isContentEditable)
-  );
-}
-
-function useKeyboardShortcuts(): void {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      const state = useEditorStore.getState();
-      const modifier = event.ctrlKey || event.metaKey;
-      const key = event.key.toLowerCase();
-      if (modifier && key === 's') {
-        event.preventDefault();
-        void saveCurrentProject();
-        return;
-      }
-      if (isTyping(event.target)) return;
-      // A aba BIM / IFC é de consulta e cadastro: atalhos de modelagem e Delete não valem nela.
-      const viewer = state.viewMode === 'bim';
-      if (modifier && key === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) state.redo();
-        else state.undo();
-      } else if (modifier && key === 'y') {
-        event.preventDefault();
-        state.redo();
-      } else if (event.key === 'Escape') {
-        state.cancelInteraction();
-      } else if (event.key === 'Delete') {
-        if (!viewer) state.deleteSelected();
-      } else if (!modifier && !event.altKey && !viewer) {
-        const tool = TOOL_SHORTCUTS[key];
-        if (tool) state.setTool(tool);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-}
+/** Largura da régua de um painel recolhido. */
+const RAIL = 28;
 
 /** Avisa antes de fechar a página com alterações não salvas. */
 function useUnsavedChangesGuard(): void {
@@ -73,14 +40,75 @@ function useUnsavedChangesGuard(): void {
   }, []);
 }
 
+/**
+ * Painel direito. Duas abas separam o que vale para o **próximo** elemento (opções da
+ * ferramenta ativa) do que pertence aos elementos **já selecionados** (propriedades). Na
+ * consulta BIM / IFC o painel mostra as propriedades IFC.
+ */
+function RightPanel() {
+  const tool = useEditorStore((s) => s.tool);
+  const bim = useEditorStore((s) => s.viewMode === 'bim');
+  const selectionSize = useEditorStore((s) => s.selection.length);
+  const tab = useUiStore((s) => s.panelTab);
+  const setTab = useUiStore((s) => s.setPanelTab);
+  if (bim) return <IfcPanel />;
+  const creating = tool !== 'select' && !isAnnotationTool(tool);
+  const showTool = creating && tab === 'tool';
+  return (
+    <div
+      className="rightpanel"
+      data-testid="right-panel"
+      data-tab={showTool ? 'tool' : 'properties'}
+    >
+      <div className="rightpanel__tabs" role="tablist" aria-label="Painel">
+        <button
+          type="button"
+          role="tab"
+          data-testid="panel-tab-tool"
+          aria-selected={showTool}
+          className={showTool ? 'rightpanel__tab is-active is-tool' : 'rightpanel__tab'}
+          disabled={!creating}
+          title={
+            creating
+              ? `Opções da ferramenta ${TOOL_LABELS[tool]}: parâmetros do próximo elemento a criar`
+              : 'Sem ferramenta de criação ativa. Escolha uma em Modelagem › Criar para ver as suas opções.'
+          }
+          onClick={() => setTab('tool')}
+        >
+          Ferramenta{creating ? ` · ${TOOL_LABELS[tool]}` : ''}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          data-testid="panel-tab-properties"
+          aria-selected={!showTool}
+          className={!showTool ? 'rightpanel__tab is-active' : 'rightpanel__tab'}
+          title="Propriedades dos elementos já selecionados"
+          onClick={() => setTab('properties')}
+        >
+          Propriedades{selectionSize > 0 ? ` · ${selectionSize}` : ''}
+        </button>
+      </div>
+      {showTool ? <ToolOptions /> : <PropertiesPanel />}
+    </div>
+  );
+}
+
 export function App() {
   const [ready, setReady] = useState(false);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [familiesDialog, setFamiliesDialog] = useState(false);
   const [projectDialog, setProjectDialog] = useState(false);
-  const [libraryDialog, setLibraryDialog] = useState(false);
-  const tool = useEditorStore((s) => s.tool);
   const viewMode = useEditorStore((s) => s.viewMode);
+  const dialog = useUiStore((s) => s.dialog);
+  const closeDialog = (id: DialogId) => (): void => useUiStore.getState().closeDialog(id);
+  const navOpen = useUiStore((s) => s.navOpen);
+  const panelOpen = useUiStore((s) => s.panelOpen);
+  const navWidth = useUiStore((s) => s.navWidth);
+  const panelWidth = useUiStore((s) => s.panelWidth);
+  // As vistas e a faixa pedem o diálogo de projeto em uma aba (georreferência, perfil) pela store.
+  const projectRequest = useEditorStore((s) => s.projectDialogRequest);
+  useEffect(() => {
+    if (projectRequest) setProjectDialog(true);
+  }, [projectRequest]);
   useKeyboardShortcuts();
   useUnsavedChangesGuard();
 
@@ -99,64 +127,57 @@ export function App() {
     };
   }, []);
 
+  const bim = viewMode === 'bim';
+  // A árvore e as propriedades IFC pedem mais largura que as listas de modelagem.
+  const columns = {
+    '--nav-width': `${navOpen ? Math.max(navWidth, bim ? 300 : 0) : RAIL}px`,
+    '--panel-width': `${panelOpen ? Math.max(panelWidth, bim ? 380 : 0) : RAIL}px`,
+  } as CSSProperties;
+
   return (
     <ErrorBoundary
       title="O HydroBIM encontrou um erro inesperado"
       hint="Tente novamente. Se o problema persistir, recarregue a página."
     >
       <div
-        className={viewMode === 'bim' ? 'app app--bim' : 'app'}
+        className={bim ? 'app app--bim' : 'app'}
+        style={columns}
         data-ready={ready}
         data-view-mode={viewMode}
         data-testid="app"
       >
-        <TopBar
-          onOpen={() => setOpenDialog(true)}
-          onFamilies={() => setFamiliesDialog(true)}
-          onProject={() => setProjectDialog(true)}
-        />
-        {viewMode === 'bim' ? <BimTree /> : <ToolBar />}
+        <TopBar />
+        <ToolBar />
+        <SidePanel side="nav" title="Navegador do projeto">
+          {bim ? <BimTree /> : <ProjectBrowser />}
+        </SidePanel>
         <main className="workspace">
-          {!ready ? (
-            <div className="viewport-fallback">Carregando projeto…</div>
-          ) : viewMode === 'plan' ? (
-            <PlanView />
-          ) : (
-            <Viewport />
-          )}
-          {tool !== 'select' && !isAnnotationTool(tool) && <ToolOptions />}
-          <div className="segmented viewmode" role="group" aria-label="Área de trabalho">
-            {(['3d', 'plan', 'bim'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                data-testid={`view-mode-${mode}`}
-                className={viewMode === mode ? 'segmented__item is-active' : 'segmented__item'}
-                aria-pressed={viewMode === mode}
-                onClick={() => useEditorStore.getState().setViewMode(mode)}
-                title={
-                  mode === '3d'
-                    ? 'Modelo 3D: modelagem da rede'
-                    : mode === 'plan'
-                      ? 'Planta baixa: documentação técnica com cotas, textos e etiquetas'
-                      : 'BIM / IFC: classificação, propriedades, quantidades, portas e validação IFC 4.3'
-                }
-              >
-                {mode === '3d' ? 'Modelo 3D' : mode === 'plan' ? 'Planta baixa' : 'BIM / IFC'}
-              </button>
-            ))}
+          <ViewTabs />
+          <div className="workspace__view" data-testid="workspace-view">
+            {!ready ? (
+              <div className="viewport-fallback">Carregando projeto…</div>
+            ) : viewMode === 'plan' ? (
+              <PlanView />
+            ) : (
+              <Viewport />
+            )}
           </div>
         </main>
-        {viewMode === 'bim' ? (
-          <IfcPanel onLibrary={() => setLibraryDialog(true)} />
-        ) : (
-          <PropertiesPanel />
-        )}
+        <SidePanel side="panel" title="Propriedades">
+          <RightPanel />
+        </SidePanel>
         <StatusBar />
-        <OpenProjectDialog open={openDialog} onClose={() => setOpenDialog(false)} />
-        <FamiliesDialog open={familiesDialog} onClose={() => setFamiliesDialog(false)} />
-        <ProjectDialog open={projectDialog} onClose={() => setProjectDialog(false)} />
-        <IfcLibraryDialog open={libraryDialog} onClose={() => setLibraryDialog(false)} />
+        <ContextMenu />
+        <OpenProjectDialog open={dialog === 'open'} onClose={closeDialog('open')} />
+        <FamiliesDialog open={dialog === 'families'} onClose={closeDialog('families')} />
+        <IfcLibraryDialog open={dialog === 'ifcLibrary'} onClose={closeDialog('ifcLibrary')} />
+        <ExportDialog open={dialog === 'export'} onClose={closeDialog('export')} />
+        <CommandPalette open={dialog === 'commands'} onClose={closeDialog('commands')} />
+        <ProjectDialog
+          open={projectDialog}
+          onClose={() => setProjectDialog(false)}
+          request={projectRequest}
+        />
       </div>
     </ErrorBoundary>
   );

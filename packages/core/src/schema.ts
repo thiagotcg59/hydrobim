@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 10 as const;
+export const SCHEMA_VERSION = 12 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -49,6 +49,12 @@ export const PipeSpecSchema = z.object({
   outerDiameter: positive,
   innerDiameter: positive,
   wallThickness: positive,
+  /**
+   * Deflexão angular máxima admitida em cada junta (rad) — juntas elásticas, conforme o
+   * fabricante. É dado de catálogo, com fonte; ausente = junta rígida ou valor não informado,
+   * caso em que só o alinhamento exato conecta.
+   */
+  jointDeflection: positive.optional(),
 });
 export type PipeSpec = z.infer<typeof PipeSpecSchema>;
 
@@ -198,6 +204,9 @@ export const VALVE_TYPES = [
   // Filtro Y (não é válvula: no IFC é `IfcFilter`). A porta `a` é a de montante; o bojo do
   // elemento filtrante desce a 45° no sentido de jusante.
   'strainer',
+  // Medidor de vazão em linha (macromedidor eletromagnético; não é válvula: no IFC é
+  // `IfcFlowMeter`). A porta `a` é a de montante.
+  'flowMeter',
 ] as const;
 export const ValveTypeSchema = z.enum(VALVE_TYPES);
 export type ValveType = z.infer<typeof ValveTypeSchema>;
@@ -210,7 +219,8 @@ export const ValveSchema = z.object({
   length: positive,
   /**
    * Altura do eixo ao topo do acionamento (m), quando informada pelo catálogo. No filtro Y
-   * (`strainer`): do eixo ao ponto mais baixo do bojo (tampa).
+   * (`strainer`): do eixo ao ponto mais baixo do bojo (tampa). No medidor de vazão
+   * (`flowMeter`): do eixo ao topo do cabeçote (conversor ou caixa de ligação).
    */
   height: positive.optional(),
   /** Diâmetro do volante (m), quando informado pelo catálogo. */
@@ -567,17 +577,135 @@ export const GeoreferenceSchema = z.object({
   orthogonalHeight: finite,
   /** Rotação do eixo X local em relação ao leste, sentido anti-horário (rad). */
   rotation: finite,
+  /**
+   * Referência altimétrica das cotas (ex.: `Imbituba`, `Santana`, `local`). `null` = não
+   * informada: as cotas valem só como cotas do projeto, sem datum vertical declarado.
+   */
+  verticalDatum: z.string().min(1).nullable(),
 });
 export type Georeference = z.infer<typeof GeoreferenceSchema>;
 
-/** Superfície de terreno triangulada (TIN), em coordenadas locais do projeto. */
+/**
+ * Configuração própria do ambiente Infra (Planta Infra): escala de documentação, mapa de
+ * fundo, camadas e rótulos. É independente da planta do MEP (`drawingScale`). Só guarda o que é
+ * preciso para reabrir o projeto como foi deixado; zoom, filtros e origem de renderização são
+ * estado de sessão e não entram aqui.
+ */
+export const InfraSettingsSchema = z.object({
+  /** Denominador da escala de documentação da Planta Infra (1000 = 1:1.000). */
+  drawingScale: positive,
+  basemap: z.object({
+    /**
+     * Identificador da fonte de mapa (registro de provedores do editor); `null` = fundo técnico
+     * limpo. O domínio não conhece o provedor: guarda só a escolha.
+     */
+    sourceId: z.string().min(1).nullable(),
+    visible: z.boolean(),
+    /** Opacidade da imagem, de 0 a 1. */
+    opacity: z.number().min(0).max(1),
+  }),
+  layers: z.object({
+    /** Tubos e conexões. */
+    network: z.boolean(),
+    /** Válvulas, bombas e reservatórios. */
+    equipment: z.boolean(),
+    /** Triangulação do terreno importado. */
+    terrain: z.boolean(),
+    /** Malha de coordenadas do sistema projetado. */
+    references: z.boolean(),
+    /** Cotas, textos, chamadas e etiquetas. */
+    annotations: z.boolean(),
+  }),
+  labels: z.object({
+    /** Identificação de nós e trechos. */
+    names: z.boolean(),
+    /** Comprimento dos trechos. */
+    lengths: z.boolean(),
+    /** Cotas do eixo nos nós e, havendo terreno sob o ponto, cota do terreno e recobrimento. */
+    elevations: z.boolean(),
+  }),
+});
+export type InfraSettings = z.infer<typeof InfraSettingsSchema>;
+
+/** Escalas de documentação oferecidas na Planta Infra. */
+export const INFRA_DRAWING_SCALES = [200, 500, 1000, 2000, 5000, 10000] as const;
+
+/** Configuração inicial do ambiente Infra: fundo técnico, todas as camadas, sem rótulos. */
+export function defaultInfraSettings(drawingScale = 1000): InfraSettings {
+  return {
+    drawingScale,
+    basemap: { sourceId: null, visible: true, opacity: 1 },
+    layers: { network: true, equipment: true, terrain: true, references: true, annotations: true },
+    labels: { names: false, lengths: false, elevations: false },
+  };
+}
+
+/**
+ * Procedência dos dados de elevação de uma superfície. Tudo o que a fonte não declara fica
+ * `null` (não informado): resolução do raster NÃO é exatidão altimétrica, e nenhuma das duas é
+ * presumida.
+ */
+export const TerrainSourceSchema = z.object({
+  /** `survey` = levantamento topográfico (pontos e linhas de quebra); `dem` = modelo raster. */
+  kind: z.enum(['survey', 'dem']),
+  /** Quem forneceu o dado (serviço, formato ou "Pontos XYZ"). */
+  provider: z.string().min(1),
+  /** Arquivo ou conjunto de dados de origem. */
+  dataset: z.string().min(1).nullable(),
+  /** Sistema de referência horizontal em que o dado foi recebido (ex.: `EPSG:3857`). */
+  horizontalCrs: z.string().min(1).nullable(),
+  /** Referência altimétrica declarada pela fonte; `null` = não declarada. */
+  verticalDatum: z.string().min(1).nullable(),
+  /** Espaçamento (m) entre as amostras do raster usadas na superfície; `null` em levantamentos. */
+  resolution: positive.nullable(),
+  /** Exatidão altimétrica (m) declarada pela fonte; `null` = não declarada. */
+  verticalAccuracy: positive.nullable(),
+  /** Quando o dado foi obtido ou importado (ISO 8601); `null` em superfícies antigas. */
+  acquiredAt: z.string().min(1).nullable(),
+  /** Atribuição exigida pela fonte. */
+  attribution: z.string().min(1).nullable(),
+  /** Ressalvas da fonte (sobreamostragem, lacunas, datum misto). */
+  notes: z.string().min(1).nullable(),
+});
+export type TerrainSource = z.infer<typeof TerrainSourceSchema>;
+
+/**
+ * Superfície de terreno triangulada (TIN), em coordenadas locais do projeto (o sistema
+ * horizontal e a referência altimétrica são os da georreferência do projeto). A estrutura —
+ * pontos, faces, limite e linhas de quebra — é a mesma de uma superfície LandXML e de um
+ * `IfcTriangulatedIrregularNetwork`, e a malha vai direto para faces 3D no DXF.
+ */
 export const TerrainSchema = z.object({
   name: z.string(),
   points: z.array(Vec3Schema),
-  /** Índices dos vértices, três por triângulo. */
+  /** Índices dos vértices, três por triângulo, em sentido anti-horário em planta. */
   triangles: z.array(z.number().int().nonnegative()),
+  /**
+   * Limite da superfície: o primeiro anel é o contorno externo, os demais são furos; `null` =
+   * envoltória convexa dos pontos. Nenhum triângulo fica fora do contorno ou dentro de um furo.
+   */
+  boundary: z.array(z.array(Vec3Schema).min(3)).min(1).nullable(),
+  /** Linhas de quebra: arestas obrigatórias da triangulação (cristas, pés de talude, sarjetas). */
+  breaklines: z.array(z.array(Vec3Schema).min(2)),
+  source: TerrainSourceSchema,
 });
 export type Terrain = z.infer<typeof TerrainSchema>;
+
+/** Procedência de um levantamento por pontos informado em arquivo. */
+export function surveySource(dataset: string | null, acquiredAt: string | null): TerrainSource {
+  return {
+    kind: 'survey',
+    provider: 'Pontos XYZ',
+    dataset,
+    horizontalCrs: null,
+    verticalDatum: null,
+    resolution: null,
+    verticalAccuracy: null,
+    acquiredAt,
+    attribution: null,
+    notes: null,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Documentação: anotações da planta baixa
@@ -666,5 +794,7 @@ export const ProjectSchema = z.object({
   annotations: z.array(AnnotationSchema),
   /** Denominador da escala do desenho (50 = 1:50); define o tamanho de textos e cotas. */
   drawingScale: positive,
+  /** Configuração da Planta Infra (independente da planta do MEP). */
+  infra: InfraSettingsSchema,
 });
 export type Project = z.infer<typeof ProjectSchema>;

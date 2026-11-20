@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 12
 
 
 def _json_number(value: Any) -> int | float:
@@ -38,7 +38,15 @@ PositiveInteger = Annotated[int, Field(gt=0, strict=False), BeforeValidator(_jso
 Material = Literal["pvc", "hdpe", "ductileIron", "carbonSteel"]
 JointType = Literal["solventWeld", "socketSpigot", "buttFusion", "buttWeld", "flanged", "threaded"]
 ValveType = Literal[
-    "gate", "globe", "ball", "butterfly", "check", "airRelease", "pressureReducing", "strainer"
+    "gate",
+    "globe",
+    "ball",
+    "butterfly",
+    "check",
+    "airRelease",
+    "pressureReducing",
+    "strainer",
+    "flowMeter",
 ]
 EndType = Literal["plain", "socket", "flange"]
 SystemKind = Literal[
@@ -107,6 +115,8 @@ class PipeSpec(CamelModel):
     outer_diameter: PositiveNumber
     inner_diameter: PositiveNumber
     wall_thickness: PositiveNumber
+    # Deflexão angular admitida em cada junta (rad), do catálogo; ausente = junta rígida.
+    joint_deflection: PositiveNumber = Field(default=None, validate_default=False)
 
 
 class ElementMeta(CamelModel):
@@ -392,12 +402,97 @@ class Georeference(CamelModel):
     northings: FiniteNumber
     orthogonal_height: FiniteNumber
     rotation: FiniteNumber
+    # Esquema v11: referência altimétrica das cotas; None = não informada.
+    vertical_datum: NonEmptyString | None
+
+
+class InfraBasemap(CamelModel):
+    # None = fundo técnico limpo; o domínio guarda só a escolha da fonte de mapa.
+    source_id: NonEmptyString | None
+    visible: bool
+    opacity: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
+
+
+class InfraLayers(CamelModel):
+    network: bool
+    equipment: bool
+    terrain: bool
+    references: bool
+    annotations: bool
+
+
+class InfraLabels(CamelModel):
+    names: bool
+    lengths: bool
+    elevations: bool
+
+
+class InfraSettings(CamelModel):
+    """Configuração da Planta Infra (esquema v11), independente da planta do MEP."""
+
+    drawing_scale: PositiveNumber
+    basemap: InfraBasemap
+    layers: InfraLayers
+    labels: InfraLabels
+
+
+def default_infra_settings(drawing_scale: float = 1000) -> dict[str, Any]:
+    """Mesmo padrão de `defaultInfraSettings` (core/schema.ts)."""
+    return {
+        "drawingScale": drawing_scale,
+        "basemap": {"sourceId": None, "visible": True, "opacity": 1},
+        "layers": {
+            "network": True,
+            "equipment": True,
+            "terrain": True,
+            "references": True,
+            "annotations": True,
+        },
+        "labels": {"names": False, "lengths": False, "elevations": False},
+    }
+
+
+class TerrainSource(CamelModel):
+    """Procedência dos dados de elevação (esquema v12). O que a fonte não declara fica nulo."""
+
+    kind: Literal["survey", "dem"]
+    provider: NonEmptyString
+    dataset: NonEmptyString | None
+    horizontal_crs: NonEmptyString | None
+    vertical_datum: NonEmptyString | None
+    resolution: PositiveNumber | None
+    vertical_accuracy: PositiveNumber | None
+    acquired_at: NonEmptyString | None
+    attribution: NonEmptyString | None
+    notes: NonEmptyString | None
+
+
+def survey_source() -> dict[str, Any]:
+    """Procedência de um terreno antigo: levantamento por pontos, sem nada presumido."""
+    return {
+        "kind": "survey",
+        "provider": "Pontos XYZ",
+        "dataset": None,
+        "horizontalCrs": None,
+        "verticalDatum": None,
+        "resolution": None,
+        "verticalAccuracy": None,
+        "acquiredAt": None,
+        "attribution": None,
+        "notes": None,
+    }
 
 
 class Terrain(CamelModel):
     name: str
     points: list[Vec3]
     triangles: list[NonNegativeInteger]
+    # Esquema v12: limite (contorno e furos), linhas de quebra e procedência.
+    boundary: (
+        Annotated[list[Annotated[list[Vec3], Field(min_length=3)]], Field(min_length=1)] | None
+    )
+    breaklines: list[Annotated[list[Vec3], Field(min_length=2)]]
+    source: TerrainSource
 
 
 class Point2(CamelModel):
@@ -444,7 +539,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[10], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[12], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -463,16 +558,30 @@ class Project(CamelModel):
     connections: list[Connection]
     annotations: list[Annotation]
     drawing_scale: PositiveNumber
+    infra: InfraSettings
 
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v10), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v12), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7, 8, 9):
+        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
             return document
+        # v11 → v12: limite, linhas de quebra e procedência da superfície do terreno. Um
+        # terreno antigo é um levantamento por pontos, sem limite informado.
+        terrain = document.get("terrain")
+        document = {
+            **document,
+            "terrain": {"boundary": None, "breaklines": [], "source": survey_source(), **terrain}
+            if isinstance(terrain, dict)
+            else terrain,
+        }
+        if version == 11:
+            return {**document, "schemaVersion": 12}
+        # v10 → v11: configuração do ambiente Infra e referência altimétrica (não informada).
+        # A escala que um projeto Infra usava na planta passa a ser a da Planta Infra.
         # v9 → v10: trechos retos do joelho e cotas das curvas ponta e bolsa (opcionais).
         # v8 → v9: valores IFC informados pelo usuário, por tipo e por ocorrência.
         # v7 → v8: famílias de reservatórios personalizadas no projeto.
@@ -480,15 +589,39 @@ class Project(CamelModel):
         # v5 → v6: forma construtiva, bocais e acessórios dos reservatórios (opcionais).
         # v4 → v5: filtro Y e furação opcional dos flanges. Nos dois casos o documento
         # já era válido.
-        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 10}
-        if version in (4, 5, 6, 7, 8, 9):
-            return document
+        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 12}
+        if version != 1 and version != 2 and version != 3:
+            return cls._migrate_v10(document)
         # v3 → v4: anotações da planta baixa e escala do desenho.
         document = {**document, "annotations": [], "drawingScale": 50}
         if version != 1:
             # v2 → v3: novo tipo de válvula e largura opcional; o documento já era válido.
-            return document
+            return cls._migrate_v10(document)
         elements = document.get("elements")
+        return cls._migrate_v10(cls._migrate_v1(document, elements))
+
+    @staticmethod
+    def _migrate_v10(document: dict[str, Any]) -> dict[str, Any]:
+        scale = document.get("drawingScale")
+        infra_scale = (
+            scale
+            if document.get("discipline") == "infra"
+            and isinstance(scale, int | float)
+            and not isinstance(scale, bool)
+            and scale > 0
+            else 1000
+        )
+        georeference = document.get("georeference")
+        return {
+            "infra": default_infra_settings(infra_scale),
+            **document,
+            "georeference": {"verticalDatum": None, **georeference}
+            if isinstance(georeference, dict)
+            else georeference,
+        }
+
+    @staticmethod
+    def _migrate_v1(document: dict[str, Any], elements: Any) -> dict[str, Any]:
         return {
             **document,
             "levels": [{"id": "nivel-0", "name": "Térreo", "elevation": 0}],

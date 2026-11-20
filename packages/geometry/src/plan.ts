@@ -12,9 +12,9 @@ import type { ElementGeometry, PartRole } from './elements';
  */
 export interface PlanOutline {
   /** Triângulos em planta: 6 números (x1, y1, x2, y2, x3, y3) por triângulo. */
-  readonly fill: Float32Array;
+  readonly fill: Float64Array;
   /** Segmentos visíveis: 4 números (x1, y1, x2, y2) por segmento. */
-  readonly lines: Float32Array;
+  readonly lines: Float64Array;
   readonly minX: number;
   readonly minY: number;
   readonly maxX: number;
@@ -33,13 +33,13 @@ export interface PlanOutline {
 export interface PlanShade {
   readonly role: PartRole;
   /** Triângulos em planta: 6 números por triângulo. */
-  readonly fill: Float32Array;
+  readonly fill: Float64Array;
 }
 
 export interface PlanLineGroup {
   readonly role: PartRole;
   /** Segmentos: 4 números por segmento. */
-  readonly lines: Float32Array;
+  readonly lines: Float64Array;
 }
 
 /** Quinas com ângulo entre faces acima deste valor são desenhadas. */
@@ -141,8 +141,8 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
   }
   if (xs.length === 0) {
     return {
-      fill: new Float32Array(0),
-      lines: new Float32Array(0),
+      fill: new Float64Array(0),
+      lines: new Float64Array(0),
       minX: 0,
       minY: 0,
       maxX: 0,
@@ -155,7 +155,7 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
 
   // Máscara: faces voltadas para cima, indexadas em uma grade para o teste de ocultação.
   const upFaces = faces.filter((f) => f.up);
-  const fill = new Float32Array(upFaces.length * 6);
+  const fill = new Float64Array(upFaces.length * 6);
   const cells = Math.min(96, Math.max(4, Math.round(Math.sqrt(upFaces.length))));
   const spanX = Math.max(maxX - minX, 1e-9);
   const spanY = Math.max(maxY - minY, 1e-9);
@@ -295,7 +295,7 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
   let runRole: PartRole | null = null;
   const flush = (): void => {
     if (runRole !== null && run.length > 0) {
-      shading.push({ role: runRole, fill: new Float32Array(run) });
+      shading.push({ role: runRole, fill: new Float64Array(run) });
     }
     run = [];
   };
@@ -310,13 +310,13 @@ export function planOutline(geometry: ElementGeometry): PlanOutline {
 
   return {
     fill,
-    lines: new Float32Array(lines),
+    lines: new Float64Array(lines),
     minX,
     minY,
     maxX,
     maxY,
     maxZ,
     shading,
-    lineGroups: [...linesByRole].map(([role, group]) => ({ role, lines: new Float32Array(group) })),
+    lineGroups: [...linesByRole].map(([role, group]) => ({ role, lines: new Float64Array(group) })),
   };
 }

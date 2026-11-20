@@ -27,6 +27,8 @@ export interface DeflectionConstraint {
   readonly axis: Vec3;
   /** Deflexões (rad) com joelho de catálogo. */
   readonly angles: readonly number[];
+  /** Deflexão (rad) que a junta admite sem peça; ausente ou 0 = junta rígida. */
+  readonly jointLimit?: number;
 }
 
 export interface PlanPickContext {
@@ -131,7 +133,7 @@ export function pickPlanPoint(context: PlanPickContext): Result<PlanPick> {
   }
 
   if (context.constraint && anchor) {
-    const { origin, axis, angles } = context.constraint;
+    const { origin, axis, angles, jointLimit } = context.constraint;
     return ok({
       point: constrainDeflection(
         origin,
@@ -139,6 +141,7 @@ export function pickPlanPoint(context: PlanPickContext): Result<PlanPick> {
         vec3(point.x, point.y, anchor.point.z),
         angles,
         gridStep,
+        jointLimit,
       ),
       snap: 'angle',
       port: null,

@@ -5,9 +5,9 @@ import {
   detectClashes,
   parseTerrainPoints,
   segmentDistance,
-  terrainElevationAt,
   triangulate,
 } from './analysis';
+import { terrainElevationAt } from './terrain/surface';
 import { exportEpanet } from './epanet';
 import { getElement } from './connectivity';
 import { vec3 } from './math';

@@ -1,4 +1,9 @@
 import type { Discipline, JointType, Material } from '@hydrobim/core';
+import {
+  DUCTILE_IRON_JGS_DEFLECTION,
+  PVC_ELASTIC_JOINT_DEFLECTION,
+  type JointDeflectionTable,
+} from './jointDeflection';
 
 /**
  * Catálogo de especificações dimensionais de tubos.
@@ -28,6 +33,11 @@ export interface PipeSpecification {
   /** Ambientes em que a especificação é oferecida por padrão. */
   readonly disciplines: readonly Discipline[];
   readonly sizes: readonly CatalogSize[];
+  /**
+   * Deflexão angular admitida em cada junta, com a fonte. Ausente = junta rígida (soldada,
+   * por termofusão) ou valor não levantado: nenhuma deflexão é aceita.
+   */
+  readonly jointDeflection?: JointDeflectionTable;
 }
 
 const size = (dn: number, label: string, od: number, wall: number): CatalogSize => ({
@@ -65,6 +75,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'pvc',
     standard: 'ABNT NBR 5647',
     jointType: 'socketSpigot',
+    jointDeflection: PVC_ELASTIC_JOINT_DEFLECTION,
     pressureClass: 'Classe 12 (0,60 MPa)',
     disciplines: ['infra'],
     // Fonte: Amanco Wavin (FT Linha PBA, FTC000088, jan/2025, p. 14).
@@ -80,6 +91,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'pvc',
     standard: 'ABNT NBR 5647',
     jointType: 'socketSpigot',
+    jointDeflection: PVC_ELASTIC_JOINT_DEFLECTION,
     pressureClass: 'Classe 15 (0,75 MPa)',
     disciplines: ['infra'],
     // Fonte: Tigre (Catálogo Infraestrutura 07/2025) e Amanco Wavin (FT Linha PBA, jan/2025).
@@ -95,6 +107,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'pvc',
     standard: 'ABNT NBR 5647',
     jointType: 'socketSpigot',
+    jointDeflection: PVC_ELASTIC_JOINT_DEFLECTION,
     pressureClass: 'Classe 20 (1,0 MPa)',
     disciplines: ['infra'],
     sizes: [
@@ -109,6 +122,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'pvc',
     standard: 'ABNT NBR 7665',
     jointType: 'socketSpigot',
+    jointDeflection: PVC_ELASTIC_JOINT_DEFLECTION,
     pressureClass: 'PN 1 MPa',
     disciplines: ['infra'],
     // Fonte: Tigre MPVC DEFoFo (Catálogo Infraestrutura 07/2025, p. 15). Diâmetros externos
@@ -154,6 +168,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'ductileIron',
     standard: 'ABNT NBR 7675 / ISO 2531',
     jointType: 'socketSpigot',
+    jointDeflection: DUCTILE_IRON_JGS_DEFLECTION,
     pressureClass: 'K9',
     disciplines: ['infra', 'mep'],
     sizes: [

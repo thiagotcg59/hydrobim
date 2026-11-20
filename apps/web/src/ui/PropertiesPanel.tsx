@@ -31,8 +31,10 @@ import {
   type Vec3,
 } from '@hydrobim/core';
 import { Copy, Move, Trash2, Unlink } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { familiesOf, selectPrimaryId, useEditorStore, type SizeMode } from '../state/editorStore';
+import { useUiStore } from '../state/uiStore';
+import { CloseEnds } from './CloseEnds';
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
 import { SYSTEM_KIND_LABELS, VALVE_TYPE_LABELS } from './labels';
 import { SpecSelector } from './SpecSelector';
@@ -902,6 +904,7 @@ function MultiSelection({ elements, project }: { elements: HydroElement[]; proje
           </>
         )}
       </Section>
+      {elements.length === 2 && <CloseEnds elements={elements} project={project} />}
       <MoveCopy />
       <button
         type="button"
@@ -917,7 +920,6 @@ function MultiSelection({ elements, project }: { elements: HydroElement[]; proje
 
 /** Resumo do projeto e quantitativo básico, exibidos quando não há seleção. */
 function ProjectSummary({ project }: { project: Project }) {
-  const selection = useEditorStore((s) => s.selection);
   const lengths = new Map<string, { label: string; length: number; count: number }>();
   let generic = 0;
   for (const element of project.elements) {
@@ -939,6 +941,10 @@ function ProjectSummary({ project }: { project: Project }) {
   }
   return (
     <div className="panel__scroll">
+      <p className="panel__empty" data-testid="properties-empty">
+        <strong>Nada selecionado.</strong> Clique em um elemento na vista ou no navegador do projeto
+        para ver e editar as suas propriedades. Ctrl+clique soma à seleção.
+      </p>
       <Section title="Projeto" testId="section-project">
         <ReadOnlyRow label="Nome" value={project.name} />
         <ReadOnlyRow label="Ambiente" value={project.discipline === 'mep' ? 'MEP' : 'Infra'} />
@@ -961,7 +967,11 @@ function ProjectSummary({ project }: { project: Project }) {
         />
       </Section>
       <Section title="Tubos por diâmetro" testId="section-quantities">
-        {lengths.size === 0 && <span className="muted">Nenhum tubo modelado.</span>}
+        {lengths.size === 0 && (
+          <span className="muted">
+            Nenhum tubo modelado. Use Modelagem › Tubulação para iniciar.
+          </span>
+        )}
         {[...lengths.values()].map((entry) => (
           <ReadOnlyRow
             key={entry.label}
@@ -970,63 +980,69 @@ function ProjectSummary({ project }: { project: Project }) {
           />
         ))}
       </Section>
-      <Section title="Elementos" testId="section-elements">
-        {project.elements.length === 0 && (
-          <span className="muted">Use a ferramenta Tubulação para iniciar a modelagem.</span>
-        )}
-        <ul className="element-list">
-          {project.elements.map((element) => (
-            <li key={element.id}>
-              <button
-                type="button"
-                data-testid="element-item"
-                data-element-id={element.id}
-                data-element-kind={element.kind}
-                className={
-                  selection.includes(element.id)
-                    ? 'element-list__item is-active'
-                    : 'element-list__item'
-                }
-                title="Ctrl+clique para selecionar vários"
-                onClick={(event) =>
-                  actions().select(element.id, event.ctrlKey || event.metaKey || event.shiftKey)
-                }
-              >
-                <span>{element.name}</span>
-                <span className="muted">{element.spec.sizeLabel}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </Section>
     </div>
   );
 }
 
+/**
+ * Propriedades dos elementos já selecionados (os parâmetros do próximo elemento ficam na aba
+ * Ferramenta do mesmo painel). Sem seleção, mostra o resumo do projeto.
+ */
 export function PropertiesPanel() {
   const project = useEditorStore((s) => s.project);
   const selection = useEditorStore((s) => s.selection);
   const primaryId = useEditorStore(selectPrimaryId);
+  const reveal = useUiStore((s) => s.reveal);
+  const rootRef = useRef<HTMLElement>(null);
   const elements = selection
     .map((id) => getElement(project, id))
     .filter((e): e is HydroElement => e !== undefined);
   const element = elements.length === 1 && primaryId ? elements[0] : undefined;
 
+  // Comandos da faixa (Mover, Comprimento, Elevação…) levam ao campo que os executa.
+  useEffect(() => {
+    if (!reveal) return;
+    const target = rootRef.current?.querySelector<HTMLElement>(`[data-testid="${reveal.target}"]`);
+    if (!target) return;
+    target.scrollIntoView({ block: 'center' });
+    if (target instanceof HTMLInputElement) {
+      target.focus();
+      target.select();
+    } else if (target instanceof HTMLSelectElement) target.focus();
+  }, [reveal]);
+
   return (
-    <aside className="panel" aria-label="Propriedades">
+    <aside className="panel" aria-label="Propriedades" ref={rootRef} data-testid="properties-panel">
       <header className="panel__header">
-        <h2>{elements.length > 0 ? 'Propriedades' : 'Projeto'}</h2>
+        <h2 data-testid="properties-title">
+          {element
+            ? element.name
+            : elements.length > 1
+              ? `${elements.length} elementos selecionados`
+              : 'Projeto'}
+        </h2>
         {elements.length > 0 && (
           <button
             type="button"
             className="link"
             data-testid="back-to-project"
+            title="Limpar a seleção e ver o resumo do projeto"
             onClick={() => actions().selectMany([])}
           >
             ver projeto
           </button>
         )}
       </header>
+      <span
+        className={`panel__scope panel__scope--${element ? 'single' : elements.length > 1 ? 'multi' : 'none'}`}
+        data-testid="properties-scope"
+      >
+        {element
+          ? `Seleção única · ${elementKindLabel(element.kind)}`
+          : elements.length > 1
+            ? 'Seleção múltipla · alterações valem para todos'
+            : 'Sem seleção'}
+      </span>
       {element ? (
         <ElementProperties element={element} project={project} />
       ) : elements.length > 1 ? (

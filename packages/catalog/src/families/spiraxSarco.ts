@@ -22,16 +22,18 @@ import { family, type EndMm } from './builders';
  * https://amesweb.info/Piping/Class-125-Cast-Iron-Flanges-Dimensions-Chart.aspx
  * Valores em polegadas convertidos para milímetros (× 25,4; espessura com uma casa).
  *
- * Especificação de tubo: aço-carbono ASME B36.10. O flange de ferro fundido B16.1 classe
- * 125 tem a mesma furação do flange de aço ASME B16.5 classe 150 (Texas Flange, "Class
- * 125 flanges": https://www.texasflange.com/products/flange-dims-weights/ansi-b16-1-industry-standard/class-125wn-flanges/).
- * Não é associado ao ferro dúctil (flanges EN 1092-2 PN 10/16, de furação diferente).
+ * Especificação de tubo: ferro fundido dúctil (decisão do responsável pelo projeto — a peça
+ * é de ferro fundido e fica no grupo do ferro fundido do catálogo). ATENÇÃO: o flange da
+ * peça continua sendo o ASME B16.1 classe 125 do fabricante, cuja furação NÃO coincide com
+ * a dos flanges PN 10/16 das demais peças de ferro dúctil (ex.: DN 100 — círculo de 190,5 mm
+ * contra 180 mm). A união com flange PN exige contraflange ASME ou peça de transição; o
+ * flange não foi trocado pelo PN para não descaracterizar o produto.
  *
  * DN: correspondência convencional entre NPS e DN (2" = DN 50 … 16" = DN 400). Os
- * tamanhos de 14" e 16" são transcritos, mas a especificação de tubo embutida vai até DN 300.
+ * tamanhos de 2" e 2½" são transcritos, mas a especificação de tubo embutida começa em DN 80.
  */
 
-const STEEL = 'aco-carbono-b3610-sch40';
+const DUCTILE = 'ferro-ductil-nbr7675-k9';
 
 // [DN, A (face a face), B (eixo ao ponto mais baixo)] — NPS 2", 2½", 3", 4", 6" … 16".
 const CI = [
@@ -68,12 +70,12 @@ export const SPIRAX_SARCO_FAMILIES: FittingFamily[] = [
     name: 'Filtro Y Spirax Sarco CI — ferro fundido cinzento, flange ASME 125',
     kind: 'valve',
     valveType: 'strainer',
-    specificationId: STEEL,
+    specificationId: DUCTILE,
     endType: 'flange',
     manufacturer: 'Spirax Sarco',
     standard: 'Flanges ASME B16.1 classe 125 · corpo ASTM A126 Cl. B',
     source:
-      'Spirax Sarco — TI-D245-01 BR Rev. 00 (2008), p. 2 — A (face a face) e B (do eixo ao ponto mais baixo do bojo); C (distância para manutenção) é folga, não cota da peça. Flange (Ø externo, espessura e furação): ASME B16.1-1998 classe 125, conforme amesweb.info/Piping/Class-125-Cast-Iron-Flanges-Dimensions-Chart.aspx (fonte secundária), convertido de polegadas. 14" e 16" sem tubo correspondente na especificação.',
+      'Spirax Sarco — TI-D245-01 BR Rev. 00 (2008), p. 2 — A (face a face) e B (do eixo ao ponto mais baixo do bojo); C (distância para manutenção) é folga, não cota da peça. Flange (Ø externo, espessura e furação): ASME B16.1-1998 classe 125, conforme amesweb.info/Piping/Class-125-Cast-Iron-Flanges-Dimensions-Chart.aspx (fonte secundária), convertido de polegadas. Furação diferente da dos flanges PN 10/16 do ferro dúctil: a união exige contraflange ASME. 2" e 2½" sem tubo correspondente na especificação.',
     sizes: CI.map(([dn, a, b]) => {
       const flange = B16_1_CLASS_125_MM[dn];
       return { dn, length: a, height: b, ...(flange ? { end: flange } : {}) };

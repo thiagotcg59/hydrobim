@@ -15,6 +15,8 @@ import {
   add,
   addAnnotation,
   addLevel,
+  ANGLE_TOLERANCE,
+  angleBetween,
   addSystem,
   addTankNozzle,
   applyFamilyToInstances,
@@ -27,6 +29,7 @@ import {
   attachFitting,
   availableElbowAngles,
   catalogViolation,
+  closePorts,
   copyElements,
   createFamilyCatalog,
   createProject,
@@ -46,6 +49,7 @@ import {
   getFreePorts,
   insertInline,
   isPortFree,
+  jointDeflectionLimit,
   matchElbowAngle,
   mergeFamilies,
   MIN_PIPE_LENGTH,
@@ -73,10 +77,14 @@ import {
   setElbowCatalogAngle,
   setElementsSystem,
   setGeoreference,
+  setInfraSettings,
   setPipeEndpoint,
   setPipeEnds,
   setPipeLength,
   setTerrain,
+  slideAxesOf,
+  slideElements,
+  stretchPipe,
   sub,
   translateElements,
   updateAnnotation,
@@ -98,6 +106,7 @@ import {
   type FittingPatch,
   type Georeference,
   type HydraulicSystem,
+  type InfraSettingsPatch,
   type Pipe,
   type PipeSpec,
   type Point2,
@@ -124,7 +133,18 @@ import {
   type IfcValue,
 } from '@hydrobim/ifc';
 import { create } from 'zustand';
+import { chooseSlideDirection, snapStretchLength, stretchLengthAt } from '../editor/directEdit';
 import { distanceAlongPipe, type SnapKind } from '../editor/picking';
+import { nextRenderOrigin, NO_RENDER_ORIGIN } from '../editor/renderOrigin';
+import { loadCustomSource, storeCustomSource, type CustomBasemapSource } from '../map/customSource';
+import {
+  clearViewFocus,
+  ISO_LABELS,
+  nextIsoQuadrant,
+  type ViewPreset,
+} from '../editor/viewPresets';
+
+export type { ViewPreset };
 
 /** Ferramentas de documentação, disponíveis na planta baixa. */
 export const ANNOTATION_TOOLS = ['dimension', 'text', 'leader', 'tag'] as const;
@@ -151,8 +171,10 @@ export interface PlanDraft {
   readonly elementId: string | null;
 }
 const EMPTY_DRAFT: PlanDraft = { points: [], elementId: null };
-export type ViewPreset = 'fit' | 'top' | 'front' | 'iso';
 export type MessageLevel = 'info' | 'success' | 'error';
+/** Abas do diálogo "Projeto e análises". */
+export type ProjectDialogTab =
+  'levels' | 'systems' | 'georeference' | 'terrain' | 'profile' | 'clashes' | 'quantities';
 /** Como aplicar uma troca de diâmetro. */
 export type SizeMode = 'reducers' | 'propagate';
 
@@ -264,6 +286,12 @@ export interface ToolOptions {
    * identificadas como tal.
    */
   readonly lockElbowAngles: boolean;
+  /**
+   * Assentamento por recobrimento (ferramenta Tubulação, Planta Infra): com a opção ligada, a
+   * cota do eixo de cada ponto clicado vem do terreno — geratriz superior `cover` metros
+   * abaixo dele. O valor é decisão de projeto do usuário, não um mínimo de norma.
+   */
+  readonly terrainCover: { readonly enabled: boolean; readonly cover: number };
 }
 
 /** Clique no viewport já resolvido para o domínio. */
@@ -273,6 +301,25 @@ export interface ViewportClick {
   readonly hit: { elementId: string; point: Vec3 } | null;
   /** Ctrl/Shift pressionado: adiciona ou remove da seleção. */
   readonly additive?: boolean;
+}
+
+/** Arrasto de uma alça de tubo (esticar/encolher) em andamento. */
+export interface PipeStretch {
+  readonly pipeId: string;
+  readonly which: 'start' | 'end';
+  /** Projeto no início do arrasto: base de cada prévia e do registro único no histórico. */
+  readonly base: Project;
+}
+
+/** Menu de contexto do botão direito, junto a uma extremidade de tubo ou a uma conexão. */
+export interface ContextMenuState {
+  /** Posição na janela (px). */
+  readonly x: number;
+  readonly y: number;
+  /** Porta livre de onde o tubo pode partir; `null` = não há extremidade livre ali. */
+  readonly port: PortRef | null;
+  /** Elemento apontado (dono da porta). */
+  readonly elementId: string;
 }
 
 const HISTORY_LIMIT = 100;
@@ -320,8 +367,25 @@ interface EditorState {
   anchor: DrawAnchor | null;
   measure: { a: Vec3 | null; b: Vec3 | null };
   cursor: CursorInfo | null;
+  stretch: PipeStretch | null;
+  contextMenu: ContextMenuState | null;
   message: EditorMessage | null;
-  viewRequest: { preset: ViewPreset; nonce: number } | null;
+  /** selection: enquadra só os elementos selecionados. */
+  viewRequest: { preset: ViewPreset; nonce: number; selection?: boolean } | null;
+  /**
+   * Origem de renderização das vistas (estado de sessão, não persistido): o desenho é feito em
+   * relação a ela para preservar a precisão com coordenadas grandes. Nunca altera o projeto.
+   */
+  renderOrigin: Vec3;
+  /** Pedido de abertura do diálogo "Projeto e análises" em uma aba (vindo das vistas). */
+  projectDialogRequest: { tab: ProjectDialogTab; nonce: number } | null;
+  /** Seletor de georreferência pelo mapa aberto sobre a Planta Infra (estado de sessão). */
+  geoPicker: boolean;
+  /**
+   * Fonte de mapa personalizada do usuário (pode conter a chave dele): preferência deste
+   * navegador, nunca gravada no projeto.
+   */
+  customBasemap: CustomBasemapSource | null;
 
   notify: (level: MessageLevel, text: string) => void;
   loadProject: (project: Project, options?: { saved?: boolean }) => void;
@@ -347,6 +411,14 @@ interface EditorState {
   createAnnotation: (input: AnnotationInput) => string | null;
   changeAnnotation: (id: string, patch: AnnotationPatch) => boolean;
   changeDrawingScale: (scale: number) => void;
+  /** Altera a configuração da Planta Infra (escala, mapa de fundo, camadas e rótulos). */
+  changeInfraSettings: (patch: InfraSettingsPatch) => void;
+  /** Reposiciona a origem de renderização quando o ponto observado se afasta dela. */
+  rebaseRenderOrigin: (focus: Vec3) => void;
+  openProjectDialog: (tab: ProjectDialogTab) => void;
+  /** Abre ou fecha o seletor de georreferência pelo mapa (abre a Planta Infra, se preciso). */
+  setGeoPicker: (open: boolean) => void;
+  setCustomBasemap: (source: CustomBasemapSource | null) => void;
   select: (id: string | null, additive?: boolean) => void;
   selectMany: (ids: string[]) => void;
   setActiveSpec: (specificationId: string, dn: number) => void;
@@ -359,7 +431,9 @@ interface EditorState {
   setSnapToGrid: (enabled: boolean) => void;
   setOrthographic: (enabled: boolean) => void;
   setCursor: (cursor: CursorInfo | null) => void;
-  requestView: (preset: ViewPreset) => void;
+  requestView: (preset: ViewPreset, options?: { selection?: boolean }) => void;
+  /** Isométrica ortográfica verdadeira; repetir o comando gira para o quadrante seguinte. */
+  requestIsometric: () => void;
   cancelInteraction: () => void;
 
   handleViewportClick: (click: ViewportClick) => void;
@@ -399,7 +473,28 @@ interface EditorState {
   disconnectPort: (ref: PortRef) => void;
   deleteSelected: () => void;
   moveSelection: (delta: Vec3) => void;
+  /**
+   * Desliza a seleção um passo ao longo da linha (setas do teclado). `preferences` são as
+   * direções da seta no modelo, em ordem de prioridade (ver `chooseSlideDirection`).
+   */
+  nudgeSelection: (preferences: readonly Vec3[], step: number) => void;
+  /** Começa a esticar/encolher um tubo pela alça da extremidade `which`. */
+  beginStretch: (pipeId: string, which: 'start' | 'end') => void;
+  /** Prévia do arrasto: a extremidade vai para o ponto do eixo mais próximo de `point`. */
+  stretchTo: (point: Vec3) => void;
+  /** Encerra o arrasto; `apply` falso restaura o projeto do início. */
+  endStretch: (apply: boolean) => void;
+  openContextMenu: (menu: ContextMenuState) => void;
+  closeContextMenu: () => void;
+  /** Aciona a ferramenta Tubo já partindo da porta livre indicada. */
+  startPipeFromPort: (ref: PortRef) => void;
   copySelection: (delta: Vec3) => void;
+  /**
+   * Liga duas extremidades livres com tubos e joelhos (fechamento assistido). ngle escolhe
+   * o ângulo dos joelhos no desvio paralelo; 
+ull = primeira solução disponível.
+   */
+  closeFreeEnds: (a: PortRef, b: PortRef, angle: number | null) => boolean;
   assignSystem: (systemId: string) => void;
 
   addLevel: (name: string, elevation: number) => void;
@@ -476,7 +571,7 @@ export function deflectionConstraintOf(state: {
   tool: ToolId;
   anchor: DrawAnchor | null;
   toolOptions: ToolOptions;
-}): { origin: Vec3; axis: Vec3; angles: number[] } | null {
+}): { origin: Vec3; axis: Vec3; angles: number[]; jointLimit: number } | null {
   const { anchor } = state;
   if (state.tool !== 'pipe' || !anchor?.port || anchor.lockAxis) return null;
   if (!state.toolOptions.lockElbowAngles) return null;
@@ -487,6 +582,8 @@ export function deflectionConstraintOf(state: {
     origin: port.position,
     axis: port.direction,
     angles: elbowAnglesOf(state.project, port.spec),
+    // Deflexão que a junta admite sem peça (o trecho novo sai de ponta lisa).
+    jointLimit: jointDeflectionLimit(port, { spec: port.spec, end: null }),
   };
 }
 
@@ -760,6 +857,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       sizeMode: 'reducers',
       families: {},
       lockElbowAngles: true,
+      terrainCover: { enabled: false, cover: 0.8 },
     },
     workPlaneZ: 0,
     pipeElevation: 0,
@@ -769,14 +867,24 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     anchor: null,
     measure: { a: null, b: null },
     cursor: null,
+    stretch: null,
+    contextMenu: null,
     message: null,
     viewRequest: null,
+    renderOrigin: NO_RENDER_ORIGIN,
+    projectDialogRequest: null,
+    geoPicker: false,
+    customBasemap: loadCustomSource(),
 
     notify: (level, text) => set({ message: { level, text, at: Date.now() } }),
 
-    loadProject: (project, options) =>
+    loadProject: (project, options) => {
+      // Outro projeto: o ponto de interesse anterior não vale mais.
+      clearViewFocus();
       set((state) => ({
         project,
+        renderOrigin: NO_RENDER_ORIGIN,
+        geoPicker: false,
         savedProject: project,
         persisted: options?.saved ?? false,
         message: null,
@@ -788,6 +896,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         annotationSelection: null,
         planDraft: EMPTY_DRAFT,
         anchor: null,
+        stretch: null,
+        contextMenu: null,
         measure: { a: null, b: null },
         tool: 'select',
         activeSpec: defaultPipeSpec(project.discipline),
@@ -803,7 +913,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         workPlaneZ: 0,
         pipeElevation: 0,
         viewRequest: { preset: 'fit', nonce: (state.viewRequest?.nonce ?? 0) + 1 },
-      })),
+      }));
+    },
 
     newProject: (discipline = 'mep') =>
       get().loadProject(createProject('Projeto sem título', discipline)),
@@ -847,6 +958,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         return {
           tool,
           anchor: null,
+          contextMenu: null,
           measure: { a: null, b: null },
           planDraft: EMPTY_DRAFT,
           viewMode,
@@ -857,15 +969,25 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       }),
 
     setViewMode: (mode) =>
-      set((state) => ({
-        viewMode: mode,
-        tool: 'select',
-        anchor: null,
-        measure: { a: null, b: null },
-        planDraft: EMPTY_DRAFT,
-        cursor: null,
-        viewRequest: { preset: 'fit', nonce: (state.viewRequest?.nonce ?? 0) + 1 },
-      })),
+      set((state) => {
+        if (mode === state.viewMode) return {};
+        // Entre a planta e o modelo 3D a operação continua: ferramenta de modelagem, trecho
+        // em andamento e medição são os mesmos, e cada vista retoma o ponto de interesse da
+        // outra (sem reenquadrar). A aba BIM / IFC é de consulta: entra e sai em Selecionar.
+        const modeling = mode !== 'bim' && state.viewMode !== 'bim';
+        const keepTool = modeling && !isAnnotationTool(state.tool);
+        return {
+          viewMode: mode,
+          tool: keepTool ? state.tool : 'select',
+          anchor: keepTool ? state.anchor : null,
+          measure: keepTool ? state.measure : { a: null, b: null },
+          planDraft: EMPTY_DRAFT,
+          cursor: null,
+          ...(modeling
+            ? {}
+            : { viewRequest: { preset: 'fit', nonce: (state.viewRequest?.nonce ?? 0) + 1 } }),
+        };
+      }),
 
     setBimHidden: (ids, hidden) =>
       set((state) => {
@@ -916,6 +1038,24 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     changeAnnotation: (id, patch) => commit(updateAnnotation(get().project, id, patch)),
     changeDrawingScale: (scale) => {
       commit(setDrawingScale(get().project, scale));
+    },
+    changeInfraSettings: (patch) => {
+      commit(setInfraSettings(get().project, patch));
+    },
+    setCustomBasemap: (source) => {
+      storeCustomSource(source);
+      set({ customBasemap: source });
+    },
+    setGeoPicker: (open) =>
+      set((state) => ({ geoPicker: open, viewMode: open ? 'plan' : state.viewMode })),
+    openProjectDialog: (tab) =>
+      set((state) => ({
+        projectDialogRequest: { tab, nonce: (state.projectDialogRequest?.nonce ?? 0) + 1 },
+      })),
+    rebaseRenderOrigin: (focus) => {
+      const current = get().renderOrigin;
+      const next = nextRenderOrigin(current, focus);
+      if (next !== current) set({ renderOrigin: next });
     },
 
     select: (id, additive = false) =>
@@ -969,19 +1109,40 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       if (Number.isFinite(step) && step > 0) set({ gridStep: step });
     },
     setSnapToGrid: (enabled) => set({ snapToGrid: enabled }),
-    setOrthographic: (enabled) =>
-      set((state) => ({
-        orthographic: enabled,
-        viewRequest: { preset: 'fit', nonce: (state.viewRequest?.nonce ?? 0) + 1 },
-      })),
+    // Trocar a projeção não reenquadra: a câmera nova assume o mesmo ponto de interesse.
+    setOrthographic: (enabled) => set({ orthographic: enabled }),
     setCursor: (cursor) => set({ cursor }),
 
-    requestView: (preset) =>
-      set((state) => ({ viewRequest: { preset, nonce: (state.viewRequest?.nonce ?? 0) + 1 } })),
+    requestView: (preset, options) =>
+      set((state) => ({
+        // "Perspectiva" é um comando próprio: sai da projeção ortográfica.
+        ...(preset === 'iso' ? { orthographic: false } : {}),
+        viewRequest: {
+          preset,
+          nonce: (state.viewRequest?.nonce ?? 0) + 1,
+          ...(options?.selection ? { selection: true } : {}),
+        },
+      })),
+
+    requestIsometric: () =>
+      set((state) => {
+        const preset = nextIsoQuadrant(state.orthographic ? state.viewRequest?.preset : null);
+        return {
+          orthographic: true,
+          viewRequest: { preset, nonce: (state.viewRequest?.nonce ?? 0) + 1 },
+          message: {
+            level: 'info',
+            text: `Isométrica ortográfica — observador a ${ISO_LABELS[preset]}. Repita o comando para girar ao próximo quadrante.`,
+            at: Date.now(),
+          },
+        };
+      }),
 
     cancelInteraction: () => {
-      const { anchor, measure, tool, planDraft } = get();
-      if (planDraft.points.length > 0 || planDraft.elementId) set({ planDraft: EMPTY_DRAFT });
+      const { anchor, measure, tool, planDraft, stretch, contextMenu } = get();
+      if (contextMenu) set({ contextMenu: null });
+      else if (stretch) get().endStretch(false);
+      else if (planDraft.points.length > 0 || planDraft.elementId) set({ planDraft: EMPTY_DRAFT });
       else if (anchor || measure.a) set({ anchor: null, measure: { a: null, b: null } });
       else if (tool !== 'select') set({ tool: 'select' });
       else set({ selection: [], annotationSelection: null });
@@ -1132,13 +1293,22 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       }
       const created = result.value;
       const withElbow = created.createdIds.length > 1;
+      // Sem joelho e fora do eixo da porta: a mudança de direção ficou na junta.
+      const turn =
+        origin && !source && !withElbow
+          ? angleBetween(origin.direction, sub(point, state.anchor.point))
+          : 0;
+      const deflected =
+        origin && turn > ANGLE_TOLERANCE
+          ? `Tubo criado com deflexão de ${formatDegrees(turn, 2)} na junta (admitida: ${formatDegrees(jointDeflectionLimit(origin, { spec: origin.spec, end: null }), 2)}).`
+          : null;
       commit(
         success(created.project),
         source
           ? `Tubo derivado de "${source.name}" com tê automático; o tubo foi dividido em dois trechos.`
           : withElbow
             ? 'Tubo criado com joelho automático.'
-            : 'Tubo criado.',
+            : (deflected ?? 'Tubo criado.'),
       );
       // Continua a polilinha a partir da extremidade final, se ela permanecer livre.
       const next = resolvePort(created.project, { elementId: created.elementId, portId: 'end' });
@@ -1530,6 +1700,104 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       );
     },
 
+    nudgeSelection: (preferences, step) => {
+      const { project, selection } = get();
+      const primary = selection[0];
+      if (!primary || !Number.isFinite(step) || step <= 0) return;
+      const direction = chooseSlideDirection(slideAxesOf(project, primary), preferences);
+      if (!direction) return;
+      const element = getElement(project, primary);
+      commit(
+        slideElements(project, selection, scale(direction, step)),
+        selection.length === 1 && element
+          ? `"${element.name}" deslocado ${formatMeters(step, 3)} ao longo da linha.`
+          : `${selection.length} elementos deslocados ${formatMeters(step, 3)} ao longo da linha.`,
+      );
+    },
+
+    beginStretch: (pipeId, which) => {
+      const { project } = get();
+      const pipe = getElement(project, pipeId);
+      if (pipe?.kind !== 'pipe') return;
+      set({ stretch: { pipeId, which, base: project }, contextMenu: null });
+    },
+
+    stretchTo: (point) => {
+      const state = get();
+      const { stretch } = state;
+      const pipe = stretch ? getElement(stretch.base, stretch.pipeId) : undefined;
+      if (!stretch || pipe?.kind !== 'pipe') return;
+      const length = snapStretchLength(
+        pipe,
+        stretch.which,
+        stretchLengthAt(pipe, stretch.which, point),
+        state.snapToGrid ? state.gridStep : 0,
+      );
+      // Aquém da extremidade oposta não há tubo: a prévia permanece como está.
+      if (length < MIN_PIPE_LENGTH) return;
+      // Cada prévia parte do projeto do início do arrasto; o histórico só é registrado no fim.
+      const result = stretchPipe(stretch.base, stretch.pipeId, stretch.which, length);
+      if (!result.ok) {
+        if (state.message?.text !== result.error.message) {
+          state.notify('error', result.error.message);
+        }
+        return;
+      }
+      if (result.value !== state.project) set({ project: result.value });
+    },
+
+    endStretch: (apply) => {
+      const { stretch, project, past } = get();
+      if (!stretch) return;
+      if (!apply || project === stretch.base) {
+        set({ stretch: null, project: stretch.base });
+        return;
+      }
+      const pipe = getElement(project, stretch.pipeId);
+      set({
+        stretch: null,
+        past: [...past, stretch.base].slice(-HISTORY_LIMIT),
+        future: [],
+        message: {
+          level: 'success',
+          text:
+            pipe?.kind === 'pipe'
+              ? `Comprimento de "${pipe.name}": ${formatMeters(distance(pipe.start, pipe.end), 3)}.`
+              : 'Comprimento alterado.',
+          at: Date.now(),
+        },
+      });
+    },
+
+    openContextMenu: (menu) => set({ contextMenu: menu }),
+    closeContextMenu: () => {
+      if (get().contextMenu) set({ contextMenu: null });
+    },
+
+    startPipeFromPort: (ref) => {
+      const { project } = get();
+      const port = resolvePort(project, ref);
+      const host = getElement(project, ref.elementId);
+      if (!port || !host || !isPortFree(project, ref)) {
+        get().notify('error', 'Esta extremidade já está conectada: não há de onde partir o tubo.');
+        return;
+      }
+      get().setTool('pipe');
+      const anchor = anchorFromPort(project, port);
+      set((state) => ({
+        anchor,
+        selection: [],
+        annotationSelection: null,
+        // O trecho segue na cota do ponto de partida (elevação herdada).
+        pipeElevation: roundElevation(anchor.point.z - state.workPlaneZ),
+        message: {
+          level: 'info',
+          text: `Tubo a partir de "${host.name}" (${port.spec.sizeLabel}): indique o próximo ponto.`,
+          at: Date.now(),
+        },
+      }));
+    },
+
     copySelection: (delta) => {
       const { project, selection } = get();
       if (selection.length === 0) return;
@@ -1543,6 +1811,31 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         `${result.value.createdIds.length} elemento(s) copiado(s).`,
       );
       set({ selection: result.value.createdIds });
+    },
+
+    closeFreeEnds: (a, b, angle) => {
+      const { project, toolOptions } = get();
+      const port = resolvePort(project, a);
+      const result = closePorts(project, {
+        a,
+        b,
+        catalog: catalog(),
+        elbowAngles:
+          port && toolOptions.lockElbowAngles ? elbowAnglesOf(project, port.spec) : undefined,
+        ...(angle === null ? {} : { offsetAngle: angle }),
+      });
+      if (!result.ok) {
+        get().notify('error', result.error.message);
+        return false;
+      }
+      const problem = catalogProblem(result.value.project);
+      if (problem) {
+        get().notify('error', problem);
+        return false;
+      }
+      commit(success(result.value.project), `Extremidades ligadas: ${result.value.summary}.`);
+      set({ selection: [...result.value.createdIds] });
+      return true;
     },
 
     assignSystem: (systemId) => {
@@ -1612,6 +1905,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     },
 
     undo: () => {
+      // Desfazer no meio de um arrasto de alça abandona o arrasto.
+      get().endStretch(false);
       const { past, future, project } = get();
       const previous = past[past.length - 1];
       if (!previous) return;

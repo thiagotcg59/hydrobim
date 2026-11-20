@@ -60,6 +60,7 @@ Um joelho **não** é uma entidade `IfcElbow` (inexistente): é um `IfcPipeFitti
 | `valve` (`airRelease`) | `IfcValve` | `AIRRELEASE` | Porta única |
 | `valve` (`pressureReducing`) | `IfcValve` | `PRESSUREREDUCING` | Porta `a` = montante; `FlowDirection` ainda `NOTDEFINED` |
 | `valve` (`strainer`) | `IfcFilter` | `STRAINER` | Filtro Y: classe interna `valve` (peça em linha), mas entidade IFC própria; porta `a` = montante |
+| `valve` (`flowMeter`) | `IfcFlowMeter` | `WATERMETER` | Medidor de vazão em linha (macromedidor): classe interna `valve`, mas entidade IFC própria; porta `a` = montante |
 | `pump` | `IfcPump` | `ENDSUCTION` | Representação genérica |
 | `tank` | `IfcTank` | `STORAGE` | Reservatórios de catálogo têm `IfcTankType` e conjuntos de propriedades (abaixo) |
 
@@ -74,6 +75,18 @@ Sistemas:
 | `other` | `USERDEFINED` |
 
 Os elementos serão associados ao sistema por `IfcRelAssignsToGroup`.
+
+## Aparência (cores e materiais de apresentação)
+
+Cada item geométrico do corpo (`IfcExtrudedAreaSolid` do tubo liso, `IfcTriangulatedFaceSet` de cada parte) recebe um `IfcStyledItem` com o acabamento que a vista 3D do editor usa naquela parte. A biblioteca é a mesma (`packages/geometry/src/finishes.ts`, função `partFinish`): cor do material do tubo ou do papel da parte, substituída pela cor do sistema hidráulico quando ela existe — menos nas partes de cor fixa (acionamento, inox, vedação, revestimento interno). Sem esses estilos os visualizadores mostram o modelo todo em branco.
+
+| Editor (material físico) | IFC 4.3 (`IfcSurfaceStyleRendering`, `ReflectanceMethod = PHYSICAL`) |
+| --- | --- |
+| cor (`#rrggbb`) | `SurfaceColour` e `DiffuseColour` (`IfcColourRgb`, canais de 0 a 1) |
+| metalicidade | `SpecularColour` como `IfcNormalisedRatioMeasure` |
+| rugosidade | `SpecularHighlight` como `IfcSpecularRoughness` |
+
+O `IfcSurfaceStyle` leva o nome do acabamento («PVC marrom», «Epóxi azul»…), vale para os dois lados (`BOTH`) e é compartilhado por todos os itens de mesmo acabamento. A cor é dado de apresentação: o `IfcMaterial` continua sendo o material de engenharia. Visualizadores que não implementam o método `PHYSICAL` usam só a cor; iluminação, ambiente e sombras são do visualizador e não vão no arquivo.
 
 ## Modelo de informação IFC (camada BIM)
 
@@ -114,6 +127,7 @@ Todo elemento tem um tipo, ligado por `IfcRelDefinesByType`: `IfcPipeSegmentType
 | Válvula, filtro, bomba | `Pset_ElementSize` (T) | `NominalLength`, `NominalHeight`, `NominalWidth` (o que a família tabula) |
 | Válvula | `HydroBIM_Valvula` (T) | `ValveType`, `EndTypes`, `HandwheelDiameter` |
 | Filtro Y | `Pset_FilterTypeCommon` (T/O), `HydroBIM_Filtro` (T) | `Reference`, `NominalFlowrate`, `NominalPressureDrop`, `Status` (usuário); tipo, extremidades e diâmetro |
+| Medidor de vazão | `HydroBIM_Medidor` (T) | Tipo, extremidades e diâmetro. Os conjuntos padronizados do `IfcFlowMeter` não constam de `schemaData.ts` e não são emitidos |
 | Bomba | `Pset_PumpTypeCommon` (T/O) | `ConnectionSize`, `NominalRotationSpeed` (usuário, **exigida**), `NetPositiveSuctionHead`, `Status` (usuário) |
 | Bomba | `Pset_PumpOccurrence` (O) | `BaseType`, `DriveConnectionType`, `ImpellerDiameter` (usuário) |
 | Bomba | `HydroBIM_Bomba` (T) | `PumpType`, diâmetros de sucção e recalque, `RatedFlow` e `RatedHead` (do cadastro, **exigidas**), `RatedPower` (usuário, **exigida**), `Efficiency`, `CasingMaterial` (usuário) |
@@ -201,6 +215,8 @@ Observações:
 ## Georreferenciamento (Infra)
 
 `IfcMapConversion` + `IfcProjectedCRS` só serão emitidos quando o usuário informar explicitamente o sistema de referência. **Nenhum código EPSG ou coordenada geográfica será atribuído por padrão.**
+
+Atributos do `IfcProjectedCRS`: `Name` = `EPSG:<código>` (ou o nome informado, sem código); `Description` = nome do sistema; `GeodeticDatum`, `MapProjection` (`UTM`) e `MapZone` (ex.: `23S`) só quando o código está no registro de sistemas do HydroBIM (`findProjectedCrs`), cujos parâmetros foram conferidos com o banco EPSG; `VerticalDatum` só quando o usuário informou a referência altimétrica; `MapUnit` = metro. `IfcMapConversion`: `Eastings`, `Northings`, `OrthogonalHeight`, `XAxisAbscissa`/`XAxisOrdinate` (cosseno e seno da rotação) e `Scale` = 1 — a mesma conversão usada para posicionar o mapa na Planta Infra.
 
 ## Verificação automática
 

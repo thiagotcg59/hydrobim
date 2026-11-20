@@ -2,7 +2,16 @@ import { connectionsOfElement, findConnection, getElement, oppositeRef } from '.
 import { add, dot, scale, sub, type Vec3 } from './math';
 import { getPorts } from './ports';
 import { fail, ok, type Result } from './result';
-import type { HydroElement, Pipe, Project, Terrain } from './schema';
+import {
+  surveySource,
+  type HydroElement,
+  type Pipe,
+  type Project,
+  type Terrain,
+  type TerrainSource,
+} from './schema';
+import { constrainedDelaunay } from './terrain/delaunay';
+import { buildTerrainSurface, MAX_TERRAIN_VERTICES, terrainElevationAt } from './terrain/surface';
 
 /** Análises derivadas do modelo: interferências, terreno e perfil longitudinal. */
 
@@ -116,7 +125,8 @@ export function detectClashes(project: Project, tolerance = 1e-4): Clash[] {
 // Terreno (TIN)
 // ---------------------------------------------------------------------------
 
-export const MAX_TERRAIN_POINTS = 4000;
+/** Limite de pontos de um levantamento: o mesmo limite de vértices de uma superfície. */
+export const MAX_TERRAIN_POINTS = MAX_TERRAIN_VERTICES;
 
 /** Lê pontos "X Y Z" (separados por espaço, tabulação, vírgula ou ponto e vírgula). */
 export function parseTerrainPoints(text: string): Result<Vec3[]> {
@@ -151,116 +161,22 @@ export function parseTerrainPoints(text: string): Result<Vec3[]> {
   return ok(points);
 }
 
-/** Triangulação de Delaunay em planta (Bowyer–Watson). */
+/** Triangulação de Delaunay em planta, limitada pela envoltória convexa dos pontos. */
 export function triangulate(points: readonly Vec3[]): number[] {
-  const n = points.length;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const p of points) {
-    minX = Math.min(minX, p.x);
-    minY = Math.min(minY, p.y);
-    maxX = Math.max(maxX, p.x);
-    maxY = Math.max(maxY, p.y);
-  }
-  const span = Math.max(maxX - minX, maxY - minY, 1e-9) * 20;
-  const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
-  // Super-triângulo (índices n, n+1, n+2).
-  const xs = [...points.map((p) => p.x), cx - span, cx, cx + span];
-  const ys = [...points.map((p) => p.y), cy - span, cy + span, cy - span];
-
-  interface Triangle {
-    a: number;
-    b: number;
-    c: number;
-    x: number;
-    y: number;
-    r2: number;
-  }
-  const make = (a: number, b: number, c: number): Triangle | null => {
-    const ax = xs[a] as number;
-    const ay = ys[a] as number;
-    const bx = xs[b] as number;
-    const by = ys[b] as number;
-    const qx = xs[c] as number;
-    const qy = ys[c] as number;
-    const d = 2 * (ax * (by - qy) + bx * (qy - ay) + qx * (ay - by));
-    if (Math.abs(d) < 1e-14) return null;
-    const a2 = ax * ax + ay * ay;
-    const b2 = bx * bx + by * by;
-    const c2 = qx * qx + qy * qy;
-    const x = (a2 * (by - qy) + b2 * (qy - ay) + c2 * (ay - by)) / d;
-    const y = (a2 * (qx - bx) + b2 * (ax - qx) + c2 * (bx - ax)) / d;
-    return { a, b, c, x, y, r2: (ax - x) ** 2 + (ay - y) ** 2 };
-  };
-
-  let triangles: Triangle[] = [];
-  const root = make(n, n + 1, n + 2);
-  if (root) triangles.push(root);
-  for (let i = 0; i < n; i += 1) {
-    const px = xs[i] as number;
-    const py = ys[i] as number;
-    const edges = new Map<string, [number, number]>();
-    const kept: Triangle[] = [];
-    for (const t of triangles) {
-      if ((px - t.x) ** 2 + (py - t.y) ** 2 < t.r2 * (1 + 1e-12)) {
-        for (const [u, v] of [
-          [t.a, t.b],
-          [t.b, t.c],
-          [t.c, t.a],
-        ] as [number, number][]) {
-          const key = u < v ? `${u}|${v}` : `${v}|${u}`;
-          // Arestas compartilhadas por dois triângulos removidos são internas.
-          if (edges.has(key)) edges.delete(key);
-          else edges.set(key, [u, v]);
-        }
-      } else kept.push(t);
-    }
-    for (const [u, v] of edges.values()) {
-      const t = make(u, v, i);
-      if (t) kept.push(t);
-    }
-    triangles = kept;
-  }
-  const out: number[] = [];
-  for (const t of triangles) {
-    if (t.a >= n || t.b >= n || t.c >= n) continue;
-    // Orienta em sentido anti-horário (normal para cima).
-    const cross =
-      ((xs[t.b] as number) - (xs[t.a] as number)) * ((ys[t.c] as number) - (ys[t.a] as number)) -
-      ((ys[t.b] as number) - (ys[t.a] as number)) * ((xs[t.c] as number) - (xs[t.a] as number));
-    if (cross > 0) out.push(t.a, t.b, t.c);
-    else out.push(t.a, t.c, t.b);
-  }
-  return out;
+  return constrainedDelaunay(
+    points.map((p) => p.x),
+    points.map((p) => p.y),
+  ).triangles;
 }
 
-export function createTerrain(name: string, points: readonly Vec3[]): Result<Terrain> {
-  const triangles = triangulate(points);
-  if (triangles.length === 0) {
-    return fail('TERRAIN_DEGENERATE', 'Não foi possível triangular os pontos (são colineares?).');
-  }
-  return ok({ name, points: [...points], triangles });
-}
-
-/** Cota do terreno em (x, y); `null` fora da superfície. */
-export function terrainElevationAt(terrain: Terrain, x: number, y: number): number | null {
-  const { points, triangles } = terrain;
-  for (let i = 0; i < triangles.length; i += 3) {
-    const a = points[triangles[i] as number];
-    const b = points[triangles[i + 1] as number];
-    const c = points[triangles[i + 2] as number];
-    if (!a || !b || !c) continue;
-    const d = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
-    if (Math.abs(d) < 1e-14) continue;
-    const u = ((b.y - c.y) * (x - c.x) + (c.x - b.x) * (y - c.y)) / d;
-    const v = ((c.y - a.y) * (x - c.x) + (a.x - c.x) * (y - c.y)) / d;
-    const w = 1 - u - v;
-    if (u >= -1e-9 && v >= -1e-9 && w >= -1e-9) return u * a.z + v * b.z + w * c.z;
-  }
-  return null;
+/** Superfície de um levantamento por pontos, sem recorte nem linhas de quebra. */
+export function createTerrain(
+  name: string,
+  points: readonly Vec3[],
+  source: TerrainSource = surveySource(null, null),
+): Result<Terrain> {
+  const built = buildTerrainSurface({ name, points, boundary: null, breaklines: [], source });
+  return built.ok ? ok(built.value.terrain) : built;
 }
 
 // ---------------------------------------------------------------------------

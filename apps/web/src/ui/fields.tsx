@@ -80,7 +80,8 @@ export function NumberField({
           onBlur={commit}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
-              commit();
+              // Sair do campo confirma o valor: confirmar aqui também gravaria duas vezes
+              // (dois passos no histórico para uma única alteração).
               event.currentTarget.blur();
             } else if (event.key === 'Escape') {
               setText(formatDecimal(value, digits));
@@ -188,10 +189,29 @@ export function Section({
   children: ReactNode;
   testId?: string;
 }) {
+  // Recolher uma seção é preferência de leitura da sessão: não é dado do projeto.
+  const [collapsed, setCollapsed] = useState(false);
   return (
-    <section className="section" data-testid={testId}>
-      <h3 className="section__title">{title}</h3>
-      {children}
+    <section
+      className={collapsed ? 'section is-collapsed' : 'section'}
+      data-testid={testId}
+      data-collapsed={collapsed}
+    >
+      <h3 className="section__title">
+        <button
+          type="button"
+          className="section__toggle"
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expandir a seção' : 'Recolher a seção'}
+          onClick={() => setCollapsed((value) => !value)}
+        >
+          <span className="section__caret" aria-hidden>
+            {collapsed ? '▸' : '▾'}
+          </span>
+          {title}
+        </button>
+      </h3>
+      {!collapsed && children}
     </section>
   );
 }

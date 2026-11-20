@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ctl } from './ui';
 
 /**
  * Captura de pontos nas duas vistas: raio constante na tela em qualquer zoom e projeção,
@@ -16,7 +17,7 @@ function trackErrors(page: Page): string[] {
 }
 
 async function setField(page: Page, testId: string, value: string): Promise<void> {
-  const field = page.getByTestId(testId);
+  const field = await ctl(page, testId);
   await field.fill(value);
   await field.press('Enter');
 }
@@ -25,13 +26,13 @@ async function addPoint(page: Page, x: string, y: string, z: string): Promise<vo
   await setField(page, 'coord-x', x);
   await setField(page, 'coord-y', y);
   await setField(page, 'coord-z', z);
-  await page.getByTestId('coord-add').click();
+  await (await ctl(page, 'coord-add')).click();
 }
 
 async function start(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await page.getByTestId('action-new').click();
+  await (await ctl(page, 'action-new')).click();
   await expect(page.getByTestId('element-count')).toHaveText('0');
 }
 
@@ -41,7 +42,7 @@ test('planta: tubo em outra cota é referência — cruzar ou clicar sobre ele n
   const errors = trackErrors(page);
   await start(page);
   await page.getByTestId('view-mode-plan').click();
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   const svg = page.getByTestId('plan-svg');
   const box = await svg.boundingBox();
   if (!box) throw new Error('Planta sem dimensões.');
@@ -86,7 +87,7 @@ test('3D ortográfico: a porta só captura perto do cursor e Tab alterna as sobr
   const errors = trackErrors(page);
   await start(page);
   // Dois tubos sobrepostos em planta, nas cotas 0 e 3 m.
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   await addPoint(page, '0', '0', '0');
   await addPoint(page, '1', '0', '0');
   await page.keyboard.press('Escape');
@@ -96,7 +97,7 @@ test('3D ortográfico: a porta só captura perto do cursor e Tab alterna as sobr
 
   await page.getByTestId('view-ortho').click();
   await page.getByTestId('view-top').click();
-  await page.getByTestId('tool-pipe').click();
+  await (await ctl(page, 'tool-pipe')).click();
   const box = await page.getByTestId('viewport-canvas').boundingBox();
   if (!box) throw new Error('Viewport sem dimensões.');
   // Vista de topo enquadrada: X do modelo para a direita; a escala vem do raio enquadrado.
