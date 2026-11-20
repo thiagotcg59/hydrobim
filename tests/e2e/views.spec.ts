@@ -114,3 +114,91 @@ test('isométrica ortográfica por quadrante, perspectiva separada e enquadrar s
   await expect(ortho).toHaveAttribute('aria-pressed', 'true');
   expect(errors).toEqual([]);
 });
+
+test('com algo selecionado, o giro e o zoom da vista são focados na seleção', async ({ page }) => {
+  const errors = trackErrors(page);
+  await start(page);
+  // Dois tubos em L (com o joelho): a seleção por janela pega os três elementos.
+  await (await ctl(page, 'tool-pipe')).click();
+  for (const [x, y] of [
+    ['0', '0'],
+    ['2', '0'],
+    ['2', '2'],
+  ] as const) {
+    for (const [id, value] of [
+      ['coord-x', x],
+      ['coord-y', y],
+    ] as const) {
+      const field = await ctl(page, id);
+      await field.fill(value);
+      await field.press('Enter');
+    }
+    await (await ctl(page, 'coord-add')).click();
+  }
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
+  const canvas = page.getByTestId('viewport-canvas');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('Viewport sem dimensões.');
+  const center: [number, number] = [box.x + box.width / 2, box.y + box.height / 2];
+  const reach = (Math.min(box.width, box.height) / 2) * 0.95;
+  const selectAll = async (): Promise<void> => {
+    await page.mouse.move(center[0] - reach, center[1] - reach);
+    await page.mouse.down();
+    await page.mouse.move(center[0] + reach, center[1] + reach, { steps: 6 });
+    await page.mouse.up();
+  };
+  const drag = async (button: 'middle' | 'right', dx: number): Promise<void> => {
+    await page.mouse.move(center[0], center[1] + 120);
+    await page.mouse.down({ button });
+    await page.mouse.move(center[0] + dx, center[1] + 120, { steps: 6 });
+    await page.mouse.up({ button });
+  };
+  /** Centro observado, lido pela planta (que retoma o ponto de interesse do modelo 3D). */
+  const focusCenter = async (): Promise<[number, number]> => {
+    await page.getByTestId('view-mode-plan').click();
+    // A planta abre na vista inicial e só depois assume o ponto de interesse; na volta, os
+    // controles de órbita levam alguns quadros para existir. Não há sinal no DOM para esperar.
+    await page.waitForTimeout(400);
+    const [x = 0, y = 0, w = 0, h = 0] = await viewBoxOf(page);
+    await page.getByTestId('view-mode-3d').click();
+    await expect(canvas).toBeVisible();
+    await page.waitForTimeout(400);
+    return [x + w / 2, y + h / 2];
+  };
+  const gap = (a: [number, number], b: [number, number]): number =>
+    Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+  await page.getByTestId('view-fit').click();
+  await selectAll();
+  await expect(page.getByTestId('view-fit-selection')).toBeEnabled();
+
+  // Tira a seleção do centro da tela: o alvo dos controles deixa de coincidir com ela.
+  await drag('right', 160);
+  const panned = await focusCenter();
+
+  // Com seleção, o giro é em torno dela: o centro da tela percorre um arco no modelo.
+  await drag('middle', 180);
+  const orbited = await focusCenter();
+  expect(gap(panned, orbited)).toBeGreaterThan(0.05);
+
+  // Com seleção, o zoom aproxima em direção a ela: o centro da tela anda para a seleção.
+  const wheel = async (): Promise<void> => {
+    await page.mouse.move(center[0], center[1]);
+    await page.mouse.wheel(0, -300);
+    await page.mouse.wheel(0, -300);
+  };
+  await wheel();
+  const zoomed = await focusCenter();
+  expect(gap(orbited, zoomed)).toBeGreaterThan(0.01);
+
+  // Sem seleção, o giro e o zoom voltam a ser em relação ao centro da tela, que não sai do lugar.
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('view-fit-selection')).toBeDisabled();
+  await drag('middle', 180);
+  await wheel();
+  const free = await focusCenter();
+  expect(gap(zoomed, free)).toBeLessThan(1e-3);
+  expect(errors).toEqual([]);
+});

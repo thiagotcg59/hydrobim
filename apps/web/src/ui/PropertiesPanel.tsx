@@ -18,9 +18,12 @@ import {
   getPorts,
   mmToM,
   mToMm,
+  isPipeRun,
   pipeLength,
+  pipeRunSummary,
   radToDeg,
   VALVE_TYPES,
+  terrainElevationAt,
   vec3,
   type FittingPatch,
   type HydroElement,
@@ -36,6 +39,7 @@ import { familiesOf, selectPrimaryId, useEditorStore, type SizeMode } from '../s
 import { useUiStore } from '../state/uiStore';
 import { CloseEnds } from './CloseEnds';
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
+import { PipeRunPanel } from './PipeRunPanel';
 import { SYSTEM_KIND_LABELS, VALVE_TYPE_LABELS } from './labels';
 import { SpecSelector } from './SpecSelector';
 import { TankProperties } from './TankProperties';
@@ -247,6 +251,7 @@ function ElevationField({
         onCommit={(value) => actions().changeElevation(element.id, value)}
         testId="prop-elevation"
       />
+      {equipment && <GroundElevation element={element} project={project} />}
       <span className="muted" data-testid="prop-elevation-info">
         {equipment
           ? 'Altera só este equipamento; tubos conectados se ajustam quando o acoplamento permite.'
@@ -254,6 +259,40 @@ function ElevationField({
             ? `Alterar a elevação move também os ${connected} elemento(s) conectado(s).`
             : 'Sem elementos conectados: só este elemento é movido.'}
       </span>
+    </>
+  );
+}
+
+/** Cota do terreno sob o equipamento e o atalho para assentá-lo sobre a superfície. */
+function GroundElevation({ element, project }: { element: HydroElement; project: Project }) {
+  if (!project.terrain || element.kind === 'pipe') return null;
+  const { x, y, z } = element.placement.position;
+  const ground = terrainElevationAt(project.terrain, x, y);
+  if (ground === null) {
+    return (
+      <ReadOnlyRow
+        label="Terreno no ponto"
+        value={<span data-testid="prop-ground-elevation">fora da superfície</span>}
+      />
+    );
+  }
+  const rounded = Math.round(ground * 1000) / 1000;
+  return (
+    <>
+      <ReadOnlyRow
+        label="Terreno no ponto"
+        value={<span data-testid="prop-ground-elevation">{formatMeters(rounded)}</span>}
+      />
+      <button
+        type="button"
+        className="chip"
+        data-testid="prop-seat-on-terrain"
+        disabled={Math.abs(rounded - z) < 1e-9}
+        title="Leva a cota de referência do elemento à do terreno sob a sua origem"
+        onClick={() => actions().changeElevation(element.id, rounded)}
+      >
+        Assentar no terreno
+      </button>
     </>
   );
 }
@@ -877,6 +916,27 @@ function ElementProperties({ element, project }: { element: HydroElement; projec
   );
 }
 
+/** Ações que valem para todos os trechos de uma tubulação contínua. */
+function SelectionActions({ elements, project }: { elements: HydroElement[]; project: Project }) {
+  const first = elements[0];
+  if (!first) return null;
+  return (
+    <>
+      <Section title="Sistema" testId="section-pipe-run-system">
+        <SystemField project={project} systemId={first.systemId} />
+      </Section>
+      <MoveCopy />
+      <button
+        type="button"
+        className="btn btn--danger"
+        data-testid="action-delete"
+        onClick={() => actions().deleteSelected()}
+      >
+        <Trash2 size={15} /> Excluir a tubulação
+      </button>
+    </>
+  );
+}
 function MultiSelection({ elements, project }: { elements: HydroElement[]; project: Project }) {
   const counts = new Map<string, number>();
   for (const e of elements) counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
@@ -998,6 +1058,8 @@ export function PropertiesPanel() {
     .map((id) => getElement(project, id))
     .filter((e): e is HydroElement => e !== undefined);
   const element = elements.length === 1 && primaryId ? elements[0] : undefined;
+  // Tubos ligados direto uns aos outros, sem peça entre eles: apresentados como um tubo só.
+  const run = isPipeRun(project, selection) ? pipeRunSummary(project, selection) : null;
 
   // Comandos da faixa (Mover, Comprimento, Elevação…) levam ao campo que os executa.
   useEffect(() => {
@@ -1017,9 +1079,11 @@ export function PropertiesPanel() {
         <h2 data-testid="properties-title">
           {element
             ? element.name
-            : elements.length > 1
-              ? `${elements.length} elementos selecionados`
-              : 'Projeto'}
+            : run
+              ? `Tubo · ${run.pipes.length} trechos`
+              : elements.length > 1
+                ? `${elements.length} elementos selecionados`
+                : 'Projeto'}
         </h2>
         {elements.length > 0 && (
           <button
@@ -1039,12 +1103,18 @@ export function PropertiesPanel() {
       >
         {element
           ? `Seleção única · ${elementKindLabel(element.kind)}`
-          : elements.length > 1
-            ? 'Seleção múltipla · alterações valem para todos'
-            : 'Sem seleção'}
+          : run
+            ? 'Tubulação contínua · sem peça entre os trechos'
+            : elements.length > 1
+              ? 'Seleção múltipla · alterações valem para todos'
+              : 'Sem seleção'}
       </span>
       {element ? (
         <ElementProperties element={element} project={project} />
+      ) : run ? (
+        <PipeRunPanel run={run}>
+          <SelectionActions elements={elements} project={project} />
+        </PipeRunPanel>
       ) : elements.length > 1 ? (
         <MultiSelection elements={elements} project={project} />
       ) : (

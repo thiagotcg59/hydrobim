@@ -4,7 +4,7 @@ import { angleBetween, distance, negate } from './math';
 import { getPort, getPorts, samePortRef, type Port } from './ports';
 import { fail, ok, type Result } from './result';
 import type { Connection, EndTreatment, HydroElement, PipeSpec, PortRef, Project } from './schema';
-import { formatDegrees } from './units';
+import { degToRad, formatDegrees } from './units';
 
 /**
  * Motor de conectividade. Opera apenas sobre o modelo de domínio (elementos + grafo de
@@ -67,22 +67,71 @@ export function connectionsOfElement(project: Project, elementId: string): Conne
 export interface JointSide {
   readonly spec: PipeSpec;
   readonly end: EndTreatment | null;
+  /** Tubos: comprimento (m) do trecho reto deste lado. Ausente nas conexões. */
+  readonly run?: number;
 }
 
 /** Folga numérica (rad) ao comparar uma deflexão com o limite da junta. */
 const DEFLECTION_EPSILON = 1e-6;
 
 /**
- * Deflexão angular (rad) admitida na junta entre dois lados; 0 = junta rígida. Vale o menor
- * dos limites das duas especificações (dado de catálogo, com fonte). Flange não deflete, e
- * especificação sem o valor é tratada como rígida: nada é presumido.
+ * Maior desvio (rad) aceito em um vértice da poligonal que representa um tubo curvado a frio.
+ * É regra de fidelidade do modelo, não dado de catálogo: acima disso a poligonal deixa de
+ * representar o arco, e o traçado deve usar trechos mais curtos.
  */
-export function jointDeflectionLimit(a: JointSide, b: JointSide): number {
-  const side = (s: JointSide): number =>
-    s.end?.type === 'flange' ? 0 : (s.spec.jointDeflection ?? 0);
-  return Math.min(side(a), side(b));
+export const MAX_BEND_VERTEX = degToRad(22.5);
+
+/** Como a mudança de direção sem peça é absorvida. */
+export type DeflectionKind = 'none' | 'joint' | 'bend';
+
+export interface DeflectionAllowance {
+  /** Desvio angular máximo (rad) entre os dois lados; 0 = alinhamento exato. */
+  readonly limit: number;
+  readonly kind: DeflectionKind;
 }
 
+/**
+ * Mudança de direção admitida sem peça entre dois lados acoplados. Dois mecanismos, ambos
+ * dados de catálogo com fonte, e vale o maior:
+ *  - `joint`: deflexão angular da junta elástica — o menor `jointDeflection` dos dois lados;
+ *  - `bend`: curvatura a frio do próprio tubo — só entre dois tubos; o desvio é o comprimento
+ *    do trecho mais curto (limitado à barra, `coldBendSpan`) dividido pelo maior
+ *    `coldBendRadius`, e nunca passa de `MAX_BEND_VERTEX`.
+ * Flange não deflete nem é curvado, e lado sem o dado não contribui: nada é presumido.
+ */
+export function deflectionAllowance(a: JointSide, b: JointSide): DeflectionAllowance {
+  const flanged = a.end?.type === 'flange' || b.end?.type === 'flange';
+  if (flanged) return { limit: 0, kind: 'none' };
+  const joint = Math.min(a.spec.jointDeflection ?? 0, b.spec.jointDeflection ?? 0);
+
+  let bend = 0;
+  const radius = Math.max(a.spec.coldBendRadius ?? 0, b.spec.coldBendRadius ?? 0);
+  const bendable = a.spec.coldBendRadius !== undefined && b.spec.coldBendRadius !== undefined;
+  if (bendable && radius > 0 && a.run !== undefined && b.run !== undefined) {
+    const reach = Math.min(
+      a.run,
+      b.run,
+      a.spec.coldBendSpan ?? Infinity,
+      b.spec.coldBendSpan ?? Infinity,
+    );
+    bend = Math.min(reach / radius, MAX_BEND_VERTEX);
+  }
+  if (joint <= 0 && bend <= 0) return { limit: 0, kind: 'none' };
+  return bend > joint ? { limit: bend, kind: 'bend' } : { limit: joint, kind: 'joint' };
+}
+
+/** Desvio angular máximo (rad) admitido sem peça entre dois lados; 0 = nenhum. */
+export function jointDeflectionLimit(a: JointSide, b: JointSide): number {
+  return deflectionAllowance(a, b).limit;
+}
+
+/** Texto do limite para mensagens: "a junta admite até 5°", "o tubo, curvado a frio, …". */
+export function describeAllowance(allowance: DeflectionAllowance): string {
+  const limit = formatDegrees(allowance.limit, 2);
+  return allowance.kind === 'bend'
+    ? `o tubo, curvado a frio, admite até ${limit} neste vértice`
+    : `a junta admite deflexão de até ${limit}`;
+}
 /** Desalinhamento angular (rad) aceito entre duas portas acopladas. */
 export function alignmentTolerance(a: JointSide, b: JointSide): number {
   const limit = jointDeflectionLimit(a, b);
@@ -127,12 +176,12 @@ export function checkPortCompatibility(a: Port, b: Port): CompatibilityIssue[] {
   }
   const deflection = jointDeflection(a, b);
   if (deflection > alignmentTolerance(a, b)) {
-    const limit = jointDeflectionLimit(a, b);
+    const allowance = deflectionAllowance(a, b);
     issues.push({
       code: 'DIRECTION_MISMATCH',
       message:
-        limit > 0
-          ? `As portas não estão alinhadas: deflexão de ${formatDegrees(deflection, 2)}, e a junta admite até ${formatDegrees(limit, 2)}.`
+        allowance.limit > 0
+          ? `As portas não estão alinhadas: deflexão de ${formatDegrees(deflection, 2)}, e ${describeAllowance(allowance)}.`
           : 'As portas não estão alinhadas.',
     });
   }

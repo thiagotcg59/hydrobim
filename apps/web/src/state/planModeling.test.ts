@@ -365,8 +365,8 @@ describe('modelagem pela planta baixa', () => {
     expect(validateProject(state().project)).toEqual([]);
   });
 
-  it('recusa peças genéricas: sem joelho de catálogo o traçado só prolonga em linha reta', () => {
-    // PEAD não tem conexões de catálogo.
+  it('recusa peças genéricas: sem joelho de catálogo o traçado só muda de direção pela curvatura do tubo', () => {
+    // PEAD não tem conexões de catálogo, mas o tubo curva a frio (até 22,5° por vértice).
     state().setActiveSpec('pead-pe100-sdr11', 50);
     expect(state().activeSpec.specificationId).toBe('pead-pe100-sdr11');
     expect(elbowAnglesOf(state().project, state().activeSpec)).toEqual([]);
@@ -374,11 +374,13 @@ describe('modelagem pela planta baixa', () => {
     planClick(0, 0);
     planClick(3, 0);
 
-    // Clique de lado: o ponto é levado ao prolongamento do tubo.
+    // Clique de lado (63°): o ponto é levado ao maior desvio que a curvatura do tubo admite.
     planClick(4, 2);
     const pipes = state().project.elements.filter((e): e is Pipe => e.kind === 'pipe');
     expect(pipes).toHaveLength(2);
-    expect(pipes[1]?.end).toEqual(vec3(4, 0, 0));
+    const second = pipes[1];
+    if (!second) throw new Error('sem o segundo tubo');
+    expect(radToDeg(angleBetween(vec3(1, 0, 0), sub(second.end, second.start)))).toBeCloseTo(22.5);
     expect(count('elbow')).toBe(0);
 
     // Por coordenadas, a mudança de direção é recusada.

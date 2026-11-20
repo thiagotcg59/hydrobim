@@ -153,8 +153,19 @@ describe('fechamento entre extremidades pela store', () => {
   });
 
   it('com "somente peças de catálogo", descarta a solução que criaria joelho genérico', () => {
+    // PEAD não tem joelho de catálogo. O desalinhamento (45°) passa do que a curvatura a frio
+    // do tubo admite num vértice, de modo que só restaria o desvio com joelhos genéricos.
     state().setActiveSpec('pead-pe100-sdr11', 50);
-    const { a, b } = parallel();
+    state().commitPoint(vec3(0, 0, 0));
+    state().commitPoint(vec3(1, 0, 0));
+    state().cancelInteraction();
+    state().commitPoint(vec3(4, 3, 0));
+    state().commitPoint(vec3(5, 3, 0));
+    state().cancelInteraction();
+    const [first, second] = state().project.elements;
+    if (!first || !second) throw new Error('sem tubos');
+    const a = first.id;
+    const b = second.id;
     const plans = planClosures(state(), a, b);
     expect(plans.every((plan) => plan.closures.length === 0)).toBe(true);
     expect(plans.some((plan) => plan.error?.includes('peça de dimensões genéricas'))).toBe(true);

@@ -1,4 +1,10 @@
-import { terrainContours, terrainStats, type Terrain, type Vec3 } from '@hydrobim/core';
+import {
+  smoothContourLine,
+  terrainContours,
+  terrainStats,
+  type Terrain,
+  type Vec3,
+} from '@hydrobim/core';
 import type { TerrainColorMode } from './terrainStore';
 
 /**
@@ -146,6 +152,7 @@ export function contourSegments(
   terrain: Terrain,
   interval: number,
   base: Vec3,
+  smooth = false,
 ): { minor: Float32Array; major: Float32Array } | null {
   const contours = terrainContours(terrain, interval);
   if (!contours.ok) return null;
@@ -154,7 +161,8 @@ export function contourSegments(
   for (const contour of contours.value) {
     const target = contour.major ? major : minor;
     const z = contour.elevation - base.z;
-    for (const line of contour.lines) {
+    for (const raw of contour.lines) {
+      const line = smooth ? smoothContourLine(raw) : raw;
       for (let i = 1; i < line.length; i += 1) {
         const p = line[i - 1];
         const q = line[i];

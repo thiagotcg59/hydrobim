@@ -21,6 +21,7 @@ export const SNAP_LABELS: Record<SnapKind, string> = {
   vertical: 'Vertical',
   angle: 'Ângulo de catálogo',
   pipe: 'Tê automático no tubo',
+  terrain: 'Terreno',
 };
 
 export interface SnapTarget {

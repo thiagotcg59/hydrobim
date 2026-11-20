@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { Suspense, useMemo } from 'react';
+import { TerrainDrapeNotice } from '../terrain/TerrainDrapeNotice';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { SceneContent } from './SceneContent';
 
@@ -41,6 +42,7 @@ export function Viewport() {
         >
           <SceneContent />
         </Canvas>
+        <TerrainDrapeNotice />
       </Suspense>
     </ErrorBoundary>
   );

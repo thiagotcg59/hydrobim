@@ -1,7 +1,10 @@
 import type { Discipline, JointType, Material } from '@hydrobim/core';
 import {
+  AMANCO_PVC_COLD_BENDING,
   DUCTILE_IRON_JGS_DEFLECTION,
-  PVC_ELASTIC_JOINT_DEFLECTION,
+  PEAD_COLD_BENDING,
+  TIGRE_DEFOFO_COLD_BENDING,
+  type ColdBending,
   type JointDeflectionTable,
 } from './jointDeflection';
 
@@ -38,6 +41,11 @@ export interface PipeSpecification {
    * por termofusão) ou valor não levantado: nenhuma deflexão é aceita.
    */
   readonly jointDeflection?: JointDeflectionTable;
+  /**
+   * Curvatura a frio do próprio tubo, com a fonte. Ausente = o tubo não é curvado (ou o
+   * valor não foi levantado).
+   */
+  readonly coldBending?: ColdBending;
 }
 
 const size = (dn: number, label: string, od: number, wall: number): CatalogSize => ({
@@ -75,7 +83,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'pvc',
     standard: 'ABNT NBR 5647',
     jointType: 'socketSpigot',
-    jointDeflection: PVC_ELASTIC_JOINT_DEFLECTION,
+    coldBending: AMANCO_PVC_COLD_BENDING,
     pressureClass: 'Classe 12 (0,60 MPa)',
     disciplines: ['infra'],
     // Fonte: Amanco Wavin (FT Linha PBA, FTC000088, jan/2025, p. 14).
@@ -91,7 +99,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'pvc',
     standard: 'ABNT NBR 5647',
     jointType: 'socketSpigot',
-    jointDeflection: PVC_ELASTIC_JOINT_DEFLECTION,
+    coldBending: AMANCO_PVC_COLD_BENDING,
     pressureClass: 'Classe 15 (0,75 MPa)',
     disciplines: ['infra'],
     // Fonte: Tigre (Catálogo Infraestrutura 07/2025) e Amanco Wavin (FT Linha PBA, jan/2025).
@@ -107,7 +115,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'pvc',
     standard: 'ABNT NBR 5647',
     jointType: 'socketSpigot',
-    jointDeflection: PVC_ELASTIC_JOINT_DEFLECTION,
+    coldBending: AMANCO_PVC_COLD_BENDING,
     pressureClass: 'Classe 20 (1,0 MPa)',
     disciplines: ['infra'],
     sizes: [
@@ -122,7 +130,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'pvc',
     standard: 'ABNT NBR 7665',
     jointType: 'socketSpigot',
-    jointDeflection: PVC_ELASTIC_JOINT_DEFLECTION,
+    coldBending: TIGRE_DEFOFO_COLD_BENDING,
     pressureClass: 'PN 1 MPa',
     disciplines: ['infra'],
     // Fonte: Tigre MPVC DEFoFo (Catálogo Infraestrutura 07/2025, p. 15). Diâmetros externos
@@ -190,6 +198,7 @@ export const SPECIFICATIONS: readonly PipeSpecification[] = [
     material: 'hdpe',
     standard: 'ABNT NBR 15561 / ISO 4427',
     jointType: 'buttFusion',
+    coldBending: PEAD_COLD_BENDING,
     pressureClass: 'PN 16 (SDR 11)',
     disciplines: ['infra', 'mep'],
     // Em polietileno o diâmetro nominal é o próprio diâmetro externo (DN/DE).

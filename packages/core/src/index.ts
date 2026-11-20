@@ -3,6 +3,7 @@ export * from './annotations';
 export * from './bounds';
 export * from './catalogPolicy';
 export * from './closure';
+export * from './pipeRun';
 export * from './connectivity';
 export * from './dimensions';
 export * from './elbowAngles';

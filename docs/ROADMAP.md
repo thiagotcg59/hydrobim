@@ -67,9 +67,10 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ✅ Somente peças de catálogo (padrão): o editor recusa criar joelho, tê, redução ou válvula de dimensões genéricas e alterar dimensões de peças de catálogo; sem joelho de catálogo, o traçado só prolonga em linha reta. Pode ser desligado nas opções da ferramenta.
 - ⬜ Curvas PBA (ponta e bolsa) e conexões de PEAD como famílias, para que essas especificações possam mudar de direção com a política de catálogo ligada.
 - ✅ Trecho por valores no painel da ferramenta: comprimento real, projeção horizontal, ângulo (dos joelhos de catálogo), ΔX/ΔY/ΔZ, cota final e declividade, com a prévia real da montagem (peças criadas, tubos ajustados ou a recusa do núcleo) antes de confirmar; subir e descer até o pavimento vizinho mantendo a altura do eixo sobre o piso. A prévia roda a mesma operação da confirmação.
-- ✅ Deflexão na junta: tubos de junta elástica mudam de direção sem peça até o limite do fabricante (ferro dúctil JGS 5°/4°/3° conforme o DN; PVC PBA e DEFoFo 1°), no traçado com o cursor, por valores e no fechamento entre extremidades; acima do limite, joelho. Fontes em `docs/CATALOGS.md`.
-- 🟡 Declividade: aceita a partir de ponto livre, de mudança de direção fora do plano e, em prolongamento de um tubo, até a deflexão que a junta admite. Em juntas rígidas (PVC soldável, aço, PEAD) o prolongamento com declividade segue recusado acima de 0,5°.
-- ⬜ Curvatura a frio do próprio tubo (PVC, PEAD): exige um elemento de tubo curvo.
+- ✅ Mudança de direção sem peça, até o limite do fabricante: deflexão da junta elástica (ferro dúctil JGS 5°/4°/3° conforme o DN) e curvatura a frio do tubo (PVC DEFoFo e PBA por barra de 6 m; PEAD com raio de 30 × DE), no traçado com o cursor, por valores e no fechamento entre extremidades; acima do limite, joelho. PVC soldável e aço soldado não mudam de direção sem peça. Valores confirmados pelo responsável; fontes em `docs/CATALOGS.md`.
+- ✅ Declividade: aceita a partir de ponto livre, de mudança de direção fora do plano e, em prolongamento de um tubo, até o desvio que a junta ou a curvatura do tubo admitem. Em PVC soldável e aço soldado o prolongamento com declividade segue recusado acima de 0,5°.
+- ✅ Tubulação contínua: tubos ligados direto uns aos outros, sem conexão, tê nem acessório entre eles, são selecionados e apresentados como um tubo só (comprimento total, trechos, mudanças de direção); um trecho isolado é aberto pela lista do painel. É derivada do grafo de conexões — cada trecho continua sendo um elemento.
+- ⬜ Elemento de tubo curvo: hoje a curvatura a frio é uma poligonal (cordas), limitada a 22,5° por vértice.
 - ⬜ Prévia das peças desenhada nas vistas (hoje é textual, no painel); inserção em linha em tubo vertical pela planta.
 - ✅ Exportação DXF: planta baixa em R2000, em metros e nas coordenadas do projeto, com camadas `REDE_*` por categoria (cor, tipo e espessura de linha), cotas como `DIMENSION`, conexões/registros/equipamentos como blocos (`INSERT`), contornos em `LWPOLYLINE`, textos, chamadas e etiquetas; modelo 3D em malhas poliface (R12). Conferido com `ezdxf`; ainda não aberto em AutoCAD/Civil 3D.
 - ⬜ Planta: balões de item ligados ao quantitativo, cotas de nível, angulares e em cadeia, setas de fluxo, hachuras, seta de norte, linhas de centro e simbologia convencional.
@@ -99,7 +100,8 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ⬜ Cadastro de nós e trechos; descargas, hidrantes, caixas.
 - ⬜ Terreno: LandXML (importação e exportação), entidade IFC do terreno, curvas de nível e corte na documentação (DXF/SVG), mais de uma superfície por projeto, BigTIFF e rasters lidos por janela.
 - ⬜ Perfil longitudinal como vista sincronizada com a planta e o 3D (hoje no diálogo de análises, por Análise › Perfil longitudinal ou pelo botão Perfil… junto das abas de vista).
-- ⬜ Ortofoto do usuário como fundo; imagem na exportação quando a licença permitir; satélite no 3D; prancha com carimbo, legenda e norte; fator de escala combinado.
+- ✅ Mapa de ruas ou de satélite estendido sobre a superfície do terreno no modelo 3D, acompanhando o relevo, com atribuição.
+- ⬜ Ortofoto do usuário como fundo; imagem na exportação quando a licença permitir; mapa no 3D sem superfície de terreno; prancha com carimbo, legenda e norte; fator de escala combinado.
 - ⬜ Instanciamento e níveis de detalhe no modelo 3D para milhares de elementos.
 
 ## Fase 6 — Engenharia e integrações 🟡

@@ -1,5 +1,6 @@
-import { suggestContourInterval } from '@hydrobim/core';
+import { MAX_CONTOUR_LEVELS, suggestContourInterval, terrainStats } from '@hydrobim/core';
 import { Grid3x3, Waves } from 'lucide-react';
+import { basemapProviders } from '../map/providers';
 import { useEditorStore } from '../state/editorStore';
 import { EXAGGERATIONS, useTerrainStore, type TerrainColorMode } from './terrainStore';
 
@@ -13,6 +14,8 @@ const INTERVALS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100] as const;
 export function TerrainDisplayControls() {
   const terrain = useEditorStore((s) => s.project.terrain);
   const display = useTerrainStore((s) => s.display);
+  const customBasemap = useEditorStore((s) => s.customBasemap);
+  const providers = basemapProviders(customBasemap);
   const { setDisplay } = useTerrainStore.getState();
   if (!terrain) {
     return (
@@ -22,20 +25,31 @@ export function TerrainDisplayControls() {
     );
   }
   const suggested = suggestContourInterval(terrain);
+  const stats = terrainStats(terrain);
+  const relief = stats.maxZ - stats.minZ;
   const natural = display.exaggeration === 1;
   return (
     <>
       <label className="plan__field">
-        <span>Cor (3D)</span>
+        <span>Superfície (3D)</span>
         <select
           data-testid="terrain-color-mode"
-          value={display.colorMode}
-          onChange={(event) => setDisplay({ colorMode: event.target.value as TerrainColorMode })}
-          title="Cor da superfície no modelo 3D: por altitude (hipsometria), por classes de declividade ou lisa"
+          value={display.drapeSourceId ? `map:${display.drapeSourceId}` : display.colorMode}
+          onChange={(event) => {
+            const { value } = event.target;
+            if (value.startsWith('map:')) setDisplay({ drapeSourceId: value.slice(4) });
+            else setDisplay({ drapeSourceId: null, colorMode: value as TerrainColorMode });
+          }}
+          title="Superfície no modelo 3D: cor por altitude (hipsometria), por classes de declividade, lisa, ou o mapa de ruas ou de satélite estendido sobre o relevo (exige o projeto georreferenciado)"
         >
           <option value="elevation">Altitude</option>
           <option value="slope">Declividade</option>
           <option value="plain">Lisa</option>
+          {providers.map((provider) => (
+            <option key={provider.id} value={`map:${provider.id}`}>
+              Mapa: {provider.name}
+            </option>
+          ))}
         </select>
       </label>
       <label className="check" title="Mostrar as curvas de nível na planta e no modelo 3D">
@@ -61,12 +75,30 @@ export function TerrainDisplayControls() {
           title="Intervalo das curvas de nível. As curvas são a interseção exata com a triangulação: um intervalo mais fino que a exatidão dos dados não acrescenta informação real"
         >
           <option value="">sugerido ({suggested.toLocaleString('pt-BR')} m)</option>
-          {INTERVALS.map((value) => (
-            <option key={value} value={value}>
-              {value.toLocaleString('pt-BR')} m
-            </option>
-          ))}
+          {INTERVALS.map((value) => {
+            // Um intervalo que daria centenas de curvas neste desnível não é oferecido.
+            const tooDense = relief / value > MAX_CONTOUR_LEVELS;
+            return (
+              <option key={value} value={value} disabled={tooDense}>
+                {value.toLocaleString('pt-BR')} m
+                {tooDense ? ' — curvas demais para o desnível' : ''}
+              </option>
+            );
+          })}
         </select>
+      </label>
+      <label
+        className="check"
+        title="Suaviza o desenho das curvas de nível, na planta e no 3D. É só visual: a superfície, as cotas e os cortes não mudam, e a curva suavizada deixa de passar exatamente pelas interseções com a triangulação"
+      >
+        <input
+          type="checkbox"
+          data-testid="terrain-contour-smoothing"
+          checked={display.contourSmoothing}
+          disabled={!display.contours}
+          onChange={(event) => setDisplay({ contourSmoothing: event.target.checked })}
+        />
+        Suavizar curvas
       </label>
       <button
         type="button"

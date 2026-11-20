@@ -155,3 +155,91 @@ export function terrainContours(
   }
   return ok(contours);
 }
+
+/**
+ * Suavização VISUAL de uma curva de nível. A curva é reamostrada em passos uniformes e filtrada
+ * por uma média gaussiana ao longo do comprimento, com alcance de alguns lados da malha: assim
+ * somem os "degraus" que a curva faz ao atravessar a triangulação célula a célula (típicos de
+ * MDT em grade ou de cotas arredondadas), e não só os cantos isolados. A curva suavizada deixa
+ * de passar exatamente pelos pontos em que o plano horizontal corta as arestas da
+ * triangulação: é um recurso de desenho, não um dado do terreno.
+ *
+ * Curvas abertas mantêm as pontas (no limite da superfície), com o alcance do filtro reduzido
+ * perto delas; curvas fechadas continuam fechadas. O alcance é limitado pelo tamanho da curva
+ * para que anéis pequenos (topos e fundos) não encolham de forma visível.
+ *
+ * `strength` é o desvio-padrão do filtro em múltiplos do lado típico da curva (mediana dos
+ * segmentos originais).
+ */
+export function smoothContourLine(line: readonly Point2[], strength = 2.5): Point2[] {
+  const source = line.map((p) => ({ x: p.x, y: p.y }));
+  if (source.length < 3) return source;
+  const first = source[0] as Point2;
+  const last = source[source.length - 1] as Point2;
+  const closed = source.length > 3 && first.x === last.x && first.y === last.y;
+
+  // Comprimentos acumulados e lado típico.
+  const lengths: number[] = [];
+  const cumulative = [0];
+  for (let i = 1; i < source.length; i += 1) {
+    const p = source[i - 1] as Point2;
+    const q = source[i] as Point2;
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    lengths.push(d);
+    cumulative.push((cumulative[i - 1] as number) + d);
+  }
+  const total = cumulative[cumulative.length - 1] as number;
+  const positive = lengths.filter((d) => d > 1e-12).sort((a, b) => a - b);
+  if (total <= 1e-9 || positive.length === 0) return source;
+  const typical = positive[Math.floor(positive.length / 2)] as number;
+
+  // Alcance do filtro: proporcional ao lado da malha, limitado pelo tamanho da curva. Num anel
+  // de raio r, a média gaussiana de desvio s o reduz por exp(-s²/2r²); com s ≤ P/25 (P = 2πr)
+  // a redução fica abaixo de 2 %.
+  const sigma = Math.min(strength * typical, total / (closed ? 25 : 8));
+  // Reamostragem uniforme fina o bastante para o filtro e para o desenho parecer contínuo.
+  const step = Math.max(Math.min(typical / 2, sigma / 2), total / 20000);
+  const segments = Math.max(closed ? 8 : 2, Math.round(total / step));
+  const samples: Point2[] = [];
+  let index = 1;
+  const count = closed ? segments : segments + 1;
+  for (let k = 0; k < count; k += 1) {
+    const s = (k / segments) * total;
+    while (index < cumulative.length - 1 && (cumulative[index] as number) < s) index += 1;
+    const s0 = cumulative[index - 1] as number;
+    const s1 = cumulative[index] as number;
+    const p = source[index - 1] as Point2;
+    const q = source[index] as Point2;
+    const t = s1 > s0 ? (s - s0) / (s1 - s0) : 0;
+    samples.push({ x: p.x + t * (q.x - p.x), y: p.y + t * (q.y - p.y) });
+  }
+  if (!closed) samples[samples.length - 1] = { ...last };
+
+  const sigmaSamples = sigma / (total / segments);
+  if (sigmaSamples < 0.5) return closed ? [...samples, { ...(samples[0] as Point2) }] : samples;
+  const radius = Math.ceil(3 * sigmaSamples);
+  const weights: number[] = [];
+  for (let j = 0; j <= radius; j += 1) weights.push(Math.exp(-(j * j) / (2 * sigmaSamples ** 2)));
+
+  const n = samples.length;
+  const result: Point2[] = [];
+  for (let i = 0; i < n; i += 1) {
+    // Curva aberta: janela simétrica truncada na ponta mais próxima, que portanto não se move.
+    const reach = closed
+      ? Math.min(radius, Math.floor((n - 1) / 2))
+      : Math.min(radius, i, n - 1 - i);
+    let sx = 0;
+    let sy = 0;
+    let sw = 0;
+    for (let j = -reach; j <= reach; j += 1) {
+      const w = weights[Math.abs(j)] as number;
+      const p = samples[closed ? (((i + j) % n) + n) % n : i + j] as Point2;
+      sx += w * p.x;
+      sy += w * p.y;
+      sw += w;
+    }
+    result.push({ x: sx / sw, y: sy / sw });
+  }
+  if (closed) result.push({ ...(result[0] as Point2) });
+  return result;
+}

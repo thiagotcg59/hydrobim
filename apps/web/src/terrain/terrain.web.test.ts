@@ -33,7 +33,9 @@ import {
   zoomOptions,
   type TileDecoder,
 } from './elevationTiles';
+import { drapeMosaic, drapeUvs, MAX_DRAPE_TILES } from './drape';
 import { decodeLzw, readGeoTiffDem } from './geotiff';
+import { findBasemapProvider } from '../map/providers';
 import {
   buildTerrainMesh,
   contourSegments,
@@ -755,5 +757,43 @@ describe('operações do terreno na planta', () => {
     expect(useTerrainStore.getState().profilePath).toHaveLength(2);
     expect(useEditorStore.getState().project).toBe(before);
     expect(useEditorStore.getState().past).toHaveLength(0);
+  });
+});
+
+describe('mapa sobre o terreno', () => {
+  const stats = { minX: -300, minY: -280, maxX: 420, maxY: 300 };
+  const streets = findBasemapProvider('osm-standard')!;
+
+  it('cobre a superfície com poucos ladrilhos e põe cada vértice no ponto certo da imagem', () => {
+    const mosaic = drapeMosaic(TRANSFORM, streets, stats)!;
+    expect(mosaic.tiles.length).toBe(mosaic.cols * mosaic.rows);
+    expect(mosaic.tiles.length).toBeLessThanOrEqual(MAX_DRAPE_TILES);
+    // 720 m em cerca de 2.048 px: 0,35 m por pixel pede o nível 18 nesta latitude.
+    expect(mosaic.zoom).toBe(18);
+    // Vértices relativos a uma origem local, como na malha do 3D.
+    const base = { x: 60, y: 10 };
+    const positions = new Float32Array([-360, -290, 0, 360, 290, 5, 0, 0, 2]);
+    const uvs = drapeUvs(TRANSFORM, mosaic, positions, base);
+    for (const value of uvs) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+    }
+    // Conferência independente: a origem do projeto (marco zero) pelas fórmulas dos ladrilhos.
+    const size = 2 ** mosaic.zoom;
+    const tx = ((-46.633309 + 180) / 360) * size;
+    const ty = ((1 - Math.asinh(Math.tan((-23.55052 * Math.PI) / 180)) / Math.PI) / 2) * size;
+    const origin = drapeUvs(TRANSFORM, mosaic, new Float32Array([-60, -10, 0]), base);
+    // Um pixel do mosaico vale cerca de 0,55 m: a origem cai a menos de um centésimo de pixel.
+    expect((origin[0]! * mosaic.cols - (tx - mosaic.minX)) * 256).toBeCloseTo(0, 1);
+    expect(((1 - origin[1]!) * mosaic.rows - (ty - mosaic.minY)) * 256).toBeCloseTo(0, 1);
+    // Leste aumenta u; norte aumenta v.
+    expect(uvs[2]!).toBeGreaterThan(uvs[0]!);
+    expect(uvs[3]!).toBeGreaterThan(uvs[1]!);
+  });
+
+  it('não pede o mosaico de uma superfície ampla demais para a fonte', () => {
+    expect(
+      drapeMosaic(TRANSFORM, streets, { minX: -400000, minY: -400000, maxX: 400000, maxY: 400000 }),
+    ).toBeNull();
   });
 });

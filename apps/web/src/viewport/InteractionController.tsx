@@ -3,6 +3,8 @@ import {
   constrainDeflection,
   degToRad,
   distance,
+  terrainRayHit,
+  terrainStats,
   vec3,
   type Vec3,
 } from '@hydrobim/core';
@@ -22,16 +24,46 @@ import {
 import { ndcRectFromPixels, verticesInsideRect } from '../editor/boxSelection';
 import { arrowPreferences, contextTargetOf, CONTEXT_PX, nudgeStep } from '../editor/directEdit';
 import { toCanonical } from '../editor/renderOrigin';
-import { pickPoint, pickPort, type PickResult, type PixelScale, type Ray } from '../editor/picking';
+import {
+  pickPoint,
+  pickPort,
+  type PickGround,
+  type PickResult,
+  type PixelScale,
+  type Ray,
+} from '../editor/picking';
 import { visibleFreePortsOf } from '../editor/visibility';
 import {
   deflectionConstraintOf,
   drawElevationOf,
+  equipmentGroundElevation,
   pipeSnapOf,
   useEditorStore,
 } from '../state/editorStore';
+import { useTerrainStore } from '../terrain/terrainStore';
 
 const CLICK_TOLERANCE_PX = 5;
+
+/**
+ * Captura sobre o terreno para as ferramentas de equipamento: o raio é testado contra a
+ * superfície como ela está DESENHADA (o exagero vertical escala as cotas a partir da menor
+ * delas), e a cota do ponto é a de assentamento — a do terreno real, nunca a exagerada.
+ */
+function groundOf(state: Parameters<typeof equipmentGroundElevation>[0]): PickGround | null {
+  const { terrain } = state.project;
+  if (!terrain || (state.tool !== 'pump' && state.tool !== 'tank')) return null;
+  if (!state.toolOptions.terrainPlacement.enabled) return null;
+  const exaggeration = useTerrainStore.getState().display.exaggeration;
+  const base = terrainStats(terrain).minZ;
+  return {
+    hit: (ray) => {
+      const origin = vec3(ray.origin.x, ray.origin.y, base + (ray.origin.z - base) / exaggeration);
+      const direction = vec3(ray.direction.x, ray.direction.y, ray.direction.z / exaggeration);
+      return terrainRayHit(terrain, origin, direction);
+    },
+    elevationAt: (x, y) => equipmentGroundElevation(state, x, y),
+  };
+}
 
 function elementIdOf(object: Object3D | null): string | null {
   let current = object;
@@ -146,6 +178,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
                 ? { point: state.anchor.point, lockAxis: state.anchor.lockAxis }
                 : null,
             vertical: event.shiftKey,
+            ground: groundOf(state),
           })
         : null;
       // Saindo da extremidade de um tubo, a direção trava nos ângulos dos joelhos de catálogo.

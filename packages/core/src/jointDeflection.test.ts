@@ -3,6 +3,8 @@ import { closePorts, closureCandidates } from './closure';
 import {
   alignmentTolerance,
   checkPortCompatibility,
+  deflectionAllowance,
+  MAX_BEND_VERTEX,
   findConnection,
   jointDeflectionLimit,
   resolvePort,
@@ -189,7 +191,7 @@ describe('acoplamento e validação com deflexão', () => {
     const issues = validateProject(tighter);
     expect(issues.map((i) => i.code)).toEqual(['DIRECTION_MISMATCH']);
     expect(issues[0]?.message).toContain('deflexão de 4°');
-    expect(issues[0]?.message).toContain('a junta admite até 3°');
+    expect(issues[0]?.message).toContain('a junta admite deflexão de até 3°');
   });
 
   it('a compatibilidade entre portas usa o limite da junta', () => {
@@ -301,5 +303,114 @@ describe('fechamento com deflexão nas juntas', () => {
     const { project, a, b } = facing(rigid, 0.3);
     const all = closureCandidates(project, { a, b });
     expect(all.ok && all.value.some((c) => c.kind === 'deflected')).toBe(false);
+  });
+});
+
+describe('curvatura a frio do próprio tubo', () => {
+  /** PVC em barras de 6 m: raio equivalente de 45 m (7,6° por barra inteira). */
+  const bars: PipeSpec = {
+    ...testSpec(100, 'pvc-barras'),
+    jointType: 'socketSpigot',
+    coldBendRadius: 45,
+    coldBendSpan: 6,
+  };
+  /** Tubo contínuo (PEAD): raio de 3,3 m, sem limite de barra. */
+  const continuous: PipeSpec = {
+    ...testSpec(110, 'pead'),
+    jointType: 'buttFusion',
+    coldBendRadius: 3.3,
+  };
+  const side = (spec: PipeSpec, run?: number, end: EndTreatment | null = null) => ({
+    spec,
+    end,
+    ...(run === undefined ? {} : { run }),
+  });
+
+  it('o desvio do vértice é o trecho mais curto dividido pelo raio, limitado à barra', () => {
+    const full = deflectionAllowance(side(bars, 6), side(bars, 6));
+    expect(full.kind).toBe('bend');
+    expect(full.limit).toBeCloseTo(6 / 45);
+    // Trecho de 12 m não dobra o limite: conta só a barra.
+    expect(deflectionAllowance(side(bars, 12), side(bars, 12)).limit).toBeCloseTo(6 / 45);
+    // Trecho curto: desvio proporcional.
+    expect(deflectionAllowance(side(bars, 6), side(bars, 1.5)).limit).toBeCloseTo(1.5 / 45);
+  });
+
+  it('só entre dois tubos, sem flange; conexão e especificação sem o dado não curvam', () => {
+    expect(deflectionAllowance(side(bars, 6), side(bars)).kind).toBe('none');
+    expect(deflectionAllowance(side(bars, 6), side(bars, 6, flange)).kind).toBe('none');
+    expect(deflectionAllowance(side(bars, 6), side(rigid, 6)).kind).toBe('none');
+  });
+
+  it('tubo contínuo: limitado a 22,5° por vértice', () => {
+    expect(deflectionAllowance(side(continuous, 1), side(continuous, 1)).limit).toBeCloseTo(
+      1 / 3.3,
+    );
+    expect(deflectionAllowance(side(continuous, 6), side(continuous, 6)).limit).toBe(
+      MAX_BEND_VERTEX,
+    );
+  });
+
+  it('junta e curvatura no mesmo vértice: vale o maior', () => {
+    const both: PipeSpec = { ...bars, jointDeflection: degToRad(1) };
+    expect(deflectionAllowance(side(both, 6), side(both, 6)).kind).toBe('bend');
+    const short = deflectionAllowance(side(both, 6), side(both, 0.3));
+    expect(short.kind).toBe('joint');
+    expect(short.limit).toBeCloseTo(degToRad(1));
+  });
+
+  function drawFrom(spec: PipeSpec, degrees: number, length: number) {
+    const { project, end } = firstPipe(spec);
+    return drawPipe(project, {
+      fromPort: end,
+      start: vec3(6, 0, 0),
+      end: at(vec3(6, 0, 0), degrees, length),
+      spec,
+      elbowAngles: [degToRad(45), degToRad(90)],
+    });
+  }
+
+  it('drawPipe: dentro do limite sai um tubo, sem joelho, e o projeto valida', () => {
+    const drawn = drawFrom(bars, 5, 6);
+    expect(drawn.ok).toBe(true);
+    if (!drawn.ok) return;
+    expect(drawn.value.createdIds).toHaveLength(1);
+    expect(drawn.value.project.connections).toHaveLength(1);
+    expect(validateProject(drawn.value.project)).toEqual([]);
+  });
+
+  it('drawPipe: trecho novo curto demais para o desvio é recusado, com o limite do vértice', () => {
+    // 1,5 m admite 1,5/45 rad = 1,91°.
+    const refused = drawFrom(bars, 5, 1.5);
+    expect(!refused.ok && refused.error.code).toBe('NO_ELBOW_FOR_ANGLE');
+    expect(!refused.ok && refused.error.message).toContain(
+      'o tubo, curvado a frio, admite até 1,91° neste vértice',
+    );
+  });
+
+  it('declividade: o desvio vale em qualquer plano', () => {
+    const { project, end } = firstPipe(continuous);
+    // 2 % de declividade (1,15°) em prolongamento.
+    const drawn = drawPipe(project, {
+      fromPort: end,
+      start: vec3(6, 0, 0),
+      end: vec3(12, 0, -0.12),
+      spec: continuous,
+      elbowAngles: [degToRad(45), degToRad(90)],
+    });
+    expect(drawn.ok && drawn.value.createdIds).toHaveLength(1);
+    expect(drawn.ok && validateProject(drawn.value.project)).toEqual([]);
+  });
+
+  it('encurtar um trecho curvado além do que o raio admite rompe o acoplamento', () => {
+    const drawn = drawFrom(bars, 5, 6);
+    if (!drawn.ok) throw new Error(drawn.error.message);
+    const shortened = setPipeEndpoint(
+      drawn.value.project,
+      drawn.value.elementId,
+      'end',
+      at(vec3(6, 0, 0), 5, 2),
+    );
+    expect(!shortened.ok && shortened.error.code).toBe('COUPLING_BROKEN');
   });
 });

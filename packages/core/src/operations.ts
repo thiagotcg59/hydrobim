@@ -5,8 +5,9 @@ import {
   connectedComponent,
   findConnection,
   getElement,
+  deflectionAllowance,
+  describeAllowance,
   isPortFree,
-  jointDeflectionLimit,
   resolvePort,
 } from './connectivity';
 import {
@@ -276,8 +277,10 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
   const deflection = angleBetween(port.direction, direction);
   // Junta elástica: a deflexão que o fabricante admite dispensa a peça. O tubo novo sai de
   // ponta lisa, salvo o flange pedido em `ends.start` (flange não deflete).
-  const newSide = { spec, end: input.ends?.start ?? null };
-  const jointLimit = jointDeflectionLimit(port, newSide);
+  // Curvatura a frio: conta o comprimento do trecho novo.
+  const newSide = { spec, end: input.ends?.start ?? null, run: distance(corner, input.end) };
+  const allowance = deflectionAllowance(port, newSide);
+  const jointLimit = allowance.limit;
 
   if (deflection <= alignmentTolerance(port, newSide)) {
     return addPipe(project, {
@@ -293,7 +296,7 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
     return fail(
       'OFF_AXIS',
       jointLimit > 0
-        ? `A partir de uma conexão, o tubo deve seguir o eixo da porta; a junta admite deflexão de até ${formatDegrees(jointLimit, 2)}, e a pedida é de ${formatDegrees(deflection, 2)}. Insira um joelho para mudar de direção.`
+        ? `A partir de uma conexão, o tubo deve seguir o eixo da porta; ${describeAllowance(allowance)}, e a pedida é de ${formatDegrees(deflection, 2)}. Insira um joelho para mudar de direção.`
         : 'A partir de uma conexão, o tubo deve seguir o eixo da porta. Insira um joelho para mudar de direção.',
     );
   }
@@ -307,9 +310,7 @@ export function drawPipe(project: Project, input: DrawPipeInput): Result<Created
     return fail(
       'NO_ELBOW_FOR_ANGLE',
       `Não há joelho de ${formatDegrees(deflection, 2)} no catálogo para ${spec.sizeLabel}. Ângulos disponíveis: ${formatAngleList(input.elbowAngles)}.${
-        jointLimit > 0
-          ? ` Sem peça, a junta admite deflexão de até ${formatDegrees(jointLimit, 2)}.`
-          : ''
+        jointLimit > 0 ? ` Sem peça, ${describeAllowance(allowance)}.` : ''
       }`,
     );
   }

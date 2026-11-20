@@ -1,6 +1,7 @@
 import { validatePolygon, type Point2 } from '@hydrobim/core';
 import { create } from 'zustand';
 import { useEditorStore } from '../state/editorStore';
+import type { DrapeState } from './drape';
 
 /**
  * Estado de sessão do módulo de terreno: área de recorte em edição, corte longitudinal, ponto
@@ -22,12 +23,22 @@ export interface TerrainDisplay {
   /** Intervalo das curvas de nível (m); `null` = sugerido pelo desnível da superfície. */
   readonly contourInterval: number | null;
   /**
+   * Suaviza o DESENHO das curvas de nível. A superfície, as cotas e os cortes não mudam; a
+   * curva suavizada deixa de passar exatamente pelas interseções com a triangulação.
+   */
+  readonly contourSmoothing: boolean;
+  /**
    * Fator vertical aplicado SÓ ao desenho do terreno no 3D. 1 = terreno natural, escala real
    * 1:1 (o padrão). Acima de 1 o terreno deixa de coincidir com a rede e a interface avisa.
    */
   readonly exaggeration: number;
   /** Opacidade da superfície no modelo 3D, de 0,1 a 1 (abaixo de 1 a rede enterrada aparece). */
   readonly opacity: number;
+  /**
+   * Fonte de mapa (ruas, satélite) desenhada sobre a superfície no modelo 3D, acompanhando o
+   * relevo; `null` = cor pela opção `colorMode`.
+   */
+  readonly drapeSourceId: string | null;
 }
 
 export const DEFAULT_DISPLAY: TerrainDisplay = {
@@ -35,8 +46,10 @@ export const DEFAULT_DISPLAY: TerrainDisplay = {
   triangulation: false,
   contours: true,
   contourInterval: null,
+  contourSmoothing: false,
   exaggeration: 1,
   opacity: 0.6,
+  drapeSourceId: null,
 };
 
 export const EXAGGERATIONS = [1, 2, 3, 5, 10] as const;
@@ -66,6 +79,8 @@ interface TerrainState {
   query: Point2 | null;
   display: TerrainDisplay;
   job: TerrainJobState;
+  /** Situação do mapa sobre o terreno no 3D (`null` = desligado ou ainda não pedido). */
+  drape: { readonly state: DrapeState | 'blocked'; readonly message: string } | null;
 
   setPanelOpen: (open: boolean) => void;
   setMode: (mode: TerrainMode | null) => void;
@@ -104,6 +119,7 @@ export const useTerrainStore = create<TerrainState>()((set, get) => ({
   query: null,
   display: DEFAULT_DISPLAY,
   job: { status: 'idle' },
+  drape: null,
 
   setPanelOpen: (panelOpen) => {
     set({ panelOpen });
