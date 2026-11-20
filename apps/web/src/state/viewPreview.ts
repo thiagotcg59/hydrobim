@@ -10,7 +10,13 @@ import {
 } from '@hydrobim/core';
 import { useMemo } from 'react';
 import { diffProjects } from '../editor/operationPreview';
-import { chosenCandidate, pipeJunctionOf, useEditorStore } from './editorStore';
+import {
+  chosenCandidate,
+  moveTargetOf,
+  pipeJunctionOf,
+  planMove,
+  useEditorStore,
+} from './editorStore';
 import { planPipeSegment, planPipeTarget } from './pipePreview';
 
 /**
@@ -67,6 +73,7 @@ export function useViewPreview(): ViewPreview | null {
   const toolOptions = useEditorStore((s) => s.toolOptions);
   const activeSpec = useEditorStore((s) => s.activeSpec);
   const viewMode = useEditorStore((s) => s.viewMode);
+  const move = useEditorStore((s) => s.move);
 
   return useMemo(() => {
     if (junctionPreview && junctionPreview.base === project) {
@@ -92,6 +99,11 @@ export function useViewPreview(): ViewPreview | null {
         plan.value.guides,
       );
     }
+    if (tool === 'move') {
+      if (!move?.from || !cursor) return null;
+      const target = moveTargetOf(move.from, cursor.point, cursor.snap);
+      return fromResult(project, planMove(project, move, target));
+    }
     if (tool !== 'pipe' || !anchor || !cursor) return null;
     const state = { project, anchor, activeSpec, toolOptions, viewMode };
     const target = cursor.elementId ? getElement(project, cursor.elementId) : undefined;
@@ -107,7 +119,18 @@ export function useViewPreview(): ViewPreview | null {
     }
     if (distance(anchor.point, cursor.point) < 1e-6) return null;
     return fromResult(project, planPipeSegment(state, cursor.point));
-  }, [project, tool, anchor, cursor, connect, junctionPreview, toolOptions, activeSpec, viewMode]);
+  }, [
+    project,
+    tool,
+    anchor,
+    cursor,
+    connect,
+    junctionPreview,
+    toolOptions,
+    activeSpec,
+    viewMode,
+    move,
+  ]);
 }
 
 /**

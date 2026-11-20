@@ -24,6 +24,7 @@ export function StatusBar() {
   const cursor = useEditorStore((s) => s.cursor);
   const tool = useEditorStore((s) => s.tool);
   const anchor = useEditorStore((s) => s.anchor);
+  const moveFrom = useEditorStore((s) => s.move?.from ?? null);
   const message = useEditorStore((s) => s.message);
   const project = useEditorStore((s) => s.project);
   const drawZ = useEditorStore(drawElevationOf);
@@ -41,9 +42,18 @@ export function StatusBar() {
   }, [open]);
 
   const mode =
-    tool === 'pipe' ? (anchor ? 'aguardando ponto final' : 'aguardando ponto inicial') : 'pronto';
+    tool === 'pipe'
+      ? anchor
+        ? 'aguardando ponto final'
+        : 'aguardando ponto inicial'
+      : tool === 'move'
+        ? moveFrom
+          ? 'aguardando destino'
+          : 'aguardando ponto-base'
+        : 'pronto';
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
-  const ToolIcon = getCommand(`tool.${tool}`).icon;
+  // "Mover" não é ferramenta da faixa: o ícone é o do comando Modificar › Mover.
+  const ToolIcon = getCommand(tool === 'move' ? 'modify.move' : `tool.${tool}`).icon;
   const capture = cursor ? (cursor.note ?? describeSnap(project, cursor)) : '—';
 
   return (

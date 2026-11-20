@@ -228,3 +228,79 @@ test('modelo 3D: alça, setas e botão direito na extremidade do tubo', async ({
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
   expect(errors).toEqual([]);
 });
+
+test('botão direito › Mover: ponto-base, prévia e destino, na planta e no 3D', async ({ page }) => {
+  const errors = trackErrors(page);
+  await start(page);
+  await page.getByTestId('view-mode-plan').click();
+  await (await ctl(page, 'tool-pipe')).click();
+  const svg = page.getByTestId('plan-svg');
+  const box = await svg.boundingBox();
+  if (!box) throw new Error('Planta sem dimensões.');
+  const at = (x: number, y: number): [number, number] => [
+    box.x + box.width / 2 + x * 100,
+    box.y + box.height / 2 - y * 100,
+  ];
+  const message = page.getByTestId('status-message');
+
+  // Tubo solto de 3 m, de (-1; 1) a (2; 1), selecionado.
+  await page.mouse.click(...at(-1, 1));
+  await page.mouse.click(...at(2, 1));
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.mouse.click(...at(0.5, 1));
+
+  // Botão direito sobre o corpo do tubo (longe das extremidades): "Mover".
+  await page.mouse.click(...at(0.5, 1), { button: 'right' });
+  await expect(page.getByTestId('context-menu')).toBeVisible();
+  await expect(page.getByTestId('context-create-pipe')).toBeDisabled();
+  await expect(page.getByTestId('context-move-hint')).toContainText('Tubo');
+  await page.getByTestId('context-move').click();
+  await expect(page.getByTestId('context-menu')).toHaveCount(0);
+  const panel = page.getByTestId('move-panel');
+  await expect(panel).toHaveAttribute('data-step', 'from');
+
+  // Ponto-base na extremidade inicial; a prévia acompanha o cursor sem alterar o modelo.
+  await page.mouse.move(...at(-1, 1));
+  await page.mouse.click(...at(-1, 1));
+  await expect(panel).toHaveAttribute('data-step', 'to');
+  await page.mouse.move(...at(0, -1), { steps: 3 });
+  await expect(page.getByTestId('plan-preview-ghost').first()).toBeVisible();
+  // O tubo original segue no lugar; o deslocado é só o fantasma da prévia.
+  await expect(
+    svg.locator('[data-element-kind="pipe"]:not([data-testid="plan-preview"] *)'),
+  ).toHaveCount(1);
+
+  // Destino: um único passo de histórico, de volta a Selecionar.
+  await page.mouse.click(...at(0, -1));
+  await expect(message).toContainText('movido: ΔX 1,000 m, ΔY -2,000 m, ΔZ 0,000 m');
+  await expect(await ctl(page, 'tool-select')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('plan-preview-ghost')).toHaveCount(0);
+  await page.keyboard.press('Control+z');
+
+  const download = page.waitForEvent('download');
+  await (await ctl(page, 'action-export')).click();
+  const exported = JSON.parse(await readFile(await (await download).path(), 'utf8')) as {
+    elements: ExportedElement[];
+  };
+  expect(exported.elements[0]?.start?.x).toBeCloseTo(-1);
+  expect(exported.elements[0]?.start?.y).toBeCloseTo(1);
+
+  // No modelo 3D, o botão direito sobre o tubo também oferece "Mover".
+  await page.keyboard.press('Escape');
+  await page.getByTestId('view-mode-3d').click();
+  await page.getByTestId('view-ortho').click();
+  await page.getByTestId('view-top').click();
+  const canvas = await page.getByTestId('viewport-canvas').boundingBox();
+  if (!canvas) throw new Error('Viewport sem dimensões.');
+  await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2, {
+    button: 'right',
+  });
+  await page.getByTestId('context-move').click();
+  await expect(page.getByTestId('move-panel')).toHaveAttribute('data-step', 'from');
+  // Esc volta ao ponto-base; o segundo encerra sem alterar o modelo.
+  await page.keyboard.press('Escape');
+  await expect(await ctl(page, 'tool-select')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
+  expect(errors).toEqual([]);
+});

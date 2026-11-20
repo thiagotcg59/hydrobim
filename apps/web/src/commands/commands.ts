@@ -190,13 +190,16 @@ const TOOL_ICONS: Record<ToolId, LucideIcon> = {
   ...ELEMENT_ICONS,
   measure: Ruler,
   connect: Waypoints,
+  move: Move,
   dimension: MoveHorizontal,
   text: Type,
   leader: MessageSquare,
   tag: Tag,
 };
 
-const TOOL_KEYS: Record<ToolId, string> = {
+// "Mover" não é ferramenta da faixa: começa pelo comando Modificar › Mover ou pelo menu do
+// botão direito, sempre com elementos a deslocar.
+const TOOL_KEYS: Record<Exclude<ToolId, 'move'>, string> = {
   select: 'S',
   pipe: 'T',
   elbow: 'J',
@@ -213,7 +216,7 @@ const TOOL_KEYS: Record<ToolId, string> = {
   tag: 'I',
 };
 
-function toolCommand(tool: ToolId): Command {
+function toolCommand(tool: Exclude<ToolId, 'move'>): Command {
   return {
     id: `tool.${tool}`,
     label: TOOL_LABELS[tool],
@@ -328,7 +331,7 @@ function terrainModeCommand(
 const hasElements = (context: CommandContext): CommandState =>
   context.project.elements.length > 0 ? ENABLED : off(NO_ELEMENTS);
 
-const TOOLS: ToolId[] = [
+const TOOLS: Exclude<ToolId, 'move'>[] = [
   'select',
   'pipe',
   'elbow',
@@ -410,15 +413,20 @@ export const COMMANDS: readonly Command[] = [
   ...TOOLS.map(toolCommand),
 
   // ----- Modificar -----
-  revealCommand(
-    'modify.move',
-    'Mover',
-    'Desloca a seleção por ΔX, ΔY e ΔZ.',
-    Move,
-    'move-dx',
-    (context) =>
-      selected(context).length > 0 ? ENABLED : off('Selecione um ou mais elementos para mover.'),
-  ),
+  {
+    id: 'modify.move',
+    label: 'Mover',
+    description:
+      'Desloca a seleção indicando o ponto-base e o destino na vista, com a prévia do resultado (também no botão direito sobre o elemento). O deslocamento numérico ΔX, ΔY e ΔZ fica no painel de propriedades.',
+    icon: Move,
+    testId: 'modify-move',
+    state: (context) =>
+      modeling(context) ??
+      (selected(context).length > 0
+        ? { enabled: true, active: context.tool === 'move' }
+        : off('Selecione um ou mais elementos para mover.')),
+    run: () => editor().startMove(),
+  },
   revealCommand(
     'modify.copy',
     'Copiar',

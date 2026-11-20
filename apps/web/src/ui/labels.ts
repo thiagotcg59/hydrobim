@@ -32,6 +32,7 @@ export const TOOL_LABELS: Record<ToolId, string> = {
   tank: 'Reservatório',
   measure: 'Medir',
   connect: 'Alinhar e conectar',
+  move: 'Mover',
   dimension: 'Cota',
   text: 'Texto',
   leader: 'Chamada',
@@ -51,6 +52,7 @@ export const TOOL_HINTS: Record<ToolId, string> = {
   measure: 'Clique dois pontos para medir a distância.',
   connect:
     'Clique a extremidade livre do trecho e, em seguida, a porta de referência (bocal do equipamento ou de outra peça). Escolha a alternativa no painel: alinhar move o trecho; conectar completa a montagem e registra a ligação. O equipamento fica fixo. Esc: recomeçar.',
+  move: 'Clique o ponto-base (uma porta ou um ponto do elemento) e, em seguida, o destino; a prévia mostra o resultado antes do clique. Sobre um ponto do plano o deslocamento é horizontal; para mudar a cota, capture uma porta ou use Shift (vertical). Tubos ligados se ajustam quando o acoplamento permite; senão, marque "Levar a rede ligada". Esc: outro ponto-base; Esc de novo: sair.',
   dimension: 'Clique os dois pontos a cotar e, em seguida, a posição da linha de cota.',
   text: 'Clique na planta para posicionar o texto e digite o conteúdo.',
   leader: 'Clique o ponto indicado e, em seguida, a posição do texto da chamada.',
@@ -62,4 +64,5 @@ export const PLAN_TOOL_HINTS: Partial<Record<ToolId, string>> = {
   pipe: 'Clique o ponto inicial e os seguintes: o eixo fica na elevação indicada. Para subir ou descer, altere a elevação do eixo durante o traçado (cria a prumada). Começando ou terminando sobre um tubo existente, o tê é inserido automaticamente. Esc: encerrar.',
   pump: 'Clique um ponto da planta para posicionar a bomba no nível ativo; ou clique em uma extremidade livre para acoplar a sucção.',
   tank: 'Clique um ponto da planta para posicionar o reservatório no nível ativo.',
+  move: 'Clique o ponto-base e, em seguida, o destino; a prévia mostra o resultado. Na planta o deslocamento é horizontal (a cota se altera no painel de propriedades), exceto ao capturar uma porta. Esc: outro ponto-base; Esc de novo: sair.',
 };

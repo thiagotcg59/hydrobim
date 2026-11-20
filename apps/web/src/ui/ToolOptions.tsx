@@ -8,6 +8,7 @@ import {
 } from '@hydrobim/catalog';
 import {
   formatMeters,
+  getElement,
   MAX_BEND_VERTEX,
   australianDiameter,
   mmToM,
@@ -30,6 +31,7 @@ import {
   drawElevationOf,
   elbowAnglesOf,
   familiesOf,
+  moveIdsOf,
   pumpFamiliesOf,
   tankFamiliesOf,
   useEditorStore,
@@ -39,7 +41,51 @@ import { PLAN_TOOL_HINTS, TOOL_HINTS, TOOL_LABELS, VALVE_TYPE_LABELS } from './l
 import { SegmentEntry } from './SegmentEntry';
 import { SpecSelector } from './SpecSelector';
 
-const POINT_TOOLS = new Set(['pipe', 'measure', 'pump', 'tank']);
+const POINT_TOOLS = new Set(['pipe', 'measure', 'pump', 'tank', 'move']);
+
+/** Mover interativo: o que se move, a etapa atual e a opção de levar a rede ligada. */
+function MovePanel() {
+  const project = useEditorStore((s) => s.project);
+  const move = useEditorStore((s) => s.move);
+  if (!move) {
+    return (
+      <div className="options__group" data-testid="move-panel">
+        <span className="muted">Selecione elementos e use Mover (faixa ou botão direito).</span>
+      </div>
+    );
+  }
+  const ids = moveIdsOf(project, move);
+  const first = getElement(project, ids[0] ?? '');
+  return (
+    <div className="options__group" data-testid="move-panel" data-step={move.from ? 'to' : 'from'}>
+      <span className="options__caption">
+        {ids.length === 1 && first ? first.name : `${ids.length} elementos`}
+      </span>
+      <span className="muted" data-testid="move-step">
+        {move.from
+          ? `Ponto-base: ${formatMeters(move.from.x, 2)}; ${formatMeters(move.from.y, 2)}; ${formatMeters(move.from.z, 2)}. Indique o destino.`
+          : 'Indique o ponto-base.'}
+      </span>
+      <label
+        className="check"
+        title="Desloca rigidamente, junto, tudo o que estiver ligado aos elementos (a rede inteira até as extremidades livres)"
+      >
+        <input
+          type="checkbox"
+          data-testid="move-with-connected"
+          checked={move.withConnected}
+          onChange={(event) => useEditorStore.getState().setMoveWithConnected(event.target.checked)}
+        />
+        Levar a rede ligada
+      </label>
+      <span className="muted">
+        {move.withConnected
+          ? 'A rede ligada vai junto, sem alterar comprimentos nem ligações.'
+          : 'Só a seleção se move; os tubos ligados se ajustam quando o deslocamento segue o eixo deles, senão o destino é recusado.'}
+      </span>
+    </div>
+  );
+}
 
 /** Entrada de pontos por coordenadas exatas. */
 function CoordinateEntry() {
@@ -50,6 +96,7 @@ function CoordinateEntry() {
   const [y, setY] = useState(0);
   const [z, setZ] = useState<number | null>(null);
   const effectiveZ = z ?? workPlaneZ;
+  const moveFrom = useEditorStore((s) => s.move?.from ?? null);
   const caption =
     tool === 'pipe'
       ? anchor
@@ -57,7 +104,11 @@ function CoordinateEntry() {
         : 'Ponto inicial'
       : tool === 'measure'
         ? 'Ponto'
-        : 'Posição';
+        : tool === 'move'
+          ? moveFrom
+            ? 'Destino'
+            : 'Ponto-base'
+          : 'Posição';
 
   return (
     <div className="options__group" data-testid="coordinate-entry">
@@ -807,7 +858,9 @@ export function ToolOptions() {
         </div>
       )}
 
-      {tool !== 'select' && tool !== 'connect' && (
+      {tool === 'move' && <MovePanel />}
+
+      {tool !== 'select' && tool !== 'connect' && tool !== 'move' && (
         <div className="options__group">
           <span className="options__caption">Nível e elevação</span>
           <SelectField

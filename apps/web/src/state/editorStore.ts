@@ -36,6 +36,7 @@ import {
   availableElbowAngles,
   catalogViolation,
   closePorts,
+  connectedComponent,
   convertCrossToTee,
   convertTeeToCross,
   copyElements,
@@ -186,8 +187,43 @@ export type ModelToolId =
   | 'pump'
   | 'tank'
   | 'measure'
-  | 'connect';
+  | 'connect'
+  | 'move';
 export type ToolId = ModelToolId | AnnotationToolId;
+
+/**
+ * Mover interativo: os elementos a deslocar, o ponto-base já indicado (`null` = falta
+ * indicá-lo) e se a rede ligada a eles vai junto (deslocamento rígido do conjunto).
+ */
+export interface MoveState {
+  readonly ids: readonly string[];
+  readonly from: Vec3 | null;
+  readonly withConnected: boolean;
+}
+
+/** Elementos efetivamente deslocados: a seleção ou, com a rede junto, os conjuntos ligados. */
+export function moveIdsOf(project: Project, move: MoveState): string[] {
+  const ids = move.ids.filter((id) => getElement(project, id));
+  if (!move.withConnected) return ids;
+  return [...new Set(ids.flatMap((id) => connectedComponent(project, id)))];
+}
+
+/**
+ * Destino do ponto-base. Sobre uma porta ou em trecho vertical (Shift, no 3D), o ponto
+ * capturado vale inteiro; nos demais casos (plano de trabalho, grade, planta) o deslocamento
+ * é horizontal — a cota do elemento só muda de propósito, nunca pela cota do plano.
+ */
+export function moveTargetOf(from: Vec3, point: Vec3, snap: string | null): Vec3 {
+  return snap === 'port' || snap === 'vertical' ? point : vec3(point.x, point.y, from.z);
+}
+
+/** Resultado do deslocamento até `target` — o mesmo para a prévia e para a confirmação. */
+export function planMove(project: Project, move: MoveState, target: Vec3): Result<Project> | null {
+  if (!move.from) return null;
+  const delta = sub(target, move.from);
+  if (Math.hypot(delta.x, delta.y, delta.z) < 1e-9) return null;
+  return translateElements(project, moveIdsOf(project, move), delta);
+}
 export const isAnnotationTool = (tool: ToolId): tool is AnnotationToolId =>
   (ANNOTATION_TOOLS as readonly string[]).includes(tool);
 /** Área de trabalho: modelo 3D ou planta baixa (documentação técnica). */
@@ -486,6 +522,8 @@ interface EditorState {
   measure: { a: Vec3 | null; b: Vec3 | null };
   cursor: CursorInfo | null;
   stretch: PipeStretch | null;
+  /** Mover interativo em andamento (ferramenta `move`). */
+  move: MoveState | null;
   contextMenu: ContextMenuState | null;
   message: EditorMessage | null;
   /** selection: enquadra só os elementos selecionados. */
@@ -597,6 +635,13 @@ interface EditorState {
   disconnectPort: (ref: PortRef) => void;
   deleteSelected: () => void;
   moveSelection: (delta: Vec3) => void;
+  /**
+   * Começa o mover interativo dos elementos indicados (padrão: a seleção): ponto-base e,
+   * depois, o destino, com a prévia do resultado. Um único passo no histórico.
+   */
+  startMove: (ids?: readonly string[]) => void;
+  /** Leva junto (rigidamente) os elementos ligados aos que se movem. */
+  setMoveWithConnected: (enabled: boolean) => void;
   /**
    * Desliza a seleção um passo ao longo da linha (setas do teclado). `preferences` são as
    * direções da seta no modelo, em ordem de prioridade (ver `chooseSlideDirection`).
@@ -1266,6 +1311,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     measure: { a: null, b: null },
     cursor: null,
     stretch: null,
+    move: null,
     contextMenu: null,
     message: null,
     viewRequest: null,
@@ -1295,6 +1341,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         planDraft: EMPTY_DRAFT,
         anchor: null,
         stretch: null,
+        move: null,
         connect: EMPTY_CONNECT,
         junctionPreview: null,
         contextMenu: null,
@@ -1359,6 +1406,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           tool,
           anchor: null,
           connect: EMPTY_CONNECT,
+          move: null,
           contextMenu: null,
           measure: { a: null, b: null },
           planDraft: EMPTY_DRAFT,
@@ -1550,8 +1598,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       else if (planDraft.points.length > 0 || planDraft.elementId) set({ planDraft: EMPTY_DRAFT });
       else if (get().junctionPreview) set({ junctionPreview: null });
       else if (get().connect.from) set({ connect: EMPTY_CONNECT });
-      else if (anchor || measure.a) set({ anchor: null, measure: { a: null, b: null } });
-      else if (tool !== 'select') set({ tool: 'select' });
+      else if (get().move?.from) {
+        // Primeiro Esc: volta a pedir o ponto-base; o segundo encerra o mover.
+        const move = get().move;
+        if (move) set({ move: { ...move, from: null } });
+      } else if (anchor || measure.a) set({ anchor: null, measure: { a: null, b: null } });
+      else if (tool !== 'select') set({ tool: 'select', move: null });
       else set({ selection: [], annotationSelection: null });
     },
 
@@ -1576,6 +1628,15 @@ export const useEditorStore = create<EditorState>()((set, get) => {
               : 'Indique a extremidade livre do trecho a ligar (marcadores ciano).',
           );
         }
+        return;
+      }
+      if (tool === 'move') {
+        if (!click.point) return;
+        const from = state.move?.from;
+        // O clique segue a mesma regra da prévia (`moveTargetOf`); coordenadas digitadas
+        // entram por `commitPoint` e valem como informadas.
+        const snap = click.port ? 'port' : (state.cursor?.snap ?? null);
+        state.commitPoint(from ? moveTargetOf(from, click.point, snap) : click.point);
         return;
       }
       // Tê ou cruzeta existentes como início ou fim do trecho: o ramal usa a porta livre
@@ -1645,6 +1706,40 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     commitPoint: (point, portRef) => {
       const state = get();
       const { project, tool } = state;
+
+      if (tool === 'move') {
+        const { move } = state;
+        if (!move) return;
+        if (!move.from) {
+          set({
+            move: { ...move, from: point },
+            message: {
+              level: 'info',
+              text: 'Indique o destino do ponto-base (clique ou coordenadas). Esc: escolher outro ponto-base.',
+              at: Date.now(),
+            },
+          });
+          return;
+        }
+        const result = planMove(project, move, point);
+        if (!result) {
+          state.notify('info', 'O destino coincide com o ponto-base: nada a mover.');
+          return;
+        }
+        const delta = sub(point, move.from);
+        const moved = moveIdsOf(project, move);
+        // Recusado (ex.: os tubos ligados não absorvem o deslocamento): o mover continua,
+        // para outro destino ou com "levar a rede ligada".
+        if (
+          commit(
+            result,
+            `${moved.length === 1 ? `"${getElement(project, moved[0] ?? '')?.name ?? ''}" movido` : `${moved.length} elementos movidos`}: ΔX ${formatMeters(delta.x, 3)}, ΔY ${formatMeters(delta.y, 3)}, ΔZ ${formatMeters(delta.z, 3)}.`,
+          )
+        ) {
+          set({ tool: 'select', move: null, selection: [...move.ids] });
+        }
+        return;
+      }
 
       if (tool === 'measure') {
         const { a, b } = state.measure;
@@ -2186,6 +2281,32 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         translateElements(project, selection, delta),
         `${selection.length} elemento(s) movido(s).`,
       );
+    },
+
+    startMove: (ids) => {
+      const { project, selection } = get();
+      const targets = (ids ?? selection).filter((id) => getElement(project, id));
+      if (targets.length === 0) {
+        get().notify('info', 'Selecione um ou mais elementos para mover.');
+        return;
+      }
+      get().setTool('move');
+      set({
+        move: { ids: targets, from: null, withConnected: false },
+        selection: targets,
+        annotationSelection: null,
+        contextMenu: null,
+        message: {
+          level: 'info',
+          text: 'Mover: indique o ponto-base (uma porta ou um ponto) e, em seguida, o destino.',
+          at: Date.now(),
+        },
+      });
+    },
+
+    setMoveWithConnected: (enabled) => {
+      const { move } = get();
+      if (move) set({ move: { ...move, withConnected: enabled } });
     },
 
     nudgeSelection: (preferences, step) => {
