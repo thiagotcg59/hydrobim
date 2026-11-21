@@ -12,6 +12,7 @@ import { isAnnotationTool, selectIsDirty, useEditorStore } from './state/editorS
 import { restoreSession } from './state/projectActions';
 import { useUiStore, type DialogId } from './state/uiStore';
 import { CommandPalette } from './ui/CommandPalette';
+import { useCompactLayout } from './ui/compactLayout';
 import { ContextMenu } from './ui/ContextMenu';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { ExportDialog } from './ui/ExportDialog';
@@ -159,11 +160,23 @@ export function App() {
     };
   }, []);
 
+  const compact = useCompactLayout();
+  // Ao entrar na tela compacta (abertura no dobrável, janela estreitada), a área de desenho
+  // fica com toda a largura: painéis recolhidos e uma vista por vez. Reabri-los é um toque.
+  useEffect(() => {
+    if (!compact) return;
+    const ui = useUiStore.getState();
+    ui.setNavOpen(false);
+    ui.setPanelOpen(false);
+    if (ui.workspaceLayout === 'split') ui.setWorkspaceLayout('single');
+  }, [compact]);
+
   const bim = viewMode === 'bim';
-  // A árvore e as propriedades IFC pedem mais largura que as listas de modelagem.
+  // A árvore e as propriedades IFC pedem mais largura que as listas de modelagem. Na tela
+  // compacta os painéis abertos flutuam sobre a área de desenho: a coluna fica só com a régua.
   const columns = {
-    '--nav-width': `${navOpen ? Math.max(navWidth, bim ? 300 : 0) : RAIL}px`,
-    '--panel-width': `${panelOpen ? Math.max(panelWidth, bim ? 380 : 0) : RAIL}px`,
+    '--nav-width': `${navOpen && !compact ? Math.max(navWidth, bim ? 300 : 0) : RAIL}px`,
+    '--panel-width': `${panelOpen && !compact ? Math.max(panelWidth, bim ? 380 : 0) : RAIL}px`,
   } as CSSProperties;
 
   return (
@@ -175,6 +188,7 @@ export function App() {
         className={bim ? 'app app--bim' : 'app'}
         style={columns}
         data-ready={ready}
+        data-compact={compact}
         data-view-mode={viewMode}
         data-testid="app"
       >

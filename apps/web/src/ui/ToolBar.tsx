@@ -8,7 +8,7 @@ import {
   Search,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { commandState, getCommand, type CommandContext } from '../commands/commands';
 import { useCommandContext } from '../commands/useCommands';
 import { InfraControls } from '../infra/InfraPanel';
@@ -18,6 +18,7 @@ import { useEditorStore, type PlanTheme } from '../state/editorStore';
 import { useIfcState } from '../state/ifcModel';
 import { TASK_LABELS, TASKS, useUiStore, type TaskId } from '../state/uiStore';
 import { CommandButton } from './CommandButton';
+import { useCompactLayout } from './compactLayout';
 import { ElbowIcon, PumpIcon } from './EngineeringIcons';
 
 /**
@@ -575,6 +576,21 @@ function RibbonMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Na tela compacta a faixa rola na horizontal e cortaria a lista: ela fica fixa na tela,
+  // logo abaixo do botão, e fecha se a faixa rolar.
+  const compact = useCompactLayout();
+  const [place, setPlace] = useState<CSSProperties | undefined>(undefined);
+  useEffect(() => {
+    if (!open || !compact) return;
+    const body = ref.current?.closest('.ribbon__body');
+    const close = (): void => setOpen(false);
+    body?.addEventListener('scroll', close, { passive: true });
+    window.addEventListener('resize', close);
+    return () => {
+      body?.removeEventListener('scroll', close);
+      window.removeEventListener('resize', close);
+    };
+  }, [open, compact]);
   const commands = item.commands.map(getCommand);
   const states = commands.map((command) => commandState(command, context));
   const activeIndex = states.findIndex((state) => state.active);
@@ -617,7 +633,10 @@ function RibbonMenu({
             ? `${item.label}: ${item.description}${active ? `\nEm uso: ${active.label}` : ''}`
             : `${item.label}\nIndisponível: ${states[0]?.reason ?? ''}`
         }
-        onClick={() => setOpen((value) => !value)}
+        onClick={(event) => {
+          if (!open && compact) setPlace(fixedBelow(event.currentTarget));
+          setOpen(!open);
+        }}
       >
         <Icon size={20} className="cmd__icon" aria-hidden />
         <span className="cmd__label">{item.label}</span>
@@ -629,6 +648,7 @@ function RibbonMenu({
           role="menu"
           aria-label={item.label}
           data-testid={`ribbon-menu-${item.menu}-list`}
+          style={compact ? place : undefined}
         >
           {item.commands.map((id) => (
             <CommandButton
@@ -643,6 +663,20 @@ function RibbonMenu({
       )}
     </div>
   );
+}
+
+/** Posição fixa na tela logo abaixo de `anchor`, sem passar da borda direita. */
+function fixedBelow(anchor: HTMLElement | null): CSSProperties | undefined {
+  if (!anchor) return undefined;
+  const box = anchor.getBoundingClientRect();
+  const width = Math.min(320, window.innerWidth - 16);
+  return {
+    position: 'fixed',
+    top: box.bottom + 4,
+    left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)),
+    width,
+    zIndex: 60,
+  };
 }
 
 function renderItems(items: readonly Item[], context: CommandContext): ReactNode[] {

@@ -4,6 +4,7 @@ import { App } from './App';
 import './styles/app.css';
 import './styles/layout.css';
 import './styles/workbench.css';
+import './styles/compact.css';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Elemento #root não encontrado.');
