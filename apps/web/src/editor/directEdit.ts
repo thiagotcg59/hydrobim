@@ -113,7 +113,8 @@ export const CONTEXT_PX = 24;
 /**
  * Alvo do botão direito: a porta livre junto ao cursor (de onde um tubo pode partir); na
  * falta dela, a porta já conectada que estiver ali (o menu explica por que não há ação) ou,
- * apontando o corpo de uma conexão ou equipamento, a porta livre dele mais próxima.
+ * apontando o corpo de uma conexão ou equipamento, a porta livre dele mais próxima (no corpo
+ * de um tubo, o próprio tubo, sem porta).
  * `pick` escolhe a porta sob o cursor entre as candidatas e `gap` mede a distância ao cursor
  * — cada vista (3D ou planta) fornece os seus. `null` = nada a oferecer nesse ponto.
  */
@@ -134,7 +135,10 @@ export function contextTargetOf(
   );
   if (taken) return { elementId: taken.ref.elementId, port: null };
   const hit = hitElementId ? getElement(project, hitElementId) : undefined;
-  if (!hit || hit.kind === 'pipe') return null;
+  if (!hit) return null;
+  // No corpo do tubo, longe das extremidades, não há de onde partir um tubo — o menu abre
+  // pelas ações do próprio elemento (Mover).
+  if (hit.kind === 'pipe') return { elementId: hit.id, port: null };
   const own = free.filter((port) => port.ref.elementId === hit.id).sort((a, b) => gap(a) - gap(b));
   return { elementId: hit.id, port: own[0]?.ref ?? null };
 }

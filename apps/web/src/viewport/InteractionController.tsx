@@ -33,6 +33,8 @@ import {
   type Ray,
 } from '../editor/picking';
 import { shiftPick } from '../editor/polarLock';
+import { lengthStepOf, precisePipePoint } from '../editor/precision';
+import { precision } from '../state/precisionStore';
 import { cursorElementOf } from '../state/viewPreview';
 import { visibleFreePortsOf } from '../editor/visibility';
 import {
@@ -164,7 +166,14 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       const state = useEditorStore.getState();
 
       const usesPoints = state.tool !== 'select';
-      const gridStep = state.snapToGrid ? state.gridStep : 0;
+      const settings = precision();
+      // Com o trecho em andamento, o passo de comprimento da precisão substitui o da grade.
+      const drawing = state.tool === 'pipe' && state.anchor !== null;
+      const gridStep = drawing
+        ? lengthStepOf(state, settings)
+        : state.snapToGrid
+          ? state.gridStep
+          : 0;
       // Shift no traçado de tubo: trava de 45°/90° no plano ou trecho vertical, o que estiver
       // mais perto do cursor. Nas demais ferramentas, Shift continua sendo a vertical.
       const polar = event.shiftKey && state.tool === 'pipe' && state.anchor !== null;
@@ -223,6 +232,26 @@ export function InteractionController({ elementsRef, onHover }: Props) {
               stacked: 1,
             }
           : picked;
+      // Precisão de modelagem: em ponto livre do plano, direção e comprimento andam pelos
+      // passos, medidos sobre o ponto exato do cursor (sem a grade).
+      if (drawing && settings.enabled && pick && (pick.snap === 'grid' || pick.snap === 'plane')) {
+        const exact = pickPoint({
+          ray,
+          freePorts: [],
+          pixelScale: pixelScale(),
+          cycle,
+          workPlaneZ: drawElevationOf(state),
+          gridStep: 0,
+          anchor: state.anchor
+            ? { point: state.anchor.point, lockAxis: state.anchor.lockAxis }
+            : null,
+          vertical: false,
+          ground: groundOf(state),
+        });
+        const precise = exact ? precisePipePoint(state, exact.point, settings) : null;
+        if (precise)
+          return { pick: { point: precise, snap: 'angle', port: null, stacked: 1 }, hit };
+      }
       return { pick, hit };
     };
 

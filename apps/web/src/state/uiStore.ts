@@ -21,7 +21,7 @@ export const TASK_LABELS: Record<TaskId, string> = {
   manage: 'Gerenciar',
 };
 
-export type DialogId = 'open' | 'families' | 'ifcLibrary' | 'export' | 'commands';
+export type DialogId = 'open' | 'families' | 'ifcLibrary' | 'export' | 'commands' | 'options';
 export type PanelTab = 'tool' | 'properties';
 export type WorkspaceView = 'plan' | '3d';
 
@@ -129,8 +129,21 @@ interface UiState extends LayoutPrefs {
   reveal: { target: string; nonce: number } | null;
   /** Maximização temporária: as duas vistas continuam montadas e conservam suas câmeras. */
   maximizedView: WorkspaceView | null;
+  /**
+   * Cotas das peças na linha: com uma válvula, tê, cruzeta ou outra peça selecionada, as vistas
+   * mostram o tubo de cada extremidade até o próximo elemento. Estado de exibição, não do projeto.
+   */
+  inlineClearances: boolean;
+  /**
+   * Percurso em primeira pessoa da consulta BIM / IFC (no lugar da órbita do Modelo 3D). Só vale
+   * com a consulta aberta: sair dela encerra o percurso.
+   */
+  bimWalk: boolean;
 
   setTask: (task: TaskId) => void;
+  setInlineClearances: (shown: boolean) => void;
+  /** Abre (entrando na consulta BIM / IFC, se preciso) ou encerra o percurso. */
+  setBimWalk: (walking: boolean) => void;
   setRibbonCollapsed: (collapsed: boolean) => void;
   setNavOpen: (open: boolean) => void;
   setPanelOpen: (open: boolean) => void;
@@ -178,7 +191,14 @@ export const useUiStore = create<UiState>()((set, get) => {
     planRequest: null,
     reveal: null,
     maximizedView: null,
+    inlineClearances: true,
+    bimWalk: false,
 
+    setInlineClearances: (inlineClearances) => set({ inlineClearances }),
+    setBimWalk: (walking) => {
+      if (walking && get().task !== 'bim') get().setTask('bim');
+      set({ bimWalk: walking && useEditorStore.getState().viewMode === 'bim' });
+    },
     setTask: (task) => {
       const previous = get().task;
       // Escolher uma aba sempre mostra os seus comandos, mesmo com a faixa recolhida.
@@ -274,6 +294,7 @@ useEditorStore.subscribe((state, previous) => {
     const { suspended } = ui;
     useUiStore.setState({
       suspended: null,
+      bimWalk: false,
       ...(ui.task === 'bim' ? { task: ui.returnTask === 'bim' ? 'model' : ui.returnTask } : {}),
     });
     if (suspended && suspended.tool !== 'select' && state.tool === 'select') {

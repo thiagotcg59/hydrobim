@@ -4,7 +4,7 @@ import { TerrainDrapeNotice } from '../terrain/TerrainDrapeNotice';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { SceneContent } from './SceneContent';
 
-function isWebGLAvailable(): boolean {
+export function isWebGLAvailable(): boolean {
   try {
     const canvas = document.createElement('canvas');
     return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));

@@ -13,7 +13,10 @@ import { defaultBendRadius, elbowLegLength } from './dimensions';
 import { angleBetween, distance, vec3 } from './math';
 import {
   addPipe,
+  alignElements,
+  alignmentAngle,
   attachFitting,
+  copyAlignedElements,
   createProject,
   deleteElements,
   drawPipe,
@@ -23,6 +26,8 @@ import {
   insertInline,
   placeEquipment,
   rollFitting,
+  rotateElements,
+  copyRotatedElements,
   setElementElevation,
   setPipeEndpoint,
   setPipeLength,
@@ -782,5 +787,239 @@ describe('elevação', () => {
     const missing = setElementElevation(n.project, 'nao-existe', 1);
     expect(!missing.ok && missing.error.code).toBe('ELEMENT_NOT_FOUND');
     expect(unwrap(setElementElevation(n.project, n.a, 0))).toBe(n.project);
+  });
+});
+
+describe('rotateElements (giro em torno do eixo vertical)', () => {
+  /** Tubo, joelho de 90° e tubo, em L a partir da origem. */
+  function bend(): { project: Project; first: string; second: string } {
+    const a = unwrap(
+      addPipe(createProject('Teste'), { start: vec3(0, 0, 0), end: vec3(3, 0, 0), spec: spec50 }),
+    );
+    const b = unwrap(
+      drawPipe(a.project, {
+        fromPort: { elementId: a.elementId, portId: 'end' },
+        start: vec3(0, 0, 0),
+        end: vec3(3, 2, 0),
+        spec: spec50,
+      }),
+    );
+    return { project: b.project, first: a.elementId, second: b.elementId };
+  }
+
+  it('gira o conjunto ligado rigidamente: ids, ligações, comprimentos e cotas preservados', () => {
+    const { project, first, second } = bend();
+    const snapshot = JSON.stringify(project);
+    const ids = connectedComponent(project, first);
+    const rotated = unwrap(rotateElements(project, ids, vec3(0, 0, 0), degToRad(90)));
+    const a = pipeOf(rotated, first);
+    // (0,0)→(3,0) gira para (0,0)→(0,3).
+    expect(a.start.x).toBeCloseTo(0);
+    expect(a.end.x).toBeCloseTo(0);
+    // O tubo termina antes do vértice (perna do joelho): a extremidade gira com ele.
+    expect(a.end.y).toBeCloseTo(pipeOf(project, first).end.x);
+    expect(pipeLength(a)).toBeCloseTo(pipeLength(pipeOf(project, first)));
+    expect(pipeLength(pipeOf(rotated, second))).toBeCloseTo(pipeLength(pipeOf(project, second)));
+    expect(rotated.elements.map((e) => e.id)).toEqual(project.elements.map((e) => e.id));
+    expect(rotated.connections).toEqual(project.connections);
+    expect(rotated.elements.every((e) => (e.kind === 'pipe' ? e.start.z === 0 : true))).toBe(true);
+    // O projeto recebido não é alterado.
+    expect(JSON.stringify(project)).toBe(snapshot);
+    expectCoupled(rotated);
+  });
+
+  it('recusa girar só parte da rede quando a ligação com o resto se rompe', () => {
+    const { project, first } = bend();
+    const result = rotateElements(project, [first], vec3(0, 0, 0), degToRad(30));
+    expect(result.ok ? 'ok' : result.error.code).toBe('ROTATION_BREAKS_COUPLING');
+  });
+
+  it('giro nulo ou de volta inteira não altera; entradas inválidas são recusadas', () => {
+    const { project, first } = bend();
+    expect(unwrap(rotateElements(project, [first], vec3(0, 0, 0), 0))).toBe(project);
+    expect(unwrap(rotateElements(project, [first], vec3(0, 0, 0), 2 * Math.PI))).toBe(project);
+    expect(rotateElements(project, [first], vec3(0, 0, 0), NaN).ok).toBe(false);
+    expect(rotateElements(project, [], vec3(0, 0, 0), 1).ok).toBe(false);
+    expect(rotateElements(project, ['x'], vec3(0, 0, 0), 1).ok).toBe(false);
+  });
+
+  it('gira a bomba em torno de um centro externo e volta à orientação original', () => {
+    const pump = unwrap(
+      placeEquipment(createProject('Teste'), {
+        fitting: { kind: 'pump' },
+        position: vec3(0, 0, 0),
+        spec: spec50,
+      }),
+    );
+    const ids = connectedComponent(pump.project, pump.elementId);
+    const turned = unwrap(rotateElements(pump.project, ids, vec3(1, 1, 0), degToRad(90)));
+    const element = getElement(turned, pump.elementId);
+    if (!element || element.kind === 'pipe') throw new Error('bomba ausente');
+    expect(element.placement.position.x).toBeCloseTo(2);
+    expect(element.placement.position.y).toBeCloseTo(0);
+    const twice = unwrap(rotateElements(turned, ids, vec3(1, 1, 0), degToRad(-90)));
+    const back = getElement(twice, pump.elementId);
+    if (!back || back.kind === 'pipe') throw new Error('bomba ausente');
+    expect(back.placement.position.x).toBeCloseTo(0);
+    const original = getElement(pump.project, pump.elementId);
+    if (!original || original.kind === 'pipe') throw new Error('bomba ausente');
+    // Girar e voltar restaura a orientação (o quaternion pode trocar de sinal).
+    const sign = Math.sign(back.placement.rotation.w * original.placement.rotation.w) || 1;
+    for (const key of ['x', 'y', 'z', 'w'] as const) {
+      expect(back.placement.rotation[key] * sign).toBeCloseTo(original.placement.rotation[key]);
+    }
+    expectCoupled(twice);
+  });
+
+  it('copia girada: originais intactos, cópias ligadas entre si e sem pendências', () => {
+    const { project, first } = bend();
+    const ids = connectedComponent(project, first);
+    const copied = unwrap(copyRotatedElements(project, ids, vec3(10, 10, 0), degToRad(180)));
+    expect(copied.createdIds).toHaveLength(ids.length);
+    expect(copied.project.elements).toHaveLength(project.elements.length * 2);
+    for (const id of ids) expect(getElement(copied.project, id)).toEqual(getElement(project, id));
+    // As cópias seguem a ordem de `ids`: a do primeiro tubo vai de (20, 20) para −X.
+    const copy = pipeOf(copied.project, copied.createdIds[ids.indexOf(first)] ?? '');
+    expect(copy.start.x).toBeCloseTo(20);
+    expect(copy.start.y).toBeCloseTo(20);
+    expect(copy.end.x).toBeCloseTo(20 - pipeOf(project, first).end.x);
+    expect(copied.project.connections).toHaveLength(project.connections.length * 2);
+    expectCoupled(copied.project);
+    expect(validateProject(copied.project).filter((i) => i.severity === 'error')).toEqual([]);
+    expect(copyRotatedElements(project, ids, vec3(0, 0, 0), NaN).ok).toBe(false);
+  });
+});
+
+describe('alignElements (alinhar por dois pares de pontos)', () => {
+  function bend(): { project: Project; first: string; second: string } {
+    const a = unwrap(
+      addPipe(createProject('Teste'), { start: vec3(0, 0, 0), end: vec3(3, 0, 0), spec: spec50 }),
+    );
+    const b = unwrap(
+      drawPipe(a.project, {
+        fromPort: { elementId: a.elementId, portId: 'end' },
+        start: vec3(0, 0, 0),
+        end: vec3(3, 2, 0),
+        spec: spec50,
+      }),
+    );
+    return { project: b.project, first: a.elementId, second: b.elementId };
+  }
+
+  it('ângulo entre as direções em planta, no intervalo (−180°, 180°]', () => {
+    const o = vec3(0, 0, 0);
+    expect(alignmentAngle({ source1: o, target1: o })).toBe(0);
+    expect(
+      alignmentAngle({ source1: o, target1: o, source2: vec3(1, 0, 0), target2: vec3(0, 2, 5) }),
+    ).toBeCloseTo(degToRad(90));
+    expect(
+      alignmentAngle({
+        source1: vec3(1, 1, 0),
+        target1: vec3(5, 5, 0),
+        source2: vec3(2, 1, 0),
+        target2: vec3(4, 5, 0),
+      }),
+    ).toBeCloseTo(Math.PI);
+    // Par na mesma vertical: não define direção.
+    expect(
+      alignmentAngle({ source1: o, target1: o, source2: vec3(0, 0, 3), target2: vec3(1, 0, 0) }),
+    ).toBeNull();
+  });
+
+  it('leva origem 1 ao destino 1 e gira a direção 1→2: rígido, ids e ligações preservados', () => {
+    const { project, first, second } = bend();
+    const snapshot = JSON.stringify(project);
+    const ids = connectedComponent(project, first);
+    const a0 = pipeOf(project, first);
+    // Origem: início do tubo e um ponto no eixo dele; destino: (10, 5, 1) apontando para +Y.
+    const aligned = unwrap(
+      alignElements(project, ids, {
+        source1: a0.start,
+        target1: vec3(10, 5, 1),
+        source2: vec3(2, 0, 0),
+        target2: vec3(10, 9, 7),
+      }),
+    );
+    const a = pipeOf(aligned, first);
+    expect(a.start.x).toBeCloseTo(10);
+    expect(a.start.y).toBeCloseTo(5);
+    // A cota do primeiro par vale inteira; a do segundo só não entra no giro.
+    expect(a.start.z).toBeCloseTo(1);
+    expect(a.end.x).toBeCloseTo(10);
+    expect(a.end.y).toBeCloseTo(5 + a0.end.x);
+    expect(a.end.z).toBeCloseTo(1);
+    expect(pipeLength(pipeOf(aligned, second))).toBeCloseTo(pipeLength(pipeOf(project, second)));
+    expect(aligned.elements.map((e) => e.id)).toEqual(project.elements.map((e) => e.id));
+    expect(aligned.connections).toEqual(project.connections);
+    expect(JSON.stringify(project)).toBe(snapshot);
+    expectCoupled(aligned);
+    expect(validateProject(aligned).filter((i) => i.severity === 'error')).toEqual([]);
+  });
+
+  it('só com o primeiro par equivale a mover (tubos ligados se ajustam)', () => {
+    const { project, first } = bend();
+    const ids = connectedComponent(project, first);
+    const delta = vec3(1, 2, 0);
+    // Compara a geometria, sem os carimbos de data.
+    const shape = (p: Project) => p.elements.map((e) => ({ ...e, meta: null }));
+    const moved = unwrap(alignElements(project, ids, { source1: vec3(0, 0, 0), target1: delta }));
+    expect(shape(moved)).toEqual(shape(unwrap(translateElements(project, ids, delta))));
+    // Direções já paralelas: também só desloca.
+    const parallel = unwrap(
+      alignElements(project, ids, {
+        source1: vec3(0, 0, 0),
+        target1: delta,
+        source2: vec3(1, 0, 0),
+        target2: vec3(4, 2, 0),
+      }),
+    );
+    expect(shape(parallel)).toEqual(shape(moved));
+    expect(unwrap(alignElements(project, ids, { source1: delta, target1: delta }))).toBe(project);
+  });
+
+  it('recusa romper a ligação com o restante da rede, par sem direção e entradas inválidas', () => {
+    const { project, first } = bend();
+    const broken = alignElements(project, [first], {
+      source1: vec3(0, 0, 0),
+      target1: vec3(0, 0, 0),
+      source2: vec3(1, 0, 0),
+      target2: vec3(1, 1, 0),
+    });
+    expect(broken.ok ? 'ok' : broken.error.code).toBe('ALIGN_BREAKS_COUPLING');
+    const vertical = alignElements(project, [first], {
+      source1: vec3(0, 0, 0),
+      target1: vec3(1, 0, 0),
+      source2: vec3(0, 0, 2),
+      target2: vec3(2, 0, 0),
+    });
+    expect(vertical.ok ? 'ok' : vertical.error.code).toBe('ALIGN_DIRECTION_UNDEFINED');
+    const invalid = alignElements(project, [first], {
+      source1: vec3(NaN, 0, 0),
+      target1: vec3(0, 0, 0),
+    });
+    expect(invalid.ok ? 'ok' : invalid.error.code).toBe('INVALID_POINT');
+    expect(alignElements(project, [], { source1: vec3(0, 0, 0), target1: vec3(1, 0, 0) }).ok).toBe(
+      false,
+    );
+  });
+
+  it('cópia alinhada: originais intactos, cópias ligadas entre si e sem pendências', () => {
+    const { project, first } = bend();
+    const ids = connectedComponent(project, first);
+    const copied = unwrap(
+      copyAlignedElements(project, ids, {
+        source1: vec3(0, 0, 0),
+        target1: vec3(20, 0, 0),
+        source2: vec3(1, 0, 0),
+        target2: vec3(20, -1, 0),
+      }),
+    );
+    expect(copied.createdIds).toHaveLength(ids.length);
+    for (const id of ids) expect(getElement(copied.project, id)).toEqual(getElement(project, id));
+    const copy = pipeOf(copied.project, copied.createdIds[ids.indexOf(first)] ?? '');
+    expect(copy.start.x).toBeCloseTo(20);
+    expect(copy.end.y).toBeCloseTo(-pipeOf(project, first).end.x);
+    expectCoupled(copied.project);
+    expect(validateProject(copied.project).filter((i) => i.severity === 'error')).toEqual([]);
   });
 });

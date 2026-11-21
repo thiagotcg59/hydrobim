@@ -156,8 +156,8 @@ test('modificar e conectar: disponibilidade pela seleção, com o motivo', async
   await expect(pipes).toHaveCount(2);
   await pipes.first().click();
   await expect(move).toBeEnabled();
-  await expect(page.getByTestId('modify-rotate')).toBeDisabled();
-  await expect(page.getByTestId('modify-rotate')).toHaveAttribute('title', /Tubos não giram/);
+  // Girar em planta vale também para tubos (a rede ligada gira junto).
+  await expect(page.getByTestId('modify-rotate')).toBeEnabled();
 
   // "Comprimento" leva ao campo que executa a alteração.
   await page.getByTestId('modify-length').click();

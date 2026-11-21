@@ -16,6 +16,7 @@ export * from './geo/crs';
 export * from './geo/projection';
 export * from './geo/transform';
 export * from './geo/webMercator';
+export * from './inlineClearance';
 export * from './ids';
 export * from './math';
 export * from './operations';

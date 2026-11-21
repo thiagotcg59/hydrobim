@@ -15,6 +15,7 @@ import { TOOL_LABELS } from './ui/labels';
 import { OpenProjectDialog } from './ui/OpenProjectDialog';
 import { ProjectBrowser } from './ui/ProjectBrowser';
 import { ProjectDialog } from './ui/ProjectDialog';
+import { ProjectOptionsDialog } from './ui/ProjectOptionsDialog';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { SidePanel } from './ui/SidePanel';
 import { StatusBar } from './ui/StatusBar';
@@ -160,6 +161,7 @@ export function App() {
         <IfcLibraryDialog open={dialog === 'ifcLibrary'} onClose={closeDialog('ifcLibrary')} />
         <ExportDialog open={dialog === 'export'} onClose={closeDialog('export')} />
         <CommandPalette open={dialog === 'commands'} onClose={closeDialog('commands')} />
+        <ProjectOptionsDialog open={dialog === 'options'} onClose={closeDialog('options')} />
         <ProjectDialog
           open={projectDialog}
           onClose={() => setProjectDialog(false)}
