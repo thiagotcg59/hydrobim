@@ -8,3 +8,4 @@ export { countOpenEdges, mapMesh } from './skin';
 export * from './sweep';
 export { mergeMeshes } from './tank';
 export * from './planOcclusion';
+export * from './viewOutline';

@@ -100,6 +100,9 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   // v13 → v14: cruzeta como elemento (`cross`, quatro portas) e famílias de cruzetas
   // (`kind: 'cross'`). Só acrescenta tipos: documentos v13 já são válidos no esquema v14.
   13: (doc) => ({ ...doc, schemaVersion: 14 }),
+  // v14 → v15: vistas de projeto (plantas por nível, cortes, elevações e vistas 3D, com os
+  // detalhes 2D de cada uma). Documentos antigos não têm vistas salvas.
+  14: (doc) => ({ views: [], ...doc, schemaVersion: 15 }),
 };
 
 export function serializeProject(project: Project): string {
@@ -157,6 +160,20 @@ export function parseProjectDocument(input: unknown): Result<Project> {
       return fail(
         'DANGLING_CONNECTION',
         'Projeto inválido: há conexões que referenciam elementos inexistentes.',
+      );
+    }
+  }
+  const viewIds = new Set<string>();
+  const levelIds = new Set(project.levels.map((level) => level.id));
+  for (const view of project.views) {
+    if (viewIds.has(view.id)) {
+      return fail('DUPLICATE_VIEW', `Projeto inválido: vista duplicada (${view.name}).`);
+    }
+    viewIds.add(view.id);
+    if (view.kind === 'plan' && !levelIds.has(view.levelId)) {
+      return fail(
+        'DANGLING_VIEW_LEVEL',
+        `Projeto inválido: a planta "${view.name}" referencia um nível inexistente.`,
       );
     }
   }

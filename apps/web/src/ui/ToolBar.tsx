@@ -1,5 +1,13 @@
 import { DRAWING_SCALES, type DimensionMode } from '@hydrobim/core';
-import { ChevronDown, ChevronUp, Minus, Search, type LucideIcon } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Minus,
+  PanelBottom,
+  PenLine,
+  Search,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { commandState, getCommand, type CommandContext } from '../commands/commands';
 import { useCommandContext } from '../commands/useCommands';
@@ -45,6 +53,8 @@ interface Group {
   readonly id: string;
   readonly label: string;
   readonly items: readonly Item[];
+  /** Grupo denso: os comandos secundários ficam só com o símbolo em qualquer largura. */
+  readonly dense?: boolean;
   /** Grupo contextual: só aparece quando faz sentido (ex.: mapa, no ambiente Infra). */
   readonly when?: (context: CommandContext) => boolean;
 }
@@ -229,8 +239,33 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       items: [
         { command: 'tool.dimension' },
         { command: 'tool.text' },
-        { command: 'tool.leader' },
-        { command: 'tool.tag' },
+        { command: 'tool.leader', compact: true },
+        { command: 'tool.tag', compact: true },
+      ],
+    },
+    {
+      // Desenho 2D na vista salva aberta: detalhes da vista, não elementos da rede.
+      id: 'details',
+      label: 'Detalhes da vista',
+      items: [
+        { command: 'detail.line' },
+        {
+          menu: 'detail-shapes',
+          label: 'Formas',
+          description: 'Polilinha, retângulo e círculo',
+          icon: PenLine,
+          commands: ['detail.polyline', 'detail.rect', 'detail.circle'],
+        },
+        { command: 'detail.text', compact: true },
+        { command: 'detail.dimension', compact: true },
+      ],
+    },
+    {
+      id: 'view-doc',
+      label: 'Vista',
+      items: [
+        { command: 'views.crop', compact: true },
+        { command: 'views.panel', compact: true },
       ],
     },
     {
@@ -248,6 +283,39 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     },
   ],
   view: [
+    {
+      // Vistas salvas no projeto: plantas por nível, cortes, elevações e vistas 3D.
+      id: 'project-views',
+      label: 'Vistas do projeto',
+      items: [
+        { command: 'views.newPlan' },
+        { command: 'views.newSection' },
+        {
+          menu: 'elevations',
+          label: 'Elevação',
+          description: 'Elevação norte, sul, leste ou oeste',
+          icon: PanelBottom,
+          commands: [
+            'views.elevation.north',
+            'views.elevation.south',
+            'views.elevation.east',
+            'views.elevation.west',
+          ],
+        },
+        { command: 'views.new3d', compact: true },
+      ],
+    },
+    {
+      // A configuração completa da vista fica no painel direito, aba "Vista".
+      id: 'view-cut',
+      label: 'Corte e recorte',
+      dense: true,
+      items: [
+        { command: 'views.sectionBox', compact: true },
+        { command: 'views.crop', compact: true, testId: 'ribbon-views-crop' },
+        { command: 'views.saveFrame', compact: true },
+      ],
+    },
     {
       id: 'camera',
       label: 'Câmera (Modelo 3D)',
@@ -303,6 +371,9 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     {
       id: 'panels',
       label: 'Vistas e painéis',
+      // Com as vistas do projeto na aba, estes alternadores ficam só com o símbolo (o nome
+      // está na dica): a faixa continua em uma linha a 1920 px.
+      dense: true,
       items: [
         { command: 'view.split', compact: true },
         { command: 'view.inlineClearances', compact: true },
@@ -609,7 +680,7 @@ export function ToolBar() {
           {groups.map((group) => (
             <section
               key={group.id}
-              className="ribbon__group"
+              className={group.dense ? 'ribbon__group ribbon__group--dense' : 'ribbon__group'}
               data-testid={`ribbon-group-${group.id}`}
               data-group={group.id}
               aria-label={group.label}

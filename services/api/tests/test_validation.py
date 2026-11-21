@@ -158,3 +158,26 @@ def test_validation_does_not_mutate_project(project_document):
     original = project.model_dump(by_alias=True)
     assert validate_project(project) == []
     assert project.model_dump(by_alias=True) == original
+
+
+def test_reports_view_problems(project_document):
+    """Esquema v15: vista duplicada e planta de nível inexistente."""
+    view = {
+        "id": "vista-1",
+        "kind": "plan",
+        "name": "Planta",
+        "visibility": {"hiddenSystemIds": [], "hiddenCategories": [], "details": True},
+        "scale": 50,
+        "style": {"theme": "color", "thinLines": True},
+        "crop": None,
+        "frame": None,
+        "details": [],
+        "levelId": "nivel-inexistente",
+        "cutHeight": 3,
+        "depth": 3.3,
+        "rotation": 0,
+    }
+    project_document["views"] = [view, deepcopy(view)]
+    codes = [issue.code for issue in validate_project(Project.model_validate(project_document))]
+    assert codes.count("DANGLING_VIEW_LEVEL") == 2
+    assert codes.count("DUPLICATE_VIEW") == 1

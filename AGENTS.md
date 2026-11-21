@@ -15,7 +15,7 @@ Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md
 | `packages/ifc` | Camada BIM (`src/bim`: modelo de informação, registro de propriedades, validação, IDS) e exportação IFC 4.3 (escritor IFC-SPF puro) | `core`, `geometry` |
 | `packages/dxf` | Exportação DXF (planta anotada em R2000 e modelo 3D em R12), escritor ASCII puro | `core`, `geometry` |
 | `packages/geometry` | Malhas paramétricas (sem motor gráfico) | `core` |
-| `apps/web` | Editor React/Three.js: `ui/`, `commands/` (registro de comandos), `viewport/`, `plan/`, `infra/` (Planta Infra), `map/` (provedores de mapa), `bim/` (aba BIM / IFC), `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
+| `apps/web` | Editor React/Three.js: `ui/`, `commands/` (registro de comandos), `viewport/`, `plan/`, `infra/` (Planta Infra), `map/` (provedores de mapa), `views/` (vistas de projeto e detalhes 2D), `bim/` (aba BIM / IFC), `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
 | `services/api` | API FastAPI (validação; verificação do IFC com IfcOpenShell nos testes) | contrato JSON do projeto |
 | `tests/integration`, `tests/e2e` | Integração entre pacotes e testes no navegador | — |
 | `examples/` | Projetos de exemplo, gerados por `npm run examples:generate` | — |

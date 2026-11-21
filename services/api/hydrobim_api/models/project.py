@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 
 def _json_number(value: Any) -> int | float:
@@ -606,6 +606,124 @@ Annotation = Annotated[
 ]
 
 
+# Esquema v15: vistas de projeto e detalhes 2D (espelha packages/core/src/schema.ts).
+class DetailLine(CamelModel):
+    id: NonEmptyString
+    kind: Literal["line"]
+    a: Point2
+    b: Point2
+
+
+class DetailPolyline(CamelModel):
+    id: NonEmptyString
+    kind: Literal["polyline"]
+    points: Annotated[list[Point2], Field(min_length=2)]
+    closed: bool
+
+
+class DetailRect(CamelModel):
+    id: NonEmptyString
+    kind: Literal["rect"]
+    a: Point2
+    b: Point2
+
+
+class DetailCircle(CamelModel):
+    id: NonEmptyString
+    kind: Literal["circle"]
+    center: Point2
+    radius: PositiveNumber
+
+
+ViewDetail = Annotated[
+    DetailLine | DetailPolyline | DetailRect | DetailCircle | TextAnnotation | DimensionAnnotation,
+    Field(discriminator="kind"),
+]
+ViewCategory = Literal["pipes", "fittings", "valves", "equipment", "tanks"]
+
+
+class ViewVisibility(CamelModel):
+    hidden_system_ids: list[NonEmptyString]
+    hidden_categories: list[ViewCategory]
+    details: bool
+
+
+class ViewStyle(CamelModel):
+    theme: Literal["color", "mono"]
+    thin_lines: bool
+
+
+class ViewCrop(CamelModel):
+    enabled: bool
+    min: Point2
+    max: Point2
+
+
+class ViewFrame(CamelModel):
+    center: Point2
+    height: PositiveNumber
+
+
+class ViewBase(CamelModel):
+    id: NonEmptyString
+    name: NonEmptyString
+    visibility: ViewVisibility
+
+
+class View2dBase(ViewBase):
+    scale: PositiveNumber
+    style: ViewStyle
+    crop: ViewCrop | None
+    frame: ViewFrame | None
+    details: list[ViewDetail]
+
+
+class PlanView(View2dBase):
+    kind: Literal["plan"]
+    level_id: NonEmptyString
+    cut_height: FiniteNumber
+    depth: PositiveNumber
+    rotation: FiniteNumber
+
+
+class SectionView(View2dBase):
+    kind: Literal["section"]
+    a: Point2
+    b: Point2
+    side: Annotated[Literal[1, -1], BeforeValidator(_json_number)]
+    depth: PositiveNumber
+
+
+class ElevationView(View2dBase):
+    kind: Literal["elevation"]
+    direction: Literal["north", "south", "east", "west"]
+
+
+class ViewCamera(CamelModel):
+    target: Vec3
+    direction: Vec3
+    half_height: PositiveNumber
+    projection: Literal["perspective", "orthographic"]
+
+
+class SectionBox(CamelModel):
+    enabled: bool
+    min: Vec3
+    max: Vec3
+
+
+class ModelView(ViewBase):
+    kind: Literal["3d"]
+    camera: ViewCamera | None
+    section_box: SectionBox | None
+    display: Literal["shaded", "wireframe"]
+
+
+ProjectView = Annotated[
+    PlanView | SectionView | ElevationView | ModelView, Field(discriminator="kind")
+]
+
+
 class Units(CamelModel):
     length: Literal["m"]
     angle: Literal["rad"]
@@ -613,7 +731,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[14], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[15], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -635,24 +753,46 @@ class Project(CamelModel):
     annotations: list[Annotation]
     drawing_scale: PositiveNumber
     infra: InfraSettings
+    # Esquema v15: vistas de projeto, na ordem do navegador.
+    views: list[ProjectView]
 
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v14), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v15), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13):
+        if isinstance(version, bool) or version not in (
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+        ):
             return document
+        # v14 → v15: vistas de projeto (plantas, cortes, elevações e vistas 3D); documentos
+        # antigos não têm vistas salvas.
+        document = {"views": [], **document}
+        if version == 14:
+            return {**document, "schemaVersion": 15}
         # v13 → v14: cruzeta como elemento e famílias de cruzetas; só acrescenta tipos.
         if version == 13:
-            return {**document, "schemaVersion": 14}
+            return {**document, "schemaVersion": 15}
         # v12 → v13: famílias de bombas — campos opcionais na bomba e a lista de famílias
         # personalizadas, vazia nos documentos antigos.
         document = {"pumpFamilies": [], **document}
         if version == 12:
-            return {**document, "schemaVersion": 14}
+            return {**document, "schemaVersion": 15}
         # v11 → v12: limite, linhas de quebra e procedência da superfície do terreno. Um
         # terreno antigo é um levantamento por pontos, sem limite informado.
         terrain = document.get("terrain")
@@ -663,7 +803,7 @@ class Project(CamelModel):
             else terrain,
         }
         if version == 11:
-            return {**document, "schemaVersion": 14}
+            return {**document, "schemaVersion": 15}
         # v10 → v11: configuração do ambiente Infra e referência altimétrica (não informada).
         # A escala que um projeto Infra usava na planta passa a ser a da Planta Infra.
         # v9 → v10: trechos retos do joelho e cotas das curvas ponta e bolsa (opcionais).
@@ -673,7 +813,7 @@ class Project(CamelModel):
         # v5 → v6: forma construtiva, bocais e acessórios dos reservatórios (opcionais).
         # v4 → v5: filtro Y e furação opcional dos flanges. Nos dois casos o documento
         # já era válido.
-        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 14}
+        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 15}
         if version != 1 and version != 2 and version != 3:
             return cls._migrate_v10(document)
         # v3 → v4: anotações da planta baixa e escala do desenho.

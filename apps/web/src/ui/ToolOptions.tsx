@@ -203,6 +203,9 @@ function AlignPanel() {
   const project = useEditorStore((s) => s.project);
   const align = useEditorStore((s) => s.align);
   const cursor = useEditorStore((s) => s.cursor);
+  const freePoint = useEditorStore((s) => s.alignFreePoint);
+  const snapToGrid = useEditorStore((s) => s.snapToGrid);
+  const gridStep = useEditorStore((s) => s.gridStep);
   if (!align) {
     return (
       <div className="options__group" data-testid="align-panel">
@@ -262,6 +265,25 @@ function AlignPanel() {
         />
         Levar a rede ligada
       </label>
+      <label
+        className="check"
+        title="Os pontos ficam exatamente onde você clica, sem ajuste à grade. As extremidades das peças continuam sendo capturadas"
+      >
+        <input
+          type="checkbox"
+          data-testid="align-free-point"
+          checked={freePoint}
+          onChange={(event) => store().setAlignFreePoint(event.target.checked)}
+        />
+        Ponto livre (sem ajuste à grade)
+      </label>
+      <span className="muted" data-testid="align-snap-note">
+        {freePoint
+          ? 'Ponto livre: o ponto fica onde você clicar; perto de uma extremidade, ela é capturada.'
+          : snapToGrid
+            ? `Os pontos caem nos nós da grade (${formatMeters(gridStep, 2)}). Marque "Ponto livre" para clicar em qualquer lugar.`
+            : 'Ajuste à grade desligado: o ponto fica onde você clicar.'}
+      </span>
       <label className="check" title="Alinha uma cópia; os elementos originais ficam onde estão">
         <input
           type="checkbox"
