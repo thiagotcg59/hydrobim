@@ -48,6 +48,10 @@ import {
   useEditorStore,
   type SizeMode,
 } from '../state/editorStore';
+import { ArchProperties } from '../arch/ArchProperties';
+import { useArchStore } from '../arch/archStore';
+import { EarthworkProperties } from '../terrain/EarthworkProperties';
+import { useEarthworkStore } from '../terrain/earthworkStore';
 import { useUiStore } from '../state/uiStore';
 import { CloseEnds } from './CloseEnds';
 import { InlineClearances } from './InlineClearances';
@@ -55,7 +59,7 @@ import { JunctionConvert } from './JunctionConvert';
 import { ELEMENT_ICONS } from './EngineeringIcons';
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
 import { PipeRunPanel } from './PipeRunPanel';
-import { SYSTEM_KIND_LABELS, VALVE_TYPE_LABELS } from './labels';
+import { DISCIPLINE_LABELS, SYSTEM_KIND_LABELS, VALVE_TYPE_LABELS } from './labels';
 import { SpecSelector } from './SpecSelector';
 import { TankProperties } from './TankProperties';
 
@@ -1122,7 +1126,7 @@ function ProjectSummary({ project }: { project: Project }) {
       </p>
       <Section title="Projeto" testId="section-project">
         <ReadOnlyRow label="Nome" value={project.name} />
-        <ReadOnlyRow label="Ambiente" value={project.discipline === 'mep' ? 'MEP' : 'Infra'} />
+        <ReadOnlyRow label="Ambiente" value={DISCIPLINE_LABELS[project.discipline]} />
         <ReadOnlyRow label="Sistemas" value={project.systems.map((s) => s.name).join(', ')} />
         <ReadOnlyRow
           label="Elementos"
@@ -1164,6 +1168,14 @@ function ProjectSummary({ project }: { project: Project }) {
  * Ferramenta do mesmo painel). Sem seleção, mostra o resumo do projeto.
  */
 export function PropertiesPanel() {
+  const archSelected = useArchStore((s) => s.selection.length > 0);
+  // Superfície do terreno ou platô escolhidos (edição do terreno e terraplenagem).
+  const earthworkSelected = useEarthworkStore((s) => s.selection !== null);
+  if (archSelected) return <ArchProperties />;
+  return earthworkSelected ? <EarthworkProperties /> : <NetworkProperties />;
+}
+
+function NetworkProperties() {
   const project = useEditorStore((s) => s.project);
   const selection = useEditorStore((s) => s.selection);
   const primaryId = useEditorStore(selectPrimaryId);

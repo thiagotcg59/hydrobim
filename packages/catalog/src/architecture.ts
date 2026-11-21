@@ -1,0 +1,340 @@
+import {
+  newId,
+  type ArchCategory,
+  type ArchLayer,
+  type ArchTypeInput,
+  type DoorOperation,
+  type WindowOperation,
+} from '@hydrobim/core';
+
+/**
+ * Catálogo de famílias ARQUITETÔNICAS, separado da biblioteca hidráulica.
+ *
+ * Três níveis: FAMÍLIA (a tipologia, aqui) → TIPO (a família com dimensões e composição
+ * definidas, gravado no projeto por `addArchType`) → OCORRÊNCIA (cada elemento do modelo).
+ *
+ * Todas as famílias embutidas são MODELOS GENÉRICOS PARAMETRIZÁVEIS: não descrevem produto
+ * de nenhum fabricante nem transcrevem norma. As dimensões e as camadas de `defaults` são
+ * apenas valores iniciais de edição, para que o tipo possa ser criado e ajustado pelo
+ * usuário — não são dados de catálogo e não devem ser lidas como medidas padronizadas.
+ * Nenhuma família traz resistência ao fogo, desempenho acústico, transmitância térmica nem
+ * classificação: esses campos nascem pendentes (ver `docs/ARQUITETURA.md`).
+ *
+ * Família de produto comercial só entra aqui com `generic: false` e `source` preenchida
+ * (catálogo vigente do fabricante, edição, página e URL), como no catálogo hidráulico.
+ */
+export interface ArchFamily {
+  readonly id: string;
+  readonly category: ArchCategory;
+  readonly name: string;
+  readonly description: string;
+  readonly generic: boolean;
+  /** Fabricante, catálogo, edição, página e URL; `null` nas famílias genéricas. */
+  readonly source: string | null;
+  /** Classificação IFC 4.3 que os tipos da família recebem ao nascer. */
+  readonly ifc: {
+    readonly entity: string;
+    readonly typeEntity: string;
+    readonly predefinedType: string;
+    /** Por que este tipo predefinido (texto do esquema IFC 4.3, resumido). */
+    readonly rationale: string;
+  };
+  /** O que NÃO é dado de catálogo nesta família (valores iniciais, representação). */
+  readonly notes: readonly string[];
+  /** Valores iniciais do tipo criado a partir da família (editáveis antes e depois). */
+  readonly defaults: FamilyDefaults;
+}
+
+type FamilyDefaults =
+  | { readonly layers: readonly Omit<ArchLayer, 'id'>[] }
+  | {
+      readonly operation: DoorOperation;
+      readonly width: number;
+      readonly height: number;
+      readonly frameWidth: number;
+      readonly panelThickness: number;
+    }
+  | {
+      readonly operation: WindowOperation;
+      readonly width: number;
+      readonly height: number;
+      readonly sillHeight: number;
+      readonly panels: number;
+      readonly frameWidth: number;
+    };
+
+const INITIAL = 'Dimensões e camadas são valores iniciais de edição, não medidas de catálogo.';
+const NO_PERFORMANCE =
+  'Sem dados de desempenho (fogo, acústica, térmica): informe-os com a fonte do produto adotado.';
+
+const wall = (
+  id: string,
+  name: string,
+  description: string,
+  predefinedType: string,
+  rationale: string,
+  layers: readonly Omit<ArchLayer, 'id'>[],
+): ArchFamily => ({
+  id,
+  category: 'wall',
+  name,
+  description,
+  generic: true,
+  source: null,
+  ifc: { entity: 'IfcWall', typeEntity: 'IfcWallType', predefinedType, rationale },
+  notes: [INITIAL, NO_PERFORMANCE],
+  defaults: { layers },
+});
+
+const SOLID =
+  'SOLIDWALL: parede maciça, de camada única ou com camadas aplicadas — em geral alvenaria ou concreto.';
+const ELEMENTED = 'ELEMENTEDWALL: parede estruturada em montantes e revestida com chapas.';
+
+const floor = (
+  id: string,
+  category: 'slab' | 'flooring',
+  name: string,
+  description: string,
+  layers: readonly Omit<ArchLayer, 'id'>[],
+): ArchFamily => ({
+  id,
+  category,
+  name,
+  description,
+  generic: true,
+  source: null,
+  ifc:
+    category === 'slab'
+      ? {
+          entity: 'IfcSlab',
+          typeEntity: 'IfcSlabType',
+          predefinedType: 'FLOOR',
+          rationale: 'FLOOR: a laje representa um piso estrutural.',
+        }
+      : {
+          entity: 'IfcCovering',
+          typeEntity: 'IfcCoveringType',
+          predefinedType: 'FLOORING',
+          rationale: 'FLOORING: o revestimento representa o acabamento de piso.',
+        },
+  notes: [INITIAL, NO_PERFORMANCE],
+  defaults: { layers },
+});
+
+const door = (
+  id: string,
+  name: string,
+  description: string,
+  operation: DoorOperation,
+  width: number,
+): ArchFamily => ({
+  id,
+  category: 'door',
+  name,
+  description,
+  generic: true,
+  source: null,
+  ifc: {
+    entity: 'IfcDoor',
+    typeEntity: 'IfcDoorType',
+    predefinedType: 'DOOR',
+    rationale: 'DOOR: porta comum em vão de parede. O modo de abertura vai em OperationType.',
+  },
+  notes: [
+    INITIAL,
+    NO_PERFORMANCE,
+    'Marco e folha são representação; ferragens e guarnições não são modeladas.',
+  ],
+  defaults: { operation, width, height: 2.1, frameWidth: 0.05, panelThickness: 0.035 },
+});
+
+const window = (
+  id: string,
+  name: string,
+  description: string,
+  operation: WindowOperation,
+  panels: number,
+  width: number,
+  height: number,
+): ArchFamily => ({
+  id,
+  category: 'window',
+  name,
+  description,
+  generic: true,
+  source: null,
+  ifc: {
+    entity: 'IfcWindow',
+    typeEntity: 'IfcWindowType',
+    predefinedType: 'WINDOW',
+    rationale:
+      'WINDOW: janela comum em vão de parede. A divisão em folhas vai em PartitioningType e o modo de abertura de cada folha, em IfcWindowPanelProperties.',
+  },
+  notes: [
+    INITIAL,
+    NO_PERFORMANCE,
+    'Marco, montantes e vidro são representação; a espessura do vidro não é dado do tipo.',
+  ],
+  defaults: { operation, width, height, sillHeight: 1.1, panels, frameWidth: 0.05 },
+});
+
+const layer = (
+  material: string,
+  thickness: number,
+  fn: ArchLayer['function'],
+  hatch: ArchLayer['hatch'] = 'none',
+): Omit<ArchLayer, 'id'> => ({ material, thickness, function: fn, hatch });
+
+export const ARCH_FAMILIES: readonly ArchFamily[] = [
+  wall(
+    'arq-parede-alvenaria-ceramica',
+    'Parede de alvenaria cerâmica',
+    'Bloco cerâmico com revestimento argamassado nas duas faces.',
+    'SOLIDWALL',
+    SOLID,
+    [
+      layer('Revestimento argamassado', 0.02, 'finish'),
+      layer('Alvenaria de bloco cerâmico', 0.14, 'structure', 'diagonal'),
+      layer('Revestimento argamassado', 0.02, 'finish'),
+    ],
+  ),
+  wall(
+    'arq-parede-bloco-concreto',
+    'Parede de blocos de concreto',
+    'Bloco de concreto com revestimento argamassado nas duas faces.',
+    'SOLIDWALL',
+    SOLID,
+    [
+      layer('Revestimento argamassado', 0.015, 'finish'),
+      layer('Alvenaria de bloco de concreto', 0.14, 'structure', 'crossed'),
+      layer('Revestimento argamassado', 0.015, 'finish'),
+    ],
+  ),
+  wall(
+    'arq-parede-drywall',
+    'Parede de drywall',
+    'Estrutura de montantes com uma chapa de gesso em cada face.',
+    'ELEMENTEDWALL',
+    ELEMENTED,
+    [
+      layer('Chapa de gesso', 0.0125, 'finish'),
+      layer('Estrutura de montantes (vazio)', 0.07, 'structure'),
+      layer('Chapa de gesso', 0.0125, 'finish'),
+    ],
+  ),
+  floor('arq-laje-concreto', 'slab', 'Laje de concreto', 'Laje maciça de concreto armado.', [
+    layer('Concreto armado', 0.12, 'structure', 'dotted'),
+  ]),
+  floor(
+    'arq-piso-ceramica-porcelanato',
+    'flooring',
+    'Piso cerâmico ou porcelanato',
+    'Placa cerâmica ou porcelanato assentado sobre contrapiso.',
+    [
+      layer('Placa cerâmica ou porcelanato', 0.01, 'finish'),
+      layer('Contrapiso', 0.04, 'substrate'),
+    ],
+  ),
+  floor('arq-piso-vinilico', 'flooring', 'Piso vinílico', 'Manta ou régua vinílica colada.', [
+    layer('Piso vinílico', 0.003, 'finish'),
+    layer('Contrapiso', 0.04, 'substrate'),
+  ]),
+  floor('arq-piso-laminado', 'flooring', 'Piso laminado', 'Régua laminada flutuante sobre manta.', [
+    layer('Piso laminado', 0.008, 'finish'),
+    layer('Manta', 0.002, 'membrane'),
+    layer('Contrapiso', 0.04, 'substrate'),
+  ]),
+  door(
+    'arq-porta-giro-1',
+    'Porta de giro, uma folha',
+    'Folha única com dobradiças.',
+    'singleSwing',
+    0.8,
+  ),
+  door(
+    'arq-porta-giro-2',
+    'Porta de giro, duas folhas',
+    'Duas folhas com dobradiças.',
+    'doubleSwing',
+    1.6,
+  ),
+  door('arq-porta-correr', 'Porta de correr', 'Folha que corre ao lado do vão.', 'sliding', 0.9),
+  door(
+    'arq-porta-pivotante',
+    'Porta pivotante',
+    'Folha que gira em eixo vertical afastado da ombreira.',
+    'pivot',
+    1.0,
+  ),
+  window('arq-janela-fixa', 'Janela fixa', 'Vidro fixo, sem abertura.', 'fixed', 1, 1.0, 1.0),
+  window(
+    'arq-janela-correr',
+    'Janela de correr',
+    'Folhas que correm na horizontal.',
+    'sliding',
+    2,
+    1.2,
+    1.0,
+  ),
+  window(
+    'arq-janela-abrir',
+    'Janela de abrir',
+    'Folhas com dobradiças laterais.',
+    'casement',
+    2,
+    1.2,
+    1.0,
+  ),
+  window(
+    'arq-janela-basculante',
+    'Janela basculante',
+    'Folha que gira em eixo horizontal.',
+    'pivotHorizontal',
+    1,
+    0.6,
+    0.6,
+  ),
+  window(
+    'arq-janela-maxim-ar',
+    'Janela maxim-ar',
+    'Folha articulada no topo, projetada para fora.',
+    'topHung',
+    1,
+    0.8,
+    0.6,
+  ),
+];
+
+export const getArchFamily = (id: string): ArchFamily | undefined =>
+  ARCH_FAMILIES.find((family) => family.id === id);
+
+export const listArchFamilies = (category?: ArchCategory): ArchFamily[] =>
+  ARCH_FAMILIES.filter((family) => !category || family.category === category);
+
+/**
+ * Tipo novo a partir de uma família: recebe a classificação IFC da família e os valores
+ * iniciais, que `overrides` substitui (dimensões e camadas informadas pelo usuário). O
+ * resultado vai a `addArchType`, que o valida e grava no projeto.
+ */
+export function archTypeFromFamily(
+  family: ArchFamily,
+  name: string = family.name,
+  overrides: Record<string, unknown> = {},
+): ArchTypeInput {
+  const base = {
+    name,
+    familyId: family.id,
+    generic: family.generic,
+    source: family.source,
+    manufacturing: {},
+    classifications: [],
+    ifcPredefinedType: family.ifc.predefinedType,
+    ifc: {},
+  };
+  const { defaults } = family;
+  const specific =
+    'layers' in defaults
+      ? { layers: defaults.layers.map((entry) => ({ ...entry, id: newId() })) }
+      : { ...defaults, materials: {} };
+  return { ...base, category: family.category, ...specific, ...overrides } as ArchTypeInput;
+}

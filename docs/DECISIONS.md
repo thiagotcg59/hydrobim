@@ -122,7 +122,7 @@ A porta de uma conexão fica onde termina o tubo vizinho: no fundo da bolsa ou n
 
 **Estado:** aceita
 
-O comportamento padrão ao mudar o diâmetro de uma peça é alterar só ela (`resizeWithReducers`): insere redução junto a cada vizinho de outro diâmetro, ajusta reduções existentes e remove as que ficam com os dois lados iguais. O tubo adjacente cede o comprimento; as demais peças não se movem. Sem tubo adjacente para ceder espaço, ou em troca de material, a operação é recusada com explicação. A propagação pelo trecho continua disponível como alternativa.
+O comportamento padrão ao mudar o diâmetro de uma peça é alterar só ela (`resizeWithReducers`): insere redução junto a cada vizinho de outro diâmetro, ajusta reduções existentes e remove as que ficam com os dois lados iguais. O tubo adjacente cede o comprimento; as demais peças não se movem. Bolsa não recebe bolsa: quando a peça fixa e a redução têm bolsa no encontro, um toco de tubo no diâmetro da peça fixa separa as duas, com a soma das profundidades das bolsas (o menor que entra por inteiro nas duas, derivado do catálogo). Junto a uma extremidade flangeada a redução é a flange × flange do catálogo, com furação que case (tabela única de flanges); a face do tubo que encosta nela recebe o flange da família de tubos com flanges, e sem redução flangeada no diâmetro a operação é recusada — nunca entra a de bolsas. Sem tubo adjacente para ceder espaço, ou em troca de material, a operação é recusada com explicação. A propagação pelo trecho continua disponível como alternativa.
 
 ## ADR-021 — Dados de catálogo: somente valores de fontes abertas e identificadas
 
@@ -450,3 +450,54 @@ Verificação: `tests/integration/junctions.test.ts` e `alignConnect.test.ts` (c
 **Esquema.** v15 acrescenta `views` (vazia nos documentos v14). Planta de nível inexistente é erro ao abrir (`DANGLING_VIEW_LEVEL`), e excluir um nível usado por uma planta é recusado. Sem dependência nova.
 
 Verificação: `packages/core/src/views.test.ts`, `packages/geometry/src/viewOutline.test.ts`, `apps/web/src/views/viewStore.test.ts` e `entry.test.ts`, backend (modelos, migração v14 → v15 e validação) e E2E `tests/e2e/projectViews.spec.ts` (quatro fluxos no navegador real).
+
+## ADR-044 — Arquitetura no mesmo projeto, fora do grafo hidráulico, com família › tipo › ocorrência, vãos reais e propriedades lidas do esquema (esquema v16)
+
+**Coleção própria.** Paredes, lajes, revestimentos de piso, portas, janelas e ambientes ficam em `Project.architecture` (`types` e `elements`), não em `Project.elements`. Todo `HydroElement` tem sistema hidráulico, especificação de tubo e portas; pôr a arquitetura na mesma lista obrigaria a dar-lhe DN e especificação fictícios ou a enfraquecer o tipo de toda a rede (e os `switch` por `kind` de conectividade, validação, EPANET, DXF e IFC). A separação mantém as regras 3 a 6 intactas e deixa explícito que arquitetura não se conecta. Em comum ficam os níveis, as coordenadas, o histórico e as vistas — o projeto é um só, e trocar de ambiente (Arquitetura, MEP, Infra) muda apenas `discipline`.
+
+**Família › tipo › ocorrência.** A família (catálogo) é a tipologia; o tipo, gravado no projeto, tem dimensões e composição; a ocorrência aponta o tipo. O projeto é autossuficiente: abrir o arquivo não depende do catálogo embutido. Alterar um tipo vale para todas as ocorrências e a operação devolve quais — a interface informa antes de gravar.
+
+**Genérico é declarado.** As famílias embutidas são modelos genéricos parametrizáveis, com `generic: true` e sem fonte; seus números são valores iniciais de edição, não medidas de catálogo. Um tipo não genérico sem `source` é recusado pelo núcleo (`ARCH_SOURCE_REQUIRED`): a regra 12 passa a ser verificada, não só documentada. Nenhum desempenho (fogo, acústica, térmica) é embutido.
+
+**Encontros e hospedagem são derivados.** A parede guarda só a linha de referência, o nível, o deslocamento, a altura e o tipo; os encontros em L e em T são calculados das vizinhas a cada consulta, e portas e janelas guardam a parede hospedeira e a distância ao início dela. Não há o que "atualizar" ao mover uma parede — a regra 5 aplicada à arquitetura. A alternativa de gravar junções e posições absolutas dos vãos foi descartada: divergiriam da parede.
+
+**Tudo ou nada.** Toda operação termina conferindo a arquitetura inteira (`archIntegrityProblem`): vão fora do trecho de seção completa, tipo de outra categoria, contorno inválido, nível inexistente. A falha devolve o motivo e o projeto recebido — nunca um estado parcial. A mesma função roda ao abrir o arquivo e em `validateProject`.
+
+**Vãos reais, uma só fonte.** A malha da parede é fechada em torno dos vãos; o IFC exporta o contorno bruto com `IfcOpeningElement`/`IfcRelVoidsElement`/`IfcRelFillsElement`; as quantidades líquidas descontam os mesmos vãos. Os três leem `wallOpenings`, e o teste do backend compara o volume do sólido tesselado pelo IfcOpenShell com o volume líquido gravado.
+
+**Seção cortada pela malha.** Em vez de um desenhista por tipo de elemento, `sectionLoops` corta a malha fechada pelo plano da vista e devolve anéis; o preenchimento par-ímpar respeita os vãos, em planta e em corte. Isso fecha, para a arquitetura, a seção que o ADR-043 deixou aberta. As plantas ganharam `archCutHeight`: a arquitetura é cortada a 1,20 m, mas a rede continua visível até o topo da faixa — com um plano só, ou a tubulação do teto sumiria ou as paredes não apareceriam cortadas.
+
+**Triangulação reaproveitada.** Tampas de lajes com aberturas usam a triangulação de Delaunay com restrições do terreno (`constrainedDelaunay`); uma triangulação por orelhas escrita para a arquitetura falhou no caso com furo e foi descartada.
+
+**Propriedades IFC lidas do esquema.** O registro da arquitetura não transcreve os conjuntos padronizados: percorre `schemaData.ts` (gerado do `IFC4X3_ADD2`) e oferece todas as propriedades de valor simples ou enumerado de cada conjunto aplicável, com tipo e enumeração oficiais. Cada uma nasce pendente; nenhuma é exigida por padrão. O painel de propriedades e o arquivo leem o mesmo modelo (`buildArchIfcModel`).
+
+**O que o caderno de referência não define.** O Quadro 4 do Caderno de Especificações de Projetos em BIM (SC, versão 3.0) lista campos por elemento, mas as colunas de etapa estão vazias: nenhum requisito por fase foi atribuído. A seção 9.6 cita a ABNT NBR 6492:1994, cancelada; os símbolos de portas e janelas e as hachuras são identificados como representação de uso corrente, sem alegação de conformidade. Ver `docs/ARQUITETURA.md`.
+
+**Esquema.** v16 acrescenta `architecture`, o ambiente `architecture`, as categorias de arquitetura na visibilidade das vistas e `archCutHeight` nas plantas; documentos v15 migram com a arquitetura vazia. Sem dependência nova.
+
+Verificação: `packages/core/src/architecture/architecture.test.ts`, `packages/geometry/src/architecture.test.ts`, `packages/ifc/src/bim/archModel.test.ts`, `tests/integration/examples.test.ts`, e `services/api/tests/test_ifc_architecture.py` (IfcOpenShell sobre `examples/edificacao-simples.ifc`).
+
+## ADR-045 — Superfície do terreno como elemento editável; terraplenagem paramétrica com terreno projetado derivado (esquema v17)
+
+**Data:** 2026-11-21 · **Estado:** aceita (complementa a ADR-040)
+
+**Contexto.** O terreno era um dado de referência: uma malha gerada ou importada, sem identidade, sem edição e fora do IFC. Para implantar obras é preciso corrigir o levantamento (pontos, limite), criar platôs com taludes, comparar o terreno natural com o projetado e medir corte e aterro.
+
+**Decisão.**
+
+- **A superfície é um elemento** (`terrain.id`, `tag`): selecionável, com propriedades no painel existente e `GlobalId` estável no IFC. A edição de pontos, cota e limite usa o mesmo construtor da importação (Delaunay com restrições, ADR-040) e devolve uma superfície nova com o mesmo `id`.
+- **A original é guardada na primeira edição** (`terrain.original`), e não um registro de operações: a triangulação de um DEM com lacunas não se reproduz só com os pontos, e a comparação precisa da malha exata. Custo aceito: o terreno ocupa o dobro no arquivo enquanto estiver editado.
+- **Platôs são parâmetros; o terreno projetado é derivado** (regra 5): `project.earthworks` guarda perímetro, cota e taludes H:V. Terreno projetado, taludes, linha de encontro, volumes e sólidos são calculados (com memória por identidade do projeto imutável) e nunca gravados. A superfície natural não é tocada.
+- **Talude por linhas de maior declive, não por deslocamento de vértices nem por grade.** De cada ponto do perímetro sai uma linha normal ao lado, que termina na primeira interseção exata com o terreno; cantos salientes viram leques (cone), reentrantes viram uma aresta na bissetriz. A alternativa "limitar a cota do terreno entre dois cones" (um mínimo e um máximo por ponto) foi descartada: cortaria um morro distante do platô só por estar acima do cone, o que nenhum talude real faz.
+- **Remalhamento local.** Só os triângulos tocados são refeitos, com o perímetro, as linhas de talude e a linha de encontro como arestas obrigatórias; fora dali a malha é a do terreno, vértice por vértice. Refazer a triangulação inteira trocaria diagonais em malhas regulares de DEM (pontos cocirculares) e criaria diferenças de volume onde nada mudou.
+- **Platôs em sequência**, cada um sobre o resultado dos anteriores: é definido para qualquer arranjo (um aterro apoia no talude do vizinho) e corresponde à ordem de execução. A alternativa simultânea exigiria resolver o encontro de taludes de platôs diferentes.
+- **Volumes por sobreposição das duas malhas**, com cada pedaço dividido na linha de diferença zero: exato para faces planas, sem parâmetro de resolução, e separa corte de aterro onde as superfícies se cruzam.
+- **Parâmetros de volume nulos por padrão.** Empolamento, fator de conversão e aproveitamento dependem do solo; presumi-los daria um quadro com aparência de resultado. Sem eles, só os volumes geométricos aparecem. O fator é definido como m³ de aterro compactado por m³ de corte in situ, e o balanço é feito em m³ compactados.
+- **IFC**: terreno natural como `IfcGeographicElement`/`TERRAIN`; corte como `IfcEarthworksCut` que abre vazio no terreno; aterro como `IfcEarthworksFill`/`EMBANKMENT`. O terreno projetado não é exportado como entidade: é o natural menos os cortes mais os aterros.
+- **Sem dependências novas**: tudo sobre a triangulação, o perfil e os polígonos que o `core` já tinha.
+
+**Esquema.** v17: `terrain.id`, `terrain.tag`, `terrain.original` e `project.earthworks`. A migração dá o identificador fixo `terreno` às superfícies antigas (não há outro dado estável de que derivá-lo), identificação vazia, `original: null`, nenhum platô e parâmetros de volume nulos.
+
+**Consequências e limites.** Reentrâncias estreitas do perímetro são recusadas (o encontro de taludes de lados opostos exigiria o eixo medial do polígono). O leque dos cantos é uma aproximação poligonal do cone. Rede e equipamentos continuam assentados sobre o terreno natural. Os conjuntos IFC do terreno são escritos direto pela exportação, fora do registro central de propriedades, e ainda não aparecem na aba BIM / IFC.
+
+Verificação: `packages/core/src/terrain/edit.test.ts` e `earthworks.test.ts` (volumes contra fórmulas e contra uma integração independente), `packages/ifc/src/terrainExport.test.ts`, `services/api/tests/test_ifc_terrain.py` (IfcOpenShell) e `tests/e2e/earthworks.spec.ts`.

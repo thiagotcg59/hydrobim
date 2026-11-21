@@ -46,6 +46,7 @@ import {
 } from '../state/editorStore';
 import { getActiveClipPlanes } from '../views/clipContext';
 import { pointGridStepOf } from '../state/alignTool';
+import { useArchStore } from '../arch/archStore';
 import { useTerrainStore } from '../terrain/terrainStore';
 
 const CLICK_TOLERANCE_PX = 5;
@@ -71,10 +72,13 @@ function groundOf(state: Parameters<typeof equipmentGroundElevation>[0]): PickGr
   };
 }
 
-function elementIdOf(object: Object3D | null): string | null {
+function elementIdOf(
+  object: Object3D | null,
+  key: 'elementId' | 'archId' = 'elementId',
+): string | null {
   let current = object;
   while (current) {
-    const id: unknown = current.userData.elementId;
+    const id: unknown = current.userData[key];
     if (typeof id === 'string') return id;
     current = current.parent;
   }
@@ -129,7 +133,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     /** Raio do cursor no modelo e o elemento que ele atinge. */
     const cast = (
       event: MouseEvent,
-    ): { ray: Ray; hit: { elementId: string; point: Vec3 } | null } => {
+    ): { ray: Ray; hit: { elementId: string; point: Vec3 } | null; archId: string | null } => {
       const rect = canvas.getBoundingClientRect();
       pointer.set(
         ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -163,7 +167,8 @@ export function InteractionController({ elementsRef, onHover }: Props) {
               ),
             }
           : null;
-      return { ray, hit };
+      const archId = intersection && !elementId ? elementIdOf(intersection.object, 'archId') : null;
+      return { ray, hit, archId };
     };
 
     const resolve = (
@@ -365,6 +370,15 @@ export function InteractionController({ elementsRef, onHover }: Props) {
 
     const click = (event: PointerEvent): void => {
       const { pick, hit } = resolve(event);
+      if (useEditorStore.getState().tool === 'select') {
+        const arch = useArchStore.getState();
+        const { archId } = cast(event);
+        if (archId) {
+          arch.select(archId, isAdditive(event));
+          return;
+        }
+        if (!isAdditive(event)) arch.select(null);
+      }
       useEditorStore.getState().handleViewportClick({
         point: pick?.point ?? null,
         port: pick?.port?.ref ?? null,

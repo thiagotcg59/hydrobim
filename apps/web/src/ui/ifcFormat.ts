@@ -23,6 +23,7 @@ const DISPLAY: Record<IfcUnit, Display> = {
   power: { factor: 1e-3, unit: 'kW', digits: 3 },
   frequency: { factor: 60, unit: 'rpm', digits: 1 },
   ratio: { factor: 100, unit: '%', digits: 3 },
+  thermalTransmittance: { factor: 1, unit: 'W/(m²·K)', digits: 3 },
 };
 
 /** Diâmetros, espessuras e rugosidade são lidos em milímetros. */

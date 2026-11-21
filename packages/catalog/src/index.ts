@@ -48,8 +48,10 @@ export function getSpecification(id: string): PipeSpecification | undefined {
 /** Especificações oferecidas em um ambiente (MEP/Infra), na ordem de preferência. */
 export function listSpecifications(discipline?: Discipline): PipeSpecification[] {
   if (!discipline) return [...SPECIFICATIONS];
-  return SPECIFICATIONS.filter((s) => s.disciplines.includes(discipline)).sort(
-    (a, b) => a.disciplines.indexOf(discipline) - b.disciplines.indexOf(discipline),
+  // No ambiente Arquitetura a rede do mesmo edifício é a predial: valem as do MEP.
+  const network = discipline === 'architecture' ? 'mep' : discipline;
+  return SPECIFICATIONS.filter((s) => s.disciplines.includes(network)).sort(
+    (a, b) => a.disciplines.indexOf(network) - b.disciplines.indexOf(network),
   );
 }
 
@@ -232,3 +234,5 @@ export function resolvePumpPlacement(
     value: { spec, fitting: { kind: 'pump', dischargeSpec, parameters: parameters.value } },
   };
 }
+
+export * from './architecture';

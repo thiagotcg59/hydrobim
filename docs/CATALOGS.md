@@ -281,6 +281,10 @@ Também é registrado o peso (kg, com ±5 % segundo o manual). A coluna GD²/4 (
 
 **É representação (`packages/geometry/src/amphibiousPump.ts`):** raio da carcaça do motor e dos anéis (escalados pelas cotas I e J), cone da descarga, bocal da sucção e conjunto dos estágios, tirantes, forma dos pés e olhais de içamento — o topo dos olhais fica na cota J e a base dos pés, em −I. Furos dos pés, parafusos, cabo elétrico, placa e o interior da bomba não são modelados. O corpo e os flanges levam o revestimento epóxi azul (substituído pela cor do sistema, quando definida). O manual avisa que bombas com pistão equalizador ou sensoriamento (configurações Básico e Premium) podem ter outras dimensões.
 
+## Famílias arquitetônicas
+
+A biblioteca de arquitetura (`packages/catalog/src/architecture.ts`) é separada da hidráulica. Todas as famílias embutidas são **modelos genéricos parametrizáveis**: não descrevem produto de fabricante nem transcrevem norma, e por isso não têm `source`. As dimensões e camadas de cada família são apenas valores iniciais de edição — o usuário as define ao criar o tipo —, e nenhum dado de desempenho (fogo, acústica, térmica), classificação ou peso é embutido. A regra 12 continua valendo: uma família de produto comercial só entra com `generic: false` e a fonte completa (catálogo vigente do fabricante, edição, página e URL), e o núcleo recusa um tipo não genérico sem fonte. Detalhes em [ARQUITETURA.md](ARQUITETURA.md).
+
 ## Editar famílias
 
 **Catálogo** (barra superior) → aba **Conexões** → escolha a especificação (ou "Todas as especificações", para ver as famílias de todos os materiais e tipos) e a família → edite as células (em mm) → **Salvar no projeto**. Com "Aplicar às peças do projeto" marcado, as peças já inseridas são recalculadas e os tubos vizinhos reajustados; se alguma não puder ser ajustada, nada é alterado. A família alterada fica gravada no arquivo do projeto e pode ser restaurada ao catálogo. "Duplicar como nova família" cria uma família própria.

@@ -2512,6 +2512,76 @@ code {
   color: inherit;
 }
 
+/* Terraplenagem: painel sobre a planta, quadro de quantitativos e legenda de corte/aterro. */
+.earthwork {
+  width: 380px;
+}
+
+.earthwork__tabs {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.earthwork__swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0.75;
+}
+
+.earthwork__table-wrap {
+  overflow-x: auto;
+}
+
+.earthwork__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.earthwork__table th,
+.earthwork__table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.earthwork__table tbody th,
+.earthwork__table thead th:first-child {
+  text-align: left;
+  font-weight: 500;
+  white-space: normal;
+}
+
+.earthwork__table small {
+  color: var(--text-dim);
+}
+
+.earthwork__table tr > :last-child {
+  font-weight: 700;
+}
+
+.earthwork-notice {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  background: rgb(255 255 255 / 88%);
+  border-radius: 4px;
+  color: #0c1118;
+  font-size: 11px;
+}
+
+.earthwork-notice .terrain__legend {
+  color: inherit;
+}
+
 /* Janela de seleção da planta: contida (traço contínuo) ou cruzamento (tracejado, verde). */
 .plan-selection-window {
   fill: rgba(62, 143, 255, 0.12);

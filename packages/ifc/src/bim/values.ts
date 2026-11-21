@@ -20,6 +20,13 @@ export function checkIfcValue(
       : `o valor deve ser um dos itens de ${property.enumeration?.name ?? 'sua enumeração'}`;
   }
   const type = property.ifcType;
+  if (type === 'IfcDate') {
+    // Data ISO 8601 (AAAA-MM-DD), como o IFC a grava.
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return 'a data deve estar no formato AAAA-MM-DD';
+    }
+    return Number.isNaN(Date.parse(value)) ? 'a data não existe' : null;
+  }
   if (type === 'IfcBoolean')
     return typeof value === 'boolean' ? null : 'o valor deve ser sim ou não';
   if (STRING_TYPES.has(type)) {

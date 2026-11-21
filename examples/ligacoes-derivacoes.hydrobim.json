@@ -1,25 +1,25 @@
 {
   "format": "hydrobim-project",
-  "schemaVersion": 15,
-  "id": "526ca52f-0e98-4f16-8499-5cb35b9d5928",
+  "schemaVersion": 17,
+  "id": "db736f7c-9103-4b00-8e40-f051d45f7be7",
   "name": "Ligações e derivações",
   "discipline": "infra",
   "units": {
     "length": "m",
     "angle": "rad"
   },
-  "createdAt": "2026-11-21T14:24:51.513Z",
-  "updatedAt": "2026-11-21T14:24:51.518Z",
+  "createdAt": "2026-11-21T19:51:12.688Z",
+  "updatedAt": "2026-11-21T19:51:12.711Z",
   "systems": [
     {
-      "id": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "id": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "name": "Abastecimento de água",
       "kind": "waterSupply"
     }
   ],
   "levels": [
     {
-      "id": "495e12ef-488c-4bc4-8884-8bc6c8199f08",
+      "id": "f3e59a57-7eae-4cd1-8a6b-bd28ff994493",
       "name": "Referência",
       "elevation": 0
     }
@@ -30,11 +30,17 @@
   "ifcTypes": {},
   "georeference": null,
   "terrain": null,
+  "earthworks": {
+    "platforms": [],
+    "swellPercent": null,
+    "compactionFactor": null,
+    "reusePercent": null
+  },
   "elements": [
     {
-      "id": "e2364d83-232a-4539-9003-4d2987fcb64a",
+      "id": "a277fdd5-5736-4dbf-ae25-f4d3d76b0502",
       "name": "Bomba de recalque",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -55,8 +61,8 @@
         "model": "Bomba anfíbia HIGRA de estágio único, 60 Hz — R1-195/15B a R1-195/30B"
       },
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.514Z",
-        "updatedAt": "2026-11-21T14:24:51.514Z",
+        "createdAt": "2026-11-21T19:51:12.690Z",
+        "updatedAt": "2026-11-21T19:51:12.691Z",
         "revision": 1
       },
       "kind": "pump",
@@ -123,9 +129,9 @@
       }
     },
     {
-      "id": "13501b7e-8a96-49e9-8912-19e7932a1276",
+      "id": "cc21bb5f-5c2b-47b9-b3e3-ffee479c00ee",
       "name": "Recalque",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -143,8 +149,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.514Z",
-        "updatedAt": "2026-11-21T14:24:51.514Z",
+        "createdAt": "2026-11-21T19:51:12.691Z",
+        "updatedAt": "2026-11-21T19:51:12.691Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -160,9 +166,9 @@
       }
     },
     {
-      "id": "f8b78b45-52a4-47e3-b87e-9590da29beb4",
+      "id": "0932c217-921c-46db-a817-68a083fcc799",
       "name": "Coletor FoFo",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -180,8 +186,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.514Z",
-        "updatedAt": "2026-11-21T14:24:51.515Z",
+        "createdAt": "2026-11-21T19:51:12.691Z",
+        "updatedAt": "2026-11-21T19:51:12.692Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -219,9 +225,9 @@
       }
     },
     {
-      "id": "ca4c5c66-2552-4b60-965e-a2c0496707eb",
+      "id": "af7fa42a-a81e-413c-b8d8-a71a914df390",
       "name": "Ramal norte",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -239,8 +245,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.515Z",
-        "updatedAt": "2026-11-21T14:24:51.515Z",
+        "createdAt": "2026-11-21T19:51:12.692Z",
+        "updatedAt": "2026-11-21T19:51:12.693Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -268,9 +274,9 @@
       }
     },
     {
-      "id": "c23f4f7e-4493-49bc-ba1f-a93493ba2d4a",
+      "id": "d235f7b0-734f-4752-a32d-52b81ea87ae2",
       "name": "Ramal sul",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "ferro-ductil-nbr7675-k9",
         "material": "ductileIron",
@@ -288,8 +294,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.515Z",
-        "updatedAt": "2026-11-21T14:24:51.515Z",
+        "createdAt": "2026-11-21T19:51:12.693Z",
+        "updatedAt": "2026-11-21T19:51:12.693Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -317,9 +323,9 @@
       }
     },
     {
-      "id": "f0c33c71-4758-4f8a-bc07-b115b63f9003",
+      "id": "b225336c-7c44-43a2-aadd-3fe618999cca",
       "name": "Coletor PBA",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "pvc-pba-nbr5647-cl15",
         "material": "pvc",
@@ -338,8 +344,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.515Z",
-        "updatedAt": "2026-11-21T14:24:51.515Z",
+        "createdAt": "2026-11-21T19:51:12.693Z",
+        "updatedAt": "2026-11-21T19:51:12.693Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -355,9 +361,9 @@
       }
     },
     {
-      "id": "4e36badd-0798-42b6-bd9c-267652056fc0",
+      "id": "4e96c49e-3920-4afc-a640-e062155467a7",
       "name": "Ramal PBA",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "pvc-pba-nbr5647-cl15",
         "material": "pvc",
@@ -376,8 +382,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.515Z",
-        "updatedAt": "2026-11-21T14:24:51.515Z",
+        "createdAt": "2026-11-21T19:51:12.693Z",
+        "updatedAt": "2026-11-21T19:51:12.693Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -393,9 +399,9 @@
       }
     },
     {
-      "id": "e3d35ad6-c1fc-4136-8c1e-24c970aad025",
+      "id": "f16bc148-0106-403f-ba6a-4f0373598217",
       "name": "Linha PBA",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "pvc-pba-nbr5647-cl15",
         "material": "pvc",
@@ -414,8 +420,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.515Z",
-        "updatedAt": "2026-11-21T14:24:51.516Z",
+        "createdAt": "2026-11-21T19:51:12.700Z",
+        "updatedAt": "2026-11-21T19:51:12.707Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -431,9 +437,9 @@
       }
     },
     {
-      "id": "3b71e2de-ec24-47fa-b4e4-2777008a2b0b",
+      "id": "ccdcacee-3f56-4dbf-844f-812ad63b7e0b",
       "name": "Derivação PBA 1",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "pvc-pba-nbr5647-cl15",
         "material": "pvc",
@@ -452,8 +458,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.515Z",
-        "updatedAt": "2026-11-21T14:24:51.516Z",
+        "createdAt": "2026-11-21T19:51:12.702Z",
+        "updatedAt": "2026-11-21T19:51:12.708Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -469,9 +475,9 @@
       }
     },
     {
-      "id": "ea8bb278-d70a-4b46-b559-b4b51b17a20e",
+      "id": "abc4f799-4c74-4cf6-bc33-32c731cb5c30",
       "name": "Tê 1",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "pvc-pba-nbr5647-cl15",
         "material": "pvc",
@@ -490,8 +496,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.516Z",
-        "updatedAt": "2026-11-21T14:24:51.517Z",
+        "createdAt": "2026-11-21T19:51:12.707Z",
+        "updatedAt": "2026-11-21T19:51:12.710Z",
         "revision": 1
       },
       "placement": {
@@ -534,9 +540,9 @@
       "kind": "cross"
     },
     {
-      "id": "a91843d6-3372-4260-9924-d8ce4fe92b8c",
+      "id": "dfdd9714-ce82-4f73-9c38-c4a1012b28d8",
       "name": "Tubo 1",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "pvc-pba-nbr5647-cl15",
         "material": "pvc",
@@ -555,8 +561,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.516Z",
-        "updatedAt": "2026-11-21T14:24:51.516Z",
+        "createdAt": "2026-11-21T19:51:12.707Z",
+        "updatedAt": "2026-11-21T19:51:12.707Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -572,9 +578,9 @@
       }
     },
     {
-      "id": "5498206c-462f-4a52-a226-60e09af3b890",
+      "id": "0c1dcf5b-a741-4a34-82a4-e351ca518575",
       "name": "Derivação PBA 2",
-      "systemId": "95486419-792f-49c4-a707-c01c7a4df1ae",
+      "systemId": "e830953d-ab38-48ff-bb92-0e3df74cffe3",
       "spec": {
         "specificationId": "pvc-pba-nbr5647-cl15",
         "material": "pvc",
@@ -593,8 +599,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-21T14:24:51.516Z",
-        "updatedAt": "2026-11-21T14:24:51.518Z",
+        "createdAt": "2026-11-21T19:51:12.708Z",
+        "updatedAt": "2026-11-21T19:51:12.711Z",
         "revision": 1
       },
       "kind": "pipe",
@@ -612,46 +618,46 @@
   ],
   "connections": [
     {
-      "id": "5ec12762-e959-4639-a261-7fcd5a5a5072",
+      "id": "fe41c09d-fbc8-4f4f-be70-68d40aa116cf",
       "a": {
-        "elementId": "e3d35ad6-c1fc-4136-8c1e-24c970aad025",
+        "elementId": "f16bc148-0106-403f-ba6a-4f0373598217",
         "portId": "end"
       },
       "b": {
-        "elementId": "ea8bb278-d70a-4b46-b559-b4b51b17a20e",
+        "elementId": "abc4f799-4c74-4cf6-bc33-32c731cb5c30",
         "portId": "a"
       }
     },
     {
-      "id": "25322f2f-55d8-439d-bca9-464169d680b4",
+      "id": "1ca3f7ee-1755-47cf-889a-8ef5acfba47c",
       "a": {
-        "elementId": "ea8bb278-d70a-4b46-b559-b4b51b17a20e",
+        "elementId": "abc4f799-4c74-4cf6-bc33-32c731cb5c30",
         "portId": "b"
       },
       "b": {
-        "elementId": "a91843d6-3372-4260-9924-d8ce4fe92b8c",
+        "elementId": "dfdd9714-ce82-4f73-9c38-c4a1012b28d8",
         "portId": "start"
       }
     },
     {
-      "id": "2b5dd934-61b9-49eb-8fdb-5f53fcbc0e3e",
+      "id": "9fd779e7-5f5e-4571-8ac4-26fd950d5278",
       "a": {
-        "elementId": "3b71e2de-ec24-47fa-b4e4-2777008a2b0b",
+        "elementId": "ccdcacee-3f56-4dbf-844f-812ad63b7e0b",
         "portId": "end"
       },
       "b": {
-        "elementId": "ea8bb278-d70a-4b46-b559-b4b51b17a20e",
+        "elementId": "abc4f799-4c74-4cf6-bc33-32c731cb5c30",
         "portId": "branch"
       }
     },
     {
-      "id": "63461148-b55e-40c2-85e7-4396c0e5a64a",
+      "id": "23baedc9-b9b9-4c59-8053-22ab525ae5f1",
       "a": {
-        "elementId": "5498206c-462f-4a52-a226-60e09af3b890",
+        "elementId": "0c1dcf5b-a741-4a34-82a4-e351ca518575",
         "portId": "end"
       },
       "b": {
-        "elementId": "ea8bb278-d70a-4b46-b559-b4b51b17a20e",
+        "elementId": "abc4f799-4c74-4cf6-bc33-32c731cb5c30",
         "portId": "branch2"
       }
     }
@@ -678,5 +684,9 @@
       "elevations": false
     }
   },
-  "views": []
+  "views": [],
+  "architecture": {
+    "types": [],
+    "elements": []
+  }
 }

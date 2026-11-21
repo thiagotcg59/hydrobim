@@ -191,6 +191,9 @@ export function guidesText(guides: ConnectionGuides): string {
     `à frente ${formatMeters(guides.ahead, 3)}`,
     `distância ${formatMeters(guides.distance, 3)}`,
   ];
+  if (guides.relation === 'skew' && guides.meet) {
+    parts.push(`entre eixos ${formatMeters(distance(guides.meet.onFrom, guides.meet.onTo), 3)}`);
+  }
   return parts.join(' · ');
 }
 

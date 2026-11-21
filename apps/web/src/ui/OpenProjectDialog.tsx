@@ -4,10 +4,12 @@ import type { ProjectSummary } from '../persistence/ProjectRepository';
 import {
   confirmDiscard,
   importProjectFile,
+  openBuildingDemoProject,
   openDemoProject,
   openStoredProject,
   repository,
 } from '../state/projectActions';
+import { DISCIPLINE_LABELS } from './labels';
 
 interface Props {
   open: boolean;
@@ -82,8 +84,8 @@ export function OpenProjectDialog({ open, onClose }: Props) {
                 >
                   <strong>{project.name}</strong>
                   <span className="muted">
-                    {project.discipline === 'mep' ? 'MEP' : 'Infra'} · {project.elementCount}{' '}
-                    elementos · {new Date(project.updatedAt).toLocaleString('pt-BR')}
+                    {DISCIPLINE_LABELS[project.discipline]} · {project.elementCount} elementos ·{' '}
+                    {new Date(project.updatedAt).toLocaleString('pt-BR')}
                   </span>
                 </button>
                 <button
@@ -133,6 +135,19 @@ export function OpenProjectDialog({ open, onClose }: Props) {
           }}
         >
           Projeto de demonstração
+        </button>
+        <button
+          type="button"
+          className="btn"
+          data-testid="open-demo-building"
+          title="Edificação simples: paredes, portas, janelas, laje e piso com abertura, ambientes e uma prumada de água fria"
+          onClick={() => {
+            if (!confirmDiscard()) return;
+            openBuildingDemoProject();
+            onClose();
+          }}
+        >
+          Edificação simples
         </button>
       </footer>
     </dialog>

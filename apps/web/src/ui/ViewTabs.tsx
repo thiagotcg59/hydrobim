@@ -1,6 +1,7 @@
 import { useCommandContext } from '../commands/useCommands';
 import { useEditorStore } from '../state/editorStore';
 import { CommandButton } from './CommandButton';
+import { PLAN_LABELS } from './labels';
 
 /**
  * Abas de vista, em posição fixa sobre a área de desenho, e os controles de navegação. A vista
@@ -9,7 +10,8 @@ import { CommandButton } from './CommandButton';
  */
 export function ViewTabs() {
   const context = useCommandContext();
-  const infra = useEditorStore((s) => s.project.discipline === 'infra');
+  const discipline = useEditorStore((s) => s.project.discipline);
+  const infra = discipline === 'infra';
   const bim = context.viewMode === 'bim';
 
   return (
@@ -20,7 +22,7 @@ export function ViewTabs() {
           id="view.plan"
           context={context}
           variant="small"
-          label={infra ? 'Planta Infra' : 'Planta MEP'}
+          label={PLAN_LABELS[discipline]}
         />
         {infra && (
           // O perfil ainda é um diálogo de análise, não uma vista sincronizada: o botão o abre.

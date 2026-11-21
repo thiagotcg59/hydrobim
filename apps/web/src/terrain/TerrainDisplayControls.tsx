@@ -29,7 +29,8 @@ export function TerrainDisplayControls() {
   const stats = terrainStats(terrain);
   const relief = stats.maxZ - stats.minZ;
   const natural = display.exaggeration === 1;
-  const mep = discipline === 'mep';
+  // Arquitetura se comporta como edificação (como o MEP): só o Infra tem a camada própria.
+  const mep = discipline !== 'infra';
   return (
     <>
       {mep && (

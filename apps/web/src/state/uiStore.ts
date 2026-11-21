@@ -21,7 +21,15 @@ export const TASK_LABELS: Record<TaskId, string> = {
   manage: 'Gerenciar',
 };
 
-export type DialogId = 'open' | 'families' | 'ifcLibrary' | 'export' | 'commands' | 'options';
+export type DialogId =
+  | 'open'
+  | 'families'
+  | 'ifcLibrary'
+  | 'export'
+  | 'commands'
+  | 'options'
+  | 'archCatalog'
+  | 'archQuantities';
 /** `view`: configuração da vista de projeto aberta e do detalhe 2D selecionado. */
 export type PanelTab = 'tool' | 'properties' | 'view';
 export type WorkspaceView = 'plan' | '3d';

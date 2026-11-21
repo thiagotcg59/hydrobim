@@ -8,6 +8,7 @@ import {
   resolvePumpPlacement,
 } from '@hydrobim/catalog';
 import {
+  add,
   addPipe,
   availableElbowAngles,
   createFamilyCatalog,
@@ -139,11 +140,145 @@ describe('Alinhar e conectar a um equipamento', () => {
     expect(findConnection(project, to)).toBeUndefined();
   });
 
-  it('F: diâmetro diferente do bocal — nenhuma alternativa, com o motivo', () => {
+  it('trecho já ligado a um equipamento: alinhar é oferecido movendo o equipamento junto', () => {
+    // Tubo ligado à bomba (cena A); a outra ponta vai a um segundo tubo, 0,5 m acima.
+    const start = scene(0);
+    const first = planConnection(start.project, { from: start.from, to: start.to, catalog });
+    if (!first.ok) throw new Error(first.error.message);
+    const joined = first.value.candidates.find((c) => c.key === 'straight');
+    if (!joined) throw new Error('sem prolongamento');
+    const from: PortRef = { elementId: start.from.elementId, portId: 'start' };
+    const free = resolvePort(joined.project, from);
+    if (!free) throw new Error('sem ponta livre');
+    const other = addPipe(joined.project, {
+      start: add(free.position, vec3(6, 0, 0.5)),
+      end: add(free.position, vec3(2, 0, 0.5)),
+      spec: free.spec,
+    });
+    if (!other.ok) throw new Error(other.error.message);
+    const project = other.value.project;
+    const to: PortRef = { elementId: other.value.elementId, portId: 'end' };
+    const plan = planConnection(project, {
+      from,
+      to,
+      catalog,
+      elbowAngles: availableElbowAngles(BUILTIN_FAMILIES, free.spec),
+    });
+    if (!plan.ok) throw new Error(plan.error.message);
+    const { candidates, refusals } = plan.value;
+    const keys = candidates.map((c) => c.key);
+    expect(keys).toContain('move:align:elevation');
+    expect(keys).toContain('move:align:elevation+straight');
+    expect(keys).not.toContain('align:elevation');
+    expect(refusals.join(' ')).not.toMatch(/escolha explícita/);
+    const placementOf = (p: Project) => {
+      const pump = getElement(p, start.pumpId);
+      if (pump?.kind !== 'pump') throw new Error('sem bomba');
+      return pump.placement;
+    };
+    const before = placementOf(project);
+    for (const candidate of candidates) {
+      const after = placementOf(candidate.project);
+      if (candidate.key.startsWith('move:align:')) {
+        // Identificada como "mover o equipamento", por último, com a bomba 0,5 m acima.
+        expect(candidate.action).toBe('moveEquipment');
+        expect(candidate.label).toMatch(/movendo "/);
+        expect(candidate.movedIds).toContain(start.pumpId);
+        expect(after.position.z - before.position.z).toBeCloseTo(0.5, 9);
+        expect(after.rotation).toEqual(before.rotation);
+        // A ligação que já existia com a bomba continua registrada.
+        expect(findConnection(candidate.project, start.to)).toBeDefined();
+      } else {
+        expect(after).toEqual(before);
+      }
+      if (candidate.connects) expect(errors(candidate.project)).toEqual([]);
+    }
+    const actions = candidates.map((c) => c.action);
+    expect(actions.indexOf('moveEquipment')).toBeGreaterThan(actions.lastIndexOf('connect'));
+  });
+
+  it('eixos reversos: alinhar um lado ou o outro (giro em planta + eixo) permite o encaixe', () => {
+    // Tubo ligado à bomba; adiante, um tubo 3° fora do eixo em planta, 60 mm ao lado e 1 mm acima.
+    const start = scene(0);
+    const first = planConnection(start.project, { from: start.from, to: start.to, catalog });
+    if (!first.ok) throw new Error(first.error.message);
+    const joined = first.value.candidates.find((c) => c.key === 'straight');
+    if (!joined) throw new Error('sem prolongamento');
+    const from: PortRef = { elementId: start.from.elementId, portId: 'start' };
+    const free = resolvePort(joined.project, from);
+    if (!free) throw new Error('sem ponta livre');
+    const angle = (3 * Math.PI) / 180;
+    const end = add(free.position, vec3(0.33, 0.06, 0.001));
+    const other = addPipe(joined.project, {
+      start: add(end, vec3(4 * Math.cos(angle), 4 * Math.sin(angle), 0)),
+      end,
+      spec: free.spec,
+    });
+    if (!other.ok) throw new Error(other.error.message);
+    const project = other.value.project;
+    const to: PortRef = { elementId: other.value.elementId, portId: 'end' };
+    const plan = planConnection(project, {
+      from,
+      to,
+      catalog,
+      elbowAngles: availableElbowAngles(BUILTIN_FAMILIES, free.spec),
+    });
+    if (!plan.ok) throw new Error(plan.error.message);
+    const { guides, candidates } = plan.value;
+    expect(guides.relation).toBe('skew');
+    // Como está não há montagem; as alternativas corrigem um lado ou o outro.
+    expect(candidates.filter((c) => c.action === 'connect')).toEqual([]);
+    const pumpOf = (p: Project) => {
+      const pump = getElement(p, start.pumpId);
+      if (pump?.kind !== 'pump') throw new Error('sem bomba');
+      return pump.placement;
+    };
+    const pipeOf = (p: Project, id: string) => {
+      const pipe = getElement(p, id);
+      if (pipe?.kind !== 'pipe') throw new Error('sem tubo');
+      return pipe;
+    };
+
+    // Lado do trecho (leva a bomba): gira, vai ao eixo e encaixa; o outro tubo não se move.
+    const mine = candidates.find((c) => c.key === 'move:align:turn+straight');
+    expect(mine?.action).toBe('moveEquipment');
+    expect(mine?.connects).toBe(true);
+    if (!mine) return;
+    expect(mine.label).toMatch(/girar 3° em planta/);
+    expect(mine.movedIds).toContain(start.pumpId);
+    expect(pumpOf(mine.project)).not.toEqual(pumpOf(project));
+    expect(pipeOf(mine.project, to.elementId).start).toEqual(pipeOf(project, to.elementId).start);
+    expect(findConnection(mine.project, to)).toBeDefined();
+    expect(findConnection(mine.project, start.to)).toBeDefined();
+    expect(errors(mine.project)).toEqual([]);
+
+    // Lado da referência: o outro tubo gira e vai ao eixo do trecho; a bomba fica fixa.
+    const theirs = candidates.find((c) => c.key === 'align:target:turn+straight');
+    expect(theirs?.action).toBe('alignConnect');
+    expect(theirs?.connects).toBe(true);
+    if (!theirs) return;
+    expect(theirs.movedIds).toEqual([to.elementId]);
+    expect(pumpOf(theirs.project)).toEqual(pumpOf(project));
+    expect(findConnection(theirs.project, to)).toBeDefined();
+    expect(errors(theirs.project)).toEqual([]);
+
+    // O ajuste de cota também é oferecido, para os dois lados.
+    const keys = candidates.map((c) => c.key);
+    expect(keys).toContain('move:align:elevation');
+    expect(keys).toContain('align:target:elevation');
+  });
+
+  it('F: diâmetro diferente do bocal — conecta com redução de catálogo', () => {
+    // A mudança de DN entra como redução de catálogo antes do traçado (connectionReduction):
+    // nunca uma ligação direta entre diâmetros diferentes.
     const { project, from, to } = scene(0, 0, 150);
     const plan = planConnection(project, { from, to, catalog });
     if (!plan.ok) throw new Error(plan.error.message);
-    expect(plan.value.candidates.filter((c) => c.connects)).toHaveLength(0);
-    expect(plan.value.refusals.join(' ')).toMatch(/redução/);
+    const connecting = plan.value.candidates.filter((c) => c.connects);
+    expect(connecting).toHaveLength(1);
+    const [reduced] = connecting;
+    expect(reduced?.key).toMatch(/reduction/);
+    expect(reduced?.summary).toMatch(/redução DN 150 → DN 80 de catálogo/);
+    if (reduced) expect(errors(reduced.project)).toEqual([]);
   });
 });

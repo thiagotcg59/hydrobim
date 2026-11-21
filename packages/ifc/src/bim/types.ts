@@ -29,7 +29,8 @@ export type IfcUnit =
   | 'flow'
   | 'power'
   | 'frequency'
-  | 'ratio';
+  | 'ratio'
+  | 'thermalTransmittance';
 
 /** `type` = dado da família/tipo (`Ifc…Type`); `occurrence` = dado do elemento. */
 export type IfcScope = 'type' | 'occurrence';
@@ -59,6 +60,8 @@ export interface IfcPropertyInfo {
   readonly editable: boolean;
   /** Parâmetro do modelo de que o valor é derivado (não editável aqui), quando houver. */
   readonly binding: string | null;
+  /** Grupo do painel de propriedades (arquitetura). */
+  readonly group?: string;
 }
 
 export interface IfcPropertySetInfo {

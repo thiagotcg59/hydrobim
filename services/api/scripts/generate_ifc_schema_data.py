@@ -31,11 +31,37 @@ OCCURRENCES = [
     "IfcActuator",
     "IfcDiscreteAccessory",
     "IfcDistributionChamberElement",
+    # Arquitetura.
+    "IfcWall",
+    "IfcSlab",
+    "IfcCovering",
+    "IfcDoor",
+    "IfcWindow",
+    "IfcSpace",
 ]
-OTHERS = ["IfcDistributionPort", "IfcDistributionSystem"]
+OTHERS = [
+    "IfcDistributionPort",
+    "IfcDistributionSystem",
+    "IfcOpeningElement",
+    # Terreno e terraplenagem.
+    "IfcGeographicElement",
+    "IfcEarthworksCut",
+    "IfcEarthworksFill",
+]
+# Atributos enumerados (além de PredefinedType) e enumerações usadas pela exportação.
+ENUMERATED_ATTRIBUTES = ("OperationType", "PartitioningType")
+ENUMERATIONS = [
+    "IfcWindowPanelOperationEnum",
+    "IfcWindowPanelPositionEnum",
+    "IfcLayerSetDirectionEnum",
+    "IfcDirectionSenseEnum",
+]
 PROPERTY_SETS = re.compile(
     r"^(Pset|Qto)_(PipeSegment|PipeFitting|PipeConnection|Valve|Pump|Filter|Tank|ElementSize"
-    r"|Manufacturer|DistributionPort|DistributionSystem)"
+    r"|Manufacturer|DistributionPort|DistributionSystem"
+    r"|WallCommon|WallBaseQuantities|SlabCommon|SlabBaseQuantities|Covering|Door|Window"
+    r"|SpaceCommon|SpaceBaseQuantities|OpeningElement|InstallationOccurrence"
+    r"|EarthworksCut|EarthworksFill|GeographicElement)"
 )
 
 
@@ -64,6 +90,13 @@ def entity(schema, name, type_entity=None):
     }
     if type_entity:
         data["typeEntity"] = type_entity
+    enumerated = {}
+    for attribute in declaration.all_attributes():
+        if attribute.name() in ENUMERATED_ATTRIBUTES:
+            enumeration = attribute.type_of_attribute().declared_type()
+            enumerated[attribute.name()] = list(enumeration.enumeration_items())
+    if enumerated:
+        data["attributeEnumerations"] = enumerated
     return data
 
 
@@ -115,6 +148,8 @@ def main():
             "  readonly predefinedTypes: readonly string[];",
             "  /** Entidade de tipo correspondente (`Ifc…Type`), nas ocorrências. */",
             "  readonly typeEntity?: string;",
+            "  /** Valores de outros atributos enumerados (`OperationType`…). */",
+            "  readonly attributeEnumerations?: Readonly<Record<string, readonly string[]>>;",
             "}",
             "",
             "export interface IfcPropertyTemplate {",
@@ -137,6 +172,17 @@ def main():
             "",
             "export const IFC_ENTITIES: Readonly<Record<string, IfcEntityDefinition>> = "
             + json.dumps(entities, indent=2, ensure_ascii=False)
+            + ";",
+            "",
+            "/** Enumerações do esquema usadas fora de `PredefinedType`. */",
+            "export const IFC_ENUMERATIONS: Readonly<Record<string, readonly string[]>> = "
+            + json.dumps(
+                {
+                    name: list(schema.declaration_by_name(name).enumeration_items())
+                    for name in ENUMERATIONS
+                },
+                indent=2,
+            )
             + ";",
             "",
             "export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>> = "

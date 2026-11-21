@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 15 as const;
+export const SCHEMA_VERSION = 17 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -819,8 +819,7 @@ export type TerrainSource = z.infer<typeof TerrainSourceSchema>;
  * pontos, faces, limite e linhas de quebra — é a mesma de uma superfície LandXML e de um
  * `IfcTriangulatedIrregularNetwork`, e a malha vai direto para faces 3D no DXF.
  */
-export const TerrainSchema = z.object({
-  name: z.string(),
+const terrainMeshShape = {
   points: z.array(Vec3Schema),
   /** Índices dos vértices, três por triângulo, em sentido anti-horário em planta. */
   triangles: z.array(z.number().int().nonnegative()),
@@ -831,7 +830,26 @@ export const TerrainSchema = z.object({
   boundary: z.array(z.array(Vec3Schema).min(3)).min(1).nullable(),
   /** Linhas de quebra: arestas obrigatórias da triangulação (cristas, pés de talude, sarjetas). */
   breaklines: z.array(z.array(Vec3Schema).min(2)),
+};
+
+/** Malha de uma superfície (pontos, faces, limite e linhas de quebra), sem a identificação. */
+export const TerrainMeshSchema = z.object(terrainMeshShape);
+export type TerrainMesh = z.infer<typeof TerrainMeshSchema>;
+
+export const TerrainSchema = z.object({
+  /** Identificador persistente da superfície (o mesmo no IFC e nas edições seguintes). */
+  id: z.string().min(1),
+  name: z.string(),
+  /** Identificação dada pelo projetista (código da superfície); vazia = não informada. */
+  tag: z.string(),
+  ...terrainMeshShape,
   source: TerrainSourceSchema,
+  /**
+   * Superfície como foi importada ou gerada, guardada na primeira edição (pontos, cotas ou
+   * limite) para comparação e para desfazer as edições; `null` = nunca editada. Os platôs não
+   * alteram a superfície: o terreno projetado é derivado dela (`project.earthworks`).
+   */
+  original: TerrainMeshSchema.nullable(),
 });
 export type Terrain = z.infer<typeof TerrainSchema>;
 
@@ -858,6 +876,53 @@ export function surveySource(dataset: string | null, acquiredAt: string | null):
 /** Ponto da planta (projeção horizontal, plano XY), em metros. */
 export const Point2Schema = z.object({ x: finite, y: finite });
 export type Point2 = z.infer<typeof Point2Schema>;
+
+// ---------------------------------------------------------------------------
+// Terraplenagem: platôs e parâmetros de volume
+// ---------------------------------------------------------------------------
+
+/**
+ * Platô: área plana na cota de implantação, ligada ao terreno por taludes de inclinação
+ * constante. É paramétrico — o terreno projetado, os taludes e os volumes são derivados
+ * destes dados e da superfície natural, e nunca são gravados.
+ */
+export const PlatformSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  /** Perímetro em planta (anel fechado sem repetir o primeiro vértice), anti-horário. */
+  outline: z.array(Point2Schema).min(3),
+  /** Cota de implantação (Z local, m). */
+  elevation: finite,
+  /** Talude de corte, H:V: metros na horizontal por metro na vertical (1,5 = 1,5H:1V). */
+  cutSlope: positive,
+  /** Talude de aterro, H:V. */
+  fillSlope: positive,
+});
+export type Platform = z.infer<typeof PlatformSchema>;
+
+/**
+ * Terraplenagem do projeto. Os três parâmetros de volume são do projetista (dependem do solo e
+ * do controle de compactação): `null` = não informado, e as quantidades que dependem deles
+ * ficam pendentes.
+ */
+export const EarthworksSchema = z.object({
+  /** Platôs, na ordem de execução: cada um é aplicado sobre o resultado dos anteriores. */
+  platforms: z.array(PlatformSchema),
+  /** Empolamento (%): V solto = V corte in situ × (1 + empolamento ÷ 100). */
+  swellPercent: z.number().min(0).max(200).nullable(),
+  /**
+   * Fator de conversão do corte para o aterro: m³ de aterro COMPACTADO obtidos de 1 m³ de
+   * corte IN SITU (ex.: 0,90). Não é o grau de compactação.
+   */
+  compactionFactor: z.number().positive().max(2).nullable(),
+  /** Parcela (%) do material escavado que serve para os aterros. */
+  reusePercent: z.number().min(0).max(100).nullable(),
+});
+export type Earthworks = z.infer<typeof EarthworksSchema>;
+
+export function defaultEarthworks(): Earthworks {
+  return { platforms: [], swellPercent: null, compactionFactor: null, reusePercent: null };
+}
 
 export const DIMENSION_MODES = ['aligned', 'horizontal', 'vertical'] as const;
 export const DimensionModeSchema = z.enum(DIMENSION_MODES);
@@ -961,7 +1026,18 @@ export type ViewDetail = z.infer<typeof ViewDetailSchema>;
 export type ViewDetailKind = ViewDetail['kind'];
 
 /** Categorias de elementos que uma vista pode ocultar. */
-export const VIEW_CATEGORIES = ['pipes', 'fittings', 'valves', 'equipment', 'tanks'] as const;
+export const VIEW_CATEGORIES = [
+  'pipes',
+  'fittings',
+  'valves',
+  'equipment',
+  'tanks',
+  'walls',
+  'floors',
+  'doors',
+  'windows',
+  'spaces',
+] as const;
 export const ViewCategorySchema = z.enum(VIEW_CATEGORIES);
 export type ViewCategory = z.infer<typeof ViewCategorySchema>;
 
@@ -1006,10 +1082,22 @@ export const PlanViewSchema = z.object({
   levelId: z.string().min(1),
   cutHeight: finite,
   depth: positive,
+  /**
+   * Altura, acima do nível, do plano em que a ARQUITETURA é cortada (paredes, portas e
+   * janelas aparecem em seção, com traço forte e hachura). A rede continua visível até
+   * `cutHeight`: a tubulação junto ao teto não some da planta.
+   */
+  archCutHeight: positive,
   /** Orientação: giro do eixo horizontal da vista em relação a +X, anti-horário (rad). */
   rotation: finite,
 });
 export type PlanProjectView = z.infer<typeof PlanViewSchema>;
+
+/** Plano de corte da arquitetura adotado em plantas novas: 1,20 m, dentro da faixa da vista. */
+export function defaultArchCutHeight(cutHeight: unknown): number {
+  const top = typeof cutHeight === 'number' && Number.isFinite(cutHeight) ? cutHeight : 1.2;
+  return Math.max(0.1, Math.min(1.2, top));
+}
 
 /**
  * Corte vertical definido em planta pela linha `a`–`b` (coordenadas do projeto). `side` diz
@@ -1074,7 +1162,301 @@ export type ProjectView = z.infer<typeof ProjectViewSchema>;
 export type ProjectView2d = PlanProjectView | SectionProjectView | ElevationProjectView;
 export type ProjectViewKind = ProjectView['kind'];
 
-export const DisciplineSchema = z.enum(['mep', 'infra']);
+// ---------------------------------------------------------------------------
+// Arquitetura: tipos, ocorrências (paredes, lajes, revestimentos de piso, portas e janelas)
+// e ambientes
+// ---------------------------------------------------------------------------
+
+/**
+ * Os elementos arquitetônicos vivem em `Project.architecture`, FORA de `Project.elements`:
+ * não têm sistema hidráulico, DN, especificação de tubo nem portas, e por isso não entram no
+ * grafo de conectividade. Compartilham com a rede os níveis, as coordenadas e as vistas.
+ *
+ * Três níveis, como nas famílias hidráulicas:
+ *  - FAMÍLIA: a tipologia do catálogo (`@hydrobim/catalog`), ex.: "Parede de alvenaria";
+ *  - TIPO (`ArchType`): a família com dimensões e composição definidas, guardado no projeto;
+ *  - OCORRÊNCIA (`ArchElement`): cada elemento posicionado, que aponta o seu tipo.
+ */
+export const ARCH_CATEGORIES = ['wall', 'slab', 'flooring', 'door', 'window'] as const;
+export const ArchCategorySchema = z.enum(ARCH_CATEGORIES);
+export type ArchCategory = z.infer<typeof ArchCategorySchema>;
+
+/** Função da camada na composição (vira a categoria da camada de material no IFC). */
+export const ARCH_LAYER_FUNCTIONS = [
+  'structure',
+  'substrate',
+  'finish',
+  'insulation',
+  'membrane',
+  'other',
+] as const;
+export const ArchLayerFunctionSchema = z.enum(ARCH_LAYER_FUNCTIONS);
+export type ArchLayerFunction = z.infer<typeof ArchLayerFunctionSchema>;
+
+/**
+ * Hachura da camada quando cortada por uma vista. É representação gráfica escolhida no tipo:
+ * o caderno de referência só fixa o sistema "Hachura" (Apêndice I) e remete os padrões à
+ * norma de desenho — nenhum padrão é presumido por material.
+ */
+export const ARCH_HATCHES = ['none', 'solid', 'diagonal', 'crossed', 'dotted'] as const;
+export const ArchHatchSchema = z.enum(ARCH_HATCHES);
+export type ArchHatch = z.infer<typeof ArchHatchSchema>;
+
+/** Camada de material de um tipo (parede, laje ou revestimento), na ordem de montagem. */
+export const ArchLayerSchema = z.object({
+  id: z.string().min(1),
+  /** Material da camada, como descrito pelo usuário ou pela fonte (vira `IfcMaterial`). */
+  material: z.string().min(1),
+  thickness: positive,
+  function: ArchLayerFunctionSchema,
+  hatch: ArchHatchSchema,
+});
+export type ArchLayer = z.infer<typeof ArchLayerSchema>;
+
+/**
+ * Classificação externa do tipo (ABNT NBR 15965, SINAPI ou outra). Complementa a entidade
+ * IFC — nunca a substitui. O código é sempre informado pelo usuário: não há tabela embutida.
+ */
+export const ARCH_CLASSIFICATION_SYSTEMS = ['nbr15965', 'sinapi', 'other'] as const;
+export const ArchClassificationSchema = z.object({
+  system: z.enum(ARCH_CLASSIFICATION_SYSTEMS),
+  /** Nome do sistema, quando `other`; tabela da NBR 15965 (ex.: `3E`), quando informada. */
+  table: z.string().min(1).optional(),
+  code: z.string().min(1),
+  description: z.string().min(1).optional(),
+});
+export type ArchClassification = z.infer<typeof ArchClassificationSchema>;
+
+const archTypeBase = {
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** Família do catálogo de que o tipo veio; `null` = criado sem família. */
+  familyId: z.string().min(1).nullable(),
+  /**
+   * `true` = modelo genérico parametrizável: dimensões e composição são do usuário, sem
+   * produto comercial. `false` = produto de fabricante, e então `source` é obrigatória.
+   */
+  generic: z.boolean(),
+  /** Fonte dos valores: fabricante, catálogo, edição, página e URL. `null` nos genéricos. */
+  source: z.string().min(1).nullable(),
+  manufacturing: ManufacturingSchema,
+  classifications: z.array(ArchClassificationSchema),
+  /** Tipo predefinido IFC da categoria (`IfcWallTypeEnum`, `IfcSlabTypeEnum`…). */
+  ifcPredefinedType: z.string().min(1),
+  /**
+   * Valores IFC informados pelo usuário para o TIPO, por `Conjunto.Propriedade`, em SI.
+   * Valem para todas as ocorrências, salvo o que a ocorrência sobrescrever.
+   */
+  ifc: z.record(z.string(), PropertyValueSchema),
+};
+
+const layeredType = {
+  ...archTypeBase,
+  /** Composição: a espessura do tipo é a soma das camadas. */
+  layers: z.array(ArchLayerSchema).min(1),
+};
+
+/** Camadas da face esquerda para a direita de quem percorre a parede do início ao fim. */
+export const WallTypeSchema = z.object({ ...layeredType, category: z.literal('wall') });
+export type WallType = z.infer<typeof WallTypeSchema>;
+
+/** Laje estrutural de piso. Camadas de cima para baixo. */
+export const SlabTypeSchema = z.object({ ...layeredType, category: z.literal('slab') });
+export type SlabType = z.infer<typeof SlabTypeSchema>;
+
+/** Revestimento (acabamento) de piso, aplicado sobre a laje. Camadas de cima para baixo. */
+export const FlooringTypeSchema = z.object({ ...layeredType, category: z.literal('flooring') });
+export type FlooringType = z.infer<typeof FlooringTypeSchema>;
+
+export const DOOR_OPERATIONS = ['singleSwing', 'doubleSwing', 'sliding', 'pivot'] as const;
+export const DoorOperationSchema = z.enum(DOOR_OPERATIONS);
+export type DoorOperation = z.infer<typeof DoorOperationSchema>;
+
+/** Materiais dos componentes da esquadria, quando informados (sem valor = pendente). */
+const JoineryMaterialsSchema = z.object({
+  frame: z.string().min(1).optional(),
+  panel: z.string().min(1).optional(),
+  glazing: z.string().min(1).optional(),
+});
+export type JoineryMaterials = z.infer<typeof JoineryMaterialsSchema>;
+
+export const DoorTypeSchema = z.object({
+  ...archTypeBase,
+  category: z.literal('door'),
+  operation: DoorOperationSchema,
+  /** Dimensões nominais do vão (m). */
+  width: positive,
+  height: positive,
+  /** Largura aparente do marco (batente), em cada lado e no topo (m). */
+  frameWidth: positive,
+  /** Espessura da folha (m). */
+  panelThickness: positive,
+  materials: JoineryMaterialsSchema,
+});
+export type DoorType = z.infer<typeof DoorTypeSchema>;
+
+export const WINDOW_OPERATIONS = [
+  'fixed',
+  'sliding',
+  'casement',
+  'pivotHorizontal',
+  'topHung',
+] as const;
+export const WindowOperationSchema = z.enum(WINDOW_OPERATIONS);
+export type WindowOperation = z.infer<typeof WindowOperationSchema>;
+
+export const WindowTypeSchema = z.object({
+  ...archTypeBase,
+  category: z.literal('window'),
+  /** `pivotHorizontal` = basculante; `topHung` = maxim-ar. */
+  operation: WindowOperationSchema,
+  /** Dimensões nominais do vão (m). */
+  width: positive,
+  height: positive,
+  /** Peitoril adotado ao inserir (m acima da base da parede); a ocorrência guarda o seu. */
+  sillHeight: nonNegative,
+  /** Número de folhas lado a lado. */
+  panels: z.number().int().positive(),
+  /** Largura aparente do marco da esquadria (m). */
+  frameWidth: positive,
+  materials: JoineryMaterialsSchema,
+});
+export type WindowType = z.infer<typeof WindowTypeSchema>;
+
+export const ArchTypeSchema = z.discriminatedUnion('category', [
+  WallTypeSchema,
+  SlabTypeSchema,
+  FlooringTypeSchema,
+  DoorTypeSchema,
+  WindowTypeSchema,
+]);
+export type ArchType = z.infer<typeof ArchTypeSchema>;
+export type LayeredArchType = WallType | SlabType | FlooringType;
+
+const archElementBase = {
+  /** Identificador persistente (UUID): base do GlobalId IFC. Nunca muda. */
+  id: z.string().min(1),
+  name: z.string(),
+  /** Propriedades livres definidas pelo usuário. */
+  properties: z.record(z.string(), PropertyValueSchema),
+  /** Valores IFC informados pelo usuário para ESTA ocorrência (sobrepõem os do tipo). */
+  ifc: z.record(z.string(), PropertyValueSchema).optional(),
+  meta: ElementMetaSchema,
+};
+
+/**
+ * Onde a linha de referência (`start`–`end`) fica na espessura da parede: no eixo, na face
+ * esquerda ou na face direita (esquerda de quem vai do início ao fim).
+ */
+export const WALL_LOCATION_LINES = ['center', 'faceLeft', 'faceRight'] as const;
+export const WallLocationLineSchema = z.enum(WALL_LOCATION_LINES);
+export type WallLocationLine = z.infer<typeof WallLocationLineSchema>;
+
+/**
+ * Parede reta. A base fica em `cota do nível + baseOffset`; os encontros em L e em T com as
+ * paredes vizinhas são DERIVADOS (extremidades coincidentes ou apoiadas), nunca gravados.
+ */
+export const WallSchema = z.object({
+  ...archElementBase,
+  kind: z.literal('wall'),
+  typeId: z.string().min(1),
+  levelId: z.string().min(1),
+  start: Point2Schema,
+  end: Point2Schema,
+  locationLine: WallLocationLineSchema,
+  /** Deslocamento vertical da base em relação ao nível (m). */
+  baseOffset: finite,
+  height: positive,
+});
+export type Wall = z.infer<typeof WallSchema>;
+
+/** Abertura (vão) em laje ou revestimento: contorno fechado, sem repetir o primeiro ponto. */
+export const FloorOpeningSchema = z.object({
+  id: z.string().min(1),
+  boundary: z.array(Point2Schema).min(3),
+});
+export type FloorOpening = z.infer<typeof FloorOpeningSchema>;
+
+const floorBase = {
+  ...archElementBase,
+  typeId: z.string().min(1),
+  levelId: z.string().min(1),
+  /** Contorno fechado em planta (anti-horário), sem repetir o primeiro ponto. */
+  boundary: z.array(Point2Schema).min(3),
+  openings: z.array(FloorOpeningSchema),
+};
+
+/** Laje estrutural de piso: `offset` é a cota do TOPO em relação ao nível (m). */
+export const SlabSchema = z.object({ ...floorBase, kind: z.literal('slab'), offset: finite });
+export type Slab = z.infer<typeof SlabSchema>;
+
+/** Revestimento de piso: `offset` é a cota da BASE em relação ao nível (m). */
+export const FlooringSchema = z.object({
+  ...floorBase,
+  kind: z.literal('flooring'),
+  offset: finite,
+});
+export type Flooring = z.infer<typeof FlooringSchema>;
+
+const hostedBase = {
+  ...archElementBase,
+  typeId: z.string().min(1),
+  /** Parede hospedeira: o vão acompanha a parede e não existe sem ela. */
+  hostId: z.string().min(1),
+  /** Distância do início da linha de referência da parede ao centro do vão (m). */
+  offset: finite,
+  /** Altura da soleira ou do peitoril acima da base da parede (m). */
+  sillHeight: nonNegative,
+  /** Lado das dobradiças (ou de recolhimento), visto de quem percorre a parede. */
+  hand: z.enum(['left', 'right']),
+  /** Face para a qual a folha abre: +1 = lado esquerdo da parede; −1 = lado direito. */
+  facing: z.union([z.literal(1), z.literal(-1)]),
+};
+
+export const DoorSchema = z.object({ ...hostedBase, kind: z.literal('door') });
+export type Door = z.infer<typeof DoorSchema>;
+
+export const WindowSchema = z.object({ ...hostedBase, kind: z.literal('window') });
+export type ArchWindow = z.infer<typeof WindowSchema>;
+
+/**
+ * Ambiente (espaço). Não é elemento físico: delimita uma região do pavimento, de que se
+ * derivam área e perímetro. `height` (pé-direito) fica `null` enquanto não for informado.
+ */
+export const SpaceSchema = z.object({
+  ...archElementBase,
+  kind: z.literal('space'),
+  levelId: z.string().min(1),
+  /** Número ou sigla do ambiente, quando houver. */
+  number: z.string().min(1).optional(),
+  boundary: z.array(Point2Schema).min(3),
+  /** Cota do piso acabado em relação ao nível (m). */
+  offset: finite,
+  height: positive.nullable(),
+});
+export type Space = z.infer<typeof SpaceSchema>;
+
+export const ArchElementSchema = z.discriminatedUnion('kind', [
+  WallSchema,
+  SlabSchema,
+  FlooringSchema,
+  DoorSchema,
+  WindowSchema,
+  SpaceSchema,
+]);
+export type ArchElement = z.infer<typeof ArchElementSchema>;
+export type ArchElementKind = ArchElement['kind'];
+export type HostedElement = Door | ArchWindow;
+export type FloorElement = Slab | Flooring;
+
+export const ArchitectureSchema = z.object({
+  /** Tipos usados ou personalizados neste projeto (o projeto é autossuficiente). */
+  types: z.array(ArchTypeSchema),
+  elements: z.array(ArchElementSchema),
+});
+export type Architecture = z.infer<typeof ArchitectureSchema>;
+
+export const DisciplineSchema = z.enum(['mep', 'infra', 'architecture']);
 export type Discipline = z.infer<typeof DisciplineSchema>;
 
 export const ProjectSchema = z.object({
@@ -1102,6 +1484,8 @@ export const ProjectSchema = z.object({
   ifcTypes: z.record(z.string(), z.record(z.string(), PropertyValueSchema)),
   georeference: GeoreferenceSchema.nullable(),
   terrain: TerrainSchema.nullable(),
+  /** Platôs e parâmetros de volume; o terreno projetado é derivado (nunca gravado). */
+  earthworks: EarthworksSchema,
   elements: z.array(ElementSchema),
   connections: z.array(ConnectionSchema),
   /** Anotações da planta baixa (cotas, textos, chamadas e etiquetas). */
@@ -1116,5 +1500,10 @@ export const ProjectSchema = z.object({
    * detalhes 2D desenhados sobre a vista.
    */
   views: z.array(ProjectViewSchema),
+  /**
+   * Modelo arquitetônico (tipos, paredes, lajes, revestimentos, portas, janelas e ambientes),
+   * no mesmo projeto, níveis e coordenadas da rede hidráulica.
+   */
+  architecture: ArchitectureSchema,
 });
 export type Project = z.infer<typeof ProjectSchema>;

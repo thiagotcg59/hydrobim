@@ -29,6 +29,7 @@ export function summarize(project: Project): ProjectSummary {
     name: project.name,
     discipline: project.discipline,
     updatedAt: project.updatedAt,
-    elementCount: project.elements.length,
+    // Elementos da rede e da arquitetura: o mesmo projeto guarda os dois.
+    elementCount: project.elements.length + project.architecture.elements.length,
   };
 }

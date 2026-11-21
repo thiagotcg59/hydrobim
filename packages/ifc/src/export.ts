@@ -18,12 +18,14 @@ import {
   type PartRole,
   type SurfaceFinish,
 } from '@hydrobim/geometry';
+import { writeArchitecture } from './archExport';
 import { buildIfcModel, type IfcModelOptions } from './bim/model';
 import type { IfcPropertyInfo, IfcPropertySetInfo, IfcValue } from './bim/types';
 import { isIntegerIfcType } from './bim/values';
 import { derivedGuid, persistentGuid } from './guid';
 import { weldMesh } from './mesh';
 import { enumeration as en, list, real, StepWriter, stepString as str } from './step';
+import { writeTerrain } from './terrainExport';
 
 /**
  * Opções da exportação. As famílias (catálogo + projeto) alimentam os
@@ -88,6 +90,8 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
   const metre = si('LENGTHUNIT', 'METRE');
   const cubicMetre = si('VOLUMEUNIT', 'CUBIC_METRE');
   const second = si('TIMEUNIT', 'SECOND');
+  const kilogram = writer.entity('IfcSIUnit', '*', '.MASSUNIT.', '.KILO.', '.GRAM.');
+  const kelvin = si('THERMODYNAMICTEMPERATUREUNIT', 'KELVIN');
   const power = (unit: string, exponent: number): string =>
     writer.entity('IfcDerivedUnitElement', unit, String(exponent));
   // Unidades SI de todas as grandezas usadas nas propriedades (pressão em pascal, vazão em
@@ -102,6 +106,16 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
       second,
       si('PRESSUREUNIT', 'PASCAL'),
       si('POWERUNIT', 'WATT'),
+      kilogram,
+      kelvin,
+      // Transmitância térmica (W/m²·K = kg·s⁻³·K⁻¹), das esquadrias e vedações.
+      writer.entity(
+        'IfcDerivedUnit',
+        list([power(kilogram, 1), power(second, -3), power(kelvin, -1)]),
+        '.THERMALTRANSMITTANCEUNIT.',
+        '$',
+        '$',
+      ),
       writer.entity(
         'IfcDerivedUnit',
         list([power(cubicMetre, 1), power(second, -1)]),
@@ -206,7 +220,8 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
     elements: [],
   };
   const storeys: Container[] = [];
-  if (project.discipline === 'mep') {
+  // Edificação (MEP e Arquitetura): edifício e pavimentos. Infra: tudo no terreno.
+  if (project.discipline !== 'infra') {
     const buildingPlacement = placement(sitePlacement, ZERO);
     const building = root(
       'IfcBuilding',
@@ -285,7 +300,8 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
       const rendering = writer.entity(
         'IfcSurfaceStyleRendering',
         colour,
-        real(0),
+        // Transparência: 0 = opaco (vidro: 1 − opacidade).
+        real(1 - (finish.opacity ?? 1)),
         colour,
         '$',
         '$',
@@ -493,6 +509,63 @@ export function exportIfc(project: Project, options: IfcExportOptions = {}): str
     });
     relation('IfcRelNests', `${info.elementId}:ports`, elementRef, list(nested));
   }
+  // Arquitetura: no mesmo projeto, pavimentos e coordenadas da rede.
+  const materialRefs = new Map<string, string>();
+  const materialEntity = (name: string, category: string | null): string => {
+    let ref = materialRefs.get(name);
+    if (!ref) {
+      ref = writer.entity('IfcMaterial', str(name), '$', category === null ? '$' : str(category));
+      materialRefs.set(name, ref);
+    }
+    return ref;
+  };
+  let footprintContext: string | null = null;
+  writeArchitecture({
+    project,
+    writer,
+    root,
+    relation,
+    placement,
+    direction,
+    vector,
+    body,
+    footprint: () => {
+      footprintContext ??= writer.entity(
+        'IfcGeometricRepresentationSubContext',
+        str('FootPrint'),
+        str('Model'),
+        '*',
+        '*',
+        '*',
+        '*',
+        context,
+        '$',
+        '.PLAN_VIEW.',
+        '$',
+      );
+      return footprintContext;
+    },
+    surfaceStyle,
+    define,
+    definitionSet,
+    material: materialEntity,
+    containerOf: (levelId) => storeys.find((storey) => storey.id === levelId) ?? fallback,
+  });
+
+  // Terreno natural e terraplenagem (cortes e aterros dos platôs), contidos no IfcSite.
+  writeTerrain({
+    project,
+    writer,
+    root,
+    relation,
+    placement: (parent, position) => placement(parent, position),
+    vector,
+    body,
+    site: { ref: siteRef, placement: sitePlacement },
+    style: (label, color, opacity) =>
+      surfaceStyle({ label, color, roughness: 0.95, metalness: 0, opacity }),
+  });
+
   for (const container of [fallback, ...storeys]) {
     if (container.elements.length)
       relation(

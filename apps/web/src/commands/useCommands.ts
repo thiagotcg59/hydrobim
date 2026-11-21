@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { useArchStore } from '../arch/archStore';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
+import { useEarthworkStore } from '../terrain/earthworkStore';
 import { useTerrainStore } from '../terrain/terrainStore';
 import { useViewStore } from '../views/viewStore';
 import { isWalkKey } from '../walk/walkMotion';
@@ -44,6 +46,7 @@ export function useCommandContext(): CommandContext {
   );
   const terrainMode = useTerrainStore((s) => s.mode);
   const terrainPanelOpen = useTerrainStore((s) => s.panelOpen);
+  const earthworkTab = useEarthworkStore((s) => s.tab);
   const views = useViewStore(
     useShallow((s) => ({
       open2d: s.open2d,
@@ -53,15 +56,20 @@ export function useCommandContext(): CommandContext {
       detailSelection: s.detailSelection,
     })),
   );
+  const archTool = useArchStore((s) => s.tool);
+  const archSelection = useArchStore((s) => s.selection);
   return useMemo(
     () => ({
       ...editor,
       ...layout,
       terrainMode,
       terrainPanelOpen,
+      earthworkTab,
       ...viewContextOf(editor.project, views),
+      archTool,
+      archSelection,
     }),
-    [editor, layout, terrainMode, terrainPanelOpen, views],
+    [editor, layout, terrainMode, terrainPanelOpen, earthworkTab, views, archTool, archSelection],
   );
 }
 
@@ -103,7 +111,9 @@ export function useKeyboardShortcuts(): void {
         const ui = useUiStore.getState();
         if (ui.validationOpen) ui.setValidationOpen(false);
         // O desenho 2D em andamento (ou a seleção de detalhes) é o primeiro a ser desfeito.
-        else if (!useViewStore.getState().cancel()) useEditorStore.getState().cancelInteraction();
+        else if (!useArchStore.getState().cancel() && !useViewStore.getState().cancel()) {
+          useEditorStore.getState().cancelInteraction();
+        }
         return;
       }
       if (!id) return;

@@ -12,8 +12,10 @@ import {
   Activity,
   ArrowUpDown,
   Bookmark,
+  BookOpen,
   Box,
   Boxes,
+  Calculator,
   Camera,
   Circle,
   ClipboardList,
@@ -53,6 +55,7 @@ import {
   PanelLeft,
   PanelRight,
   PanelTop,
+  PenLine,
   RectangleHorizontal,
   Slash,
   SquareSplitHorizontal,
@@ -76,6 +79,14 @@ import {
   type LucideIcon,
   SlidersHorizontal,
 } from 'lucide-react';
+import {
+  ARCH_TOOL_HINTS,
+  ARCH_TOOL_LABELS,
+  archMissingTypeCategory,
+  archToolBlocker,
+  useArchStore,
+  type ArchTool,
+} from '../arch/archStore';
 import { ISO_LABELS, isIsoQuadrant } from '../editor/viewPresets';
 import { exportPlanDxfFile } from '../plan/planExport';
 import {
@@ -97,9 +108,20 @@ import {
   saveCurrentProject,
 } from '../state/projectActions';
 import { useUiStore, type TaskId } from '../state/uiStore';
+import { useEarthworkStore, type EarthworkTab } from '../terrain/earthworkStore';
 import { useTerrainStore, type TerrainMode } from '../terrain/terrainStore';
 import { TOOL_HINTS, TOOL_LABELS } from '../ui/labels';
-import { ELEMENT_ICONS } from '../ui/EngineeringIcons';
+import {
+  DoorIcon,
+  ELEMENT_ICONS,
+  FloorOpeningIcon,
+  FlooringIcon,
+  MirrorIcon,
+  SlabIcon,
+  SpaceIcon,
+  WallIcon,
+  WindowIcon,
+} from '../ui/EngineeringIcons';
 import {
   openView2dOf,
   useViewStore,
@@ -142,6 +164,8 @@ export interface CommandContext {
   /** Operação do terreno em andamento na Planta Infra e painel do terreno aberto. */
   readonly terrainMode?: TerrainMode | null;
   readonly terrainPanelOpen?: boolean;
+  /** Aba aberta do painel de edição do terreno e de terraplenagem. */
+  readonly earthworkTab?: EarthworkTab | null;
   /** Vista 2D de projeto aberta na área da planta (`null` = planta de trabalho). */
   readonly view2dKind?: 'plan' | 'section' | 'elevation' | null;
   /** Há uma vista 3D de projeto aberta na área do modelo. */
@@ -153,6 +177,9 @@ export interface CommandContext {
   readonly viewTool?: ViewTool;
   readonly detailSelectionCount?: number;
   readonly viewMarker?: string | null;
+  /** Ferramenta de arquitetura em uso e elementos arquitetônicos selecionados. */
+  readonly archTool?: ArchTool | null;
+  readonly archSelection?: readonly string[];
 }
 
 /** Parte do contexto que vem das vistas de projeto. */
@@ -226,6 +253,7 @@ export interface Command {
 const editor = () => useEditorStore.getState();
 const views = () => useViewStore.getState();
 const ui = () => useUiStore.getState();
+const arch = () => useArchStore.getState();
 
 const ENABLED: CommandState = { enabled: true };
 const off = (reason: string): CommandState => ({ enabled: false, reason });
@@ -313,11 +341,16 @@ function toolCommand(tool: Exclude<ToolId, 'move' | 'rotate' | 'align'>): Comman
           'Anota a planta de trabalho. Na vista salva aberta, use Documentação › Detalhes da vista (ou volte à planta de trabalho).',
         );
       }
-      const drawing = context.viewTool !== undefined && context.viewTool !== 'select';
+      const drawing =
+        (context.viewTool !== undefined && context.viewTool !== 'select') ||
+        (context.archTool ?? null) !== null;
       return { enabled: true, active: context.tool === tool && !(tool === 'select' && drawing) };
     },
     run: () => {
-      if (tool === 'select') views().setTool('select');
+      if (tool === 'select') {
+        views().setTool('select');
+        arch().setTool(null);
+      }
       editor().setTool(tool);
     },
   };
@@ -451,6 +484,32 @@ function terrainModeCommand(
   };
 }
 
+/** Abas do painel de edição do terreno e de terraplenagem (sobre a Planta Infra). */
+function earthworkCommand(
+  tab: EarthworkTab,
+  label: string,
+  description: string,
+  icon: LucideIcon,
+): Command {
+  return {
+    id: `terrain.${tab}`,
+    label,
+    description: `${description} Atua na Planta Infra (a vista é aberta ao escolher o comando).`,
+    icon,
+    testId: `terrain-cmd-${tab}`,
+    state: (context) =>
+      infraOnly(context) ??
+      (!context.project.terrain
+        ? off('O projeto ainda não tem superfície de terreno (Superfície do terreno).')
+        : { enabled: true, active: context.earthworkTab === tab }),
+    run: () => {
+      const store = useEarthworkStore.getState();
+      if (store.tab === tab) store.close();
+      else store.open(tab);
+    },
+  };
+}
+
 const hasElements = (context: CommandContext): CommandState =>
   context.project.elements.length > 0 ? ENABLED : off(NO_ELEMENTS);
 
@@ -469,6 +528,136 @@ const TOOLS: Exclude<ToolId, 'move' | 'rotate' | 'align'>[] = [
   'text',
   'leader',
   'tag',
+];
+
+// ----- Arquitetura -----
+
+const ARCH_TOOL_ICONS: Record<ArchTool, LucideIcon> = {
+  wall: WallIcon,
+  slab: SlabIcon,
+  flooring: FlooringIcon,
+  door: DoorIcon,
+  window: WindowIcon,
+  space: SpaceIcon,
+  floorOpening: FloorOpeningIcon,
+};
+
+const ARCH_TOOL_KEYS: Partial<Record<ArchTool, string>> = { wall: 'W', door: 'P' };
+
+/** Identificador do comando de cada ferramenta de arquitetura. */
+const ARCH_TOOL_IDS: Record<ArchTool, string> = {
+  wall: 'arch.wall',
+  slab: 'arch.slab',
+  flooring: 'arch.flooring',
+  door: 'arch.door',
+  window: 'arch.window',
+  space: 'arch.space',
+  floorOpening: 'arch.floorOpening',
+};
+
+/**
+ * Ferramenta de criação da arquitetura. Atua na planta de trabalho (a vista é aberta ao
+ * escolher o comando) e exige o que o elemento precisa: tipo da categoria, parede hospedeira
+ * ou piso selecionado — o motivo aparece na dica.
+ */
+function archToolCommand(tool: ArchTool): Command {
+  const shortcut = ARCH_TOOL_KEYS[tool];
+  return {
+    id: ARCH_TOOL_IDS[tool],
+    label: ARCH_TOOL_LABELS[tool],
+    description: ARCH_TOOL_HINTS[tool],
+    icon: ARCH_TOOL_ICONS[tool],
+    ...(shortcut ? { shortcut } : {}),
+    testId: ARCH_TOOL_IDS[tool].replace('.', '-'),
+    state: (context) => {
+      const blocked = modeling(context);
+      if (blocked) return blocked;
+      const selection = context.archSelection ?? [];
+      // Sem tipo da categoria o comando continua disponível: abre o catálogo para criá-lo.
+      if (archMissingTypeCategory(context.project, tool, selection, arch().activeTypes))
+        return ENABLED;
+      const reason = archToolBlocker(context.project, tool, selection, arch().activeTypes);
+      return reason ? off(reason) : { enabled: true, active: context.archTool === tool };
+    },
+    run: () => arch().setTool(arch().tool === tool ? null : tool),
+  };
+}
+
+/** Modificação da seleção arquitetônica: leva ao campo do painel que chama a operação. */
+function archModifyCommand(
+  id: string,
+  label: string,
+  description: string,
+  icon: LucideIcon,
+  target: string,
+): Command {
+  return {
+    id,
+    label,
+    description: `${description} Os campos ficam no painel de propriedades.`,
+    icon,
+    testId: id.replace('.', '-'),
+    state: (context) =>
+      modeling(context) ??
+      ((context.archSelection?.length ?? 0) > 0
+        ? ENABLED
+        : off('Selecione um ou mais elementos de arquitetura.')),
+    run: () => ui().revealProperty(target),
+  };
+}
+
+const ARCH_COMMANDS: readonly Command[] = [
+  ...(Object.keys(ARCH_TOOL_IDS) as ArchTool[]).map(archToolCommand),
+  {
+    id: 'arch.catalog',
+    label: 'Catálogo de arquitetura',
+    description:
+      'Famílias e tipos de paredes, lajes, revestimentos de piso, portas e janelas: adiciona tipos ao projeto, edita camadas e dimensões e escolhe o tipo das ferramentas.',
+    icon: BookOpen,
+    testId: 'arch-catalog',
+    run: () => arch().openCatalog(),
+  },
+  {
+    id: 'arch.quantities',
+    label: 'Quantitativo de arquitetura',
+    description:
+      'Quantidades dos elementos de arquitetura por tipo e por pavimento: comprimentos, áreas e volumes brutos e líquidos.',
+    icon: Calculator,
+    testId: 'arch-quantities',
+    state: (context) =>
+      context.project.architecture.elements.length > 0
+        ? ENABLED
+        : off('O projeto ainda não tem elementos de arquitetura.'),
+    run: () => ui().openDialog('archQuantities'),
+  },
+  archModifyCommand(
+    'arch.move',
+    'Mover (arquitetura)',
+    'Desloca a seleção arquitetônica por ΔX, ΔY e ΔZ. A parede leva as portas e janelas; a porta ou janela sozinha desliza ao longo da parede.',
+    Move,
+    'arch-move-dx',
+  ),
+  archModifyCommand(
+    'arch.copy',
+    'Copiar (arquitetura)',
+    'Copia a seleção arquitetônica a um deslocamento ΔX, ΔY e ΔZ; as cópias ganham novos identificadores.',
+    Copy,
+    'arch-move-dx',
+  ),
+  archModifyCommand(
+    'arch.rotate',
+    'Girar (arquitetura)',
+    'Gira a seleção arquitetônica em planta, por um ângulo em torno de um centro.',
+    RotateCw,
+    'arch-rotate-angle',
+  ),
+  archModifyCommand(
+    'arch.mirror',
+    'Espelhar (arquitetura)',
+    'Espelha a seleção arquitetônica em relação a um eixo definido por dois pontos.',
+    MirrorIcon,
+    'arch-mirror-ax',
+  ),
 ];
 
 export const COMMANDS: readonly Command[] = [
@@ -570,6 +759,7 @@ export const COMMANDS: readonly Command[] = [
     state: (context) =>
       modeling(context) ??
       (context.selection.length > 0 ||
+      (context.archSelection?.length ?? 0) > 0 ||
       context.annotationSelection !== null ||
       (context.detailSelectionCount ?? 0) > 0 ||
       context.viewMarker
@@ -579,6 +769,7 @@ export const COMMANDS: readonly Command[] = [
       // Detalhes e marcador de corte pertencem às vistas; o restante é do modelo.
       const { detailSelection, marker } = views();
       if (detailSelection.length > 0) views().deleteDetails();
+      else if (arch().selection.length > 0) arch().deleteSelected();
       else if (marker && editor().selection.length === 0 && !editor().annotationSelection) {
         views().remove(marker);
       } else editor().deleteSelected();
@@ -1120,9 +1311,12 @@ export const COMMANDS: readonly Command[] = [
       content:
         'Estrutura espacial, elementos com tipos (Ifc…Type), portas e conexões, sistemas, materiais, conjuntos de propriedades e de quantidades.',
       options: 'Georreferência incluída só quando informada em Gerenciar › Georreferência.',
-      requirements: 'Ao menos um elemento no projeto.',
+      requirements: 'Ao menos um elemento (da rede ou da arquitetura) no projeto.',
     },
-    state: hasElements,
+    state: (context) =>
+      context.project.elements.length + context.project.architecture.elements.length > 0
+        ? ENABLED
+        : off(NO_ELEMENTS),
     run: exportIfcFile,
   },
   {
@@ -1286,6 +1480,8 @@ export const COMMANDS: readonly Command[] = [
     run: () => ui().openDialog('options'),
   },
 
+  ...ARCH_COMMANDS,
+
   // ----- Terreno (ambiente Infra) -----
   {
     id: 'terrain.panel',
@@ -1318,6 +1514,36 @@ export const COMMANDS: readonly Command[] = [
     'Fixa um ponto sobre a superfície e mostra a cota e a declividade do terreno nele.',
     Crosshair,
     true,
+  ),
+
+  // ----- Edição do terreno e terraplenagem (ambiente Infra) -----
+  earthworkCommand(
+    'edit',
+    'Editar Terreno',
+    'Edita a superfície do terreno: pontos cotados (acrescentar, mover, excluir, trocar a cota), limite e triangulação. A superfície original fica guardada para comparação.',
+    PenLine,
+  ),
+  {
+    ...earthworkCommand(
+      'platforms',
+      'Criar Platô',
+      'Cria um platô: informe a cota de implantação e os taludes de corte e de aterro e desenhe o perímetro sobre o terreno. O terreno projetado e os volumes são gerados a partir desses parâmetros.',
+      Hexagon,
+    ),
+    id: 'terrain.platform',
+    testId: 'terrain-cmd-platform',
+  },
+  earthworkCommand(
+    'cutfill',
+    'Corte/Aterro',
+    'Alterna entre o terreno natural, o projetado e a comparação, com o corte em vermelho e o aterro em azul, na planta e no 3D.',
+    Layers,
+  ),
+  earthworkCommand(
+    'volumes',
+    'Volumes',
+    'Quadro de quantitativos de terraplenagem por platô e total: corte in situ, aterro compactado, material solto, aproveitamento, empréstimo e excedente.',
+    Calculator,
   ),
 ];
 
@@ -1384,7 +1610,10 @@ export function commandContext(): CommandContext {
     maximizedView: layout.maximizedView,
     terrainMode: terrain().mode,
     terrainPanelOpen: terrain().panelOpen,
+    earthworkTab: useEarthworkStore.getState().tab,
     ...viewContextOf(state.project, views()),
+    archTool: arch().tool,
+    archSelection: arch().selection,
   };
 }
 

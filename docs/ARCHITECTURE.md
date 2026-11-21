@@ -57,6 +57,11 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Vistas de projeto: tipos, referencial, planos de corte, detalhes 2D e operações | `packages/core/src/views.ts` (puro) |
 | Projeção de um elemento em uma vista, com a malha cortada pelos planos | `packages/geometry/src/viewOutline.ts` |
 | Vistas de projeto no editor: sessão, vista 2D, navegador, painel, caixa de corte | `apps/web/src/views/` |
+| Arquitetura: tipos, paredes e encontros, vãos, pisos, ambientes, operações e quantitativos | `packages/core/src/architecture/` (puro); ver [ARQUITETURA.md](ARQUITETURA.md) |
+| Malhas da arquitetura, seção cortada e símbolo de abertura das portas | `packages/geometry/src/architecture.ts`, `archSection.ts` |
+| Catálogo de famílias arquitetônicas (modelos genéricos) | `packages/catalog/src/architecture.ts` |
+| Informação IFC da arquitetura (registro, modelo, validação) e exportação | `packages/ifc/src/bim/archDefinitions.ts`, `archModel.ts`, `archValidate.ts`; `packages/ifc/src/archExport.ts` |
+| Arquitetura no editor: sessão, ferramentas, painel, catálogo e quantitativo | `apps/web/src/arch/` |
 
 ## Fluxo de uma edição
 

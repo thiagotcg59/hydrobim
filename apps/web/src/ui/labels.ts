@@ -1,5 +1,19 @@
-import type { SystemKind, ValveType } from '@hydrobim/core';
+import type { Discipline, SystemKind, ValveType } from '@hydrobim/core';
 import type { ToolId } from '../state/editorStore';
+
+/** Nome do ambiente (disciplina do projeto) como aparece ao usuário. */
+export const DISCIPLINE_LABELS: Record<Discipline, string> = {
+  mep: 'MEP',
+  infra: 'Infra',
+  architecture: 'Arquitetura',
+};
+
+/** Nome da planta de trabalho de cada ambiente. */
+export const PLAN_LABELS: Record<Discipline, string> = {
+  mep: 'Planta MEP',
+  infra: 'Planta Infra',
+  architecture: 'Planta Arquitetura',
+};
 
 export const VALVE_TYPE_LABELS: Record<ValveType, string> = {
   gate: 'Gaveta',
@@ -53,7 +67,7 @@ export const TOOL_HINTS: Record<ToolId, string> = {
   tank: 'Clique um ponto do plano de trabalho (ou informe as coordenadas) para posicionar o reservatório.',
   measure: 'Clique dois pontos para medir a distância.',
   connect:
-    'Clique a extremidade livre do trecho e, em seguida, a porta de referência (bocal do equipamento ou de outra peça). Escolha a alternativa no painel: alinhar move o trecho; conectar completa a montagem e registra a ligação. O equipamento fica fixo. Esc: recomeçar.',
+    'Clique a extremidade livre do trecho e, em seguida, a porta de referência (bocal do equipamento ou de outra peça). Escolha a alternativa no painel: alinhar move o trecho; conectar completa a montagem e registra a ligação. O equipamento fica fixo, salvo nas alternativas identificadas como "Mover o equipamento". Esc: recomeçar.',
   move: 'Clique o ponto-base (uma porta ou um ponto do elemento) e, em seguida, o destino; a prévia mostra o resultado antes do clique. Sobre um ponto do plano o deslocamento é horizontal; para mudar a cota, capture uma porta ou use Shift (vertical). Tubos ligados se ajustam quando o acoplamento permite; senão, marque "Levar a rede ligada". Esc: outro ponto-base; Esc de novo: sair.',
   rotate:
     'Gira em planta, em torno de um eixo vertical: clique o centro de giro (ou use a origem do elemento) e, em seguida, a direção — o ângulo é medido a partir de +X, no sentido anti-horário, de 15° em 15°; para outro valor, digite o ângulo. Com "Girar a rede ligada" (padrão), tubos, conexões e acessórios ligados giram junto, sem romper as ligações; as cotas não mudam. Esc: outro centro; Esc de novo: sair.',

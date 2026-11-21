@@ -8,6 +8,7 @@ import {
   translateDetail,
   vec3,
   VIEW_KIND_LABELS,
+  viewArchElementsOf,
   viewElementsOf,
   type Point2,
   type ProjectView2d,
@@ -27,6 +28,16 @@ import { HIGHLIGHT, INK, PAPER, PlanElement } from '../plan/planDrawing';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { TOOL_LABELS } from '../ui/labels';
+import '../styles/architecture.css';
+import { selectArchElement, useArchSelection } from './archSelection';
+import { ArchViewElement, HatchDefs, SpaceShape } from './ArchShapes';
+import {
+  archBoundsOf,
+  archProjectionOf,
+  archSnapPoints,
+  archViewEntryOf,
+  spaceLabelsOf,
+} from './archView';
 import { detailGripsOf, DetailShape } from './DetailShapes';
 import { snapViewPoint } from './entry';
 import { SectionDraft, SectionMarkers } from './SectionMarkers';
@@ -60,6 +71,8 @@ interface Drag {
   readonly button: number;
   readonly mode: 'pan' | 'click' | 'detail' | 'grip' | 'crop';
   readonly elementId: string | null;
+  /** Elemento arquitetônico sob o clique. */
+  readonly archId: string | null;
   readonly detailId: string | null;
   readonly grip: string | null;
   /** Ponto de referência do arrasto, nas coordenadas da vista. */
@@ -153,6 +166,8 @@ export function DocView({ view }: { view: ProjectView2d }) {
   const cursor = useViewStore((s) => s.cursor);
   const detailSelection = useViewStore((s) => s.detailSelection);
   const clipId = useId();
+  /** Base dos identificadores dos padrões de hachura (só caracteres válidos em `url(#…)`). */
+  const hatchBase = `hachura-${clipId.replace(/[^a-zA-Z0-9]/g, '')}`;
 
   const svgRef = useRef<SVGSVGElement>(null);
   const entryRef = useRef<HTMLInputElement>(null);
@@ -180,14 +195,48 @@ export function DocView({ view }: { view: ProjectView2d }) {
         .sort((p, q) => p.entry.outline.maxZ - q.entry.outline.maxZ),
     [elements, projection],
   );
-  const content = useMemo(
+  // Arquitetura: derivada do modelo a cada alteração de `project.architecture` (com cache).
+  const { architecture } = project;
+  const archSelection = useArchSelection();
+  const archProjection = useMemo(() => archProjectionOf({ levels }, view), [levels, view]);
+  const archElements = useMemo(() => viewArchElementsOf(project, view), [project, view]);
+  const archEntries = useMemo(
     () =>
-      contentBoundsOf(
-        drawn.map((item) => item.entry),
-        view,
-      ),
-    [drawn, view],
+      archElements.flatMap((element) => {
+        const entry = archViewEntryOf({ levels, architecture }, element, archProjection);
+        return entry ? [entry] : [];
+      }),
+    [archElements, levels, architecture, archProjection],
   );
+  const spaces = useMemo(
+    () => spaceLabelsOf({ levels, architecture }, archElements, archProjection),
+    [archElements, levels, architecture, archProjection],
+  );
+  // Rede e arquitetura na mesma ordem de profundidade; no empate, a rede fica por cima.
+  const painted = useMemo(
+    () =>
+      [
+        ...archEntries.map((entry) => ({ kind: 'arch' as const, depth: entry.depth, entry })),
+        ...drawn.map((item) => ({
+          kind: 'network' as const,
+          depth: item.entry.outline.maxZ,
+          ...item,
+        })),
+      ].sort((p, q) => p.depth - q.depth),
+    [archEntries, drawn],
+  );
+  const content = useMemo(() => {
+    const network = contentBoundsOf(
+      drawn.map((item) => item.entry),
+      view,
+    );
+    const arch = archBoundsOf(archEntries, spaces);
+    if (!network || !arch) return network ?? arch;
+    return {
+      min: { x: Math.min(network.min.x, arch.min.x), y: Math.min(network.min.y, arch.min.y) },
+      max: { x: Math.max(network.max.x, arch.max.x), y: Math.max(network.max.y, arch.max.y) },
+    };
+  }, [drawn, view, archEntries, spaces]);
   const systems = useMemo(
     () => new Map(project.systems.map((system) => [system.id, system])),
     [project.systems],
@@ -314,13 +363,18 @@ export function DocView({ view }: { view: ProjectView2d }) {
     () => elementSnapPoints(elements, projection),
     [elements, projection],
   );
+  // Arquitetura: extremidades e cantos de paredes, cantos de vãos, de pisos e de ambientes.
+  const archPoints = useMemo(
+    () => archSnapPoints({ levels, architecture }, archElements, archProjection),
+    [levels, architecture, archElements, archProjection],
+  );
   const snap = (raw: Point2, exclude: readonly string[] = []) => {
     const details = view.visibility.details
       ? view.details.filter((detail) => !exclude.includes(detail.id)).flatMap(detailPointsOf)
       : [];
     return snapViewPoint(
       raw,
-      [...modelPoints, ...details],
+      [...modelPoints, ...archPoints, ...details],
       SNAP_PX * camera.mpp,
       snapToGrid ? gridStep : 0,
     );
@@ -361,6 +415,12 @@ export function DocView({ view }: { view: ProjectView2d }) {
       if (d.detailId) return;
       views.selectDetail(null);
       views.selectMarker(null);
+      // A seleção da arquitetura é da sessão dela; a da rede, da store do editor.
+      if (d.archId && !d.elementId) {
+        selectArchElement(d.archId, additive);
+        return;
+      }
+      if (!additive) selectArchElement(null);
       editor.select(d.elementId, additive);
       return;
     }
@@ -422,6 +482,7 @@ export function DocView({ view }: { view: ProjectView2d }) {
       button: event.button,
       mode,
       elementId: idOf(event.target, 'data-element-id'),
+      archId: idOf(event.target, 'data-arch-id'),
       detailId,
       grip: grip ?? cropGrip,
       origin: reference,
@@ -660,6 +721,10 @@ export function DocView({ view }: { view: ProjectView2d }) {
       data-mpp={camera.mpp}
       data-center={`${camera.cx};${camera.cy}`}
       data-elements={drawn.length}
+      data-arch-elements={archEntries.length}
+      data-arch-cut={archEntries.filter((entry) => entry.cut.length > 0).length}
+      data-spaces={spaces.length}
+      data-snap-points={modelPoints.length + archPoints.length}
       data-details={view.details.length}
       data-crop={view.crop?.enabled ? 'on' : 'off'}
     >
@@ -679,8 +744,8 @@ export function DocView({ view }: { view: ProjectView2d }) {
         }}
         onContextMenu={(event) => event.preventDefault()}
       >
-        {crop && (
-          <defs>
+        <defs>
+          {crop && (
             <clipPath id={clipId}>
               <rect
                 x={X(crop.min.x)}
@@ -689,8 +754,20 @@ export function DocView({ view }: { view: ProjectView2d }) {
                 height={crop.max.y - crop.min.y}
               />
             </clipPath>
-          </defs>
-        )}
+          )}
+          {/* Corte: a seção só vale no trecho da linha de corte. */}
+          {archProjection.span && (
+            <clipPath id={`${hatchBase}-span`}>
+              <rect
+                x={X(archProjection.span.from)}
+                y={-1e5}
+                width={archProjection.span.to - archProjection.span.from}
+                height={2e5}
+              />
+            </clipPath>
+          )}
+          <HatchDefs base={hatchBase} unit={unit} />
+        </defs>
         {/* Cortes e elevações: as cotas dos níveis situam o desenho na altura. */}
         {!plan && (
           <g data-layer="levels" pointerEvents="none">
@@ -719,14 +796,36 @@ export function DocView({ view }: { view: ProjectView2d }) {
           </g>
         )}
         <g data-layer="elements" clipPath={crop ? `url(#${clipId})` : undefined}>
-          {drawn.map(({ element, entry: outline }) => (
-            <PlanElement
-              key={element.id}
-              element={element}
-              entry={outline}
-              systemColor={systems.get(element.systemId)?.color}
-              selected={selection.includes(element.id)}
-              monochrome={mono}
+          {painted.map((item) =>
+            item.kind === 'arch' ? (
+              <ArchViewElement
+                key={item.entry.element.id}
+                entry={item.entry}
+                selected={archSelection.includes(item.entry.element.id)}
+                monochrome={mono}
+                unit={unit}
+                origin={origin}
+                hatchBase={hatchBase}
+                cutClip={archProjection.span ? `url(#${hatchBase}-span)` : undefined}
+              />
+            ) : (
+              <PlanElement
+                key={item.element.id}
+                element={item.element}
+                entry={item.entry}
+                systemColor={systems.get(item.element.systemId)?.color}
+                selected={selection.includes(item.element.id)}
+                monochrome={mono}
+                unit={unit}
+                origin={origin}
+              />
+            ),
+          )}
+          {spaces.map((label) => (
+            <SpaceShape
+              key={label.element.id}
+              label={label}
+              selected={archSelection.includes(label.element.id)}
               unit={unit}
               origin={origin}
             />
@@ -900,7 +999,7 @@ export function DocView({ view }: { view: ProjectView2d }) {
           {viewSummary(view, range) ? ` · ${viewSummary(view, range)}` : ''}
         </span>
       </div>
-      {drawn.length === 0 && (
+      {drawn.length === 0 && archEntries.length === 0 && spaces.length === 0 && (
         <div className="docview__empty" data-testid="doc-view-empty">
           Nenhum elemento do modelo nesta vista: confira a faixa de corte, o alcance, o recorte e a
           visibilidade no painel “Vista”.

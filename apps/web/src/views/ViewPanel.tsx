@@ -37,6 +37,11 @@ const CATEGORY_LABELS: Record<ViewCategory, string> = {
   valves: 'Válvulas',
   equipment: 'Equipamentos (bombas)',
   tanks: 'Reservatórios',
+  walls: 'Paredes',
+  floors: 'Pisos e lajes',
+  doors: 'Portas',
+  windows: 'Janelas',
+  spaces: 'Ambientes',
 };
 
 function Check({
@@ -450,6 +455,18 @@ function View2dSettings({ view }: { view: ProjectView2d }) {
             title="Altura do plano de corte em relação à cota do nível: acima dele nada é desenhado"
             onCommit={(cutHeight) => change(view.id, { cutHeight })}
           />
+          <NumberField
+            label="Plano de corte da arquitetura"
+            value={view.archCutHeight}
+            unit="m"
+            testId="view-arch-cut-height"
+            title="Altura, acima do nível, em que paredes, portas e janelas são cortadas (seção com traço forte e hachura). A rede continua visível até o topo da faixa."
+            onCommit={(archCutHeight) => change(view.id, { archCutHeight })}
+          />
+          <p className="viewpanel__note muted" data-testid="view-arch-cut-note">
+            A arquitetura é cortada nesta altura (nunca acima do topo da faixa); a rede continua
+            visível até o plano de corte da faixa, para que a tubulação junto ao teto não suma.
+          </p>
           <NumberField
             label="Profundidade abaixo do corte"
             value={view.depth}
