@@ -106,6 +106,21 @@ test('planta: alinhar a rede por dois pares de pontos, com prévia e linhas auxi
   expect(moved[0]?.start?.x).toBeCloseTo(-1);
   expect(moved[0]?.start?.y).toBeCloseTo(-2);
 
+  // "Ponto livre": o destino fica onde se clica, fora dos nós da grade.
+  await page.mouse.click(...at(-1, -1), { button: 'right' });
+  await page.getByTestId('context-align').click();
+  await expect(page.getByTestId('align-snap-note')).toContainText('grade');
+  await (await ctl(page, 'align-free-point')).check();
+  await page.mouse.click(...at(-1, -2));
+  await page.mouse.click(...at(-0.65, -1.35));
+  await page.getByTestId('align-apply-first').click();
+  await expect(message).toContainText('alinhados');
+  const free = (await exported(page)).elements.filter((e) => e.kind === 'pipe');
+  // Com a grade (0,10 m), cairia em −0,60/−0,70 e −1,30/−1,40.
+  expect(Math.abs((free[0]?.start?.x ?? 0) + 0.65)).toBeLessThan(0.02);
+  expect(Math.abs((free[0]?.start?.y ?? 0) + 1.35)).toBeLessThan(0.02);
+  await page.keyboard.press('Control+z');
+
   // Um passo de histórico por alinhamento.
   await page.keyboard.press('Control+z');
   await page.keyboard.press('Control+z');

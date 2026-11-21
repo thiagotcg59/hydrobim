@@ -44,6 +44,7 @@ import {
   pipeSnapOf,
   useEditorStore,
 } from '../state/editorStore';
+import { pointGridStepOf } from '../state/alignTool';
 import { useTerrainStore } from '../terrain/terrainStore';
 
 const CLICK_TOLERANCE_PX = 5;
@@ -169,11 +170,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       const settings = precision();
       // Com o trecho em andamento, o passo de comprimento da precisão substitui o da grade.
       const drawing = state.tool === 'pipe' && state.anchor !== null;
-      const gridStep = drawing
-        ? lengthStepOf(state, settings)
-        : state.snapToGrid
-          ? state.gridStep
-          : 0;
+      const gridStep = drawing ? lengthStepOf(state, settings) : pointGridStepOf(state);
       // Shift no traçado de tubo: trava de 45°/90° no plano ou trecho vertical, o que estiver
       // mais perto do cursor. Nas demais ferramentas, Shift continua sendo a vertical.
       const polar = event.shiftKey && state.tool === 'pipe' && state.anchor !== null;

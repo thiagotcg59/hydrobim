@@ -75,7 +75,7 @@ import {
   pipeSnapOf,
   useEditorStore,
 } from '../state/editorStore';
-import { alignGuidesOf } from '../state/alignTool';
+import { alignGuidesOf, pointGridStepOf } from '../state/alignTool';
 import { useUiStore } from '../state/uiStore';
 import { cursorElementOf } from '../state/viewPreview';
 import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
@@ -458,9 +458,7 @@ export function PlanView() {
       gridStep:
         state.tool === 'pipe' && state.anchor
           ? lengthStepOf(state, settings)
-          : state.snapToGrid
-            ? state.gridStep
-            : 0,
+          : pointGridStepOf(state),
       anchor:
         state.tool === 'pipe' && state.anchor
           ? { point: state.anchor.point, lockAxis: state.anchor.lockAxis }

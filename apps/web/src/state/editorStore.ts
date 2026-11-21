@@ -654,6 +654,11 @@ interface EditorState {
   rotate: RotateState | null;
   /** Alinhar por pontos em andamento (ferramenta `align`). */
   align: AlignState | null;
+  /**
+   * "Ponto livre" do alinhar: os pontos não se ajustam à grade. Preferência da sessão — vale
+   * para os próximos alinhamentos, sem mexer no "Ajustar à grade" das outras ferramentas.
+   */
+  alignFreePoint: boolean;
   contextMenu: ContextMenuState | null;
   message: EditorMessage | null;
   /** selection: enquadra só os elementos selecionados. */
@@ -792,6 +797,7 @@ interface EditorState {
   startAlign: (ids?: readonly string[]) => void;
   setAlignWithConnected: (enabled: boolean) => void;
   setAlignCopy: (enabled: boolean) => void;
+  setAlignFreePoint: (enabled: boolean) => void;
   /**
    * Aplica o alinhamento com o destino 2 indicado; `null` aplica só o primeiro par (desloca).
    * Recusado, o alinhar continua.
@@ -1478,6 +1484,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     move: null,
     rotate: null,
     align: null,
+    alignFreePoint: false,
     contextMenu: null,
     message: null,
     viewRequest: null,
@@ -2725,6 +2732,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const { align } = get();
       if (align) set({ align: { ...align, copy: enabled } });
     },
+
+    setAlignFreePoint: (enabled) => set({ alignFreePoint: enabled }),
 
     applyAlign: (target2) => {
       const { project, align } = get();
