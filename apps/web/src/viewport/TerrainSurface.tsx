@@ -1,5 +1,5 @@
 import { georeferenceStatus, terrainStats } from '@hydrobim/core';
-import { useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import {
   BufferAttribute,
   BufferGeometry,
@@ -14,6 +14,7 @@ import { drapeMosaic, drapeUvs, loadDrapeCanvas } from '../terrain/drape';
 import { buildTerrainMesh, contourSegments, terrainEdges } from '../terrain/terrainColors';
 import { contourIntervalOf } from '../terrain/TerrainLayers';
 import { useTerrainStore } from '../terrain/terrainStore';
+import { ModelDisplayContext } from '../views/clipContext';
 
 function linesGeometry(positions: Float32Array): BufferGeometry {
   const geometry = new BufferGeometry();
@@ -39,6 +40,8 @@ export function TerrainSurface() {
 
 function TerrainSurfaceMesh() {
   const terrain = useEditorStore((s) => s.project.terrain);
+  // Caixa de corte da vista 3D aberta: a superfície é cortada com os elementos.
+  const { planes } = useContext(ModelDisplayContext);
   const display = useTerrainStore((s) => s.display);
 
   const georeference = useEditorStore((s) => s.project.georeference);
@@ -196,6 +199,7 @@ function TerrainSurfaceMesh() {
           vertexColors={!draped}
           map={draped ? texture : null}
           side={DoubleSide}
+          clippingPlanes={planes}
           roughness={0.95}
           metalness={0}
           // Translúcida, sem gravar profundidade: a rede enterrada continua visível através
@@ -211,16 +215,16 @@ function TerrainSurfaceMesh() {
       </mesh>
       {edges && (
         <lineSegments geometry={edges} raycast={() => null}>
-          <lineBasicMaterial color="#3f5a33" transparent opacity={0.45} />
+          <lineBasicMaterial color="#3f5a33" transparent opacity={0.45} clippingPlanes={planes} />
         </lineSegments>
       )}
       {contours && (
         <>
           <lineSegments geometry={contours.minor} raycast={() => null}>
-            <lineBasicMaterial color="#6b4423" transparent opacity={0.7} />
+            <lineBasicMaterial color="#6b4423" transparent opacity={0.7} clippingPlanes={planes} />
           </lineSegments>
           <lineSegments geometry={contours.major} raycast={() => null}>
-            <lineBasicMaterial color="#4a2c12" />
+            <lineBasicMaterial color="#4a2c12" clippingPlanes={planes} />
           </lineSegments>
         </>
       )}

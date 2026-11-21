@@ -1,13 +1,27 @@
-import { connectedPortRef, getElement, getPorts, type Project } from '@hydrobim/core';
+import {
+  connectedPortRef,
+  ELEVATION_DIRECTIONS,
+  ELEVATION_LABELS,
+  getElement,
+  getPorts,
+  getView,
+  type ElevationDirection,
+  type Project,
+} from '@hydrobim/core';
 import {
   Activity,
   ArrowUpDown,
+  Bookmark,
   Box,
   Boxes,
+  Camera,
+  Circle,
   ClipboardList,
   Columns2,
   Copy,
+  Crop,
   Crosshair,
+  Cuboid,
   Eye,
   EyeOff,
   FileBox,
@@ -35,9 +49,13 @@ import {
   MousePointer2,
   Move,
   MoveHorizontal,
+  PanelBottom,
   PanelLeft,
   PanelRight,
   PanelTop,
+  RectangleHorizontal,
+  Slash,
+  SquareSplitHorizontal,
   Redo2,
   RotateCw,
   AlignStartVertical,
@@ -82,6 +100,13 @@ import { useUiStore, type TaskId } from '../state/uiStore';
 import { useTerrainStore, type TerrainMode } from '../terrain/terrainStore';
 import { TOOL_HINTS, TOOL_LABELS } from '../ui/labels';
 import { ELEMENT_ICONS } from '../ui/EngineeringIcons';
+import {
+  openView2dOf,
+  useViewStore,
+  VIEW_TOOL_LABELS,
+  type DetailTool,
+  type ViewTool,
+} from '../views/viewStore';
 
 /**
  * Registro único dos comandos da interface. A faixa de comandos, os atalhos de teclado, o
@@ -117,6 +142,50 @@ export interface CommandContext {
   /** Operação do terreno em andamento na Planta Infra e painel do terreno aberto. */
   readonly terrainMode?: TerrainMode | null;
   readonly terrainPanelOpen?: boolean;
+  /** Vista 2D de projeto aberta na área da planta (`null` = planta de trabalho). */
+  readonly view2dKind?: 'plan' | 'section' | 'elevation' | null;
+  /** Há uma vista 3D de projeto aberta na área do modelo. */
+  readonly view3dOpen?: boolean;
+  /** Região de recorte ligada na vista 2D aberta; caixa de corte ligada na vista 3D aberta. */
+  readonly viewCropOn?: boolean;
+  readonly sectionBoxOn?: boolean;
+  /** Ferramenta de desenho 2D em uso e seleção das vistas (detalhes e marcador de corte). */
+  readonly viewTool?: ViewTool;
+  readonly detailSelectionCount?: number;
+  readonly viewMarker?: string | null;
+}
+
+/** Parte do contexto que vem das vistas de projeto. */
+export function viewContextOf(
+  project: Project,
+  state: {
+    open2d: string | null;
+    open3d: string | null;
+    tool: ViewTool;
+    marker: string | null;
+    detailSelection: readonly string[];
+  },
+): Pick<
+  CommandContext,
+  | 'view2dKind'
+  | 'view3dOpen'
+  | 'viewCropOn'
+  | 'sectionBoxOn'
+  | 'viewTool'
+  | 'detailSelectionCount'
+  | 'viewMarker'
+> {
+  const sheet = openView2dOf(project, state.open2d);
+  const model = getView(project, state.open3d);
+  return {
+    view2dKind: sheet?.kind ?? null,
+    view3dOpen: model?.kind === '3d',
+    viewCropOn: sheet?.crop?.enabled === true,
+    sectionBoxOn: model?.kind === '3d' && model.sectionBox?.enabled === true,
+    viewTool: state.tool,
+    detailSelectionCount: state.detailSelection.length,
+    viewMarker: state.marker,
+  };
 }
 
 export interface CommandState {
@@ -155,6 +224,7 @@ export interface Command {
 }
 
 const editor = () => useEditorStore.getState();
+const views = () => useViewStore.getState();
 const ui = () => useUiStore.getState();
 
 const ENABLED: CommandState = { enabled: true };
@@ -237,9 +307,53 @@ function toolCommand(tool: Exclude<ToolId, 'move' | 'rotate' | 'align'>): Comman
     testId: `tool-${tool}`,
     state: (context) => {
       if (context.viewMode === 'bim' && tool !== 'select') return off(BIM_REASON);
-      return { enabled: true, active: context.tool === tool };
+      // Com uma vista salva aberta, as anotações da planta de trabalho dão lugar aos detalhes.
+      if (isAnnotationTool(tool) && context.view2dKind) {
+        return off(
+          'Anota a planta de trabalho. Na vista salva aberta, use Documentação › Detalhes da vista (ou volte à planta de trabalho).',
+        );
+      }
+      const drawing = context.viewTool !== undefined && context.viewTool !== 'select';
+      return { enabled: true, active: context.tool === tool && !(tool === 'select' && drawing) };
     },
-    run: () => editor().setTool(tool),
+    run: () => {
+      if (tool === 'select') views().setTool('select');
+      editor().setTool(tool);
+    },
+  };
+}
+
+const NEED_VIEW_2D =
+  'Abra uma vista salva (planta, corte ou elevação) no navegador, em Vistas: os detalhes pertencem à vista aberta.';
+
+/** Ferramenta de desenho 2D: cria detalhes na vista salva aberta (não cria elementos da rede). */
+function detailCommand(tool: DetailTool, description: string, icon: LucideIcon): Command {
+  return {
+    id: `detail.${tool}`,
+    label: VIEW_TOOL_LABELS[tool],
+    description: `${description} É um detalhe da vista aberta: não vira tubulação nem geometria do modelo.`,
+    icon,
+    testId: `detail-${tool}`,
+    state: (context) =>
+      modeling(context) ??
+      (context.view2dKind
+        ? { enabled: true, active: context.viewTool === tool }
+        : off(NEED_VIEW_2D)),
+    run: () => views().setTool(tool),
+  };
+}
+
+function elevationCommand(direction: ElevationDirection): Command {
+  return {
+    id: `views.elevation.${direction}`,
+    label: `Elevação ${ELEVATION_LABELS[direction]}`,
+    description: `Cria e abre a elevação da fachada ${ELEVATION_LABELS[direction].toLowerCase()}, vista de fora.`,
+    icon: PanelBottom,
+    testId: `views-elevation-${direction}`,
+    state: (context) => modeling(context) ?? ENABLED,
+    run: () => {
+      views().createElevation(direction);
+    },
   };
 }
 
@@ -448,16 +562,27 @@ export const COMMANDS: readonly Command[] = [
   {
     id: 'modify.delete',
     label: 'Excluir',
-    description: 'Exclui os elementos ou a anotação selecionados.',
+    description:
+      'Exclui os elementos, a anotação ou os detalhes selecionados; com um marcador de corte selecionado, exclui a vista do corte.',
     icon: Trash2,
     shortcut: 'Del',
     testId: 'modify-delete',
     state: (context) =>
       modeling(context) ??
-      (context.selection.length > 0 || context.annotationSelection !== null
+      (context.selection.length > 0 ||
+      context.annotationSelection !== null ||
+      (context.detailSelectionCount ?? 0) > 0 ||
+      context.viewMarker
         ? ENABLED
         : off('Nada selecionado.')),
-    run: () => editor().deleteSelected(),
+    run: () => {
+      // Detalhes e marcador de corte pertencem às vistas; o restante é do modelo.
+      const { detailSelection, marker } = views();
+      if (detailSelection.length > 0) views().deleteDetails();
+      else if (marker && editor().selection.length === 0 && !editor().annotationSelection) {
+        views().remove(marker);
+      } else editor().deleteSelected();
+    },
   },
   revealCommand(
     'modify.length',
@@ -631,6 +756,116 @@ export const COMMANDS: readonly Command[] = [
     run: () => undefined,
   },
 
+  // ----- Vistas de projeto (salvas no projeto) -----
+  {
+    id: 'views.newPlan',
+    label: 'Planta',
+    description:
+      'Cria e abre a planta do nível do plano de trabalho, com faixa de corte e profundidade configuráveis no painel "Vista". É uma vista do mesmo modelo.',
+    icon: MapIcon,
+    testId: 'views-new-plan',
+    state: (context) => modeling(context) ?? ENABLED,
+    run: () => {
+      views().createPlan();
+    },
+  },
+  {
+    id: 'views.newSection',
+    label: 'Corte',
+    description:
+      'Define um corte na planta: clique os dois pontos da linha e, depois, o lado para onde se olha — a distância até a linha é a profundidade. O marcador seleciona a vista; o duplo clique a abre.',
+    icon: SquareSplitHorizontal,
+    testId: 'views-new-section',
+    state: (context) =>
+      modeling(context) ?? { enabled: true, active: context.viewTool === 'section' },
+    run: () => {
+      // A linha é desenhada em planta: a de trabalho ou uma planta salva.
+      const sheet = openView2dOf(editor().project, views().open2d);
+      if (sheet && sheet.kind !== 'plan') views().closeView('2d');
+      views().setTool('section');
+      editor().notify(
+        'info',
+        'Corte: clique os dois pontos da linha na planta e, depois, o lado para onde se olha (a distância é a profundidade). Esc cancela.',
+      );
+    },
+  },
+  ...ELEVATION_DIRECTIONS.map(elevationCommand),
+  {
+    id: 'views.new3d',
+    label: 'Vista 3D',
+    description:
+      'Salva a câmera atual do Modelo 3D (posição, direção, ampliação e projeção: perspectiva ou isométrica) como uma vista do projeto.',
+    icon: Camera,
+    testId: 'views-new-3d',
+    state: (context) => modeling(context) ?? ENABLED,
+    run: () => {
+      views().create3d();
+    },
+  },
+  {
+    id: 'views.sectionBox',
+    label: 'Caixa de corte',
+    description:
+      'Liga ou desliga a caixa de corte da vista 3D aberta (sem vista aberta, cria uma com a câmera atual). Ajuste pelas alças das faces ou pelos valores X, Y e Z; o modelo não é alterado.',
+    icon: Cuboid,
+    testId: 'views-section-box',
+    state: (context) =>
+      modeling(context) ?? { enabled: true, active: context.sectionBoxOn === true },
+    run: () => views().toggleSectionBox(),
+  },
+  {
+    id: 'views.crop',
+    label: 'Região de recorte',
+    description:
+      'Liga ou desliga a região de recorte da vista 2D aberta: só o que está dentro do retângulo é desenhado. Ajuste pelas alças ou pelos limites no painel "Vista".',
+    icon: Crop,
+    testId: 'views-crop',
+    state: (context) =>
+      modeling(context) ??
+      (context.view2dKind
+        ? { enabled: true, active: context.viewCropOn === true }
+        : off('Abra uma vista salva (planta, corte ou elevação) no navegador, em Vistas.')),
+    run: () => views().toggleCrop(),
+  },
+  {
+    id: 'views.saveFrame',
+    label: 'Salvar enquadramento',
+    description:
+      'Guarda na vista salva em uso o que ela mostra agora: centro e ampliação (vistas 2D) ou a câmera (vistas 3D). A vista reabre assim.',
+    icon: Bookmark,
+    testId: 'views-save-frame',
+    state: (context) =>
+      modeling(context) ??
+      (context.view2dKind || context.view3dOpen
+        ? ENABLED
+        : off('Abra uma vista salva no navegador, em Vistas.')),
+    run: () => views().saveFrame(),
+  },
+  {
+    id: 'views.panel',
+    label: 'Configurar vista',
+    description:
+      'Mostra, no painel direito, a configuração da vista em uso: escala, orientação, faixa ou caixa de corte, recorte, visibilidade e estilo gráfico.',
+    icon: SlidersHorizontal,
+    testId: 'views-panel',
+    run: () => {
+      if (!ui().panelOpen) ui().setPanelOpen(true);
+      ui().setPanelTab('view');
+    },
+  },
+
+  // ----- Detalhes 2D da vista aberta -----
+  detailCommand('line', 'Linha por dois pontos; a seguinte parte do último ponto.', Slash),
+  detailCommand('polyline', 'Polilinha por vários pontos: Enter conclui, C fecha.', Spline),
+  detailCommand('rect', 'Retângulo por dois cantos opostos.', RectangleHorizontal),
+  detailCommand('circle', 'Círculo por centro e raio.', Circle),
+  detailCommand('text', 'Texto no ponto indicado; o conteúdo é editado no painel "Vista".', Type),
+  detailCommand(
+    'dimension',
+    'Cota linear entre dois pontos da vista (tipo em Escala e cotas).',
+    MoveHorizontal,
+  ),
+
   // ----- Vistas -----
   {
     id: 'view.model',
@@ -640,10 +875,18 @@ export const COMMANDS: readonly Command[] = [
     testId: 'view-mode-3d',
     state: (context) => ({
       enabled: true,
-      active: context.viewMode !== 'plan' && !context.bimWalk,
+      active: context.viewMode !== 'plan' && !context.bimWalk && !context.view3dOpen,
     }),
-    // Do percurso, "Modelo 3D" volta à órbita sem encerrar a consulta BIM / IFC.
-    run: () => (ui().bimWalk ? ui().setBimWalk(false) : editor().setViewMode('3d')),
+    // Do percurso, "Modelo 3D" volta à órbita sem encerrar a consulta BIM / IFC. Com uma vista
+    // 3D salva aberta, volta ao modelo padrão (sem caixa de corte), na câmera em que está.
+    run: () => {
+      if (ui().bimWalk) {
+        ui().setBimWalk(false);
+        return;
+      }
+      views().closeView('3d');
+      editor().setViewMode('3d');
+    },
   },
   {
     id: 'view.plan',
@@ -652,8 +895,15 @@ export const COMMANDS: readonly Command[] = [
       'Planta do ambiente atual (MEP ou Infra). A ferramenta e o trecho em andamento continuam.',
     icon: MapIcon,
     testId: 'view-mode-plan',
-    state: (context) => ({ enabled: true, active: context.viewMode === 'plan' }),
-    run: () => editor().setViewMode('plan'),
+    state: (context) => ({
+      enabled: true,
+      active: context.viewMode === 'plan' && !context.view2dKind,
+    }),
+    // Planta de trabalho (modelagem): fecha a vista salva que estiver na área da planta.
+    run: () => {
+      views().closeView('2d');
+      editor().setViewMode('plan');
+    },
   },
   {
     id: 'view.fit',
@@ -1134,6 +1384,7 @@ export function commandContext(): CommandContext {
     maximizedView: layout.maximizedView,
     terrainMode: terrain().mode,
     terrainPanelOpen: terrain().panelOpen,
+    ...viewContextOf(state.project, views()),
   };
 }
 

@@ -16,6 +16,7 @@ import {
   alignStepOf,
   alignTargetOf,
   planAlign,
+  pointGridStepOf,
   type AlignState,
 } from './alignTool';
 import { useEditorStore } from './editorStore';
@@ -53,6 +54,16 @@ describe('alinhar por pontos (estado da ferramenta)', () => {
     const t1 = { ...s1, target1: vec3(1, 0, 0) };
     expect(alignStepOf(t1)).toBe('source2');
     expect(alignStepOf({ ...t1, source2: vec3(2, 0, 0) })).toBe('target2');
+  });
+
+  it('"Ponto livre" tira a grade só do alinhar; as outras ferramentas seguem a grade', () => {
+    const base = { snapToGrid: true, gridStep: 0.1, alignFreePoint: true };
+    expect(pointGridStepOf({ ...base, tool: 'align' })).toBe(0);
+    expect(pointGridStepOf({ ...base, tool: 'move' })).toBe(0.1);
+    expect(pointGridStepOf({ ...base, tool: 'align', alignFreePoint: false })).toBe(0.1);
+    expect(
+      pointGridStepOf({ ...base, tool: 'align', alignFreePoint: false, snapToGrid: false }),
+    ).toBe(0);
   });
 
   it('o destino fora de porta mantém a cota da origem; sobre porta vale inteiro', () => {

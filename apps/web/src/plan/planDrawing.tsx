@@ -45,7 +45,7 @@ const FONT = 'Arial, Helvetica, sans-serif';
 
 const f = (value: number): string => (Math.round(value * 1e4) / 1e4).toString();
 
-interface CachedOutline {
+export interface CachedOutline {
   readonly outline: PlanOutline;
   /**
    * Ponto de referência do desenho do elemento (m, coordenadas do projeto). Os caminhos SVG são
@@ -86,10 +86,16 @@ const cache = new WeakMap<HydroElement, CachedOutline>();
 export function outlineOf(element: HydroElement): CachedOutline {
   const hit = cache.get(element);
   if (hit) return hit;
-  const outline = planOutline(buildElementGeometry(element));
+  const entry = outlineEntry(planOutline(buildElementGeometry(element)));
+  cache.set(element, entry);
+  return entry;
+}
+
+/** Caminhos SVG de uma projeção (da planta de trabalho ou de uma vista de projeto). */
+export function outlineEntry(outline: PlanOutline): CachedOutline {
   // Metro inteiro mais próximo do canto do elemento: os caminhos ficam com números pequenos.
   const anchor = { x: Math.round(outline.minX), y: Math.round(outline.minY) };
-  const entry = {
+  return {
     outline,
     anchor,
     fillPath: trianglesPath(outline.fill, anchor),
@@ -103,8 +109,6 @@ export function outlineOf(element: HydroElement): CachedOutline {
       path: segmentsPath(group.lines, anchor),
     })),
   };
-  cache.set(element, entry);
-  return entry;
 }
 
 /** Origem de desenho nula: coordenadas do SVG iguais às do projeto. */
@@ -127,6 +131,8 @@ interface PlanElementProps {
   unit: number;
   /** Origem de desenho (m): o SVG mostra as coordenadas do projeto menos este ponto. */
   origin?: Point2;
+  /** Projeção já calculada (vistas de projeto); ausente = a da planta de trabalho. */
+  entry?: CachedOutline;
 }
 
 export const PlanElement = memo(function PlanElement({
@@ -136,8 +142,9 @@ export const PlanElement = memo(function PlanElement({
   monochrome,
   unit,
   origin = NO_ORIGIN,
+  entry,
 }: PlanElementProps) {
-  const { anchor, fillPath, linePath, shades, lineGroups } = outlineOf(element);
+  const { anchor, fillPath, linePath, shades, lineGroups } = entry ?? outlineOf(element);
   const width = PAPER.outline * unit;
   const lineWidth = selected ? width * 1.8 : width;
   // Mesma biblioteca de materiais do modelo 3D: papel da parte, material e cor do sistema.

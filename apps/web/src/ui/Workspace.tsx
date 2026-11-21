@@ -1,4 +1,5 @@
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { getView, VIEW_KIND_LABELS, type ProjectView } from '@hydrobim/core';
+import { Maximize2, Minimize2, X } from 'lucide-react';
 import {
   useEffect,
   useRef,
@@ -12,6 +13,9 @@ import { PlanView } from '../plan/PlanView';
 import { isAnnotationTool, useEditorStore } from '../state/editorStore';
 import { useUiStore, type WorkspaceView } from '../state/uiStore';
 import { useTerrainStore } from '../terrain/terrainStore';
+import { DocView } from '../views/DocView';
+import { VIEW_ICONS } from '../views/viewIcons';
+import { openView2dOf, useViewStore } from '../views/viewStore';
 import { Viewport } from '../viewport/Viewport';
 import { WalkView } from '../walk/WalkView';
 import { CommandButton } from './CommandButton';
@@ -31,6 +35,49 @@ function projectionLabel(context: CommandContext): string {
   return isIsoQuadrant(context.viewPreset) ? 'Isométrica' : 'Ortográfica';
 }
 
+/**
+ * Vista de projeto aberta na área: o nome dela ao lado do título, com o botão de fechar (que
+ * volta à planta de trabalho ou ao modelo 3D padrão; a vista continua salva no projeto).
+ */
+function OpenViewChip({ view, active }: { view: ProjectView; active: boolean }) {
+  const Icon = VIEW_ICONS[view.kind];
+  const pane = view.kind === '3d' ? '3d' : '2d';
+  return (
+    <span
+      className={active ? 'pane__open is-active' : 'pane__open'}
+      data-testid={`open-view-${pane}`}
+      data-view-id={view.id}
+      data-view-name={view.name}
+    >
+      <button
+        type="button"
+        className="pane__open-name"
+        data-testid={`open-view-${pane}-name`}
+        aria-pressed={active}
+        title={`${VIEW_KIND_LABELS[view.kind]} "${view.name}" (vista salva no projeto)`}
+        onClick={() => useEditorStore.getState().setViewMode(pane === '3d' ? '3d' : 'plan')}
+      >
+        <Icon size={14} aria-hidden />
+        <span>{view.name}</span>
+      </button>
+      <button
+        type="button"
+        className="pane__open-close"
+        data-testid={`open-view-${pane}-close`}
+        aria-label={`Fechar ${view.name}`}
+        title={
+          pane === '3d'
+            ? 'Fechar a vista e voltar ao Modelo 3D padrão (a vista continua salva)'
+            : 'Fechar a vista e voltar à planta de trabalho (a vista continua salva)'
+        }
+        onClick={() => useViewStore.getState().closeView(pane)}
+      >
+        <X size={13} aria-hidden />
+      </button>
+    </span>
+  );
+}
+
 interface HeaderProps {
   pane: WorkspaceView;
   /** A vista ocupa sozinha a área de desenho: o cabeçalho traz as abas de todas as vistas. */
@@ -48,6 +95,11 @@ function PaneHeader({ pane, solo, split, maximized, context }: HeaderProps) {
   const walking = bim && context.bimWalk === true;
   const planLabel = infra ? 'Planta Infra' : 'Planta MEP';
   const show3dControls = solo || pane === '3d';
+  // Vistas de projeto abertas nesta área (a consulta BIM / IFC usa o modelo padrão).
+  const open2d = useViewStore((s) => s.open2d);
+  const open3d = useViewStore((s) => s.open3d);
+  const sheet = bim ? null : openView2dOf(context.project, open2d);
+  const saved3d = bim ? undefined : getView(context.project, open3d);
 
   return (
     <header className="pane__header" data-testid={solo ? 'view-tabs' : `pane-${pane}-header`}>
@@ -55,8 +107,14 @@ function PaneHeader({ pane, solo, split, maximized, context }: HeaderProps) {
         {(solo || pane === 'plan') && (
           <CommandButton id="view.plan" context={context} variant="small" label={planLabel} />
         )}
+        {(solo || pane === 'plan') && sheet && (
+          <OpenViewChip view={sheet} active={context.viewMode === 'plan'} />
+        )}
         {(solo || pane === '3d') && (
           <CommandButton id="view.model" context={context} variant="small" />
+        )}
+        {(solo || pane === '3d') && saved3d?.kind === '3d' && (
+          <OpenViewChip view={saved3d} active={context.viewMode === '3d'} />
         )}
         {solo && infra && (
           // O perfil ainda é um diálogo de análise, não uma vista sincronizada: o botão o abre.
@@ -98,7 +156,7 @@ function PaneHeader({ pane, solo, split, maximized, context }: HeaderProps) {
             data-testid="pane-plan-scale"
             title="Escala de documentação da planta (Documentação › Escala e cotas)"
           >
-            1:{drawingScale}
+            1:{sheet ? sheet.scale : drawingScale}
           </span>
         )}
       </div>
@@ -184,6 +242,8 @@ export function Workspace({ ready }: { ready: boolean }) {
       if (isAnnotationTool(editor.tool) || editor.geoPicker || useTerrainStore.getState().mode) {
         return;
       }
+      // O desenho 2D e a linha de corte também: o cursor pode passar pelo modelo sem encerrá-los.
+      if (useViewStore.getState().tool !== 'select') return;
     }
     useUiStore.getState().activateWorkspaceView(pane);
   };
@@ -193,6 +253,10 @@ export function Workspace({ ready }: { ready: boolean }) {
     if (!dragging.current || !rect || rect.width <= 0) return;
     useUiStore.getState().setSplitRatio((event.clientX - rect.left) / rect.width);
   };
+
+  // Vista 2D de projeto aberta na área da planta (no lugar da planta de trabalho).
+  const open2d = useViewStore((s) => s.open2d);
+  const sheet = openView2dOf(context.project, open2d);
 
   const pane = (id: WorkspaceView) => {
     if (!mounted(id)) return null;
@@ -229,7 +293,17 @@ export function Workspace({ ready }: { ready: boolean }) {
           />
         )}
         <div className="pane__view">
-          {id === 'plan' ? <PlanView /> : walking ? <WalkView /> : <Viewport />}
+          {id === 'plan' ? (
+            sheet ? (
+              <DocView key={sheet.id} view={sheet} />
+            ) : (
+              <PlanView />
+            )
+          ) : walking ? (
+            <WalkView />
+          ) : (
+            <Viewport />
+          )}
         </div>
       </section>
     );

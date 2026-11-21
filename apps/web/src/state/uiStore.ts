@@ -22,7 +22,8 @@ export const TASK_LABELS: Record<TaskId, string> = {
 };
 
 export type DialogId = 'open' | 'families' | 'ifcLibrary' | 'export' | 'commands' | 'options';
-export type PanelTab = 'tool' | 'properties';
+/** `view`: configuração da vista de projeto aberta e do detalhe 2D selecionado. */
+export type PanelTab = 'tool' | 'properties' | 'view';
 export type WorkspaceView = 'plan' | '3d';
 
 /** Pedido a ser atendido pela planta (que guarda a janela visível e o desenho). */

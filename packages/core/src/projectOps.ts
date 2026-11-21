@@ -62,6 +62,13 @@ export function removeLevel(project: Project, id: string): Result<Project> {
   if (project.levels.length <= 1) {
     return fail('LAST_LEVEL', 'O projeto precisa de ao menos um nível.');
   }
+  const plan = project.views.find((view) => view.kind === 'plan' && view.levelId === id);
+  if (plan) {
+    return fail(
+      'LEVEL_IN_USE',
+      `A planta "${plan.name}" é deste nível; exclua a vista ou mude o nível dela antes.`,
+    );
+  }
   return ok({ ...project, updatedAt: now(), levels: project.levels.filter((l) => l.id !== id) });
 }
 

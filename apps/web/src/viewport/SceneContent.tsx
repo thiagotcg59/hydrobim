@@ -1,6 +1,10 @@
 import {
   angleBetween,
   computeBounds,
+  getView,
+  viewCategoryOf,
+  type ModelProjectView,
+  type SectionBox,
   distance,
   formatMeters,
   lerp,
@@ -23,7 +27,7 @@ import {
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Group, OrthographicCamera as OrthoImpl, PerspectiveCamera } from 'three';
-import { Matrix4, MOUSE, Quaternion, Vector3 } from 'three';
+import { Matrix4, MOUSE, Plane, Quaternion, Vector3 } from 'three';
 import { orbitPivotShift, targetAtPivotDepth } from '../editor/orbitPivot';
 import { portMarkerRadius } from '../editor/picking';
 import { toCanonical, toRender } from '../editor/renderOrigin';
@@ -40,6 +44,9 @@ import {
 } from '../editor/viewPresets';
 import { alignGuidesOf } from '../state/alignTool';
 import { drawElevationOf, useEditorStore } from '../state/editorStore';
+import { ModelDisplayContext, setActiveClipPlanes, type ModelDisplay } from '../views/clipContext';
+import { SectionBox3D } from '../views/SectionBox3D';
+import { useViewStore } from '../views/viewStore';
 import { ElementMesh } from './ElementMesh';
 import { InlineGrips } from './InlineGrips';
 import { InteractionController } from './InteractionController';
@@ -55,6 +62,15 @@ const MEASURE_COLOR = '#0c8f6f';
 
 const tuple = (v: Vec3): [number, number, number] => [v.x, v.y, v.z];
 
+/** Vista 3D de projeto aberta na área do modelo (a consulta BIM / IFC usa o modelo padrão). */
+function useOpenView3d(): ModelProjectView | null {
+  const id = useViewStore((s) => s.open3d);
+  const project = useEditorStore((s) => s.project);
+  const bim = useEditorStore((s) => s.viewMode === 'bim');
+  const view = bim ? undefined : getView(project, id);
+  return view?.kind === '3d' ? view : null;
+}
+
 export function Elements({ hoveredId }: { hoveredId: string | null }) {
   const elements = useEditorStore((s) => s.project.elements);
   const systems = useEditorStore((s) => s.project.systems);
@@ -65,10 +81,28 @@ export function Elements({ hoveredId }: { hoveredId: string | null }) {
   const hiddenIds = useEditorStore((s) => s.bimHidden);
   const classFilter = useEditorStore((s) => s.bimClassFilter);
   const hidden = useMemo(() => new Set(hiddenIds), [hiddenIds]);
+  // Vista 3D aberta: a visibilidade dela soma-se à do projeto (só fora da consulta BIM).
+  const view = useOpenView3d();
+  const viewHidden = useMemo(
+    () =>
+      view
+        ? {
+            systems: new Set(view.visibility.hiddenSystemIds),
+            categories: new Set(view.visibility.hiddenCategories),
+          }
+        : null,
+    [view],
+  );
   return (
     <>
       {elements
         .filter((element) => bySystem.get(element.systemId)?.visible !== false)
+        .filter(
+          (element) =>
+            !viewHidden ||
+            (!viewHidden.systems.has(element.systemId) &&
+              !viewHidden.categories.has(viewCategoryOf(element))),
+        )
         .filter(
           (element) =>
             !bim ||
@@ -476,6 +510,60 @@ function CameraRig() {
 
   return null;
 }
+/** Último pedido de câmera salva já aplicado (o viewport é remontado ao trocar de vista). */
+let appliedCameraNonce = -1;
+
+/** Leva a câmera à posição salva na vista 3D aberta (ou enquadra, se ela ainda não tem câmera). */
+function SavedViewCamera() {
+  const request = useViewStore((s) => s.cameraRequest);
+  const camera = useThree((s) => s.camera) as SceneCamera;
+  const controls = useThree((s) => s.controls) as OrbitLike | null;
+  const height = useThree((s) => s.size.height);
+  useEffect(() => {
+    if (!request || !controls || request.nonce === appliedCameraNonce) return;
+    const store = useEditorStore.getState();
+    const saved = request.camera;
+    if (!saved) {
+      appliedCameraNonce = request.nonce;
+      store.requestView('fit');
+      return;
+    }
+    const direction = new Vector3(saved.direction.x, saved.direction.y, saved.direction.z);
+    direction.normalize();
+    const orthographic = saved.projection === 'orthographic';
+    if (orthographic !== isOrtho(camera)) {
+      // Projeção diferente: a câmera é trocada e assume o ponto de interesse salvo; este
+      // efeito roda de novo com a câmera nova e conclui o posicionamento.
+      setViewFocus(
+        { center: saved.target, halfHeight: saved.halfHeight },
+        vec3(direction.x, direction.y, direction.z),
+      );
+      store.setOrthographic(orthographic);
+      return;
+    }
+    appliedCameraNonce = request.nonce;
+    const { x, y, z } = toRender(saved.target, store.renderOrigin);
+    placeCamera(camera, controls, new Vector3(x, y, z), direction, saved.halfHeight, height);
+    rememberFocus(camera, controls);
+  }, [request, camera, controls, height]);
+  return null;
+}
+
+/** Os seis planos da caixa de corte, nas coordenadas da cena (projeto − origem de desenho). */
+function boxPlanes(planes: Plane[], box: SectionBox, origin: Vec3): void {
+  const set = (index: number, nx: number, ny: number, nz: number, constant: number): void => {
+    planes[index]?.normal.set(nx, ny, nz);
+    const plane = planes[index];
+    if (plane) plane.constant = constant;
+  };
+  set(0, 1, 0, 0, -(box.min.x - origin.x));
+  set(1, -1, 0, 0, box.max.x - origin.x);
+  set(2, 0, 1, 0, -(box.min.y - origin.y));
+  set(3, 0, -1, 0, box.max.y - origin.y);
+  set(4, 0, 0, 1, -(box.min.z - origin.z));
+  set(5, 0, 0, -1, box.max.z - origin.z);
+}
+
 export function SceneContent() {
   const elementsRef = useRef<Group>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -497,6 +585,26 @@ export function SceneContent() {
     () => ({ LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.ROTATE, RIGHT: MOUSE.PAN }),
     [],
   );
+
+  // Vista 3D aberta: caixa de corte e estilo gráfico. Os planos são sempre os mesmos objetos,
+  // atualizados no lugar — arrastar uma face não refaz os materiais dos elementos.
+  const view3d = useOpenView3d();
+  const gl = useThree((s) => s.gl);
+  const [boxPreview, setBoxPreview] = useState<SectionBox | null>(null);
+  const box = boxPreview ?? (view3d?.sectionBox?.enabled ? view3d.sectionBox : null);
+  const planes = useMemo(() => Array.from({ length: 6 }, () => new Plane()), []);
+  if (box) boxPlanes(planes, box, origin);
+  const clipped = box !== null;
+  const wireframe = view3d?.display === 'wireframe';
+  const display = useMemo<ModelDisplay>(
+    () => ({ planes: clipped ? planes : null, wireframe }),
+    [clipped, planes, wireframe],
+  );
+  useEffect(() => {
+    gl.localClippingEnabled = true;
+    setActiveClipPlanes(clipped ? planes : null);
+    return () => setActiveClipPlanes(null);
+  }, [gl, clipped, planes]);
 
   return (
     <>
@@ -531,10 +639,13 @@ export function SceneContent() {
       )}
       {/* Conteúdo do modelo, em coordenadas do projeto, transladado para a origem de desenho. */}
       <group position={[-origin.x, -origin.y, -origin.z]}>
-        <TerrainSurface />
-        <group ref={elementsRef}>
-          <Elements hoveredId={hoveredId} />
-        </group>
+        <ModelDisplayContext.Provider value={display}>
+          <TerrainSurface />
+          <group ref={elementsRef}>
+            <Elements hoveredId={hoveredId} />
+          </group>
+        </ModelDisplayContext.Provider>
+        {view3d && box && <SectionBox3D viewId={view3d.id} box={box} onPreview={setBoxPreview} />}
         <FreePortMarkers />
         <PipeGrips />
         <InlineGrips />
@@ -551,6 +662,7 @@ export function SceneContent() {
         mouseButtons={mouseButtons}
       />
       <CameraRig />
+      <SavedViewCamera />
       <InteractionController elementsRef={elementsRef} onHover={setHoveredId} />
 
       <GizmoHelper alignment="bottom-right" margin={[72, 72]}>

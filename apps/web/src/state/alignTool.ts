@@ -50,6 +50,21 @@ export function alignTargetOf(source: Vec3, point: Vec3, snap: string | null): V
   return snap === 'port' || snap === 'vertical' ? point : vec3(point.x, point.y, source.z);
 }
 
+/**
+ * Passo da grade para os pontos indicados pelo cursor. No alinhar com "Ponto livre", o ponto
+ * fica exatamente onde se clica (as portas continuam sendo capturadas — é nelas que as peças
+ * se encostam); nas demais ferramentas, vale o "Ajustar à grade" da barra de referência.
+ */
+export function pointGridStepOf(state: {
+  readonly tool: string;
+  readonly alignFreePoint: boolean;
+  readonly snapToGrid: boolean;
+  readonly gridStep: number;
+}): number {
+  if (state.tool === 'align' && state.alignFreePoint) return 0;
+  return state.snapToGrid ? state.gridStep : 0;
+}
+
 /** Pares já indicados, com o destino 2 pelo cursor (ou nenhum, para só deslocar). */
 export function alignPointsOf(align: AlignState, target2: Vec3 | null): AlignPoints | null {
   if (!align.source1 || !align.target1) return null;

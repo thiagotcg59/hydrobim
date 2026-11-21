@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 14
+    assert project.schema_version == 15
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 15),
+        (("schemaVersion",), 16),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 14.0
+    project_document["schemaVersion"] = 15.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -239,7 +239,7 @@ def test_migrates_v11_terrain_as_survey_without_presumed_data(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump()
     assert legacy == before
-    assert migrated["schemaVersion"] == 14
+    assert migrated["schemaVersion"] == 15
     terrain = migrated["terrain"]
     assert terrain["points"] == TERRAIN_V11["points"]
     assert terrain["boundary"] is None
@@ -691,7 +691,7 @@ def test_migrates_v12_adding_empty_pump_families(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated == {**project_document, "schemaVersion": 14}
+    assert migrated == {**project_document, "schemaVersion": 15}
 
 
 def _custom_pump_family():
@@ -834,3 +834,126 @@ def test_migrates_v13_and_accepts_cross(project_document):
     document["elements"].append(cross)
     parsed = Project.model_validate(document)
     assert parsed.elements[-1].kind == "cross"
+
+
+def _views_v15():
+    visibility = {"hiddenSystemIds": [], "hiddenCategories": ["valves"], "details": True}
+    flat = {
+        "visibility": visibility,
+        "scale": 50,
+        "style": {"theme": "color", "thinLines": True},
+        "crop": {"enabled": True, "min": {"x": -1, "y": -1}, "max": {"x": 5, "y": 3}},
+        "frame": {"center": {"x": 1, "y": 1}, "height": 6},
+    }
+    return [
+        {
+            **flat,
+            "id": "vista-planta",
+            "kind": "plan",
+            "name": "Planta — Térreo",
+            "levelId": "nivel-0",
+            "cutHeight": 3,
+            "depth": 3.3,
+            "rotation": 0,
+            "details": [
+                {"id": "d1", "kind": "line", "a": {"x": 0, "y": 0}, "b": {"x": 1, "y": 0}},
+                {
+                    "id": "d2",
+                    "kind": "polyline",
+                    "points": [{"x": 0, "y": 0}, {"x": 1, "y": 1}],
+                    "closed": False,
+                },
+                {"id": "d3", "kind": "rect", "a": {"x": 0, "y": 0}, "b": {"x": 1, "y": 1}},
+                {"id": "d4", "kind": "circle", "center": {"x": 0, "y": 0}, "radius": 0.5},
+                {
+                    "id": "d5",
+                    "kind": "text",
+                    "position": {"x": 0, "y": 0},
+                    "text": "DETALHE",
+                    "rotation": 0,
+                },
+                {
+                    "id": "d6",
+                    "kind": "dimension",
+                    "a": {"x": 0, "y": 0},
+                    "b": {"x": 1, "y": 0},
+                    "offset": 0.3,
+                    "mode": "aligned",
+                },
+            ],
+        },
+        {
+            **flat,
+            "id": "vista-corte",
+            "kind": "section",
+            "name": "Corte 1",
+            "a": {"x": 0, "y": -1},
+            "b": {"x": 4, "y": -1},
+            "side": 1,
+            "depth": 3,
+            "crop": None,
+            "frame": None,
+            "details": [],
+        },
+        {
+            **flat,
+            "id": "vista-elevacao",
+            "kind": "elevation",
+            "name": "Elevação Sul",
+            "direction": "south",
+            "details": [],
+        },
+        {
+            "id": "vista-3d",
+            "kind": "3d",
+            "name": "Vista 3D 1",
+            "visibility": visibility,
+            "camera": {
+                "target": {"x": 0, "y": 0, "z": 0},
+                "direction": {"x": 1, "y": -1, "z": 1},
+                "halfHeight": 4,
+                "projection": "orthographic",
+            },
+            "sectionBox": {
+                "enabled": True,
+                "min": {"x": -1, "y": -1, "z": 0},
+                "max": {"x": 5, "y": 1, "z": 2},
+            },
+            "display": "shaded",
+        },
+    ]
+
+
+def test_migrates_v14_without_views_and_round_trips_views(project_document):
+    """Esquema v15: vistas de projeto; documentos v14 migram com a lista vazia."""
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 14
+    del legacy["views"]
+    before = deepcopy(legacy)
+    migrated = Project.model_validate(legacy).model_dump(by_alias=True)
+    assert legacy == before
+    assert migrated == project_document
+
+    document = deepcopy(project_document)
+    document["views"] = _views_v15()
+    parsed = Project.model_validate(document)
+    assert [view.kind for view in parsed.views] == ["plan", "section", "elevation", "3d"]
+    assert parsed.model_dump(by_alias=True)["views"] == document["views"]
+
+
+@pytest.mark.parametrize(
+    ("index", "key", "value"),
+    [
+        (0, "depth", 0),
+        (0, "scale", -50),
+        (1, "side", 2),
+        (2, "direction", "up"),
+        (3, "display", "glass"),
+        (0, "kind", "sheet"),
+    ],
+)
+def test_rejects_invalid_views(project_document, index, key, value):
+    project_document["views"] = _views_v15()
+    project_document["views"][index][key] = value
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)

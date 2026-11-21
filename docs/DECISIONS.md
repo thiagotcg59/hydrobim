@@ -430,3 +430,23 @@ Verificação: `packages/core/src/pumps.test.ts` (duplicar, editar, recusar, rea
 **Prévia = confirmação.** As operações do traçado foram reunidas em funções puras do editor (`pipeSegmentOperation`, `pipeTargetOperation`, `connectionPlanOf`); a prévia desenhada nas duas vistas e a confirmação chamam as mesmas funções. "Alinhar e conectar" e a conversão guardam o projeto calculado na prévia e gravam exatamente esse objeto, se o projeto não mudou desde então.
 
 Verificação: `tests/integration/junctions.test.ts` e `alignConnect.test.ts` (catálogo real, casos A–F), `apps/web/src/state/junctionFlow.test.ts` (histórico, prévia e cancelamento), backend com o exemplo `ligacoes-derivacoes` (esquema v14 e IFC conferido pelo IfcOpenShell) e E2E `tests/e2e/junctions.spec.ts` (casos A a G no navegador).
+
+## ADR-043 — Vistas de projeto: dados do projeto que só descrevem a visualização, projeção derivada com corte e detalhes 2D por vista (esquema v15)
+
+**Vistas são dados; a representação, não.** Plantas por nível, cortes, elevações e vistas 3D ficam em `Project.views` (arquivo, histórico, backend). Cada vista guarda apenas observador, corte, recorte, escala, visibilidade, estilo e os detalhes desenhados sobre ela. O que ela mostra é recalculado do modelo a cada desenho — nenhuma geometria é copiada para a vista —, de modo que uma alteração de engenharia aparece em todas e nenhuma operação de vista toca em `elements` ou `connections` (regras 5 e 6). A alternativa de guardar o desenho gerado foi descartada: divergiria do modelo.
+
+**Um só traçado.** Em vez de um segundo desenhista para cortes e elevações, `viewOutline` leva a malha paramétrica ao referencial da vista (direita, para cima, para o observador), recorta os triângulos pelos planos da vista e reutiliza `planOutline` — linhas ocultas, sombreamento por parte e ordem de desenho são os da planta. O ponto de corte de cada aresta é calculado sempre do vértice de dentro para o de fora, para que triângulos vizinhos cheguem ao mesmo número e continuem soldados. A seção cortada fica aberta (sem tampa nem hachura): fechar a seção exige reconstruir contornos e ficou para depois.
+
+**Corte em planta.** O corte é a linha `a`–`b` em coordenadas do projeto, o lado do olhar e o alcance; as pontas da linha limitam a vista. O eixo vertical do desenho do corte e da elevação é a cota real, o que dispensa conversão ao ler ou cotar alturas. Elevação é um tipo próprio (fachada N/S/L/O, sem corte), não um corte "longe do modelo".
+
+**Caixa de corte.** Pertence à vista 3D e é aplicada como planos de recorte nos materiais dos elementos e do terreno (recorte local do renderizador), não global: o gizmo e a grade não são cortados. Os seis planos são objetos fixos atualizados no lugar — arrastar uma face não refaz materiais. O apontamento descarta o que a caixa esconde.
+
+**Detalhes pertencem à vista.** Linhas, polilinhas, retângulos, círculos, textos e cotas ficam em `view.details`, nas coordenadas da vista. Não são um tipo de `HydroElement`: não entram no grafo, no quantitativo, na validação da rede, no IFC nem no DXF. Textos e cotas reutilizam a forma e o traçado das anotações da planta de trabalho. As anotações existentes (`Project.annotations`) continuam sendo da planta de trabalho — migrá-las para uma vista mudaria documentos e exportações sem necessidade.
+
+**Sessão separada.** Vista aberta, ferramenta de desenho, pontos em andamento e seleção de detalhes ficam em uma store própria (`apps/web/src/views/viewStore.ts`), que entrega o resultado das operações do núcleo à store do editor por `applyOperation` — um único histórico de desfazer/refazer. A store do editor (já extensa) ganhou só essa ação.
+
+**Planta de trabalho mantida.** As ferramentas de modelagem continuam na planta de trabalho e no Modelo 3D; as vistas 2D salvas selecionam elementos e recebem detalhes. Levar a modelagem a referenciais quaisquer (planta girada, corte) exige rever a captura e a trava de ângulos e é um passo seguinte, registrado no roadmap.
+
+**Esquema.** v15 acrescenta `views` (vazia nos documentos v14). Planta de nível inexistente é erro ao abrir (`DANGLING_VIEW_LEVEL`), e excluir um nível usado por uma planta é recusado. Sem dependência nova.
+
+Verificação: `packages/core/src/views.test.ts`, `packages/geometry/src/viewOutline.test.ts`, `apps/web/src/views/viewStore.test.ts` e `entry.test.ts`, backend (modelos, migração v14 → v15 e validação) e E2E `tests/e2e/projectViews.spec.ts` (quatro fluxos no navegador real).

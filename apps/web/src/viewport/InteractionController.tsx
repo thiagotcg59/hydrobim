@@ -44,6 +44,8 @@ import {
   pipeSnapOf,
   useEditorStore,
 } from '../state/editorStore';
+import { getActiveClipPlanes } from '../views/clipContext';
+import { pointGridStepOf } from '../state/alignTool';
 import { useTerrainStore } from '../terrain/terrainStore';
 
 const CLICK_TOLERANCE_PX = 5;
@@ -144,7 +146,12 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       };
 
       const group = elementsRef.current;
-      const intersection = group ? raycaster.intersectObject(group, true)[0] : undefined;
+      // Com a caixa de corte, o primeiro ponto atingido que ela não esconde.
+      const clip = getActiveClipPlanes();
+      const hits = group ? raycaster.intersectObject(group, true) : [];
+      const intersection = clip
+        ? hits.find((entry) => clip.every((plane) => plane.distanceToPoint(entry.point) >= 0))
+        : hits[0];
       const elementId = intersection ? elementIdOf(intersection.object) : null;
       const hit =
         intersection && elementId
@@ -169,11 +176,7 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       const settings = precision();
       // Com o trecho em andamento, o passo de comprimento da precisão substitui o da grade.
       const drawing = state.tool === 'pipe' && state.anchor !== null;
-      const gridStep = drawing
-        ? lengthStepOf(state, settings)
-        : state.snapToGrid
-          ? state.gridStep
-          : 0;
+      const gridStep = drawing ? lengthStepOf(state, settings) : pointGridStepOf(state);
       // Shift no traçado de tubo: trava de 45°/90° no plano ou trecho vertical, o que estiver
       // mais perto do cursor. Nas demais ferramentas, Shift continua sendo a vertical.
       const polar = event.shiftKey && state.tool === 'pipe' && state.anchor !== null;

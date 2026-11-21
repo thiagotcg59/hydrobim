@@ -165,6 +165,7 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     annotations: [],
     drawingScale: discipline === 'infra' ? 500 : 50,
     infra: defaultInfraSettings(),
+    views: [],
   };
 }
 

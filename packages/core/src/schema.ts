@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 14 as const;
+export const SCHEMA_VERSION = 15 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -906,6 +906,174 @@ export const AnnotationSchema = z.discriminatedUnion('kind', [
 ]);
 export type Annotation = z.infer<typeof AnnotationSchema>;
 
+// ---------------------------------------------------------------------------
+// Vistas de projeto: plantas, cortes, elevações e vistas 3D
+// ---------------------------------------------------------------------------
+
+/**
+ * Detalhes desenhados em uma vista 2D (linhas, polilinhas, retângulos, círculos, textos e
+ * cotas). Pertencem à vista e ficam nas coordenadas dela (m): não são tubulação nem geometria
+ * física, não entram no quantitativo, na validação da rede nem nas exportações do modelo.
+ */
+export const DetailLineSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('line'),
+  a: Point2Schema,
+  b: Point2Schema,
+});
+export type DetailLine = z.infer<typeof DetailLineSchema>;
+
+export const DetailPolylineSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('polyline'),
+  points: z.array(Point2Schema).min(2),
+  closed: z.boolean(),
+});
+export type DetailPolyline = z.infer<typeof DetailPolylineSchema>;
+
+/** Retângulo alinhado aos eixos da vista, por dois cantos opostos. */
+export const DetailRectSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('rect'),
+  a: Point2Schema,
+  b: Point2Schema,
+});
+export type DetailRect = z.infer<typeof DetailRectSchema>;
+
+export const DetailCircleSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('circle'),
+  center: Point2Schema,
+  radius: positive,
+});
+export type DetailCircle = z.infer<typeof DetailCircleSchema>;
+
+/** Textos e cotas de detalhe têm a mesma forma das anotações da planta de trabalho. */
+export const ViewDetailSchema = z.discriminatedUnion('kind', [
+  DetailLineSchema,
+  DetailPolylineSchema,
+  DetailRectSchema,
+  DetailCircleSchema,
+  TextAnnotationSchema,
+  DimensionAnnotationSchema,
+]);
+export type ViewDetail = z.infer<typeof ViewDetailSchema>;
+export type ViewDetailKind = ViewDetail['kind'];
+
+/** Categorias de elementos que uma vista pode ocultar. */
+export const VIEW_CATEGORIES = ['pipes', 'fittings', 'valves', 'equipment', 'tanks'] as const;
+export const ViewCategorySchema = z.enum(VIEW_CATEGORIES);
+export type ViewCategory = z.infer<typeof ViewCategorySchema>;
+
+/**
+ * Visibilidade própria da vista. Soma-se à do sistema (`system.visible`): o que o projeto
+ * oculta não aparece em vista nenhuma; o que a vista oculta continua nas demais.
+ */
+export const ViewVisibilitySchema = z.object({
+  hiddenSystemIds: z.array(z.string().min(1)),
+  hiddenCategories: z.array(ViewCategorySchema),
+  /** Detalhes e marcadores de corte à mostra (vistas 2D). */
+  details: z.boolean(),
+});
+export type ViewVisibility = z.infer<typeof ViewVisibilitySchema>;
+
+const viewBase = {
+  id: z.string().min(1),
+  name: z.string().min(1),
+  visibility: ViewVisibilitySchema,
+};
+
+const view2d = {
+  ...viewBase,
+  /** Denominador da escala de documentação da vista (50 = 1:50). */
+  scale: positive,
+  /** Estilo gráfico: tema (cores do modelo ou preto e branco) e traço fino na tela. */
+  style: z.object({ theme: z.enum(['color', 'mono']), thinLines: z.boolean() }),
+  /** Região de recorte, nas coordenadas da vista; `null` = nunca definida. */
+  crop: z.object({ enabled: z.boolean(), min: Point2Schema, max: Point2Schema }).nullable(),
+  /** Enquadramento salvo: centro e altura visível (m), nas coordenadas da vista. */
+  frame: z.object({ center: Point2Schema, height: positive }).nullable(),
+  details: z.array(ViewDetailSchema),
+};
+
+/**
+ * Planta de um nível. A faixa de corte vai do plano de corte (`cutHeight` acima da cota do
+ * nível) até `depth` abaixo dele: só o que está nessa faixa é desenhado, cortado nos limites.
+ */
+export const PlanViewSchema = z.object({
+  ...view2d,
+  kind: z.literal('plan'),
+  levelId: z.string().min(1),
+  cutHeight: finite,
+  depth: positive,
+  /** Orientação: giro do eixo horizontal da vista em relação a +X, anti-horário (rad). */
+  rotation: finite,
+});
+export type PlanProjectView = z.infer<typeof PlanViewSchema>;
+
+/**
+ * Corte vertical definido em planta pela linha `a`–`b` (coordenadas do projeto). `side` diz
+ * para que lado se olha (+1 = à esquerda de quem vai de `a` para `b`); `depth` é o alcance da
+ * vista a partir da linha. O corte só controla a visualização: o modelo não é alterado.
+ */
+export const SectionViewSchema = z.object({
+  ...view2d,
+  kind: z.literal('section'),
+  a: Point2Schema,
+  b: Point2Schema,
+  side: z.union([z.literal(1), z.literal(-1)]),
+  depth: positive,
+});
+export type SectionProjectView = z.infer<typeof SectionViewSchema>;
+
+/** Elevação: a fachada indicada, vista de fora (ex.: `south` = observador ao sul, olhando o norte). */
+export const ELEVATION_DIRECTIONS = ['north', 'south', 'east', 'west'] as const;
+export const ElevationViewSchema = z.object({
+  ...view2d,
+  kind: z.literal('elevation'),
+  direction: z.enum(ELEVATION_DIRECTIONS),
+});
+export type ElevationProjectView = z.infer<typeof ElevationViewSchema>;
+export type ElevationDirection = (typeof ELEVATION_DIRECTIONS)[number];
+
+/** Câmera salva: ponto observado, direção do alvo para o observador e meia altura visível. */
+export const ViewCameraSchema = z.object({
+  target: Vec3Schema,
+  direction: Vec3Schema,
+  halfHeight: positive,
+  projection: z.enum(['perspective', 'orthographic']),
+});
+export type ViewCamera = z.infer<typeof ViewCameraSchema>;
+
+/** Caixa de corte da vista 3D (coordenadas do projeto): fora dela nada é desenhado. */
+export const SectionBoxSchema = z.object({
+  enabled: z.boolean(),
+  min: Vec3Schema,
+  max: Vec3Schema,
+});
+export type SectionBox = z.infer<typeof SectionBoxSchema>;
+
+export const View3dSchema = z.object({
+  ...viewBase,
+  kind: z.literal('3d'),
+  /** `null` = câmera ainda não salva: a vista abre enquadrando o modelo. */
+  camera: ViewCameraSchema.nullable(),
+  sectionBox: SectionBoxSchema.nullable(),
+  /** Estilo gráfico: sombreado ou aramado. */
+  display: z.enum(['shaded', 'wireframe']),
+});
+export type ModelProjectView = z.infer<typeof View3dSchema>;
+
+export const ProjectViewSchema = z.discriminatedUnion('kind', [
+  PlanViewSchema,
+  SectionViewSchema,
+  ElevationViewSchema,
+  View3dSchema,
+]);
+export type ProjectView = z.infer<typeof ProjectViewSchema>;
+export type ProjectView2d = PlanProjectView | SectionProjectView | ElevationProjectView;
+export type ProjectViewKind = ProjectView['kind'];
+
 export const DisciplineSchema = z.enum(['mep', 'infra']);
 export type Discipline = z.infer<typeof DisciplineSchema>;
 
@@ -942,5 +1110,11 @@ export const ProjectSchema = z.object({
   drawingScale: positive,
   /** Configuração da Planta Infra (independente da planta do MEP). */
   infra: InfraSettingsSchema,
+  /**
+   * Vistas de projeto (plantas por nível, cortes, elevações e vistas 3D), na ordem do
+   * navegador. Todas representam o mesmo modelo: guardam só como ele é mostrado e os
+   * detalhes 2D desenhados sobre a vista.
+   */
+  views: z.array(ProjectViewSchema),
 });
 export type Project = z.infer<typeof ProjectSchema>;
