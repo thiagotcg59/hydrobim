@@ -46,6 +46,8 @@ import { getViewFocus, planScaleFor, setViewFocus } from '../editor/viewPresets'
 import { visibleElementsOf, visibleFreePortsOf } from '../editor/visibility';
 import { arrowPreferences, contextTargetOf, CONTEXT_PX, nudgeStep } from '../editor/directEdit';
 import { isPolarLockHeld, polarLockedPoint } from '../editor/polarLock';
+import { lengthStepOf, precisePipePoint } from '../editor/precision';
+import { precision } from '../state/precisionStore';
 import { pickPlanPoint, pickPlanPort, planPipeHit, type PlanPick } from '../editor/planPicking';
 import { BasemapLayer, type BasemapStatus } from '../infra/BasemapLayer';
 import { GeoPicker } from '../infra/GeoPicker';
@@ -73,15 +75,20 @@ import {
   pipeSnapOf,
   useEditorStore,
 } from '../state/editorStore';
+import { alignGuidesOf } from '../state/alignTool';
 import { useUiStore } from '../state/uiStore';
 import { cursorElementOf } from '../state/viewPreview';
 import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
+import { planDrawOrder } from './drawOrder';
 import { PlanPreviewLayer } from './PlanPreviewLayer';
+import { InlineClearanceLayer } from './InlineClearanceLayer';
 import { TerrainPanel } from '../terrain/TerrainPanel';
 import { TerrainProfilePanel } from '../terrain/TerrainProfilePanel';
 import { useTerrainStore } from '../terrain/terrainStore';
 import { useTerrainKeys } from '../terrain/useTerrainKeys';
 import { AnnotationInspector } from './AnnotationInspector';
+import { rectOf, windowModeOf } from '../editor/crossingSelection';
+import { axisShape, elementsInPlanWindow, outlineShape } from './planSelection';
 import {
   AnnotationShape,
   annotationPoints,
@@ -110,7 +117,7 @@ interface Drag {
   readonly x: number;
   readonly y: number;
   readonly button: number;
-  readonly mode: 'pan' | 'annotation' | 'click' | 'grip';
+  readonly mode: 'pan' | 'annotation' | 'click' | 'grip' | 'window';
   readonly annotationId: string | null;
   readonly elementId: string | null;
   readonly origin: Point2;
@@ -244,6 +251,7 @@ export function PlanView() {
   const gridStep = useEditorStore((s) => s.gridStep);
   const anchor = useEditorStore((s) => s.anchor);
   const measure = useEditorStore((s) => s.measure);
+  const align = useEditorStore((s) => s.align);
   const workPlaneZ = useEditorStore((s) => s.workPlaneZ);
   /** Ferramenta de modelagem ativa (tubo, conexões, equipamentos, medição). */
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
@@ -262,6 +270,8 @@ export function PlanView() {
   } | null>(null);
   const [preview, setPreview] = useState<{ id: string; patch: AnnotationPatch } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  /** Janela de seleção em andamento (cantos no modelo). */
+  const [selectionWindow, setSelectionWindow] = useState<{ from: Point2; to: Point2 } | null>(null);
 
   /**
    * Ambiente Infra: a planta ganha mapa de fundo, malha de coordenadas, camadas, níveis de
@@ -438,12 +448,19 @@ export function PlanView() {
   /** Ponto 3D, porta e captura indicados pelo cursor para as ferramentas de modelagem. */
   const pickModel = (raw: Point2, elementId: string | null): Result<PlanPick> => {
     const state = useEditorStore.getState();
+    const settings = precision();
     const free = pickPlanPoint({
       point: raw,
       tolerance: SNAP_PX * view.mpp,
       freePorts,
       drawZ: drawElevationOf(state),
-      gridStep: state.snapToGrid ? state.gridStep : 0,
+      // Com o trecho em andamento, o passo de comprimento da precisão substitui o da grade.
+      gridStep:
+        state.tool === 'pipe' && state.anchor
+          ? lengthStepOf(state, settings)
+          : state.snapToGrid
+            ? state.gridStep
+            : 0,
       anchor:
         state.tool === 'pipe' && state.anchor
           ? { point: state.anchor.point, lockAxis: state.anchor.lockAxis }
@@ -454,8 +471,15 @@ export function PlanView() {
     if (free.ok && free.value.port) return free;
     // Shift: o trecho trava a 0°, 45° ou 90° (do tubo de partida ou dos eixos do projeto).
     const locked = free.ok && isPolarLockHeld() ? polarLockedPoint(state, free.value.point) : null;
+    // Precisão de modelagem: em ponto livre, direção e comprimento andam pelos passos.
+    const precise =
+      free.ok && !locked && (free.value.snap === 'grid' || free.value.snap === 'plane')
+        ? precisePipePoint(state, vec3(raw.x, raw.y, free.value.point.z), settings)
+        : null;
     const picked: Result<PlanPick> =
-      free.ok && locked ? ok({ ...free.value, point: locked, snap: 'angle' }) : free;
+      free.ok && (locked ?? precise)
+        ? ok({ ...free.value, point: locked ?? precise ?? free.value.point, snap: 'angle' })
+        : free;
     // Junto a um tubo existente, o cursor mostra onde o tê automático ficará.
     const onPipe = pipeSnapOf(
       state,
@@ -720,7 +744,11 @@ export function PlanView() {
             ? 'grip'
             : tool === 'select' && annotationId
               ? 'annotation'
-              : 'click';
+              : // Em Selecionar, o arrasto com o botão esquerdo abre a janela de seleção (como no
+                // 3D); a vista se desloca com o botão direito ou o do meio.
+                tool === 'select' && event.pointerType !== 'touch'
+                ? 'window'
+                : 'click';
     if (mode === 'grip' && gripPipe && (grip === 'start' || grip === 'end')) {
       useEditorStore.getState().beginStretch(gripPipe.id, grip);
     }
@@ -821,6 +849,10 @@ export function PlanView() {
         }
         return;
       }
+      if (d.mode === 'window') {
+        setSelectionWindow({ from: d.origin, to: raw });
+        return;
+      }
       if (d.mode === 'annotation' && d.annotationId) {
         const annotation = getAnnotation(project, d.annotationId);
         if (annotation) {
@@ -864,6 +896,13 @@ export function PlanView() {
       openContextMenu(event, raw, d.elementId);
       return;
     }
+    if (d.mode === 'window') {
+      setSelectionWindow(null);
+      const additive = event.ctrlKey || event.metaKey || event.shiftKey;
+      if (d.moved) selectInWindow(d.origin, raw, additive);
+      else click(d, raw, additive);
+      return;
+    }
     if (d.moved) {
       setPreview(null);
       const annotation =
@@ -876,6 +915,21 @@ export function PlanView() {
       return;
     }
     if (d.button === 0) click(d, raw, event.ctrlKey || event.metaKey || event.shiftKey);
+  };
+
+  /**
+   * Seleção por janela na planta: da esquerda para a direita, os elementos inteiramente
+   * contidos; da direita para a esquerda, os tocados (cruzamento). Ctrl/Shift somam.
+   */
+  const selectInWindow = (from: Point2, to: Point2, additive: boolean): void => {
+    const store = useEditorStore.getState();
+    const ids = elementsInPlanWindow(
+      visibleElementsOf(store.project),
+      rectOf(from, to),
+      windowModeOf(from.x, to.x),
+      (element) => (infra ? axisShape(element) : outlineShape(outlineOf(element).outline)),
+    );
+    store.selectMany(additive ? [...store.selection, ...ids] : ids);
   };
 
   const onPointerLeave = (): void => {
@@ -965,19 +1019,15 @@ export function PlanView() {
     });
   };
 
-  const { elements, systems: systemList } = project;
+  const { elements, systems: systemList, connections } = project;
   const systems = useMemo(() => new Map(systemList.map((s) => [s.id, s])), [systemList]);
-  // Algoritmo do pintor: os elementos mais altos são desenhados por último.
+  // Algoritmo do pintor: os elementos mais altos por último; as peças sobre os seus tubos.
   const ordered = useMemo(
     () =>
-      visibleElementsOf({ elements, systems: systemList })
-        .map((element) => ({
-          element,
-          z: infra ? topOf(element) : outlineOf(element).outline.maxZ,
-        }))
-        .sort((a, b) => a.z - b.z)
-        .map((entry) => entry.element),
-    [elements, systemList, infra],
+      planDrawOrder(visibleElementsOf({ elements, systems: systemList }), connections, (element) =>
+        infra ? topOf(element) : outlineOf(element).outline.maxZ,
+      ),
+    [elements, systemList, connections, infra],
   );
 
   /** Janela visível, em coordenadas do projeto (m). */
@@ -1058,6 +1108,7 @@ export function PlanView() {
       )
     : '';
   const measureEnd = tool === 'measure' && measure.a ? (measure.b ?? modelPoint) : null;
+  const alignGuides = tool === 'align' && align ? alignGuidesOf(align, modelPoint) : [];
   const capturedPort = modeling ? (pointer?.pick?.port ?? null) : null;
 
   // Pedidos da faixa de comandos que dependem da janela e do desenho desta vista. Só são
@@ -1206,6 +1257,7 @@ export function PlanView() {
               />
             ))}
         </g>
+        <InlineClearanceLayer origin={origin} mpp={view.mpp} />
         {gripPipe && (
           <g data-ui="grips">
             {(['start', 'end'] as const).map((which) => (
@@ -1237,6 +1289,20 @@ export function PlanView() {
               </text>
             )}
           </g>
+        )}
+        {selectionWindow && (
+          <rect
+            data-ui="window"
+            data-testid="plan-selection-window"
+            data-mode={windowModeOf(selectionWindow.from.x, selectionWindow.to.x)}
+            className={`plan-selection-window plan-selection-window--${windowModeOf(selectionWindow.from.x, selectionWindow.to.x)}`}
+            x={X(Math.min(selectionWindow.from.x, selectionWindow.to.x))}
+            y={Y(Math.max(selectionWindow.from.y, selectionWindow.to.y))}
+            width={Math.abs(selectionWindow.to.x - selectionWindow.from.x)}
+            height={Math.abs(selectionWindow.to.y - selectionWindow.from.y)}
+            strokeWidth={view.mpp}
+            pointerEvents="none"
+          />
         )}
         <g data-ui="draft" pointerEvents="none">
           {tool === 'dimension' && first && !second && cursorPoint && (
@@ -1294,6 +1360,35 @@ export function PlanView() {
               </text>
             </>
           )}
+          {/* Alinhar por pontos: de cada ponto de origem ao seu destino, numeradas. */}
+          {alignGuides.map((guide) => (
+            <g key={guide.label} data-testid="plan-align-guide">
+              <line
+                x1={X(guide.from.x)}
+                y1={Y(guide.from.y)}
+                x2={X(guide.to.x)}
+                y2={Y(guide.to.y)}
+                stroke={HIGHLIGHT}
+                strokeWidth={1.5 * view.mpp}
+                strokeDasharray={`${6 * view.mpp} ${4 * view.mpp}`}
+              />
+              <circle
+                cx={X(guide.from.x)}
+                cy={Y(guide.from.y)}
+                r={4 * view.mpp}
+                fill="none"
+                stroke={HIGHLIGHT}
+                strokeWidth={1.5 * view.mpp}
+              />
+              <text
+                x={X(guide.from.x) + 6 * view.mpp}
+                y={Y(guide.from.y) - 6 * view.mpp}
+                {...label}
+              >
+                {guide.label}
+              </text>
+            </g>
+          ))}
           {measure.a && measureEnd && (
             <>
               <line

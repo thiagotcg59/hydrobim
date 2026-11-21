@@ -13,6 +13,8 @@ import {
   type Vec3,
 } from '@hydrobim/core';
 import type { PickResult, Ray } from './picking';
+import { lengthStepOf } from './precision';
+import { precision } from '../state/precisionStore';
 
 /**
  * Trava de ângulo com Shift, no traçado de tubos: o trecho fica a 0°, 45° ou 90°.
@@ -78,7 +80,7 @@ export function polarLockedPoint(state: PolarState, point: Vec3): Vec3 | null {
   const port = anchor.port ? resolvePort(state.project, anchor.port) : undefined;
   const host = anchor.port ? getElement(state.project, anchor.port.elementId) : undefined;
   const axis = port && host?.kind === 'pipe' ? port.direction : null;
-  return polarLockPoint(anchor.point, axis, point, state.snapToGrid ? state.gridStep : 0);
+  return polarLockPoint(anchor.point, axis, point, lengthStepOf(state, precision()));
 }
 
 /** Distância (m) de um ponto ao raio do cursor. */

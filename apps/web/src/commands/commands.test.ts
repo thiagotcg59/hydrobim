@@ -128,6 +128,7 @@ describe('disponibilidade dos comandos', () => {
     drawBend();
     expect(stateOf('modify.move')).toMatchObject({ enabled: false });
     expect(stateOf('modify.move').reason).toContain('Selecione');
+    expect(stateOf('modify.rotate').reason).toContain('Selecione');
     expect(stateOf('modify.delete').enabled).toBe(false);
     expect(stateOf('view.fitSelection').enabled).toBe(false);
 
@@ -139,8 +140,8 @@ describe('disponibilidade dos comandos', () => {
     expect(stateOf('modify.move').enabled).toBe(true);
     expect(stateOf('modify.length').enabled).toBe(true);
     expect(stateOf('modify.elevation').enabled).toBe(true);
-    expect(stateOf('modify.rotate').enabled).toBe(false);
-    expect(stateOf('modify.rotate').reason).toContain('Tubos');
+    // Girar em planta vale para qualquer elemento, tubos inclusive (com a rede ligada).
+    expect(stateOf('modify.rotate').enabled).toBe(true);
     expect(stateOf('view.fitSelection').enabled).toBe(true);
 
     editor().select(elbow.id);

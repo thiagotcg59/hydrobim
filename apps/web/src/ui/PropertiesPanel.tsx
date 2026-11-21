@@ -50,6 +50,7 @@ import {
 } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { CloseEnds } from './CloseEnds';
+import { InlineClearances } from './InlineClearances';
 import { JunctionConvert } from './JunctionConvert';
 import { ELEMENT_ICONS } from './EngineeringIcons';
 import { NumberField, ReadOnlyRow, Section, SelectField, TextField } from './fields';
@@ -994,6 +995,9 @@ function ElementProperties({ element, project }: { element: HydroElement; projec
       </Section>
 
       {element.kind === 'pipe' && <InlineInsert key={element.id} pipe={element} />}
+      {element.kind !== 'pipe' && (
+        <InlineClearances key={`clearance-${element.id}`} element={element} project={project} />
+      )}
       {(element.kind === 'tee' || element.kind === 'cross') && (
         <JunctionConvert key={`junction-${element.id}`} element={element} project={project} />
       )}

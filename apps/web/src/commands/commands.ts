@@ -18,6 +18,7 @@ import {
   FileType2,
   Focus,
   FolderOpen,
+  Footprints,
   Globe2,
   Grid3x3,
   HardDriveDownload,
@@ -39,6 +40,7 @@ import {
   PanelTop,
   Redo2,
   RotateCw,
+  AlignStartVertical,
   Ruler,
   Save,
   ScanSearch,
@@ -54,6 +56,7 @@ import {
   Unlink,
   Waypoints,
   type LucideIcon,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { ISO_LABELS, isIsoQuadrant } from '../editor/viewPresets';
 import { exportPlanDxfFile } from '../plan/planExport';
@@ -105,6 +108,10 @@ export interface CommandContext {
   readonly validationOpen: boolean;
   /** Disposição da área de desenho: uma vista por vez ou planta e modelo 3D lado a lado. */
   readonly workspaceLayout?: 'single' | 'split';
+  /** Cotas das peças na linha até os elementos vizinhos, nas vistas. */
+  readonly inlineClearances?: boolean;
+  /** Percurso em primeira pessoa aberto na consulta BIM / IFC. */
+  readonly bimWalk?: boolean;
   /** Vista que ocupa sozinha a área de desenho, quando uma delas está maximizada. */
   readonly maximizedView?: 'plan' | '3d' | null;
   /** Operação do terreno em andamento na Planta Infra e painel do terreno aberto. */
@@ -190,13 +197,18 @@ const TOOL_ICONS: Record<ToolId, LucideIcon> = {
   ...ELEMENT_ICONS,
   measure: Ruler,
   connect: Waypoints,
+  move: Move,
+  rotate: RotateCw,
+  align: AlignStartVertical,
   dimension: MoveHorizontal,
   text: Type,
   leader: MessageSquare,
   tag: Tag,
 };
 
-const TOOL_KEYS: Record<ToolId, string> = {
+// "Mover", "Girar" e "Alinhar por pontos" não são ferramentas da faixa: começam pelos comandos
+// de Modificar ou pelo menu do botão direito, sempre com elementos a deslocar.
+const TOOL_KEYS: Record<Exclude<ToolId, 'move' | 'rotate' | 'align'>, string> = {
   select: 'S',
   pipe: 'T',
   elbow: 'J',
@@ -213,7 +225,7 @@ const TOOL_KEYS: Record<ToolId, string> = {
   tag: 'I',
 };
 
-function toolCommand(tool: ToolId): Command {
+function toolCommand(tool: Exclude<ToolId, 'move' | 'rotate' | 'align'>): Command {
   return {
     id: `tool.${tool}`,
     label: TOOL_LABELS[tool],
@@ -328,7 +340,7 @@ function terrainModeCommand(
 const hasElements = (context: CommandContext): CommandState =>
   context.project.elements.length > 0 ? ENABLED : off(NO_ELEMENTS);
 
-const TOOLS: ToolId[] = [
+const TOOLS: Exclude<ToolId, 'move' | 'rotate' | 'align'>[] = [
   'select',
   'pipe',
   'elbow',
@@ -410,15 +422,20 @@ export const COMMANDS: readonly Command[] = [
   ...TOOLS.map(toolCommand),
 
   // ----- Modificar -----
-  revealCommand(
-    'modify.move',
-    'Mover',
-    'Desloca a seleção por ΔX, ΔY e ΔZ.',
-    Move,
-    'move-dx',
-    (context) =>
-      selected(context).length > 0 ? ENABLED : off('Selecione um ou mais elementos para mover.'),
-  ),
+  {
+    id: 'modify.move',
+    label: 'Mover',
+    description:
+      'Desloca a seleção indicando o ponto-base e o destino na vista, com a prévia do resultado (também no botão direito sobre o elemento). O deslocamento numérico ΔX, ΔY e ΔZ fica no painel de propriedades.',
+    icon: Move,
+    testId: 'modify-move',
+    state: (context) =>
+      modeling(context) ??
+      (selected(context).length > 0
+        ? { enabled: true, active: context.tool === 'move' }
+        : off('Selecione um ou mais elementos para mover.')),
+    run: () => editor().startMove(),
+  },
   revealCommand(
     'modify.copy',
     'Copiar',
@@ -458,20 +475,55 @@ export const COMMANDS: readonly Command[] = [
     'prop-elevation',
     (context) => (single(context) ? ENABLED : off('Selecione um único elemento.')),
   ),
-  revealCommand(
-    'modify.rotate',
-    'Girar',
-    'Gira a peça em torno do eixo de uma de suas portas.',
-    RotateCw,
-    'prop-roll-port',
-    (context) => {
-      const element = single(context);
-      if (!element) return off('Selecione uma única conexão, válvula ou equipamento.');
-      return element.kind === 'pipe'
-        ? off('Tubos não giram em torno do eixo: selecione uma conexão, válvula ou equipamento.')
-        : ENABLED;
+  {
+    id: 'modify.rotate',
+    label: 'Girar',
+    description:
+      'Gira a seleção em planta, em torno de um eixo vertical: centro de giro e direção na vista, ou ângulo digitado, com a prévia do resultado (também no botão direito sobre o elemento). Tubos, conexões e acessórios ligados giram junto. O giro de uma peça em torno do eixo de uma de suas portas fica no painel de propriedades.',
+    icon: RotateCw,
+    shortcut: 'G',
+    testId: 'modify-rotate',
+    state: (context) =>
+      modeling(context) ??
+      (selected(context).length > 0
+        ? { enabled: true, active: context.tool === 'rotate' }
+        : off('Selecione um ou mais elementos para girar.')),
+    run: () => editor().startRotate(),
+  },
+  {
+    id: 'modify.rotate90',
+    label: 'Girar 90°',
+    description:
+      'Gira a seleção 90° (anti-horário, visto de cima) em torno do centro dela, com a rede ligada junto — como a barra de espaço do Revit.',
+    icon: RotateCw,
+    shortcut: 'Espaço',
+    testId: 'modify-rotate90',
+    state: (context) =>
+      modeling(context) ??
+      (context.tool !== 'select'
+        ? off('Disponível com a ferramenta Selecionar.')
+        : selected(context).length > 0
+          ? ENABLED
+          : off('Selecione um ou mais elementos para girar.')),
+    run: () => {
+      editor().rotateSelectionQuarter();
     },
-  ),
+  },
+  {
+    id: 'modify.align',
+    label: 'Alinhar por pontos',
+    description:
+      'Alinha a seleção por dois pares de pontos, como o ALIGN do AutoCAD: o 1º ponto de origem vai ao 1º destino e o conjunto gira, em planta, até a direção origem 1 → 2 apontar para o 2º destino. Sem escala; giro só em torno do eixo vertical; a rede ligada vai junto. Com só o 1º par, desloca.',
+    icon: AlignStartVertical,
+    shortcut: 'N',
+    testId: 'modify-align',
+    state: (context) =>
+      modeling(context) ??
+      (selected(context).length > 0
+        ? { enabled: true, active: context.tool === 'align' }
+        : off('Selecione um ou mais elementos para alinhar.')),
+    run: () => editor().startAlign(),
+  },
 
   // ----- Conectar -----
   {
@@ -586,8 +638,12 @@ export const COMMANDS: readonly Command[] = [
     description: 'Vista do modelo 3D. A ferramenta e o trecho em andamento continuam.',
     icon: Box,
     testId: 'view-mode-3d',
-    state: (context) => ({ enabled: true, active: context.viewMode !== 'plan' }),
-    run: () => editor().setViewMode('3d'),
+    state: (context) => ({
+      enabled: true,
+      active: context.viewMode !== 'plan' && !context.bimWalk,
+    }),
+    // Do percurso, "Modelo 3D" volta à órbita sem encerrar a consulta BIM / IFC.
+    run: () => (ui().bimWalk ? ui().setBimWalk(false) : editor().setViewMode('3d')),
   },
   {
     id: 'view.plan',
@@ -651,6 +707,16 @@ export const COMMANDS: readonly Command[] = [
         ? off('Disponível no Modelo 3D: a planta já é ortográfica.')
         : { enabled: true, active: context.orthographic },
     run: () => editor().setOrthographic(!editor().orthographic),
+  },
+  {
+    id: 'view.inlineClearances',
+    label: 'Cotas na linha',
+    description:
+      'Com uma válvula, tê, cruzeta ou outra peça selecionada, mostra nas vistas o tubo de cada extremidade até o próximo elemento (porta a porta).',
+    icon: Ruler,
+    testId: 'view-inline-clearances',
+    state: (context) => ({ enabled: true, active: context.inlineClearances !== false }),
+    run: () => ui().setInlineClearances(!ui().inlineClearances),
   },
 
   // ----- Painéis e layout -----
@@ -749,6 +815,19 @@ export const COMMANDS: readonly Command[] = [
   ),
 
   // ----- BIM / IFC -----
+  {
+    id: 'bim.walk',
+    label: 'Percorrer',
+    description:
+      'Percurso em primeira pessoa pelo modelo: W A S D andam, E e Q sobem e descem a vista, o mouse olha em volta. Com superfície de terreno, o observador caminha sobre ela, na cota dela. Um clique em um elemento mostra as suas propriedades IFC.',
+    icon: Footprints,
+    testId: 'bim-walk',
+    state: (context) =>
+      context.project.elements.length === 0 && !context.project.terrain
+        ? off('O projeto ainda não tem elementos nem superfície de terreno.')
+        : { enabled: true, active: context.bimWalk === true },
+    run: () => ui().setBimWalk(!ui().bimWalk),
+  },
   {
     id: 'bim.isolate',
     label: 'Isolar seleção',
@@ -947,6 +1026,16 @@ export const COMMANDS: readonly Command[] = [
     'terrain',
   ),
 
+  {
+    id: 'manage.options',
+    label: 'Opções de projeto',
+    description:
+      'Precisão da modelagem: passo de comprimento (padrão 5 cm) e passo angular (padrão 1°) seguidos pelo cursor ao traçar tubos, esticar comprimentos e girar; grade de captura.',
+    icon: SlidersHorizontal,
+    testId: 'manage-options',
+    run: () => ui().openDialog('options'),
+  },
+
   // ----- Terreno (ambiente Infra) -----
   {
     id: 'terrain.panel',
@@ -1040,6 +1129,8 @@ export function commandContext(): CommandContext {
     ribbonCollapsed: layout.ribbonCollapsed,
     validationOpen: layout.validationOpen,
     workspaceLayout: layout.workspaceLayout,
+    inlineClearances: layout.inlineClearances,
+    bimWalk: layout.bimWalk,
     maximizedView: layout.maximizedView,
     terrainMode: terrain().mode,
     terrainPanelOpen: terrain().panelOpen,
@@ -1056,7 +1147,7 @@ function parseShortcut(shortcut: string): KeyStroke {
   const parts = shortcut.toLowerCase().split('+');
   const key = parts[parts.length - 1] ?? '';
   return {
-    key: key === 'del' ? 'delete' : key,
+    key: key === 'del' ? 'delete' : key === 'espaço' ? ' ' : key,
     ctrl: parts.includes('ctrl'),
     shift: parts.includes('shift'),
   };

@@ -185,6 +185,8 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     {
       id: 'modify',
       label: 'Modificar',
+      // "Girar 90°" (Espaço) e "Alinhar por pontos" (N, botão direito) ficam no teclado, no menu
+      // e na busca (Ctrl+K): a faixa a 1920 px não comporta mais botões sem quebrar a linha.
       items: [
         { command: 'tool.select' },
         { command: 'modify.move' },
@@ -303,6 +305,7 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       label: 'Vistas e painéis',
       items: [
         { command: 'view.split', compact: true },
+        { command: 'view.inlineClearances', compact: true },
         { command: 'layout.nav', compact: true },
         { command: 'layout.panel', compact: true },
         { command: 'layout.reset', compact: true },
@@ -338,6 +341,7 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       label: 'Modelo de informação',
       items: [{ key: 'bim', widget: () => <BimSummary /> }],
     },
+    { id: 'navigate', label: 'Navegação', items: [{ command: 'bim.walk' }] },
     {
       id: 'visibility',
       label: 'Visibilidade',
@@ -375,7 +379,11 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     {
       id: 'project',
       label: 'Projeto',
-      items: [{ command: 'manage.levels' }, { command: 'manage.systems' }],
+      items: [
+        { command: 'manage.options' },
+        { command: 'manage.levels' },
+        { command: 'manage.systems' },
+      ],
     },
     {
       id: 'families',

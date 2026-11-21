@@ -147,6 +147,7 @@ export const PlanElement = memo(function PlanElement({
     <g
       data-element-id={element.id}
       data-element-kind={element.kind}
+      data-selected={selected || undefined}
       transform={`translate(${f(anchor.x - origin.x)} ${f(-(anchor.y - origin.y))})`}
     >
       {/* O traço fino na cor do preenchimento fecha as frestas entre os triângulos. */}

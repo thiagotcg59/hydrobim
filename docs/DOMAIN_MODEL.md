@@ -227,8 +227,13 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 | `upsertFamily`, `applyFamilyToInstances` | Personaliza famílias no projeto e reaplica às peças |
 | `addLevel`, `addSystem`, `setGeoreference`, `setTerrain` | Dados de projeto |
 | `updateFitting`, `rollFitting`, `translateElements` | Edição de conexões com reconciliação |
+| `rotateElements` | Giro rígido em torno de um eixo vertical (cotas preservadas); recusa (`ROTATION_BREAKS_COUPLING`) se romper ligação com elemento fora do conjunto |
+| `copyRotatedElements` | Cópia girada em torno de um eixo vertical: ligações internas copiadas, originais intactos |
+| `alignElements`, `copyAlignedElements` | Alinhamento por dois pares de pontos (ALIGN do AutoCAD): origem 1 → destino 1 e giro em planta (eixo vertical, sem escala) que leva a direção origem 1 → 2 à direção destino 1 → 2 (`alignmentAngle`). Sem giro equivale a `translateElements`; com giro é rígido e recusa (`ALIGN_BREAKS_COUPLING`) se romper ligação com elemento fora do conjunto; par na mesma vertical: `ALIGN_DIRECTION_UNDEFINED` |
 | `setPipeEndpoint`, `setPipeLength` | Edição de extremidades livres |
 | `stretchPipe` | Estica ou encolhe o tubo por uma extremidade, livre ou conectada (a peça ligada desliza junto) |
+| `inlineClearancesOf`, `inlineAxisOf` | Cotas de uma peça na linha: de cada porta conectada, o comprimento de tubo (porta a porta) até o próximo elemento que não é tubo ou até a extremidade livre, com o percurso e se ele é reto; eixo de passagem das peças com portas opostas. Derivado, não persistido |
+| `setInlineClearance` | Desliza a peça até que a cota de uma extremidade valha o valor pedido (o tubo do outro lado compensa); recusa percurso não reto (`CLEARANCE_NOT_STRAIGHT`), peça encostada (`NO_PIPE_BETWEEN`) e falta de espaço (`NO_ROOM`) |
 | `slideElements`, `slideAxesOf` | Desliza peças ao longo da linha: o que está acoplado acompanha rigidamente e os tubos paralelos ao deslocamento absorvem a diferença; falha com `NO_ROOM` se um tubo ficaria sem comprimento |
 | `setElementElevation` | Define a cota Z do elemento (`elementElevation`: eixo no início do tubo; origem da conexão; base do reservatório). Em tubo ou conexão, todos os elementos conectados sobem/descem juntos, rigidamente; em bomba ou reservatório, só o equipamento se move e os tubos vizinhos se ajustam quando o acoplamento permite |
 | `deleteElements`, `disconnect`, `renameElement`, `setElementProperty` | Edição geral |

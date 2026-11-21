@@ -112,8 +112,13 @@ describe('alvo do botão direito', () => {
       elementId: pipe.id,
       port: { elementId: pipe.id, portId: 'end' },
     });
-    // Longe das extremidades, mesmo sobre o tubo, não há menu.
-    expect(contextTargetOf(project, pipe.id, nearest(2, 0, 0.2), gapTo(2, 0))).toBeNull();
+    // Longe das extremidades, sobre o tubo: o menu do elemento (Mover), sem porta.
+    expect(contextTargetOf(project, pipe.id, nearest(2, 0, 0.2), gapTo(2, 0))).toEqual({
+      elementId: pipe.id,
+      port: null,
+    });
+    // Fora de qualquer elemento, nada.
+    expect(contextTargetOf(project, null, nearest(2, 0, 0.2), gapTo(2, 0))).toBeNull();
   });
 
   it('extremidade já conectada: menu sem ação; corpo de conexão: porta livre mais próxima', () => {

@@ -1136,3 +1136,101 @@ textarea {
     display: none;
   }
 }
+
+/* Percurso em primeira pessoa (aba BIM / IFC): leitura e instruções sobre a vista. */
+.walk {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.walk__readout {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(12, 17, 24, 0.72);
+  color: #f2f5f8;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.walk__readout strong {
+  font-family: inherit;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9fd8e6;
+}
+
+.walk__keys {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 12px;
+  max-width: calc(100% - 20px);
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(12, 17, 24, 0.72);
+  color: #f2f5f8;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.walk__keys kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: center;
+}
+
+.walk__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 99px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.walk__lock:hover,
+.walk__lock.is-active {
+  border-color: #9fd8e6;
+  background: rgba(25, 182, 207, 0.28);
+}
+
+.walk__crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(12, 17, 24, 0.7);
+  pointer-events: none;
+}

@@ -1,5 +1,6 @@
 import {
   alignmentTolerance,
+  arePortsAligned,
   autoConnectElement,
   connectPorts,
   connectedComponent,
@@ -52,6 +53,7 @@ import {
   sub,
   tryNormalize,
   ZERO,
+  type Quat,
   type Vec3,
 } from './math';
 import { getPort, pipeLength, type Port } from './ports';
@@ -1648,6 +1650,186 @@ export function translateElements(
   return reconcile(next, ids);
 }
 
+function rotatedAbout(element: HydroElement, center: Vec3, q: Quat): HydroElement {
+  return rigidlyMoved(element, center, center, q);
+}
+
+/** Movimento rígido: gira `q` em torno de `from` e leva `from` a `to`. */
+function rigidlyMoved(element: HydroElement, from: Vec3, to: Vec3, q: Quat): HydroElement {
+  const turn = (point: Vec3): Vec3 => add(to, rotate(q, sub(point, from)));
+  if (element.kind === 'pipe') {
+    return { ...element, start: turn(element.start), end: turn(element.end) };
+  }
+  return {
+    ...element,
+    placement: {
+      position: turn(element.placement.position),
+      rotation: quatNormalize(quatMultiply(q, element.placement.rotation)),
+    },
+  };
+}
+
+/**
+ * Gira elementos em torno do eixo vertical que passa por `center` (`angle` em radianos,
+ * positivo no sentido anti-horário visto de cima). O giro é rígido: comprimentos, ângulos
+ * das peças e ligações internas ao conjunto se preservam, e a cota de cada ponto não muda
+ * (só o eixo vertical: girar em torno de um eixo horizontal tombaria equipamentos e prumadas).
+ * Uma ligação com elemento de fora do conjunto que deixe de ficar alinhada recusa a operação
+ * — para levar a rede junto, inclua o conjunto conectado (`connectedComponent`).
+ */
+export function rotateElements(
+  project: Project,
+  ids: readonly string[],
+  center: Vec3,
+  angle: number,
+): Result<Project> {
+  if (!isFiniteVec(center)) return fail('INVALID_POINT', 'Centro de giro inválido.');
+  if (!Number.isFinite(angle)) return fail('INVALID_ANGLE', 'Ângulo inválido.');
+  if (ids.length === 0) return fail('ELEMENT_NOT_FOUND', 'Nenhum elemento a girar.');
+  const turns = angle / (2 * Math.PI);
+  if (Math.abs(turns - Math.round(turns)) < 1e-12) return ok(project);
+  const q = quatFromAxisAngle(AXIS_Z, angle);
+  let next = project;
+  for (const id of ids) {
+    const element = getElement(next, id);
+    if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
+    next = putElement(next, touch(rotatedAbout(element, center, q)));
+  }
+  return keepOutsideCoupling(
+    next,
+    ids,
+    'ROTATION_BREAKS_COUPLING',
+    'não gira junto: gire levando a rede ligada ou desconecte antes',
+  );
+}
+
+/**
+ * Num movimento rígido não há tubo que estique: toda ligação com elemento de fora do conjunto
+ * precisa continuar acoplada, senão a operação é recusada com `code`.
+ */
+function keepOutsideCoupling(
+  next: Project,
+  ids: readonly string[],
+  code: string,
+  reason: string,
+): Result<Project> {
+  const inside = new Set(ids);
+  for (const connection of next.connections) {
+    const aIn = inside.has(connection.a.elementId);
+    if (aIn === inside.has(connection.b.elementId)) continue;
+    const pa = resolvePort(next, connection.a);
+    const pb = resolvePort(next, connection.b);
+    if (!pa || !pb || arePortsAligned(pa, pb)) continue;
+    const own = getElement(next, aIn ? connection.a.elementId : connection.b.elementId);
+    const other = getElement(next, aIn ? connection.b.elementId : connection.a.elementId);
+    return fail(
+      code,
+      `"${own?.name ?? '?'}" está ligado a "${other?.name ?? '?'}", que ${reason}.`,
+    );
+  }
+  return ok(next);
+}
+
+/**
+ * Alinhamento por dois pares de pontos (como o ALIGN do AutoCAD): o ponto de origem 1 vai ao
+ * destino 1 e o conjunto gira em torno dele até a direção origem 1 → origem 2 coincidir, em
+ * planta, com a direção destino 1 → destino 2. Sem o segundo par, é só o deslocamento.
+ */
+export interface AlignPoints {
+  readonly source1: Vec3;
+  readonly target1: Vec3;
+  readonly source2?: Vec3 | null;
+  readonly target2?: Vec3 | null;
+}
+
+/**
+ * Giro (radianos, anti-horário visto de cima) que leva a direção origem 1 → origem 2 à
+ * direção destino 1 → destino 2, medido em planta. `0` sem o segundo par; `null` quando um
+ * dos pares não define direção horizontal (pontos na mesma vertical).
+ */
+export function alignmentAngle(points: AlignPoints): number | null {
+  const { source1, target1, source2, target2 } = points;
+  if (!source2 || !target2) return 0;
+  const sx = source2.x - source1.x;
+  const sy = source2.y - source1.y;
+  const tx = target2.x - target1.x;
+  const ty = target2.y - target1.y;
+  if (Math.hypot(sx, sy) < 1e-6 || Math.hypot(tx, ty) < 1e-6) return null;
+  let angle = Math.atan2(ty, tx) - Math.atan2(sy, sx);
+  while (angle <= -Math.PI) angle += 2 * Math.PI;
+  while (angle > Math.PI) angle -= 2 * Math.PI;
+  return Math.abs(angle) < 1e-9 ? 0 : angle;
+}
+
+function alignmentOf(points: AlignPoints): Result<{ readonly q: Quat; readonly angle: number }> {
+  const all = [points.source1, points.target1, points.source2, points.target2];
+  if (!all.every((p) => p === null || p === undefined || isFiniteVec(p))) {
+    return fail('INVALID_POINT', 'Ponto de alinhamento inválido.');
+  }
+  const angle = alignmentAngle(points);
+  if (angle === null) {
+    return fail(
+      'ALIGN_DIRECTION_UNDEFINED',
+      'Os dois pontos de um par estão na mesma vertical: indique pontos afastados em planta para definir a direção.',
+    );
+  }
+  return ok({ q: quatFromAxisAngle(AXIS_Z, angle), angle });
+}
+
+/**
+ * Alinha elementos por dois pares de pontos (`AlignPoints`). O movimento é rígido e o giro só
+ * em torno do eixo vertical — como em `rotateElements`, girar em torno de eixo horizontal
+ * tombaria equipamentos e prumadas; a cota do segundo par só não entra no giro. Não há escala:
+ * tubos e peças têm dimensões de catálogo. Sem giro, equivale a `translateElements` (tubos
+ * ligados se ajustam quando o acoplamento permite); com giro, uma ligação com elemento de fora
+ * do conjunto que deixe de ficar alinhada recusa a operação.
+ */
+export function alignElements(
+  project: Project,
+  ids: readonly string[],
+  points: AlignPoints,
+): Result<Project> {
+  if (ids.length === 0) return fail('ELEMENT_NOT_FOUND', 'Nenhum elemento a alinhar.');
+  const alignment = alignmentOf(points);
+  if (!alignment.ok) return alignment;
+  const { q, angle } = alignment.value;
+  if (angle === 0) {
+    const delta = sub(points.target1, points.source1);
+    if (Math.hypot(delta.x, delta.y, delta.z) < 1e-12) return ok(project);
+    return translateElements(project, ids, delta);
+  }
+  let next = project;
+  for (const id of ids) {
+    const element = getElement(next, id);
+    if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
+    next = putElement(next, touch(rigidlyMoved(element, points.source1, points.target1, q)));
+  }
+  return keepOutsideCoupling(
+    next,
+    ids,
+    'ALIGN_BREAKS_COUPLING',
+    'não é alinhado junto: alinhe levando a rede ligada ou desconecte antes',
+  );
+}
+
+/**
+ * Copia elementos alinhados por dois pares de pontos (como `alignElements`, mas os originais
+ * ficam onde estão). As cópias mantêm as ligações internas ao conjunto e conectam-se só a
+ * portas livres exatamente acopladas.
+ */
+export function copyAlignedElements(
+  project: Project,
+  ids: readonly string[],
+  points: AlignPoints,
+): Result<Created> {
+  const alignment = alignmentOf(points);
+  if (!alignment.ok) return alignment;
+  const { q } = alignment.value;
+  return copyTransformed(project, ids, (element) =>
+    rigidlyMoved(element, points.source1, points.target1, q),
+  );
+}
+
 /**
  * Elevação (cota Z, em metros) de referência do elemento: o eixo no início do tubo ou a
  * origem da conexão/equipamento (no reservatório, a base).
@@ -1688,6 +1870,31 @@ export function copyElements(
   delta: Vec3,
 ): Result<Created> {
   if (!isFiniteVec(delta)) return fail('INVALID_POINT', 'Deslocamento inválido.');
+  return copyTransformed(project, ids, (element) => translated(element, delta));
+}
+
+/**
+ * Copia elementos girados em torno do eixo vertical por `center` (como `rotateElements`, mas
+ * os originais ficam onde estão). As cópias mantêm as ligações internas ao conjunto e
+ * conectam-se só a portas livres exatamente acopladas.
+ */
+export function copyRotatedElements(
+  project: Project,
+  ids: readonly string[],
+  center: Vec3,
+  angle: number,
+): Result<Created> {
+  if (!isFiniteVec(center)) return fail('INVALID_POINT', 'Centro de giro inválido.');
+  if (!Number.isFinite(angle)) return fail('INVALID_ANGLE', 'Ângulo inválido.');
+  const q = quatFromAxisAngle(AXIS_Z, angle);
+  return copyTransformed(project, ids, (element) => rotatedAbout(element, center, q));
+}
+
+function copyTransformed(
+  project: Project,
+  ids: readonly string[],
+  transform: (element: HydroElement) => HydroElement,
+): Result<Created> {
   if (ids.length === 0) return fail('ELEMENT_NOT_FOUND', 'Nenhum elemento selecionado.');
   const mapping = new Map<string, string>();
   let next = project;
@@ -1696,7 +1903,7 @@ export function copyElements(
     if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
     const timestamp = now();
     const copy: HydroElement = {
-      ...translated(element, delta),
+      ...transform(element),
       id: newId(),
       name: nextName(next, element.kind),
       meta: { createdAt: timestamp, updatedAt: timestamp, revision: 0 },

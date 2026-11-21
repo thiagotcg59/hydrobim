@@ -1,12 +1,15 @@
 import { formatMeters } from '@hydrobim/core';
 import { Check, Info } from 'lucide-react';
 import { isAnnotationTool, useEditorStore } from '../state/editorStore';
+import { useUiStore } from '../state/uiStore';
 import { PLAN_TOOL_HINTS, TOOL_HINTS } from './labels';
 
 const PLAN_SELECT_HINT =
   'Clique para selecionar. Arraste o fundo para mover a vista, uma anotação para reposicioná-la e a alça de um tubo para esticá-lo. Setas: deslizam a peça na linha. Botão direito numa extremidade: criar tubo. Roda do mouse: zoom.';
 const BIM_HINT =
   'Consulta BIM / IFC: selecione um elemento na vista ou na árvore para ver e completar as suas propriedades IFC. A modelagem fica suspensa nesta aba.';
+const WALK_HINT =
+  'Percurso: W A S D andam, E e Q sobem e descem a vista, arraste para olhar (F trava o mouse), Shift corre, a roda muda a velocidade. Clique em um elemento para ver as propriedades IFC.';
 
 const GRID_STEPS = [0.01, 0.05, 0.1, 0.25, 0.5, 1, 5, 10];
 
@@ -36,13 +39,16 @@ export function ReferenceBar() {
   const snapToGrid = useEditorStore((s) => s.snapToGrid);
   const gridStep = useEditorStore((s) => s.gridStep);
   const catalogOnly = useEditorStore((s) => s.toolOptions.lockElbowAngles);
+  const walking = useUiStore((s) => s.bimWalk);
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
   const steps = GRID_STEPS.includes(gridStep)
     ? GRID_STEPS
     : [...GRID_STEPS, gridStep].sort((a, b) => a - b);
   const instruction =
     viewMode === 'bim'
-      ? BIM_HINT
+      ? walking
+        ? WALK_HINT
+        : BIM_HINT
       : viewMode === 'plan' && tool === 'select'
         ? PLAN_SELECT_HINT
         : ((viewMode === 'plan' ? PLAN_TOOL_HINTS[tool] : undefined) ?? TOOL_HINTS[tool]);

@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { useTerrainStore } from '../terrain/terrainStore';
+import { isWalkKey } from '../walk/walkMotion';
 import { commandForKey, GLOBAL_SHORTCUTS, runCommand, type CommandContext } from './commands';
 
 /** Estado de que os comandos dependem, sem reagir a cada movimento do cursor. */
@@ -29,6 +30,8 @@ export function useCommandContext(): CommandContext {
       ribbonCollapsed: s.ribbonCollapsed,
       validationOpen: s.validationOpen,
       workspaceLayout: s.workspaceLayout,
+      inlineClearances: s.inlineClearances,
+      bimWalk: s.bimWalk,
       maximizedView: s.maximizedView,
     })),
   );
@@ -81,6 +84,16 @@ export function useKeyboardShortcuts(): void {
         return;
       }
       if (!id) return;
+      // No percurso, W A S D, E, Q e F são do observador: não trocam de ferramenta.
+      if (useUiStore.getState().bimWalk && isWalkKey(event.key)) return;
+      if (event.key === ' ') {
+        // Espaço sobre um botão o aciona: não gira a seleção ao mesmo tempo.
+        const target = event.target;
+        if (target instanceof Element && target.closest('button, a, summary, [role="menuitem"]')) {
+          return;
+        }
+        event.preventDefault();
+      }
       // Ctrl+Z e Ctrl+Y não devem acionar o histórico do navegador.
       if (event.ctrlKey || event.metaKey) event.preventDefault();
       runCommand(id);

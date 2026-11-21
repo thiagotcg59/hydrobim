@@ -38,8 +38,10 @@ import {
   setViewFocus,
   VIEW_DIRECTIONS,
 } from '../editor/viewPresets';
+import { alignGuidesOf } from '../state/alignTool';
 import { drawElevationOf, useEditorStore } from '../state/editorStore';
 import { ElementMesh } from './ElementMesh';
+import { InlineGrips } from './InlineGrips';
 import { InteractionController } from './InteractionController';
 import { PipeGrips } from './PipeGrips';
 import { PreviewGhosts } from './PreviewGhosts';
@@ -53,7 +55,7 @@ const MEASURE_COLOR = '#0c8f6f';
 
 const tuple = (v: Vec3): [number, number, number] => [v.x, v.y, v.z];
 
-function Elements({ hoveredId }: { hoveredId: string | null }) {
+export function Elements({ hoveredId }: { hoveredId: string | null }) {
   const elements = useEditorStore((s) => s.project.elements);
   const systems = useEditorStore((s) => s.project.systems);
   const bySystem = useMemo(() => new Map(systems.map((s) => [s.id, s])), [systems]);
@@ -121,6 +123,7 @@ function DrawingOverlay() {
   const cursor = useEditorStore((s) => s.cursor);
   const tool = useEditorStore((s) => s.tool);
   const measure = useEditorStore((s) => s.measure);
+  const align = useEditorStore((s) => s.align);
   const project = useEditorStore((s) => s.project);
   const showCursor = cursor && tool !== 'select';
   // Partindo de uma porta, a prévia informa a mudança de direção (o joelho necessário).
@@ -132,9 +135,30 @@ function DrawingOverlay() {
       : null;
 
   const measureEnd = measure.b ?? (measure.a && tool === 'measure' ? cursor?.point : null) ?? null;
+  const alignGuides = tool === 'align' && align ? alignGuidesOf(align, cursor?.point ?? null) : [];
 
   return (
     <>
+      {alignGuides.map((guide) => (
+        <group key={guide.label}>
+          {distance(guide.from, guide.to) > 1e-6 && (
+            <Line
+              points={[tuple(guide.from), tuple(guide.to)]}
+              color={DRAW_COLOR}
+              lineWidth={2}
+              dashed
+              dashSize={0.1}
+              gapSize={0.06}
+              depthTest={false}
+            />
+          )}
+          <Html position={tuple(guide.from)} pointerEvents="none" style={{ pointerEvents: 'none' }}>
+            <span className="viewport-label" data-testid="viewport-align-guide">
+              {guide.label}
+            </span>
+          </Html>
+        </group>
+      ))}
       {showCursor && (
         <mesh position={tuple(cursor.point)}>
           <sphereGeometry args={[0.025, 12, 8]} />
@@ -513,6 +537,7 @@ export function SceneContent() {
         </group>
         <FreePortMarkers />
         <PipeGrips />
+        <InlineGrips />
         <DrawingOverlay />
         <PreviewGhosts />
       </group>

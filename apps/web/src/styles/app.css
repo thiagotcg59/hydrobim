@@ -377,6 +377,24 @@ code {
   transform: scale(1.25);
 }
 
+/* Alça da peça na linha (válvula, tê, cruzeta...): desliza entre os tubos. */
+.inline-grip {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  background: #00a6c0;
+  box-shadow: 0 0 0 1px rgba(12, 17, 24, 0.6);
+  transform: rotate(45deg);
+  cursor: grab;
+  touch-action: none;
+}
+
+.inline-grip:hover,
+.inline-grip--active {
+  background: #ffd166;
+  transform: rotate(45deg) scale(1.25);
+}
+
 .context-menu {
   position: fixed;
   z-index: 80;
@@ -872,6 +890,22 @@ code {
 .statusbar__item {
   color: var(--text-dim);
   white-space: nowrap;
+}
+
+/* Atalho para as Opções de projeto (precisão da modelagem). */
+.statusbar__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.statusbar__button:hover {
+  color: inherit;
+  text-decoration: underline;
 }
 
 .statusbar__message {
@@ -2476,4 +2510,19 @@ code {
 
 .terrain-drape__attribution a {
   color: inherit;
+}
+
+/* Janela de seleção da planta: contida (traço contínuo) ou cruzamento (tracejado, verde). */
+.plan-selection-window {
+  fill: rgba(62, 143, 255, 0.12);
+  stroke: #3e8fff;
+}
+.plan-selection-window--cross {
+  fill: rgba(46, 170, 90, 0.12);
+  stroke: #2eaa5a;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+.plan-selection-window--contain {
+  vector-effect: non-scaling-stroke;
 }
