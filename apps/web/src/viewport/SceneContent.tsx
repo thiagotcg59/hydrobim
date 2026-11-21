@@ -1,5 +1,6 @@
 import {
   angleBetween,
+  computeArchBounds,
   computeBounds,
   getView,
   viewCategoryOf,
@@ -47,6 +48,7 @@ import { drawElevationOf, useEditorStore } from '../state/editorStore';
 import { ModelDisplayContext, setActiveClipPlanes, type ModelDisplay } from '../views/clipContext';
 import { SectionBox3D } from '../views/SectionBox3D';
 import { useViewStore } from '../views/viewStore';
+import { ArchElements } from './ArchMeshes';
 import { ElementMesh } from './ElementMesh';
 import { InlineGrips } from './InlineGrips';
 import { InteractionController } from './InteractionController';
@@ -460,6 +462,27 @@ function CameraRig() {
       ? visible.filter((element) => selection.includes(element.id))
       : visible;
     let bounds = computeBounds(chosen.length > 0 ? chosen : visible);
+    // Enquadrar o projeto inclui a arquitetura; enquadrar a seleção da rede, não.
+    const arch = viewRequest.selection && chosen.length > 0 ? null : computeArchBounds(project);
+    if (arch) {
+      bounds = bounds
+        ? {
+            min: vec3(
+              Math.min(bounds.min.x, arch.min.x),
+              Math.min(bounds.min.y, arch.min.y),
+              Math.min(bounds.min.z, arch.min.z),
+            ),
+            max: vec3(
+              Math.max(bounds.max.x, arch.max.x),
+              Math.max(bounds.max.y, arch.max.y),
+              Math.max(bounds.max.z, arch.max.z),
+            ),
+          }
+        : {
+            min: vec3(arch.min.x, arch.min.y, arch.min.z),
+            max: vec3(arch.max.x, arch.max.y, arch.max.z),
+          };
+    }
     // Enquadrar o projeto inclui a superfície do terreno; enquadrar a seleção, não.
     if (project.terrain && !(viewRequest.selection && chosen.length > 0)) {
       const stats = terrainStats(project.terrain);
@@ -594,6 +617,10 @@ export function SceneContent() {
   const box = boxPreview ?? (view3d?.sectionBox?.enabled ? view3d.sectionBox : null);
   const planes = useMemo(() => Array.from({ length: 6 }, () => new Plane()), []);
   if (box) boxPlanes(planes, box, origin);
+  const hiddenCategories = useMemo(
+    () => (view3d ? new Set(view3d.visibility.hiddenCategories) : null),
+    [view3d],
+  );
   const clipped = box !== null;
   const wireframe = view3d?.display === 'wireframe';
   const display = useMemo<ModelDisplay>(
@@ -643,6 +670,7 @@ export function SceneContent() {
           <TerrainSurface />
           <group ref={elementsRef}>
             <Elements hoveredId={hoveredId} />
+            <ArchElements hiddenCategories={hiddenCategories} />
           </group>
         </ModelDisplayContext.Provider>
         {view3d && box && <SectionBox3D viewId={view3d.id} box={box} onPreview={setBoxPreview} />}

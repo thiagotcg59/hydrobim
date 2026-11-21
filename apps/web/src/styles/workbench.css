@@ -1548,3 +1548,124 @@ textarea {
   color: #0c1118;
   transform: scale(1.2);
 }
+
+/* ----- Arquitetura: entrada do comprimento na planta e painel de propriedades ----- */
+.arch-entry {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 12px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+.arch-entry input {
+  width: 72px;
+  padding: 2px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font: inherit;
+  text-align: right;
+}
+.arch-entry__unit {
+  color: var(--text-dim);
+}
+.arch-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0 8px;
+}
+.arch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px 8px;
+}
+.arch-type-usage {
+  margin: 0;
+  padding: 6px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.arch-prop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--line);
+}
+.arch-prop__label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.arch-prop__label code {
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.arch-prop__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.arch-prop__nature {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+/* Natureza do valor: letra, traço do contorno e rótulo — não depende só da cor. */
+.arch-nature {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px 1px 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.arch-nature b {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  color: #ffffff;
+  font-size: 9px;
+}
+.arch-nature--type {
+  border-style: double;
+  border-width: 3px;
+}
+.arch-nature--type b {
+  background: #1d4e89;
+}
+.arch-nature--occurrence b {
+  background: #2f7d4f;
+}
+.arch-nature--calculated {
+  font-style: italic;
+}
+.arch-nature--calculated b {
+  background: #5b6470;
+}
+.arch-nature--pending {
+  border-style: dashed;
+  border-color: #b7791f;
+  color: #8a5a12;
+}
+.arch-nature--pending b {
+  background: #b7791f;
+}

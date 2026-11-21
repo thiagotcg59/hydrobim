@@ -9,6 +9,7 @@ import {
 import type { CommandContext } from '../commands/commands';
 import { useCommandContext } from '../commands/useCommands';
 import { isIsoQuadrant, nextIsoQuadrant } from '../editor/viewPresets';
+import { useArchStore } from '../arch/archStore';
 import { PlanView } from '../plan/PlanView';
 import { isAnnotationTool, useEditorStore } from '../state/editorStore';
 import { useUiStore, type WorkspaceView } from '../state/uiStore';
@@ -19,6 +20,7 @@ import { openView2dOf, useViewStore } from '../views/viewStore';
 import { Viewport } from '../viewport/Viewport';
 import { WalkView } from '../walk/WalkView';
 import { CommandButton } from './CommandButton';
+import { PLAN_LABELS } from './labels';
 import { ReferenceBar } from './ReferenceBar';
 
 /**
@@ -93,7 +95,7 @@ function PaneHeader({ pane, solo, split, maximized, context }: HeaderProps) {
   const drawingScale = useEditorStore((s) => s.project.drawingScale);
   const bim = context.viewMode === 'bim';
   const walking = bim && context.bimWalk === true;
-  const planLabel = infra ? 'Planta Infra' : 'Planta MEP';
+  const planLabel = PLAN_LABELS[context.project.discipline];
   const show3dControls = solo || pane === '3d';
   // Vistas de projeto abertas nesta área (a consulta BIM / IFC usa o modelo padrão).
   const open2d = useViewStore((s) => s.open2d);
@@ -244,6 +246,7 @@ export function Workspace({ ready }: { ready: boolean }) {
       }
       // O desenho 2D e a linha de corte também: o cursor pode passar pelo modelo sem encerrá-los.
       if (useViewStore.getState().tool !== 'select') return;
+      if (useArchStore.getState().tool) return;
     }
     useUiStore.getState().activateWorkspaceView(pane);
   };

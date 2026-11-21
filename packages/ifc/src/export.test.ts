@@ -164,12 +164,15 @@ describe('exportação IFC 4.3', () => {
       '.METRE.',
       '.CUBIC_METRE.',
       '.SECOND.',
+      '.GRAM.',
+      '.KELVIN.',
       '.SQUARE_METRE.',
       '.RADIAN.',
       '.PASCAL.',
       '.WATT.',
     ]);
     expect(byType(all, 'IfcDerivedUnit').map((e) => e.args[1])).toEqual([
+      '.THERMALTRANSMITTANCEUNIT.',
       '.VOLUMETRICFLOWRATEUNIT.',
       '.ROTATIONALFREQUENCYUNIT.',
     ]);

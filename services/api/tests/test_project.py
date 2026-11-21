@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 15
+    assert project.schema_version == 17
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 16),
+        (("schemaVersion",), 18),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 15.0
+    project_document["schemaVersion"] = 17.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -239,7 +239,7 @@ def test_migrates_v11_terrain_as_survey_without_presumed_data(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump()
     assert legacy == before
-    assert migrated["schemaVersion"] == 15
+    assert migrated["schemaVersion"] == 17
     terrain = migrated["terrain"]
     assert terrain["points"] == TERRAIN_V11["points"]
     assert terrain["boundary"] is None
@@ -262,6 +262,9 @@ def test_migrates_v11_terrain_as_survey_without_presumed_data(project_document):
 def test_terrain_requires_source_and_valid_boundary(project_document):
     terrain = {
         **deepcopy(TERRAIN_V11),
+        "id": "terreno-1",
+        "tag": "TN-01",
+        "original": None,
         "boundary": None,
         "breaklines": [],
         "source": {
@@ -691,7 +694,7 @@ def test_migrates_v12_adding_empty_pump_families(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated == {**project_document, "schemaVersion": 15}
+    assert migrated == {**project_document, "schemaVersion": 17}
 
 
 def _custom_pump_family():
@@ -854,6 +857,7 @@ def _views_v15():
             "levelId": "nivel-0",
             "cutHeight": 3,
             "depth": 3.3,
+            "archCutHeight": 1.2,
             "rotation": 0,
             "details": [
                 {"id": "d1", "kind": "line", "a": {"x": 0, "y": 0}, "b": {"x": 1, "y": 0}},
@@ -955,5 +959,293 @@ def test_migrates_v14_without_views_and_round_trips_views(project_document):
 def test_rejects_invalid_views(project_document, index, key, value):
     project_document["views"] = _views_v15()
     project_document["views"][index][key] = value
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
+
+
+def test_migrates_v15_adding_empty_architecture_and_arch_cut_height(project_document):
+    """Esquema v16: documentos v15 ganham a arquitetura vazia e o corte da arquitetura."""
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 15
+    del legacy["architecture"]
+    legacy["views"] = _views_v15()
+    plan = legacy["views"][0]
+    del plan["archCutHeight"]
+    # 1,20 m limitado à faixa da planta: nunca acima de `cutHeight` nem abaixo de 0,10 m.
+    for cut_height in (0.8, 0.02, -1):
+        legacy["views"].append(
+            {**deepcopy(plan), "id": f"planta-{cut_height}", "cutHeight": cut_height}
+        )
+    before = deepcopy(legacy)
+    migrated = Project.model_validate(legacy).model_dump(by_alias=True)
+    assert legacy == before
+    assert migrated["schemaVersion"] == 17
+    assert migrated["architecture"] == {"types": [], "elements": []}
+    plans = [view for view in migrated["views"] if view["kind"] == "plan"]
+    assert [view["archCutHeight"] for view in plans] == [1.2, 0.8, 0.1, 0.1]
+    # Cortes, elevações e vistas 3D não ganham o campo; o restante do documento não muda.
+    assert all("archCutHeight" not in v for v in migrated["views"] if v["kind"] != "plan")
+    assert {**migrated, "views": []} == project_document
+
+
+def test_migration_keeps_existing_arch_cut_height_and_older_versions_reach_v16(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 15
+    del legacy["architecture"]
+    legacy["views"] = _views_v15()
+    legacy["views"][0]["archCutHeight"] = 0.9
+    assert Project.model_validate(legacy).views[0].arch_cut_height == 0.9
+    # Um v14 que já traga plantas passa pelas duas migrações.
+    legacy["schemaVersion"] = 14
+    del legacy["views"][0]["archCutHeight"]
+    migrated = Project.model_validate(legacy)
+    assert migrated.schema_version == 17
+    assert migrated.views[0].arch_cut_height == 1.2
+    assert migrated.architecture.types == []
+
+
+def test_v16_requires_architecture_and_arch_cut_height(project_document):
+    document = deepcopy(project_document)
+    del document["architecture"]
+    with pytest.raises(ValidationError):
+        Project.model_validate(document)
+    for value in (None, 0, -1.2, "1.2"):
+        document = deepcopy(project_document)
+        document["views"] = _views_v15()
+        if value is None:
+            del document["views"][0]["archCutHeight"]
+        else:
+            document["views"][0]["archCutHeight"] = value
+        with pytest.raises(ValidationError):
+            Project.model_validate(document)
+
+
+@pytest.mark.parametrize("discipline", ["mep", "infra", "architecture"])
+def test_disciplines(project_document, discipline):
+    project_document["discipline"] = discipline
+    assert Project.model_validate(project_document).discipline == discipline
+
+
+def test_views_hide_architecture_categories(project_document):
+    project_document["views"] = _views_v15()
+    categories = ["walls", "floors", "doors", "windows", "spaces", "pipes"]
+    project_document["views"][0]["visibility"]["hiddenCategories"] = categories
+    project = Project.model_validate(project_document)
+    assert project.views[0].visibility.hidden_categories == categories
+    project_document["views"][0]["visibility"]["hiddenCategories"] = ["roofs"]
+    with pytest.raises(ValidationError):
+        Project.model_validate(project_document)
+
+
+def test_architecture_round_trips(arch_document):
+    project = Project.model_validate(arch_document)
+    assert [t.category for t in project.architecture.types] == [
+        "wall",
+        "slab",
+        "flooring",
+        "door",
+        "window",
+    ]
+    assert [e.kind for e in project.architecture.elements] == [
+        "wall",
+        "door",
+        "window",
+        "slab",
+        "flooring",
+        "space",
+        "space",
+    ]
+    assert project.architecture.types[0].layers[1].thickness == 0.14
+    assert project.architecture.elements[1].host_id == "wall-1"
+    assert project.model_dump(by_alias=True) == arch_document
+    assert json.loads(project.model_dump_json(by_alias=True)) == arch_document
+    assert validate_project(project) == []
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("types", 0, "layers"), []),
+        (("types", 0, "layers", 0, "thickness"), 0),
+        (("types", 0, "layers", 0, "material"), ""),
+        (("types", 0, "layers", 0, "function"), "core"),
+        (("types", 0, "layers", 0, "hatch"), "brick"),
+        (("types", 0, "category"), "roof"),
+        (("types", 0, "name"), ""),
+        (("types", 0, "familyId"), ""),
+        (("types", 0, "source"), ""),
+        (("types", 0, "generic"), "true"),
+        (("types", 0, "ifcPredefinedType"), ""),
+        (("types", 0, "classifications", 0, "system"), "omniclass"),
+        (("types", 0, "classifications", 0, "code"), ""),
+        (("types", 0, "classifications", 0, "table"), None),
+        (("types", 3, "operation"), "revolving"),
+        (("types", 3, "panelThickness"), 0),
+        (("types", 3, "materials", "frame"), ""),
+        (("types", 4, "operation"), "awning"),
+        (("types", 4, "panels"), 0),
+        (("types", 4, "panels"), 1.5),
+        (("types", 4, "sillHeight"), -0.1),
+        (("elements", 0, "height"), 0),
+        (("elements", 0, "locationLine"), "axis"),
+        (("elements", 0, "typeId"), ""),
+        (("elements", 0, "levelId"), ""),
+        (("elements", 0, "ifc"), None),
+        (("elements", 0, "kind"), "roof"),
+        (("elements", 1, "facing"), 0),
+        (("elements", 1, "facing"), True),
+        (("elements", 1, "hand"), "center"),
+        (("elements", 1, "hostId"), ""),
+        (("elements", 2, "sillHeight"), -1),
+        (("elements", 3, "boundary"), [{"x": 0, "y": 0}, {"x": 1, "y": 0}]),
+        (("elements", 3, "openings", 0, "boundary"), []),
+        (("elements", 3, "openings", 0, "id"), ""),
+        (("elements", 5, "number"), ""),
+        (("elements", 5, "number"), None),
+        (("elements", 5, "height"), 0),
+    ],
+)
+def test_architecture_schema_constraints(arch_document, path, value):
+    target = arch_document["architecture"]
+    for segment in path[:-1]:
+        target = target[segment]
+    target[path[-1]] = value
+    with pytest.raises(ValidationError):
+        Project.model_validate(arch_document)
+
+
+@pytest.mark.parametrize(
+    ("path", "key"),
+    [
+        (("types", 0), "familyId"),
+        (("types", 0), "source"),
+        (("types", 0), "ifc"),
+        (("types", 3), "materials"),
+        (("elements", 0), "properties"),
+        (("elements", 3), "openings"),
+        (("elements", 6), "height"),
+    ],
+)
+def test_architecture_required_fields(arch_document, path, key):
+    target = arch_document["architecture"]
+    for segment in path:
+        target = target[segment]
+    del target[key]
+    with pytest.raises(ValidationError):
+        Project.model_validate(arch_document)
+
+
+# ---------------------------------------------------------------------------
+# Esquema v17: superfície do terreno como elemento e terraplenagem
+# ---------------------------------------------------------------------------
+
+
+def _terrain_v17():
+    return {
+        **deepcopy(TERRAIN_V11),
+        "id": "terreno-1",
+        "tag": "",
+        "boundary": None,
+        "breaklines": [],
+        "source": {
+            "kind": "survey",
+            "provider": "Pontos XYZ",
+            "dataset": None,
+            "horizontalCrs": None,
+            "verticalDatum": None,
+            "resolution": None,
+            "verticalAccuracy": None,
+            "acquiredAt": None,
+            "attribution": None,
+            "notes": None,
+        },
+        "original": None,
+    }
+
+
+def test_migrates_v16_terrain_and_earthworks_without_presumed_data(project_document):
+    legacy = deepcopy(project_document)
+    legacy["schemaVersion"] = 16
+    del legacy["earthworks"]
+    terrain = _terrain_v17()
+    for key in ("id", "tag", "original"):
+        del terrain[key]
+    legacy["terrain"] = terrain
+    before = deepcopy(legacy)
+    migrated = Project.model_validate(legacy).model_dump(by_alias=True)
+    assert legacy == before
+    assert migrated["schemaVersion"] == 17
+    assert migrated["terrain"]["id"] == "terreno"
+    assert migrated["terrain"]["tag"] == ""
+    assert migrated["terrain"]["original"] is None
+    # Empolamento, fator de conversão e aproveitamento são do projetista: nada é presumido.
+    assert migrated["earthworks"] == {
+        "platforms": [],
+        "swellPercent": None,
+        "compactionFactor": None,
+        "reusePercent": None,
+    }
+
+
+def test_earthworks_platforms_and_edited_terrain_round_trip(project_document):
+    terrain = _terrain_v17()
+    terrain["original"] = {
+        "points": terrain["points"],
+        "triangles": terrain["triangles"],
+        "boundary": None,
+        "breaklines": [],
+    }
+    project_document["terrain"] = terrain
+    project_document["earthworks"] = {
+        "platforms": [
+            {
+                "id": "plato-1",
+                "name": "Platô 1",
+                "outline": [{"x": 1, "y": 1}, {"x": 4, "y": 1}, {"x": 1, "y": 4}],
+                "elevation": 10.5,
+                "cutSlope": 1,
+                "fillSlope": 1.5,
+            }
+        ],
+        "swellPercent": 25,
+        "compactionFactor": 0.9,
+        "reusePercent": 80,
+    }
+    assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("platforms", 0, "cutSlope"), 0),
+        (("platforms", 0, "fillSlope"), -1),
+        (("platforms", 0, "outline"), [{"x": 0, "y": 0}, {"x": 1, "y": 0}]),
+        (("platforms", 0, "id"), ""),
+        (("swellPercent",), -1),
+        (("compactionFactor",), 0),
+        (("reusePercent",), 101),
+    ],
+)
+def test_earthworks_reject_invalid_values(project_document, path, value):
+    earthworks = {
+        "platforms": [
+            {
+                "id": "plato-1",
+                "name": "Platô 1",
+                "outline": [{"x": 1, "y": 1}, {"x": 4, "y": 1}, {"x": 1, "y": 4}],
+                "elevation": 10.5,
+                "cutSlope": 1,
+                "fillSlope": 1.5,
+            }
+        ],
+        "swellPercent": None,
+        "compactionFactor": None,
+        "reusePercent": None,
+    }
+    target = earthworks
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    project_document["earthworks"] = earthworks
     with pytest.raises(ValidationError):
         Project.model_validate(project_document)

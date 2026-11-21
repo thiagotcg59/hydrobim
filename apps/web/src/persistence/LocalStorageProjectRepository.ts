@@ -23,7 +23,7 @@ function isSummary(value: unknown): value is ProjectSummary {
     typeof v.name === 'string' &&
     typeof v.updatedAt === 'string' &&
     typeof v.elementCount === 'number' &&
-    (v.discipline === 'mep' || v.discipline === 'infra')
+    (v.discipline === 'mep' || v.discipline === 'infra' || v.discipline === 'architecture')
   );
 }
 

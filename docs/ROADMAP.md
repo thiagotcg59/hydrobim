@@ -115,7 +115,11 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - 🟡 Assentamento por recobrimento: na ferramenta Tubulação da Planta Infra, o eixo de cada ponto clicado fica o recobrimento definido abaixo do terreno (até a geratriz superior), com conferência do recobrimento real ao longo do trecho; transparência ajustável da superfície no 3D. Falta: entrada por valores e 3D, reassentar trechos existentes, pendências na validação.
 - ⬜ Traçado por alinhamento (vértices, deflexões por junta).
 - ⬜ Cadastro de nós e trechos; descargas, hidrantes, caixas.
-- ⬜ Terreno: LandXML (importação e exportação), entidade IFC do terreno, curvas de nível e corte na documentação (DXF/SVG), mais de uma superfície por projeto, BigTIFF e rasters lidos por janela.
+- ✅ Superfície do terreno como elemento (esquema v17): selecionável, com propriedades no painel (nome, identificação, área, cotas, origem dos dados, referenciais); edição de pontos cotados (acrescentar, mover, excluir, trocar a cota), do limite e da triangulação; superfície original guardada para comparação e restauração.
+- ✅ Terraplenagem (`docs/INFRA.md`): platôs paramétricos (perímetro, cota, taludes H:V de corte e de aterro) aplicados em sequência sobre o terreno natural, sem alterá-lo; terreno projetado refeito localmente com as linhas de talude e a linha de encontro como arestas; corte em vermelho e aterro em azul na planta e no 3D; volumes por sobreposição exata das duas malhas, conferidos com resultados analíticos; quadro por platô e total com empolamento, fator de conversão e aproveitamento informados pelo projetista (pendentes quando não informados).
+- ✅ IFC do terreno e da terraplenagem: `IfcGeographicElement`/`TERRAIN`, `IfcEarthworksCut` (vazio no terreno) e `IfcEarthworksFill`, com quantidades padronizadas; validado com IfcOpenShell.
+- 🟡 Terraplenagem, pendente: reentrâncias estreitas do perímetro (taludes de lados opostos que se encontram antes do terreno são recusados), taludes com bermas, platôs inclinados, edição do perímetro por arraste dos vértices, assentamento de rede e de equipamentos sobre o terreno projetado (hoje usam o natural), conjuntos do terreno na aba BIM / IFC e no IDS, DXF do terreno projetado.
+- ⬜ Terreno: LandXML (importação e exportação), curvas de nível e corte na documentação (DXF/SVG), mais de uma superfície por projeto, BigTIFF e rasters lidos por janela.
 - ⬜ Perfil longitudinal como vista sincronizada com a planta e o 3D (hoje no diálogo de análises, por Análise › Perfil longitudinal ou pelo botão Perfil… junto das abas de vista).
 - ✅ Mapa de ruas ou de satélite estendido sobre a superfície do terreno no modelo 3D, acompanhando o relevo, com atribuição.
 - ⬜ Ortofoto do usuário como fundo; imagem na exportação quando a licença permitir; mapa no 3D sem superfície de terreno; prancha com carimbo, legenda e norte; fator de escala combinado.
@@ -128,6 +132,23 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ⬜ Demandas, padrões e perdas localizadas no EPANET; importação de resultados.
 - ⬜ Interferências envolvendo conexões e equipamentos; relatórios técnicos.
 - ⬜ Federação com outros modelos BIM.
+
+## Arquitetura 🟡
+
+Ver `docs/ARQUITETURA.md` (requisitos adotados do Caderno BIM de SC v3.0, vigência das normas, limites) e `docs/INTERFACE.md`.
+
+- ✅ Domínio (esquema v16): `project.architecture` com tipos e ocorrências, fora da rede hidráulica (sem DN, especificação de tubo ou portas). Paredes em camadas com encontros em L e T derivados; lajes e revestimentos de piso com aberturas; portas e janelas hospedadas, com vão real; ambientes. Operações tudo-ou-nada, com mover, copiar, girar e espelhar; migração v15 → v16 e espelho no backend.
+- ✅ Catálogo de famílias genéricas parametrizáveis (paredes, pisos, portas, janelas), identificadas como genéricas; família › tipo › ocorrência; duplicar e editar tipos com as ocorrências afetadas; produto comercial só com fonte.
+- ✅ Ambiente Arquitetura no editor: ferramentas na planta de trabalho, modelo 3D, navegador por pavimento e categoria, painel de propriedades com os grupos IFC e a natureza de cada valor, catálogo com prévia 2D/3D e quantitativo com CSV.
+- ✅ Vistas salvas: arquitetura cortada (traço forte e hachura do tipo) e projetada, plano de corte próprio nas plantas, folha e arco das portas, ambientes com rótulo, visibilidade por categoria, camadas do Apêndice I no SVG.
+- ✅ IFC 4.3: `IfcWall`, `IfcSlab`, `IfcCovering`, `IfcDoor`, `IfcWindow`, `IfcSpace` e os tipos, conjuntos padronizados lidos do esquema (pendentes por padrão), quantidades brutas e líquidas, camadas de material, `IfcOpeningElement` com `IfcRelVoidsElement`/`IfcRelFillsElement`; conferido com o IfcOpenShell.
+- ✅ Exemplo `examples/edificacao-simples` (edificação com portas, janelas, piso com abertura e instalação hidráulica).
+- 🟡 Camadas do Apêndice I: sem a camada `Cotas` e sem grupo único por camada; `Piso` e `Ambientes` são nomes próprios. Conformidade dos símbolos com a ABNT NBR 6492:2021 não verificada.
+- ⬜ Edição interativa: mover, girar e espelhar na vista, alças de vértice, edição do contorno de pisos e ambientes; seleção por janela; ferramentas de arquitetura nas vistas salvas; filtro por nível na planta de trabalho.
+- ⬜ Arquitetura no percurso e na árvore da consulta BIM / IFC; DXF com a arquitetura; importação IFC.
+- ⬜ `IfcSpaceType`, `IfcZone`, limites de espaço e áreas líquidas de ambientes; detecção do ambiente pelas paredes.
+- ⬜ Camadas da parede desenhadas e cortadas uma a uma; junção em X; paredes curvas ou inclinadas.
+- ⬜ Telhados, escadas, rampas, forros, estrutura e mobiliário.
 
 ## Próxima etapa recomendada
 

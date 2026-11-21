@@ -1,4 +1,4 @@
-import type { HydroElement } from '@hydrobim/core';
+import type { ArchElementKind, HydroElement } from '@hydrobim/core';
 import { createLucideIcon, type LucideIcon } from 'lucide-react';
 
 /**
@@ -67,6 +67,82 @@ export const TankIcon = createLucideIcon('HydroTank', [
   ['path', { d: 'M5 13c1.5 1.4 4 2 7 2s5.5-.6 7-2', opacity: '0.55', key: 'level' }],
   ['path', { d: 'M19 17h3', key: 'outlet' }],
 ]);
+
+// ----- Arquitetura: símbolos de planta e de elevação, no mesmo traço -----
+
+/** Parede em planta: as duas faces e a hachura do corte. */
+export const WallIcon = createLucideIcon('ArchWall', [
+  ['rect', { x: '3', y: '8', width: '18', height: '8', rx: '0.5', key: 'faces' }],
+  ['path', { d: 'm6 16 4-8M11 16l4-8M16 16l4-8', opacity: '0.55', key: 'hatch' }],
+]);
+
+/** Laje: placa em perspectiva, com a espessura à vista. */
+export const SlabIcon = createLucideIcon('ArchSlab', [
+  ['path', { d: 'm3 10 9-4 9 4-9 4Z', key: 'top' }],
+  ['path', { d: 'M3 10v4l9 4 9-4v-4', key: 'edge' }],
+  ['path', { d: 'M12 14v4', opacity: '0.55', key: 'corner' }],
+]);
+
+/** Revestimento de piso: peças assentadas, em perspectiva. */
+export const FlooringIcon = createLucideIcon('ArchFlooring', [
+  ['path', { d: 'M7 7h10l4 10H3Z', key: 'outline' }],
+  ['path', { d: 'M5 12h14M10.3 7 9 17M13.7 7 15 17', opacity: '0.55', key: 'joints' }],
+]);
+
+/** Porta em planta: a parede interrompida, a folha aberta e o arco de abertura. */
+export const DoorIcon = createLucideIcon('ArchDoor', [
+  ['path', { d: 'M2.5 19h4.5M17 19h4.5', key: 'wall' }],
+  ['path', { d: 'M7 19V9', key: 'leaf' }],
+  ['path', { d: 'M7 9a10 10 0 0 1 10 10', opacity: '0.55', key: 'swing' }],
+]);
+
+/** Janela em elevação: marco, montante, travessa e peitoril. */
+export const WindowIcon = createLucideIcon('ArchWindow', [
+  ['rect', { x: '4.5', y: '4', width: '15', height: '14', rx: '0.5', key: 'frame' }],
+  ['path', { d: 'M12 4v14M4.5 11h15', opacity: '0.55', key: 'bars' }],
+  ['path', { d: 'M3 20.5h18', key: 'sill' }],
+]);
+
+/** Ambiente: a região delimitada (contorno tracejado) e a sua identificação. */
+export const SpaceIcon = createLucideIcon('ArchSpace', [
+  [
+    'rect',
+    {
+      x: '3.5',
+      y: '4.5',
+      width: '17',
+      height: '15',
+      rx: '0.5',
+      strokeDasharray: '3 2.5',
+      key: 'a',
+    },
+  ],
+  ['path', { d: 'M8.5 10.5h7M10 14h4', key: 'label' }],
+]);
+
+/** Abertura no piso: a placa com o vão (shaft) marcado em X. */
+export const FloorOpeningIcon = createLucideIcon('ArchFloorOpening', [
+  ['rect', { x: '3.5', y: '4.5', width: '17', height: '15', rx: '0.5', key: 'floor' }],
+  ['rect', { x: '9', y: '9', width: '6', height: '6', key: 'opening' }],
+  ['path', { d: 'm9 9 6 6M15 9l-6 6', opacity: '0.55', key: 'cross' }],
+]);
+
+/** Espelhar: a forma e a sua imagem em relação ao eixo. */
+export const MirrorIcon = createLucideIcon('ArchMirror', [
+  ['path', { d: 'M12 3v18', strokeDasharray: '2.5 2.5', key: 'axis' }],
+  ['path', { d: 'M9 7 4 17h5Z', key: 'left' }],
+  ['path', { d: 'm15 7 5 10h-5Z', opacity: '0.55', key: 'right' }],
+]);
+
+/** Símbolo de cada categoria arquitetônica (faixa, navegador e painel de propriedades). */
+export const ARCH_ICONS: Readonly<Record<ArchElementKind, LucideIcon>> = {
+  wall: WallIcon,
+  slab: SlabIcon,
+  flooring: FlooringIcon,
+  door: DoorIcon,
+  window: WindowIcon,
+  space: SpaceIcon,
+};
 
 /** Usado pela faixa, pelo navegador e pelo inspetor para manter o mesmo símbolo por tipo. */
 export const ELEMENT_ICONS: Readonly<Record<HydroElement['kind'], LucideIcon>> = {

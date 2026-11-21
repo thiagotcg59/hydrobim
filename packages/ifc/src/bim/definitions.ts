@@ -114,6 +114,7 @@ const UNITS: Record<string, IfcUnit> = {
   IfcRatioMeasure: 'ratio',
   IfcPositiveRatioMeasure: 'ratio',
   IfcNormalisedRatioMeasure: 'ratio',
+  IfcThermalTransmittanceMeasure: 'thermalTransmittance',
   IfcQuantityLength: 'length',
   IfcQuantityArea: 'area',
   IfcQuantityVolume: 'volume',

@@ -9,6 +9,9 @@ import {
 } from '@hydrobim/core';
 import { memo, useMemo } from 'react';
 import { HIGHLIGHT } from '../plan/planDrawing';
+import { useEditorStore } from '../state/editorStore';
+import { EarthworkPlanLayer } from './EarthworkLayers';
+import { shownTerrain, useEarthworkStore } from './earthworkStore';
 import { areaRings, useTerrainStore } from './terrainStore';
 
 /**
@@ -39,11 +42,19 @@ interface SurfaceProps {
 
 /** Superfície do projeto: limite, linhas de quebra, curvas de nível e triangulação. */
 export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
-  terrain,
+  terrain: natural,
   origin,
   mpp,
 }: SurfaceProps) {
   const display = useTerrainStore((s) => s.display);
+  // Curvas e triangulação são as da superfície à mostra (natural, projetada ou original); o
+  // limite e as linhas de quebra são sempre os dados da superfície do projeto.
+  const view = useEarthworkStore((s) => s.view);
+  const project = useEditorStore((s) => s.project);
+  const terrain = useMemo(
+    () => (project.terrain === natural ? (shownTerrain(project, view) ?? natural) : natural),
+    [project, natural, view],
+  );
   const path = (points: readonly { x: number; y: number }[], close: boolean): string =>
     points
       .map((p, i) => `${i === 0 ? 'M' : 'L'}${n(p.x - origin.x)} ${n(-(p.y - origin.y))}`)
@@ -114,6 +125,7 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
       data-layer-infra="terrain"
       data-testid="infra-terrain"
       data-triangles={terrain.triangles.length / 3}
+      data-surface-view={view}
       pointerEvents="none"
     >
       {display.triangulation && (
@@ -162,7 +174,7 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
           ))}
         </g>
       )}
-      {terrain.breaklines.map((line, index) => (
+      {natural.breaklines.map((line, index) => (
         <path
           key={index}
           data-testid="terrain-breakline"
@@ -174,7 +186,7 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
           vectorEffect="non-scaling-stroke"
         />
       ))}
-      {terrain.boundary?.map((ring, index) => (
+      {natural.boundary?.map((ring, index) => (
         <path
           key={index}
           data-testid="terrain-boundary"
@@ -223,6 +235,7 @@ export function TerrainEditingLayer({ terrain, origin, mpp, cursor }: EditingPro
 
   return (
     <g data-ui="terrain" pointerEvents="none">
+      <EarthworkPlanLayer terrain={terrain} origin={origin} mpp={mpp} />
       {rings && (
         <path
           data-testid="terrain-area"

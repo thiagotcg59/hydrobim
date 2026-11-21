@@ -10,6 +10,8 @@ export interface IfcEntityDefinition {
   readonly predefinedTypes: readonly string[];
   /** Entidade de tipo correspondente (`Ifc…Type`), nas ocorrências. */
   readonly typeEntity?: string;
+  /** Valores de outros atributos enumerados (`OperationType`…). */
+  readonly attributeEnumerations?: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface IfcPropertyTemplate {
@@ -632,6 +634,348 @@ export const IFC_ENTITIES: Readonly<Record<string, IfcEntityDefinition>> = {
       'NOTDEFINED',
     ],
   },
+  IfcWall: {
+    ancestors: [
+      'IfcBuiltElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'ELEMENTEDWALL',
+      'MOVABLE',
+      'PARAPET',
+      'PARTITIONING',
+      'PLUMBINGWALL',
+      'POLYGONAL',
+      'RETAININGWALL',
+      'SHEAR',
+      'SOLIDWALL',
+      'STANDARD',
+      'WAVEWALL',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+    typeEntity: 'IfcWallType',
+  },
+  IfcWallType: {
+    ancestors: [
+      'IfcBuiltElementType',
+      'IfcElementType',
+      'IfcTypeProduct',
+      'IfcTypeObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'ELEMENTEDWALL',
+      'MOVABLE',
+      'PARAPET',
+      'PARTITIONING',
+      'PLUMBINGWALL',
+      'POLYGONAL',
+      'RETAININGWALL',
+      'SHEAR',
+      'SOLIDWALL',
+      'STANDARD',
+      'WAVEWALL',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+  },
+  IfcSlab: {
+    ancestors: [
+      'IfcBuiltElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'APPROACH_SLAB',
+      'BASESLAB',
+      'FLOOR',
+      'LANDING',
+      'PAVING',
+      'ROOF',
+      'SIDEWALK',
+      'TRACKSLAB',
+      'WEARING',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+    typeEntity: 'IfcSlabType',
+  },
+  IfcSlabType: {
+    ancestors: [
+      'IfcBuiltElementType',
+      'IfcElementType',
+      'IfcTypeProduct',
+      'IfcTypeObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'APPROACH_SLAB',
+      'BASESLAB',
+      'FLOOR',
+      'LANDING',
+      'PAVING',
+      'ROOF',
+      'SIDEWALK',
+      'TRACKSLAB',
+      'WEARING',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+  },
+  IfcCovering: {
+    ancestors: [
+      'IfcBuiltElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'CEILING',
+      'CLADDING',
+      'COPING',
+      'FLOORING',
+      'INSULATION',
+      'MEMBRANE',
+      'MOLDING',
+      'ROOFING',
+      'SKIRTINGBOARD',
+      'SLEEVING',
+      'TOPPING',
+      'WRAPPING',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+    typeEntity: 'IfcCoveringType',
+  },
+  IfcCoveringType: {
+    ancestors: [
+      'IfcBuiltElementType',
+      'IfcElementType',
+      'IfcTypeProduct',
+      'IfcTypeObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'CEILING',
+      'CLADDING',
+      'COPING',
+      'FLOORING',
+      'INSULATION',
+      'MEMBRANE',
+      'MOLDING',
+      'ROOFING',
+      'SKIRTINGBOARD',
+      'SLEEVING',
+      'TOPPING',
+      'WRAPPING',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+  },
+  IfcDoor: {
+    ancestors: [
+      'IfcBuiltElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'BOOM_BARRIER',
+      'DOOR',
+      'GATE',
+      'TRAPDOOR',
+      'TURNSTILE',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+    typeEntity: 'IfcDoorType',
+    attributeEnumerations: {
+      OperationType: [
+        'DOUBLE_DOOR_DOUBLE_SWING',
+        'DOUBLE_DOOR_FOLDING',
+        'DOUBLE_DOOR_LIFTING_VERTICAL',
+        'DOUBLE_DOOR_SINGLE_SWING',
+        'DOUBLE_DOOR_SINGLE_SWING_OPPOSITE_LEFT',
+        'DOUBLE_DOOR_SINGLE_SWING_OPPOSITE_RIGHT',
+        'DOUBLE_DOOR_SLIDING',
+        'DOUBLE_SWING_LEFT',
+        'DOUBLE_SWING_RIGHT',
+        'FOLDING_TO_LEFT',
+        'FOLDING_TO_RIGHT',
+        'LIFTING_HORIZONTAL',
+        'LIFTING_VERTICAL_LEFT',
+        'LIFTING_VERTICAL_RIGHT',
+        'REVOLVING',
+        'REVOLVING_VERTICAL',
+        'ROLLINGUP',
+        'SINGLE_SWING_LEFT',
+        'SINGLE_SWING_RIGHT',
+        'SLIDING_TO_LEFT',
+        'SLIDING_TO_RIGHT',
+        'SWING_FIXED_LEFT',
+        'SWING_FIXED_RIGHT',
+        'USERDEFINED',
+        'NOTDEFINED',
+      ],
+    },
+  },
+  IfcDoorType: {
+    ancestors: [
+      'IfcBuiltElementType',
+      'IfcElementType',
+      'IfcTypeProduct',
+      'IfcTypeObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'BOOM_BARRIER',
+      'DOOR',
+      'GATE',
+      'TRAPDOOR',
+      'TURNSTILE',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+    attributeEnumerations: {
+      OperationType: [
+        'DOUBLE_DOOR_DOUBLE_SWING',
+        'DOUBLE_DOOR_FOLDING',
+        'DOUBLE_DOOR_LIFTING_VERTICAL',
+        'DOUBLE_DOOR_SINGLE_SWING',
+        'DOUBLE_DOOR_SINGLE_SWING_OPPOSITE_LEFT',
+        'DOUBLE_DOOR_SINGLE_SWING_OPPOSITE_RIGHT',
+        'DOUBLE_DOOR_SLIDING',
+        'DOUBLE_SWING_LEFT',
+        'DOUBLE_SWING_RIGHT',
+        'FOLDING_TO_LEFT',
+        'FOLDING_TO_RIGHT',
+        'LIFTING_HORIZONTAL',
+        'LIFTING_VERTICAL_LEFT',
+        'LIFTING_VERTICAL_RIGHT',
+        'REVOLVING',
+        'REVOLVING_VERTICAL',
+        'ROLLINGUP',
+        'SINGLE_SWING_LEFT',
+        'SINGLE_SWING_RIGHT',
+        'SLIDING_TO_LEFT',
+        'SLIDING_TO_RIGHT',
+        'SWING_FIXED_LEFT',
+        'SWING_FIXED_RIGHT',
+        'USERDEFINED',
+        'NOTDEFINED',
+      ],
+    },
+  },
+  IfcWindow: {
+    ancestors: [
+      'IfcBuiltElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: ['LIGHTDOME', 'SKYLIGHT', 'WINDOW', 'USERDEFINED', 'NOTDEFINED'],
+    typeEntity: 'IfcWindowType',
+    attributeEnumerations: {
+      PartitioningType: [
+        'DOUBLE_PANEL_HORIZONTAL',
+        'DOUBLE_PANEL_VERTICAL',
+        'SINGLE_PANEL',
+        'TRIPLE_PANEL_BOTTOM',
+        'TRIPLE_PANEL_HORIZONTAL',
+        'TRIPLE_PANEL_LEFT',
+        'TRIPLE_PANEL_RIGHT',
+        'TRIPLE_PANEL_TOP',
+        'TRIPLE_PANEL_VERTICAL',
+        'USERDEFINED',
+        'NOTDEFINED',
+      ],
+    },
+  },
+  IfcWindowType: {
+    ancestors: [
+      'IfcBuiltElementType',
+      'IfcElementType',
+      'IfcTypeProduct',
+      'IfcTypeObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: ['LIGHTDOME', 'SKYLIGHT', 'WINDOW', 'USERDEFINED', 'NOTDEFINED'],
+    attributeEnumerations: {
+      PartitioningType: [
+        'DOUBLE_PANEL_HORIZONTAL',
+        'DOUBLE_PANEL_VERTICAL',
+        'SINGLE_PANEL',
+        'TRIPLE_PANEL_BOTTOM',
+        'TRIPLE_PANEL_HORIZONTAL',
+        'TRIPLE_PANEL_LEFT',
+        'TRIPLE_PANEL_RIGHT',
+        'TRIPLE_PANEL_TOP',
+        'TRIPLE_PANEL_VERTICAL',
+        'USERDEFINED',
+        'NOTDEFINED',
+      ],
+    },
+  },
+  IfcSpace: {
+    ancestors: [
+      'IfcSpatialStructureElement',
+      'IfcSpatialElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'BERTH',
+      'EXTERNAL',
+      'GFA',
+      'INTERNAL',
+      'PARKING',
+      'SPACE',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+    typeEntity: 'IfcSpaceType',
+  },
+  IfcSpaceType: {
+    ancestors: [
+      'IfcSpatialStructureElementType',
+      'IfcSpatialElementType',
+      'IfcTypeProduct',
+      'IfcTypeObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'BERTH',
+      'EXTERNAL',
+      'GFA',
+      'INTERNAL',
+      'PARKING',
+      'SPACE',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+  },
   IfcDistributionPort: {
     ancestors: ['IfcPort', 'IfcProduct', 'IfcObject', 'IfcObjectDefinition', 'IfcRoot'],
     predefinedTypes: [
@@ -700,9 +1044,176 @@ export const IFC_ENTITIES: Readonly<Record<string, IfcEntityDefinition>> = {
       'NOTDEFINED',
     ],
   },
+  IfcOpeningElement: {
+    ancestors: [
+      'IfcFeatureElementSubtraction',
+      'IfcFeatureElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: ['OPENING', 'RECESS', 'USERDEFINED', 'NOTDEFINED'],
+  },
+  IfcGeographicElement: {
+    ancestors: ['IfcElement', 'IfcProduct', 'IfcObject', 'IfcObjectDefinition', 'IfcRoot'],
+    predefinedTypes: ['SOIL_BORING_POINT', 'TERRAIN', 'VEGETATION', 'USERDEFINED', 'NOTDEFINED'],
+  },
+  IfcEarthworksCut: {
+    ancestors: [
+      'IfcFeatureElementSubtraction',
+      'IfcFeatureElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'BASE_EXCAVATION',
+      'CUT',
+      'DREDGING',
+      'EXCAVATION',
+      'OVEREXCAVATION',
+      'PAVEMENTMILLING',
+      'STEPEXCAVATION',
+      'TOPSOILREMOVAL',
+      'TRENCH',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+  },
+  IfcEarthworksFill: {
+    ancestors: [
+      'IfcEarthworksElement',
+      'IfcBuiltElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'BACKFILL',
+      'COUNTERWEIGHT',
+      'EMBANKMENT',
+      'SLOPEFILL',
+      'SUBGRADE',
+      'SUBGRADEBED',
+      'TRANSITIONSECTION',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+  },
+};
+
+/** Enumerações do esquema usadas fora de `PredefinedType`. */
+export const IFC_ENUMERATIONS: Readonly<Record<string, readonly string[]>> = {
+  IfcWindowPanelOperationEnum: [
+    'BOTTOMHUNG',
+    'FIXEDCASEMENT',
+    'OTHEROPERATION',
+    'PIVOTHORIZONTAL',
+    'PIVOTVERTICAL',
+    'REMOVABLECASEMENT',
+    'SIDEHUNGLEFTHAND',
+    'SIDEHUNGRIGHTHAND',
+    'SLIDINGHORIZONTAL',
+    'SLIDINGVERTICAL',
+    'TILTANDTURNLEFTHAND',
+    'TILTANDTURNRIGHTHAND',
+    'TOPHUNG',
+    'NOTDEFINED',
+  ],
+  IfcWindowPanelPositionEnum: ['BOTTOM', 'LEFT', 'MIDDLE', 'RIGHT', 'TOP', 'NOTDEFINED'],
+  IfcLayerSetDirectionEnum: ['AXIS1', 'AXIS2', 'AXIS3'],
+  IfcDirectionSenseEnum: ['NEGATIVE', 'POSITIVE'],
 };
 
 export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>> = {
+  Pset_CoveringCommon: {
+    applicable: ['IfcCovering', 'IfcCoveringType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      Reference: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcIdentifier',
+      },
+      Status: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_ElementStatus',
+          values: ['DEMOLISH', 'EXISTING', 'NEW', 'TEMPORARY', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+      AcousticRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      FlammabilityRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      FragilityRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      Combustible: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      SurfaceSpreadOfFlame: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      Finish: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcText',
+      },
+      IsExternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      ThermalTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcThermalTransmittanceMeasure',
+      },
+      FireRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+    },
+  },
+  Pset_CoveringFlooring: {
+    applicable: ['IfcCovering/FLOORING', 'IfcCoveringType/FLOORING'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      HasNonSkidSurface: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      HasAntiStaticSurface: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+    },
+  },
+  Pset_CoveringTypeMembrane: {
+    applicable: ['IfcCovering/MEMBRANE', 'IfcCoveringType/MEMBRANE'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      NominalInstallationDepth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      NominalTransverseInclination: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPlaneAngleMeasure',
+      },
+    },
+  },
   Pset_DistributionPortCommon: {
     applicable: ['IfcDistributionPort'],
     templateType: 'PSET_OCCURRENCEDRIVEN',
@@ -1121,6 +1632,303 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
       },
     },
   },
+  Pset_DoorCommon: {
+    applicable: ['IfcDoor', 'IfcDoorType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      Reference: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcIdentifier',
+      },
+      Status: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_ElementStatus',
+          values: ['DEMOLISH', 'EXISTING', 'NEW', 'TEMPORARY', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+      FireRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      AcousticRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      SecurityRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      DurabilityRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      HygrothermalRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      WaterTightnessRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      MechanicalLoadRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      WindLoadRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      Infiltration: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcVolumetricFlowRateMeasure',
+      },
+      IsExternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      ThermalTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcThermalTransmittanceMeasure',
+      },
+      GlazingAreaFraction: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveRatioMeasure',
+      },
+      HandicapAccessible: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      FireExit: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      HasDrive: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      SelfClosing: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      SmokeStop: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+    },
+  },
+  Pset_DoorLiningProperties: {
+    applicable: ['IfcDoor', 'IfcMember', 'IfcDoorType', 'IfcMemberType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      LiningDepth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      LiningThickness: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNonNegativeLengthMeasure',
+      },
+      ThresholdDepth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      ThresholdThickness: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNonNegativeLengthMeasure',
+      },
+      TransomThickness: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNonNegativeLengthMeasure',
+      },
+      TransomOffset: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLengthMeasure',
+      },
+      LiningOffset: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLengthMeasure',
+      },
+      ThresholdOffset: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLengthMeasure',
+      },
+      CasingThickness: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      CasingDepth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      LiningToPanelOffsetX: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLengthMeasure',
+      },
+      LiningToPanelOffsetY: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLengthMeasure',
+      },
+    },
+  },
+  Pset_DoorPanelProperties: {
+    applicable: ['IfcDoor', 'IfcPlate', 'IfcDoorType', 'IfcPlateType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      PanelDepth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      PanelOperation: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_DoorPanelOperationEnum',
+          values: [
+            'DOUBLE_ACTING',
+            'FIXEDPANEL',
+            'FOLDING',
+            'REVOLVING',
+            'ROLLINGUP',
+            'SLIDING',
+            'SWINGING',
+            'OTHER',
+            'NOTKNOWN',
+            'UNSET',
+            'NOTDEFINED',
+          ],
+        },
+      },
+      PanelWidth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      PanelPosition: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_DoorPanelPositionEnum',
+          values: ['LEFT', 'MIDDLE', 'RIGHT', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+    },
+  },
+  Pset_DoorTypeTurnstile: {
+    applicable: ['IfcDoor/TURNSTILE', 'IfcDoorType/TURNSTILE'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      IsBidirectional: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      TurnstileType: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_TurnstileType',
+          values: [
+            'SWINGGATEBRAKE',
+            'THREEPOLEROTARYBRAKE',
+            'WINGGATEBRAKE',
+            'OTHER',
+            'NOTKNOWN',
+            'UNSET',
+          ],
+        },
+      },
+      NarrowChannelWidth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      WideChannelWidth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+    },
+  },
+  Pset_DoorWindowGlazingType: {
+    applicable: ['IfcDoor', 'IfcWindow', 'IfcDoorType', 'IfcWindowType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      GlassLayers: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcCountMeasure',
+      },
+      GlassThickness1: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      GlassThickness2: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      GlassThickness3: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      FillGas: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      GlassColour: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      IsTempered: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      IsLaminated: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      IsCoated: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      IsWired: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      VisibleLightReflectance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      VisibleLightTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      SolarAbsorption: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      SolarReflectance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      SolarTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      SolarHeatGainTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      ShadingCoefficient: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      ThermalTransmittanceSummer: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcThermalTransmittanceMeasure',
+      },
+      ThermalTransmittanceWinter: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcThermalTransmittanceMeasure',
+      },
+    },
+  },
   Pset_ElementSize: {
     applicable: [
       'IfcDistributionChamberElement',
@@ -1350,6 +2158,24 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
       },
     },
   },
+  Pset_InstallationOccurrence: {
+    applicable: ['IfcAsset', 'IfcElement', 'IfcSystem'],
+    templateType: 'PSET_OCCURRENCEDRIVEN',
+    properties: {
+      InstallationDate: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcDate',
+      },
+      AcceptanceDate: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcDate',
+      },
+      PutIntoOperationDate: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcDate',
+      },
+    },
+  },
   Pset_ManufacturerOccurrence: {
     applicable: ['IfcElement'],
     templateType: 'PSET_OCCURRENCEDRIVEN',
@@ -1431,6 +2257,40 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
       PerformanceCertificate: {
         kind: 'P_REFERENCEVALUE',
         type: 'IfcDocumentReference',
+      },
+    },
+  },
+  Pset_OpeningElementCommon: {
+    applicable: ['IfcOpeningElement'],
+    templateType: 'PSET_OCCURRENCEDRIVEN',
+    properties: {
+      Reference: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcIdentifier',
+      },
+      Status: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_ElementStatus',
+          values: ['DEMOLISH', 'EXISTING', 'NEW', 'TEMPORARY', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+      Purpose: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      FireExit: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      FireRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      AcousticRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
       },
     },
   },
@@ -1708,6 +2568,90 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
       NominalRotationSpeed: {
         kind: 'P_SINGLEVALUE',
         type: 'IfcRotationalFrequencyMeasure',
+      },
+    },
+  },
+  Pset_SlabCommon: {
+    applicable: ['IfcSlab', 'IfcSlabType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      Reference: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcIdentifier',
+      },
+      Status: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_ElementStatus',
+          values: ['DEMOLISH', 'EXISTING', 'NEW', 'TEMPORARY', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+      AcousticRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      FireRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      PitchAngle: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPlaneAngleMeasure',
+      },
+      Combustible: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      SurfaceSpreadOfFlame: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      Compartmentation: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      IsExternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      ThermalTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcThermalTransmittanceMeasure',
+      },
+      LoadBearing: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+    },
+  },
+  Pset_SpaceCommon: {
+    applicable: ['IfcSpatialElement', 'IfcSpatialElementType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      Reference: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcIdentifier',
+      },
+      IsExternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      GrossPlannedArea: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcAreaMeasure',
+      },
+      NetPlannedArea: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcAreaMeasure',
+      },
+      PubliclyAccessible: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      HandicapAccessible: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
       },
     },
   },
@@ -2225,12 +3169,363 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
       },
     },
   },
+  Pset_WallCommon: {
+    applicable: ['IfcWall', 'IfcWallType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      Reference: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcIdentifier',
+      },
+      Status: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_ElementStatus',
+          values: ['DEMOLISH', 'EXISTING', 'NEW', 'TEMPORARY', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+      AcousticRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      FireRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      Combustible: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      SurfaceSpreadOfFlame: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      ThermalTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcThermalTransmittanceMeasure',
+      },
+      IsExternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      LoadBearing: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      ExtendToStructure: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      Compartmentation: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+    },
+  },
+  Pset_WindowCommon: {
+    applicable: ['IfcWindow', 'IfcWindowType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      Reference: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcIdentifier',
+      },
+      Status: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_ElementStatus',
+          values: ['DEMOLISH', 'EXISTING', 'NEW', 'TEMPORARY', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+      AcousticRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      FireRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      SecurityRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      IsExternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      Infiltration: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcVolumetricFlowRateMeasure',
+      },
+      ThermalTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcThermalTransmittanceMeasure',
+      },
+      GlazingAreaFraction: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveRatioMeasure',
+      },
+      HasSillExternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      HasSillInternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      HasDrive: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      SmokeStop: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      FireExit: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      WaterTightnessRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      MechanicalLoadRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      WindLoadRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+    },
+  },
+  Pset_WindowLiningProperties: {
+    applicable: ['IfcMember', 'IfcWindow', 'IfcMemberType', 'IfcWindowType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      LiningDepth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      LiningThickness: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNonNegativeLengthMeasure',
+      },
+      TransomThickness: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNonNegativeLengthMeasure',
+      },
+      MullionThickness: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNonNegativeLengthMeasure',
+      },
+      FirstTransomOffset: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      SecondTransomOffset: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      FirstMullionOffset: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      SecondMullionOffset: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcNormalisedRatioMeasure',
+      },
+      LiningOffset: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLengthMeasure',
+      },
+      LiningToPanelOffsetX: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLengthMeasure',
+      },
+      LiningToPanelOffsetY: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLengthMeasure',
+      },
+    },
+  },
+  Pset_WindowPanelProperties: {
+    applicable: ['IfcPlate', 'IfcWindow', 'IfcPlateType', 'IfcWindowType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      OperationType: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_WindowPanelOperationEnum',
+          values: [
+            'BOTTOMHUNG',
+            'FIXEDCASEMENT',
+            'OTHEROPERATION',
+            'PIVOTHORIZONTAL',
+            'PIVOTVERTICAL',
+            'REMOVABLECASEMENT',
+            'SIDEHUNGLEFTHAND',
+            'SIDEHUNGRIGHTHAND',
+            'SLIDINGHORIZONTAL',
+            'SLIDINGVERTICAL',
+            'TILTANDTURNLEFTHAND',
+            'TILTANDTURNRIGHTHAND',
+            'TOPHUNG',
+            'OTHER',
+            'NOTKNOWN',
+            'UNSET',
+          ],
+        },
+      },
+      PanelPosition: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_WindowPanelPositionEnum',
+          values: ['BOTTOM', 'LEFT', 'MIDDLE', 'RIGHT', 'TOP', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+      FrameDepth: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+      FrameThickness: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcPositiveLengthMeasure',
+      },
+    },
+  },
+  Qto_CoveringBaseQuantities: {
+    applicable: ['IfcCovering', 'IfcCoveringType'],
+    templateType: 'QTO_TYPEDRIVENOVERRIDE',
+    properties: {
+      Width: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      GrossArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      NetArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+    },
+  },
+  Qto_DoorBaseQuantities: {
+    applicable: ['IfcDoor', 'IfcDoorType'],
+    templateType: 'QTO_TYPEDRIVENOVERRIDE',
+    properties: {
+      Width: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Height: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Perimeter: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Area: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+    },
+  },
+  Qto_EarthworksCutBaseQuantities: {
+    applicable: ['IfcEarthworksCut'],
+    templateType: 'QTO_OCCURRENCEDRIVEN',
+    properties: {
+      Length: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Width: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Depth: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      UndisturbedVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+      LooseVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+      Weight: {
+        kind: 'Q_WEIGHT',
+        type: null,
+      },
+    },
+  },
+  Qto_EarthworksFillBaseQuantities: {
+    applicable: ['IfcEarthworksFill'],
+    templateType: 'QTO_OCCURRENCEDRIVEN',
+    properties: {
+      Length: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Width: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Depth: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      CompactedVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+      LooseVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+    },
+  },
   Qto_FilterBaseQuantities: {
     applicable: ['IfcFilter', 'IfcFilterType'],
     templateType: 'QTO_TYPEDRIVENOVERRIDE',
     properties: {
       GrossWeight: {
         kind: 'Q_WEIGHT',
+        type: null,
+      },
+    },
+  },
+  Qto_OpeningElementBaseQuantities: {
+    applicable: ['IfcOpeningElement'],
+    templateType: 'QTO_TYPEDRIVENOVERRIDE',
+    properties: {
+      Width: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Height: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Depth: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Area: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      Volume: {
+        kind: 'Q_VOLUME',
         type: null,
       },
     },
@@ -2309,6 +3604,110 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
       },
     },
   },
+  Qto_SlabBaseQuantities: {
+    applicable: ['IfcSlab', 'IfcSlabType'],
+    templateType: 'QTO_TYPEDRIVENOVERRIDE',
+    properties: {
+      Width: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Length: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Depth: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Perimeter: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      GrossArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      NetArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      GrossVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+      NetVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+      GrossWeight: {
+        kind: 'Q_WEIGHT',
+        type: null,
+      },
+      NetWeight: {
+        kind: 'Q_WEIGHT',
+        type: null,
+      },
+    },
+  },
+  Qto_SpaceBaseQuantities: {
+    applicable: ['IfcSpace', 'IfcSpaceType'],
+    templateType: 'QTO_TYPEDRIVENOVERRIDE',
+    properties: {
+      Height: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      FinishCeilingHeight: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      FinishFloorHeight: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      GrossPerimeter: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      NetPerimeter: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      GrossFloorArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      NetFloorArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      GrossWallArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      NetWallArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      GrossCeilingArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      NetCeilingArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      GrossVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+      NetVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+    },
+  },
   Qto_TankBaseQuantities: {
     applicable: ['IfcTank', 'IfcTankType'],
     templateType: 'QTO_TYPEDRIVENOVERRIDE',
@@ -2333,6 +3732,78 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
     properties: {
       GrossWeight: {
         kind: 'Q_WEIGHT',
+        type: null,
+      },
+    },
+  },
+  Qto_WallBaseQuantities: {
+    applicable: ['IfcWall', 'IfcWallType'],
+    templateType: 'QTO_TYPEDRIVENOVERRIDE',
+    properties: {
+      Length: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Width: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Height: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      GrossFootPrintArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      NetFootPrintArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      GrossSideArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      NetSideArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      GrossVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+      NetVolume: {
+        kind: 'Q_VOLUME',
+        type: null,
+      },
+      GrossWeight: {
+        kind: 'Q_WEIGHT',
+        type: null,
+      },
+      NetWeight: {
+        kind: 'Q_WEIGHT',
+        type: null,
+      },
+    },
+  },
+  Qto_WindowBaseQuantities: {
+    applicable: ['IfcWindow', 'IfcWindowType'],
+    templateType: 'QTO_TYPEDRIVENOVERRIDE',
+    properties: {
+      Width: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Height: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Perimeter: {
+        kind: 'Q_LENGTH',
+        type: null,
+      },
+      Area: {
+        kind: 'Q_AREA',
         type: null,
       },
     },

@@ -60,6 +60,10 @@ interface Group {
 }
 
 const isInfra = (context: CommandContext): boolean => context.project.discipline === 'infra';
+const isArchitecture = (context: CommandContext): boolean =>
+  context.project.discipline === 'architecture';
+/** Ambientes da rede hidráulica (MEP e Infra). */
+const isNetwork = (context: CommandContext): boolean => !isArchitecture(context);
 
 /** Escala de documentação da planta do ambiente (cada ambiente tem a sua). */
 function ScaleField() {
@@ -171,8 +175,48 @@ function BimSummary() {
 const RIBBON: Record<TaskId, readonly Group[]> = {
   model: [
     {
+      // Ambiente Arquitetura: as ferramentas de criação da edificação. As da rede continuam
+      // nos outros ambientes, nos atalhos e na busca de comandos.
+      id: 'arch-create',
+      label: 'Arquitetura',
+      when: isArchitecture,
+      items: [
+        { command: 'arch.wall' },
+        { command: 'arch.slab' },
+        { command: 'arch.flooring' },
+        { command: 'arch.door' },
+        { command: 'arch.window' },
+        { command: 'arch.space' },
+        { command: 'arch.floorOpening', compact: true },
+      ],
+    },
+    {
+      id: 'arch-modify',
+      label: 'Modificar',
+      when: isArchitecture,
+      dense: true,
+      items: [
+        { command: 'tool.select' },
+        { command: 'arch.move', compact: true, label: 'Mover' },
+        { command: 'arch.copy', compact: true, label: 'Copiar' },
+        { command: 'arch.rotate', compact: true, label: 'Girar' },
+        { command: 'arch.mirror', compact: true, label: 'Espelhar' },
+        { command: 'modify.delete', compact: true },
+      ],
+    },
+    {
+      id: 'arch-library',
+      label: 'Biblioteca de arquitetura',
+      when: isArchitecture,
+      items: [
+        { command: 'arch.catalog', label: 'Catálogo' },
+        { command: 'arch.quantities', label: 'Quantitativo', compact: true },
+      ],
+    },
+    {
       id: 'create',
       label: 'Criar',
+      when: isNetwork,
       items: [
         { command: 'tool.pipe', label: 'Tubos' },
         {
@@ -195,6 +239,7 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     {
       id: 'modify',
       label: 'Modificar',
+      when: isNetwork,
       // "Girar 90°" (Espaço) e "Alinhar por pontos" (N, botão direito) ficam no teclado, no menu
       // e na busca (Ctrl+K): a faixa a 1920 px não comporta mais botões sem quebrar a linha.
       items: [
@@ -210,6 +255,7 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
     {
       id: 'connect',
       label: 'Conectar',
+      when: isNetwork,
       items: [
         // "Desconectar" fica em cada porta do painel de propriedades e na busca (Ctrl+K): a
         // faixa a 1920 px não comporta mais um botão sem quebrar a linha.
@@ -219,7 +265,7 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       ],
     },
     { id: 'measure', label: 'Medir', items: [{ command: 'tool.measure', compact: true }] },
-    { id: 'catalog', label: 'Biblioteca', items: [{ command: 'catalog.open' }] },
+    { id: 'catalog', label: 'Biblioteca', when: isNetwork, items: [{ command: 'catalog.open' }] },
     {
       id: 'terrain',
       label: 'Terreno (Planta Infra)',
@@ -229,6 +275,17 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
         { command: 'terrain.area', compact: true },
         { command: 'terrain.profile', compact: true },
         { command: 'terrain.query', compact: true },
+      ],
+    },
+    {
+      id: 'earthwork',
+      label: 'Terraplenagem',
+      when: isInfra,
+      items: [
+        { command: 'terrain.edit' },
+        { command: 'terrain.platform' },
+        { command: 'terrain.cutfill' },
+        { command: 'terrain.volumes' },
       ],
     },
   ],
@@ -389,7 +446,14 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       label: 'Verificação',
       items: [{ command: 'analysis.validation' }, { command: 'analysis.clashes' }],
     },
-    { id: 'quantities', label: 'Quantitativos', items: [{ command: 'analysis.quantities' }] },
+    {
+      id: 'quantities',
+      label: 'Quantitativos',
+      items: [
+        { command: 'analysis.quantities' },
+        { command: 'arch.quantities', label: 'Arquitetura', testId: 'analysis-arch-quantities' },
+      ],
+    },
     {
       id: 'profile',
       label: 'Perfil e recobrimento',

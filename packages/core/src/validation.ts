@@ -1,9 +1,11 @@
+import { archIntegrityProblem } from './architecture/ops';
 import { checkPortCompatibility, getFreePorts, portKey, resolvePort } from './connectivity';
 import { MIN_PIPE_LENGTH, POSITION_TOLERANCE } from './dimensions';
 import { distance } from './math';
 import { pipeLength } from './ports';
 import type { PipeSpec, Project } from './schema';
 import { tankProblem } from './tanks';
+import { designSurfaceFor } from './terrain/grading';
 
 export type Severity = 'error' | 'warning';
 
@@ -187,6 +189,44 @@ export function validateProject(project: Project): ValidationIssue[] {
         message: 'Há uma etiqueta na planta que referencia um elemento inexistente.',
         elementIds: [],
       });
+    }
+  }
+
+  // Arquitetura: as operações só gravam estados íntegros; um projeto editado por fora
+  // (arquivo alterado à mão) aparece aqui com o motivo.
+  const archProblem = archIntegrityProblem(project);
+  if (archProblem) {
+    issues.push({
+      severity: 'error',
+      code: archProblem.code,
+      message: archProblem.message,
+      elementIds: [],
+    });
+  }
+
+  // Terraplenagem: os platôs são gravados só quando podem ser gerados, mas a superfície pode
+  // mudar depois (terreno trocado, limite reduzido, pontos editados). Um platô que deixou de
+  // caber no terreno fica fora do terreno projetado e dos volumes — e aparece aqui.
+  if (project.earthworks.platforms.length > 0) {
+    if (!project.terrain) {
+      issues.push({
+        severity: 'warning',
+        code: 'EARTHWORKS_NO_TERRAIN',
+        message: `O projeto tem ${project.earthworks.platforms.length} platô(s) e nenhuma superfície de terreno: não há terreno projetado nem volumes.`,
+        elementIds: [],
+      });
+    } else {
+      const design = designSurfaceFor(project.terrain, project.earthworks.platforms);
+      for (const failure of design.failures) {
+        const name =
+          project.earthworks.platforms.find((p) => p.id === failure.platformId)?.name ?? 'Platô';
+        issues.push({
+          severity: 'warning',
+          code: 'PLATFORM_NOT_GENERATED',
+          message: `"${name}" não pôde ser gerado sobre o terreno atual e está fora dos volumes: ${failure.error.message}`,
+          elementIds: [],
+        });
+      }
     }
   }
 

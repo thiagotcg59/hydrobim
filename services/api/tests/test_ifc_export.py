@@ -135,11 +135,16 @@ def test_ifc_schema_and_model(example):
         ("TIMEUNIT", "SECOND", None),
         ("PRESSUREUNIT", "PASCAL", None),
         ("POWERUNIT", "WATT", None),
+        # Arquitetura: massa (kg) e temperatura (K) entram na transmitância térmica.
+        ("MASSUNIT", "GRAM", "KILO"),
+        ("THERMODYNAMICTEMPERATUREUNIT", "KELVIN", None),
     }
-    # Unidades derivadas das propriedades de vazão (m³/s) e de rotação (s⁻¹).
+    # Unidades derivadas das propriedades de vazão (m³/s), de rotação (s⁻¹) e de
+    # transmitância térmica (W/m²·K).
     assert {u.UnitType for u in units if u.is_a("IfcDerivedUnit")} == {
         "VOLUMETRICFLOWRATEUNIT",
         "ROTATIONALFREQUENCYUNIT",
+        "THERMALTRANSMITTANCEUNIT",
     }
     for element in elements:
         entity = model.by_guid(global_id(element["id"]))

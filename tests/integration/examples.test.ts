@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getSpecification } from '@hydrobim/catalog';
 import { getPorts, parseProject, validateProject } from '@hydrobim/core';
-import { buildElementGeometry } from '@hydrobim/geometry';
+import { buildArchGeometry, buildElementGeometry } from '@hydrobim/geometry';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -35,6 +35,20 @@ describe('projetos de exemplo', () => {
       const geometry = buildElementGeometry(element);
       expect(geometry.parts.length).toBeGreaterThan(0);
       for (const part of geometry.parts) {
+        expect(part.mesh.positions.every(Number.isFinite)).toBe(true);
+      }
+    }
+
+    // Arquitetura (quando houver): todo elemento físico gera malha; ambientes, não.
+    for (const element of project.architecture.elements) {
+      const geometry = buildArchGeometry(project, element);
+      if (element.kind === 'space') {
+        expect(geometry).toBeNull();
+        continue;
+      }
+      expect(geometry, `${element.name}: sem geometria`).not.toBeNull();
+      for (const part of geometry?.parts ?? []) {
+        expect(part.mesh.indices.length).toBeGreaterThan(0);
         expect(part.mesh.positions.every(Number.isFinite)).toBe(true);
       }
     }

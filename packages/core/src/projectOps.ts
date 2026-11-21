@@ -69,6 +69,15 @@ export function removeLevel(project: Project, id: string): Result<Project> {
       `A planta "${plan.name}" é deste nível; exclua a vista ou mude o nível dela antes.`,
     );
   }
+  const used = project.architecture.elements.filter(
+    (element) => 'levelId' in element && element.levelId === id,
+  ).length;
+  if (used > 0) {
+    return fail(
+      'LEVEL_IN_USE',
+      `Há ${used} elemento(s) de arquitetura neste nível; mova-os para outro nível ou exclua-os antes.`,
+    );
+  }
   return ok({ ...project, updatedAt: now(), levels: project.levels.filter((l) => l.id !== id) });
 }
 

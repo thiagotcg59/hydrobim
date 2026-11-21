@@ -1,0 +1,811 @@
+{
+  "format": "hydrobim-project",
+  "schemaVersion": 17,
+  "id": "3e8706e5-1c69-440d-9302-eb28b79fcff5",
+  "name": "Edificação simples — arquitetura e água fria",
+  "discipline": "architecture",
+  "units": {
+    "length": "m",
+    "angle": "rad"
+  },
+  "createdAt": "2026-11-21T19:51:14.021Z",
+  "updatedAt": "2026-11-21T19:51:14.051Z",
+  "systems": [
+    {
+      "id": "c4316d80-7d04-4800-8a91-8aa21c1aea43",
+      "name": "Água fria",
+      "kind": "domesticColdWater"
+    }
+  ],
+  "levels": [
+    {
+      "id": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+      "name": "Térreo",
+      "elevation": 0
+    },
+    {
+      "id": "c728337b-991a-4ca7-9996-eded330ff1ab",
+      "name": "Cobertura",
+      "elevation": 2.8
+    }
+  ],
+  "families": [],
+  "tankFamilies": [],
+  "pumpFamilies": [],
+  "ifcTypes": {},
+  "georeference": null,
+  "terrain": null,
+  "earthworks": {
+    "platforms": [],
+    "swellPercent": null,
+    "compactionFactor": null,
+    "reusePercent": null
+  },
+  "elements": [
+    {
+      "id": "49e9581a-d173-4af5-b879-f3b490043955",
+      "name": "Tubo 1",
+      "systemId": "c4316d80-7d04-4800-8a91-8aa21c1aea43",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 25,
+        "sizeLabel": "DE 32 (DN 25)",
+        "outerDiameter": 0.032,
+        "wallThickness": 0.0021000000000000003,
+        "innerDiameter": 0.0278
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T19:51:14.047Z",
+        "updatedAt": "2026-11-21T19:51:14.047Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 5.5,
+        "y": 3.5,
+        "z": -0.5
+      },
+      "end": {
+        "x": 5.5,
+        "y": 3.5,
+        "z": 0.552
+      }
+    },
+    {
+      "id": "bcd78829-3dff-49e5-9cda-3dae48f6cefb",
+      "name": "Joelho 1",
+      "systemId": "c4316d80-7d04-4800-8a91-8aa21c1aea43",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 25,
+        "sizeLabel": "DE 32 (DN 25)",
+        "outerDiameter": 0.032,
+        "wallThickness": 0.0021000000000000003,
+        "innerDiameter": 0.0278
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T19:51:14.047Z",
+        "updatedAt": "2026-11-21T19:51:14.047Z",
+        "revision": 0
+      },
+      "kind": "elbow",
+      "ends": {},
+      "placement": {
+        "position": {
+          "x": 5.5,
+          "y": 3.5,
+          "z": 0.6000000000000001
+        },
+        "rotation": {
+          "x": 0.7071067811865475,
+          "y": 0,
+          "z": 0.7071067811865476,
+          "w": 0
+        }
+      },
+      "angle": 1.5707963267948968,
+      "bendRadius": 0.048
+    },
+    {
+      "id": "d4588477-f87f-4137-ad78-053e1ffc0684",
+      "name": "Tubo 2",
+      "systemId": "c4316d80-7d04-4800-8a91-8aa21c1aea43",
+      "spec": {
+        "specificationId": "pvc-soldavel-nbr5648",
+        "material": "pvc",
+        "standard": "ABNT NBR 5648",
+        "jointType": "solventWeld",
+        "pressureClass": "PN 7,5",
+        "dn": 25,
+        "sizeLabel": "DE 32 (DN 25)",
+        "outerDiameter": 0.032,
+        "wallThickness": 0.0021000000000000003,
+        "innerDiameter": 0.0278
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T19:51:14.047Z",
+        "updatedAt": "2026-11-21T19:51:14.047Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 5.5,
+        "y": 3.452,
+        "z": 0.6000000000000001
+      },
+      "end": {
+        "x": 5.5,
+        "y": 1.5,
+        "z": 0.6
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1042bf6-7c38-431c-9db5-900360c63f3a",
+      "a": {
+        "elementId": "49e9581a-d173-4af5-b879-f3b490043955",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "bcd78829-3dff-49e5-9cda-3dae48f6cefb",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "911675ba-b470-49fb-878b-1567699a9781",
+      "a": {
+        "elementId": "bcd78829-3dff-49e5-9cda-3dae48f6cefb",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "d4588477-f87f-4137-ad78-053e1ffc0684",
+        "portId": "start"
+      }
+    }
+  ],
+  "annotations": [],
+  "drawingScale": 50,
+  "infra": {
+    "drawingScale": 1000,
+    "basemap": {
+      "sourceId": null,
+      "visible": true,
+      "opacity": 1
+    },
+    "layers": {
+      "network": true,
+      "equipment": true,
+      "terrain": true,
+      "references": true,
+      "annotations": true
+    },
+    "labels": {
+      "names": false,
+      "lengths": false,
+      "elevations": false
+    }
+  },
+  "views": [
+    {
+      "id": "1cf16cb7-cf83-45f6-8cb2-456de11f6de9",
+      "name": "Planta — Térreo",
+      "visibility": {
+        "hiddenSystemIds": [],
+        "hiddenCategories": [],
+        "details": true
+      },
+      "scale": 50,
+      "style": {
+        "theme": "color",
+        "thinLines": true
+      },
+      "crop": null,
+      "frame": null,
+      "details": [],
+      "kind": "plan",
+      "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+      "cutHeight": 2.8,
+      "depth": 3.0999999999999996,
+      "archCutHeight": 1.2,
+      "rotation": 0
+    }
+  ],
+  "architecture": {
+    "types": [
+      {
+        "id": "f431e4bc-a942-478d-bb3b-ab36ca8d8792",
+        "name": "Alvenaria cerâmica 18 cm",
+        "familyId": "arq-parede-alvenaria-ceramica",
+        "generic": true,
+        "source": null,
+        "manufacturing": {},
+        "classifications": [],
+        "ifcPredefinedType": "SOLIDWALL",
+        "ifc": {},
+        "layers": [
+          {
+            "id": "26039373-cf18-4401-94a1-fcefdcc5723e",
+            "material": "Revestimento argamassado",
+            "thickness": 0.02,
+            "function": "finish",
+            "hatch": "none"
+          },
+          {
+            "id": "d595d518-d78b-458b-a814-e2148c9500a8",
+            "material": "Alvenaria de bloco cerâmico",
+            "thickness": 0.14,
+            "function": "structure",
+            "hatch": "diagonal"
+          },
+          {
+            "id": "a0618609-1b0a-43c5-aa22-3b2739fdb0e9",
+            "material": "Revestimento argamassado",
+            "thickness": 0.02,
+            "function": "finish",
+            "hatch": "none"
+          }
+        ],
+        "category": "wall"
+      },
+      {
+        "id": "2f5e6799-9589-47c0-b3e9-05b16095be66",
+        "name": "Drywall 9,5 cm",
+        "familyId": "arq-parede-drywall",
+        "generic": true,
+        "source": null,
+        "manufacturing": {},
+        "classifications": [],
+        "ifcPredefinedType": "ELEMENTEDWALL",
+        "ifc": {},
+        "layers": [
+          {
+            "id": "7293d1e0-0f65-45ef-b5b0-024e985edbac",
+            "material": "Chapa de gesso",
+            "thickness": 0.0125,
+            "function": "finish",
+            "hatch": "none"
+          },
+          {
+            "id": "f9512572-5035-44ad-aa88-edf00092d222",
+            "material": "Estrutura de montantes (vazio)",
+            "thickness": 0.07,
+            "function": "structure",
+            "hatch": "none"
+          },
+          {
+            "id": "a87b970b-94f8-4a70-9ee0-90518b866241",
+            "material": "Chapa de gesso",
+            "thickness": 0.0125,
+            "function": "finish",
+            "hatch": "none"
+          }
+        ],
+        "category": "wall"
+      },
+      {
+        "id": "55d7c0ff-f4f6-45d4-a01d-ca1e851dadc5",
+        "name": "Laje maciça 12 cm",
+        "familyId": "arq-laje-concreto",
+        "generic": true,
+        "source": null,
+        "manufacturing": {},
+        "classifications": [],
+        "ifcPredefinedType": "FLOOR",
+        "ifc": {},
+        "layers": [
+          {
+            "id": "1e3fdf8f-3ba1-48b8-8692-7df8d2ae94e7",
+            "material": "Concreto armado",
+            "thickness": 0.12,
+            "function": "structure",
+            "hatch": "dotted"
+          }
+        ],
+        "category": "slab"
+      },
+      {
+        "id": "1023a297-8a28-4aa5-ba03-c5c38d430653",
+        "name": "Porcelanato sobre contrapiso",
+        "familyId": "arq-piso-ceramica-porcelanato",
+        "generic": true,
+        "source": null,
+        "manufacturing": {},
+        "classifications": [],
+        "ifcPredefinedType": "FLOORING",
+        "ifc": {},
+        "layers": [
+          {
+            "id": "05e62eaf-bbad-445b-86b2-c2bfb31dc55c",
+            "material": "Placa cerâmica ou porcelanato",
+            "thickness": 0.01,
+            "function": "finish",
+            "hatch": "none"
+          },
+          {
+            "id": "f76d32c5-58db-4231-9e93-af72099d5e31",
+            "material": "Contrapiso",
+            "thickness": 0.04,
+            "function": "substrate",
+            "hatch": "none"
+          }
+        ],
+        "category": "flooring"
+      },
+      {
+        "id": "18d59294-485c-48af-982e-282e6ad0bde6",
+        "name": "Porta de giro 80 × 210",
+        "familyId": "arq-porta-giro-1",
+        "generic": true,
+        "source": null,
+        "manufacturing": {},
+        "classifications": [],
+        "ifcPredefinedType": "DOOR",
+        "ifc": {},
+        "category": "door",
+        "operation": "singleSwing",
+        "width": 0.8,
+        "height": 2.1,
+        "frameWidth": 0.05,
+        "panelThickness": 0.035,
+        "materials": {}
+      },
+      {
+        "id": "9527803e-da17-43ab-b11a-4d99b9769826",
+        "name": "Porta de correr 90 × 210",
+        "familyId": "arq-porta-correr",
+        "generic": true,
+        "source": null,
+        "manufacturing": {},
+        "classifications": [],
+        "ifcPredefinedType": "DOOR",
+        "ifc": {},
+        "category": "door",
+        "operation": "sliding",
+        "width": 0.9,
+        "height": 2.1,
+        "frameWidth": 0.05,
+        "panelThickness": 0.035,
+        "materials": {}
+      },
+      {
+        "id": "36958d6e-3d6f-4ec2-9ee3-efe206c39fb8",
+        "name": "Janela de correr 120 × 100",
+        "familyId": "arq-janela-correr",
+        "generic": true,
+        "source": null,
+        "manufacturing": {},
+        "classifications": [],
+        "ifcPredefinedType": "WINDOW",
+        "ifc": {},
+        "category": "window",
+        "operation": "sliding",
+        "width": 1.2,
+        "height": 1,
+        "sillHeight": 1.1,
+        "panels": 2,
+        "frameWidth": 0.05,
+        "materials": {}
+      },
+      {
+        "id": "c8b158d8-2239-4e95-8605-b365ee5529de",
+        "name": "Maxim-ar 80 × 60",
+        "familyId": "arq-janela-maxim-ar",
+        "generic": true,
+        "source": null,
+        "manufacturing": {},
+        "classifications": [],
+        "ifcPredefinedType": "WINDOW",
+        "ifc": {},
+        "category": "window",
+        "operation": "topHung",
+        "width": 0.8,
+        "height": 0.6,
+        "sillHeight": 1.6,
+        "panels": 1,
+        "frameWidth": 0.05,
+        "materials": {}
+      }
+    ],
+    "elements": [
+      {
+        "id": "4794be56-a199-4f76-81f2-6b59500ff647",
+        "name": "Parede 1",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.031Z",
+          "updatedAt": "2026-11-21T19:51:14.031Z",
+          "revision": 0
+        },
+        "kind": "wall",
+        "typeId": "f431e4bc-a942-478d-bb3b-ab36ca8d8792",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "start": {
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "x": 6,
+          "y": 0
+        },
+        "locationLine": "center",
+        "baseOffset": 0,
+        "height": 2.8
+      },
+      {
+        "id": "ec10f1d2-4bae-4103-8a2f-5a449330894f",
+        "name": "Parede 2",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.033Z",
+          "updatedAt": "2026-11-21T19:51:14.033Z",
+          "revision": 0
+        },
+        "kind": "wall",
+        "typeId": "f431e4bc-a942-478d-bb3b-ab36ca8d8792",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "start": {
+          "x": 6,
+          "y": 0
+        },
+        "end": {
+          "x": 6,
+          "y": 4
+        },
+        "locationLine": "center",
+        "baseOffset": 0,
+        "height": 2.8
+      },
+      {
+        "id": "79a38c71-e34b-4938-8ab4-8427aeecf612",
+        "name": "Parede 3",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.033Z",
+          "updatedAt": "2026-11-21T19:51:14.033Z",
+          "revision": 0
+        },
+        "kind": "wall",
+        "typeId": "f431e4bc-a942-478d-bb3b-ab36ca8d8792",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "start": {
+          "x": 6,
+          "y": 4
+        },
+        "end": {
+          "x": 0,
+          "y": 4
+        },
+        "locationLine": "center",
+        "baseOffset": 0,
+        "height": 2.8
+      },
+      {
+        "id": "90a7c026-28ad-4667-914e-d8e521fa1801",
+        "name": "Parede 4",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.033Z",
+          "updatedAt": "2026-11-21T19:51:14.033Z",
+          "revision": 0
+        },
+        "kind": "wall",
+        "typeId": "f431e4bc-a942-478d-bb3b-ab36ca8d8792",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "start": {
+          "x": 0,
+          "y": 4
+        },
+        "end": {
+          "x": 0,
+          "y": 0
+        },
+        "locationLine": "center",
+        "baseOffset": 0,
+        "height": 2.8
+      },
+      {
+        "id": "e5b8c366-8bc7-44ad-8bf1-44a10b607b16",
+        "name": "Parede 5",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.034Z",
+          "updatedAt": "2026-11-21T19:51:14.034Z",
+          "revision": 0
+        },
+        "kind": "wall",
+        "typeId": "2f5e6799-9589-47c0-b3e9-05b16095be66",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "start": {
+          "x": 4,
+          "y": 0
+        },
+        "end": {
+          "x": 4,
+          "y": 4
+        },
+        "locationLine": "center",
+        "baseOffset": 0,
+        "height": 2.8
+      },
+      {
+        "id": "2d012db3-997a-4086-bab6-6a7e88d8597e",
+        "name": "Porta 1",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.034Z",
+          "updatedAt": "2026-11-21T19:51:14.034Z",
+          "revision": 0
+        },
+        "typeId": "18d59294-485c-48af-982e-282e6ad0bde6",
+        "hostId": "4794be56-a199-4f76-81f2-6b59500ff647",
+        "offset": 1.2,
+        "sillHeight": 0,
+        "hand": "left",
+        "facing": 1,
+        "kind": "door"
+      },
+      {
+        "id": "bdcf466f-780c-4062-afe5-d67cc11b0ca9",
+        "name": "Janela 1",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.037Z",
+          "updatedAt": "2026-11-21T19:51:14.037Z",
+          "revision": 0
+        },
+        "typeId": "36958d6e-3d6f-4ec2-9ee3-efe206c39fb8",
+        "hostId": "4794be56-a199-4f76-81f2-6b59500ff647",
+        "offset": 2.8,
+        "sillHeight": 1.1,
+        "hand": "left",
+        "facing": 1,
+        "kind": "window"
+      },
+      {
+        "id": "7533460b-251a-472e-9468-549e53713125",
+        "name": "Janela 2",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.039Z",
+          "updatedAt": "2026-11-21T19:51:14.039Z",
+          "revision": 0
+        },
+        "typeId": "36958d6e-3d6f-4ec2-9ee3-efe206c39fb8",
+        "hostId": "79a38c71-e34b-4938-8ab4-8427aeecf612",
+        "offset": 4,
+        "sillHeight": 1.1,
+        "hand": "left",
+        "facing": 1,
+        "kind": "window"
+      },
+      {
+        "id": "8b921663-3108-47f5-b301-7330f58f9338",
+        "name": "Janela 3",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.039Z",
+          "updatedAt": "2026-11-21T19:51:14.039Z",
+          "revision": 0
+        },
+        "typeId": "c8b158d8-2239-4e95-8605-b365ee5529de",
+        "hostId": "ec10f1d2-4bae-4103-8a2f-5a449330894f",
+        "offset": 2,
+        "sillHeight": 1.6,
+        "hand": "left",
+        "facing": 1,
+        "kind": "window"
+      },
+      {
+        "id": "61b2050b-a2a3-48ca-8618-40c8acf67ad9",
+        "name": "Porta 2",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.040Z",
+          "updatedAt": "2026-11-21T19:51:14.040Z",
+          "revision": 0
+        },
+        "typeId": "9527803e-da17-43ab-b11a-4d99b9769826",
+        "hostId": "e5b8c366-8bc7-44ad-8bf1-44a10b607b16",
+        "offset": 2.6,
+        "sillHeight": 0,
+        "hand": "right",
+        "facing": 1,
+        "kind": "door"
+      },
+      {
+        "id": "4dc290fe-3662-4f72-bf43-ac3370c99bb6",
+        "name": "Laje 1",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.040Z",
+          "updatedAt": "2026-11-21T19:51:14.042Z",
+          "revision": 1
+        },
+        "typeId": "55d7c0ff-f4f6-45d4-a01d-ca1e851dadc5",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "boundary": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 6,
+            "y": 0
+          },
+          {
+            "x": 6,
+            "y": 4
+          },
+          {
+            "x": 0,
+            "y": 4
+          }
+        ],
+        "openings": [
+          {
+            "id": "83275c3b-0a19-42b6-b451-4157ba107537",
+            "boundary": [
+              {
+                "x": 5.3,
+                "y": 3.7
+              },
+              {
+                "x": 5.7,
+                "y": 3.7
+              },
+              {
+                "x": 5.7,
+                "y": 3.3
+              },
+              {
+                "x": 5.3,
+                "y": 3.3
+              }
+            ]
+          }
+        ],
+        "kind": "slab",
+        "offset": 0
+      },
+      {
+        "id": "1092cf89-5523-4186-ad7b-42fb26b2dfc9",
+        "name": "Piso 1",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.042Z",
+          "updatedAt": "2026-11-21T19:51:14.045Z",
+          "revision": 1
+        },
+        "typeId": "1023a297-8a28-4aa5-ba03-c5c38d430653",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "boundary": [
+          {
+            "x": 0.09,
+            "y": 0.09
+          },
+          {
+            "x": 5.91,
+            "y": 0.09
+          },
+          {
+            "x": 5.91,
+            "y": 3.91
+          },
+          {
+            "x": 0.09,
+            "y": 3.91
+          }
+        ],
+        "openings": [
+          {
+            "id": "2aea9d02-f59e-4445-8a05-7ccd58000747",
+            "boundary": [
+              {
+                "x": 5.3,
+                "y": 3.7
+              },
+              {
+                "x": 5.7,
+                "y": 3.7
+              },
+              {
+                "x": 5.7,
+                "y": 3.3
+              },
+              {
+                "x": 5.3,
+                "y": 3.3
+              }
+            ]
+          }
+        ],
+        "kind": "flooring",
+        "offset": 0
+      },
+      {
+        "id": "bfae52ad-0cbd-40c7-b4b2-31bf46f21b88",
+        "name": "Sala",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.045Z",
+          "updatedAt": "2026-11-21T19:51:14.045Z",
+          "revision": 0
+        },
+        "kind": "space",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "number": "01",
+        "boundary": [
+          {
+            "x": 0.09,
+            "y": 0.09
+          },
+          {
+            "x": 3.9525,
+            "y": 0.09
+          },
+          {
+            "x": 3.9525,
+            "y": 3.91
+          },
+          {
+            "x": 0.09,
+            "y": 3.91
+          }
+        ],
+        "offset": 0,
+        "height": 2.6
+      },
+      {
+        "id": "0b2258bb-7fca-45ba-a79e-06071043241b",
+        "name": "Banheiro",
+        "properties": {},
+        "meta": {
+          "createdAt": "2026-11-21T19:51:14.047Z",
+          "updatedAt": "2026-11-21T19:51:14.047Z",
+          "revision": 0
+        },
+        "kind": "space",
+        "levelId": "36965e6c-bf4d-41de-a297-54a0dd7224ce",
+        "number": "02",
+        "boundary": [
+          {
+            "x": 4.0475,
+            "y": 0.09
+          },
+          {
+            "x": 5.91,
+            "y": 0.09
+          },
+          {
+            "x": 5.91,
+            "y": 3.91
+          },
+          {
+            "x": 4.0475,
+            "y": 3.91
+          }
+        ],
+        "offset": 0,
+        "height": null
+      }
+    ]
+  }
+}
