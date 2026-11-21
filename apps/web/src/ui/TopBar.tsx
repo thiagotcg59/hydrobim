@@ -220,7 +220,7 @@ export function TopBar() {
         ) : (
           <Circle size={8} fill="currentColor" strokeWidth={0} aria-hidden />
         )}
-        {saveState}
+        <span className="topbar__dirty-label">{saveState}</span>
       </span>
 
       <div className="topbar__environment">
@@ -239,7 +239,7 @@ export function TopBar() {
               title={title}
             >
               <Icon size={15} aria-hidden />
-              {DISCIPLINE_LABELS[value]}
+              <span className="segmented__label">{DISCIPLINE_LABELS[value]}</span>
             </button>
           ))}
         </div>

@@ -98,6 +98,7 @@ import { useTerrainKeys } from '../terrain/useTerrainKeys';
 import { AnnotationInspector } from './AnnotationInspector';
 import { rectOf, windowModeOf } from '../editor/crossingSelection';
 import { axisShape, elementsInPlanWindow, outlineShape } from './planSelection';
+import { LONG_PRESS_MS, pinchWindow, TOUCH_TOLERANCE_PX, type ScreenPoint } from './touchGestures';
 import {
   AnnotationShape,
   annotationPoints,
@@ -132,7 +133,17 @@ interface Drag {
   readonly archId: string | null;
   readonly origin: Point2;
   readonly view: View;
+  /** Toque (dedo): tolerância maior para distinguir toque de arrasto e toque longo. */
+  readonly touch: boolean;
   moved: boolean;
+}
+
+/** Pinça em andamento: os dois dedos e a janela no início do gesto. */
+interface Pinch {
+  readonly ids: readonly [number, number];
+  readonly a0: ScreenPoint;
+  readonly b0: ScreenPoint;
+  readonly view: View;
 }
 
 const CLICK_TOLERANCE_PX = 4;
@@ -277,6 +288,10 @@ export function PlanView() {
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
+  // Dedos sobre a planta (posição relativa ao centro), pinça e toque longo em andamento.
+  const touches = useRef(new Map<number, ScreenPoint>());
+  const pinch = useRef<Pinch | null>(null);
+  const longPress = useRef<number | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ cx: 0, cy: 0, mpp: 0.01 });
   const [pointer, setPointer] = useState<{
@@ -774,7 +789,52 @@ export function PlanView() {
     return () => window.removeEventListener('keydown', onKey);
   }, [tool]);
 
+  /** Posição do ponteiro relativa ao centro da planta (px, Y para baixo). */
+  const screenOf = (event: { clientX: number; clientY: number }): ScreenPoint => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    return rect
+      ? {
+          x: event.clientX - rect.left - rect.width / 2,
+          y: event.clientY - rect.top - rect.height / 2,
+        }
+      : { x: 0, y: 0 };
+  };
+  const cancelLongPress = (): void => {
+    if (longPress.current !== null) window.clearTimeout(longPress.current);
+    longPress.current = null;
+  };
+  /** Abandona o arrasto em curso sem efeito (segundo dedo, toque longo, cancelamento). */
+  const abandonDrag = (): void => {
+    const d = drag.current;
+    drag.current = null;
+    cancelLongPress();
+    if (!d) return;
+    if (d.mode === 'grip') useEditorStore.getState().endStretch(false);
+    if (d.mode === 'window') setSelectionWindow(null);
+    if (d.mode === 'annotation') setPreview(null);
+  };
+  useEffect(() => {
+    const timer = longPress;
+    return () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    };
+  }, []);
+
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    if (event.pointerType === 'touch') {
+      touches.current.set(event.pointerId, screenOf(event));
+      if (touches.current.size >= 2) {
+        // Segundo dedo: o gesto vira pinça (zoom e deslocamento); o toque do primeiro dedo
+        // não conta como clique.
+        abandonDrag();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const [first, second] = [...touches.current.entries()];
+        if (!pinch.current && first && second) {
+          pinch.current = { ids: [first[0], second[0]], a0: first[1], b0: second[1], view };
+        }
+        return;
+      }
+    }
     const annotationId = idOf(event.target, 'data-annotation-id');
     const grip = idOf(event.target, 'data-grip');
     const mode =
@@ -804,10 +864,30 @@ export function PlanView() {
       archId: idOf(event.target, 'data-arch-id'),
       origin: toModel(event),
       view,
+      touch: event.pointerType === 'touch',
       moved: false,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
     if (mode === 'annotation') useEditorStore.getState().selectAnnotation(annotationId);
+    // Toque longo (dedo parado) = botão direito: abre o menu de contexto no ponto.
+    if (event.pointerType === 'touch' && mode !== 'grip') {
+      cancelLongPress();
+      const started = drag.current;
+      const at = { clientX: event.clientX, clientY: event.clientY };
+      longPress.current = window.setTimeout(() => {
+        longPress.current = null;
+        if (drag.current !== started || started.moved) return;
+        abandonDrag();
+        navigator.vibrate?.(12);
+        openContextMenu(at, started.origin, started.elementId);
+      }, LONG_PRESS_MS);
+    }
+  };
+
+  const onPointerCancel = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    touches.current.delete(event.pointerId);
+    if (pinch.current?.ids.includes(event.pointerId)) pinch.current = null;
+    abandonDrag();
   };
 
   /** Atualiza o cursor de modelagem; fora de um empilhamento, a escolha manual é esquecida. */
@@ -872,12 +952,29 @@ export function PlanView() {
   }, [stackedUnderCursor]);
 
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    if (event.pointerType === 'touch' && touches.current.has(event.pointerId)) {
+      touches.current.set(event.pointerId, screenOf(event));
+      const p = pinch.current;
+      if (p) {
+        const a1 = touches.current.get(p.ids[0]);
+        const b1 = touches.current.get(p.ids[1]);
+        if (a1 && b1) {
+          const limit = MAX_MPP[useEditorStore.getState().project.discipline];
+          setView(pinchWindow(p.view, p.a0, p.b0, a1, b1, limit));
+        }
+        return;
+      }
+    }
     const raw = toModel(event);
     const d = drag.current;
     if (d) {
       const dx = event.clientX - d.x;
       const dy = event.clientY - d.y;
-      if (!d.moved && Math.hypot(dx, dy) > CLICK_TOLERANCE_PX) d.moved = true;
+      const tolerance = d.touch ? TOUCH_TOLERANCE_PX : CLICK_TOLERANCE_PX;
+      if (!d.moved && Math.hypot(dx, dy) > tolerance) {
+        d.moved = true;
+        cancelLongPress();
+      }
       if (!d.moved) return;
       if (d.mode === 'grip') {
         // Ponto do eixo 3D do tubo cuja projeção em planta é a mais próxima do cursor.
@@ -936,6 +1033,19 @@ export function PlanView() {
   };
 
   const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    cancelLongPress();
+    if (event.pointerType === 'touch') {
+      touches.current.delete(event.pointerId);
+      // Fim da pinça: o dedo que fica não começa um arrasto nem vira toque.
+      if (pinch.current) {
+        if (pinch.current.ids.includes(event.pointerId)) pinch.current = null;
+        drag.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        return;
+      }
+    }
     const d = drag.current;
     drag.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -1240,6 +1350,7 @@ export function PlanView() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onPointerLeave={onPointerLeave}
         onContextMenu={(event) => event.preventDefault()}
         onDoubleClick={() => {

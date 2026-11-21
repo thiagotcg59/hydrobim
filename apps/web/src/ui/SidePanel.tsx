@@ -1,6 +1,12 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import {
+  useRef,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import { PANEL_LIMITS, useUiStore } from '../state/uiStore';
+import { useCompactLayout } from './compactLayout';
 
 interface Props {
   side: 'nav' | 'panel';
@@ -17,10 +23,16 @@ export function SidePanel({ side, title, children }: Props) {
   const open = useUiStore((s) => (side === 'nav' ? s.navOpen : s.panelOpen));
   const width = useUiStore((s) => (side === 'nav' ? s.navWidth : s.panelWidth));
   const drag = useRef<{ x: number; width: number } | null>(null);
+  // Tela compacta: o painel aberto flutua sobre a área de desenho, e só um por vez.
+  const compact = useCompactLayout();
   const setOpen = (value: boolean): void => {
     const ui = useUiStore.getState();
     if (side === 'nav') ui.setNavOpen(value);
     else ui.setPanelOpen(value);
+    if (value && compact) {
+      if (side === 'nav') ui.setPanelOpen(false);
+      else ui.setNavOpen(false);
+    }
   };
   const resize = (value: number): void => useUiStore.getState().setPanelWidth(side, value);
   // O navegador cresce para a direita; o painel de propriedades, para a esquerda.
@@ -66,11 +78,13 @@ export function SidePanel({ side, title, children }: Props) {
 
   return (
     <aside
-      className={`dock dock--${side}`}
+      className={`dock dock--${side}${compact ? ' dock--overlay' : ''}`}
       data-testid={`dock-${side}`}
       data-open="true"
+      data-overlay={compact}
       data-width={width}
       aria-label={title}
+      style={compact ? ({ '--dock-width': `${width}px` } as CSSProperties) : undefined}
     >
       <button
         type="button"
