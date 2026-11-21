@@ -304,3 +304,172 @@ test('botão direito › Mover: ponto-base, prévia e destino, na planta e no 3D
   await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
   expect(errors).toEqual([]);
 });
+
+test('botão direito › Girar: a rede ligada gira junto, pelo cursor ou pelo ângulo', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await start(page);
+  await page.getByTestId('view-mode-plan').click();
+  await (await ctl(page, 'tool-pipe')).click();
+  const svg = page.getByTestId('plan-svg');
+  const box = await svg.boundingBox();
+  if (!box) throw new Error('Planta sem dimensões.');
+  const at = (x: number, y: number): [number, number] => [
+    box.x + box.width / 2 + x * 100,
+    box.y + box.height / 2 - y * 100,
+  ];
+  const message = page.getByTestId('status-message');
+
+  // Trecho em L: tubo, joelho e tubo, todos ligados.
+  await page.mouse.click(...at(0, 0));
+  await page.mouse.click(...at(3, 0));
+  await page.mouse.click(...at(3, 2));
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
+  // Botão direito sobre o primeiro tubo › Girar.
+  await page.mouse.click(...at(1.5, 0), { button: 'right' });
+  await expect(page.getByTestId('context-rotate')).toBeVisible();
+  await page.getByTestId('context-rotate').click();
+  const panel = page.getByTestId('rotate-panel');
+  // Como no Revit, o centro já vem no meio da seleção; aqui escolhemos outro.
+  await expect(panel).toHaveAttribute('data-step', 'reference');
+  await expect(await ctl(page, 'rotate-with-connected')).toBeChecked();
+  await page.getByTestId('rotate-pick-center').click();
+  await expect(panel).toHaveAttribute('data-step', 'center');
+
+  // Centro na extremidade livre, raio inicial a leste e final ao norte: +90°, com a prévia.
+  await page.mouse.move(...at(0, 0));
+  await page.mouse.click(...at(0, 0));
+  await expect(panel).toHaveAttribute('data-step', 'reference');
+  await page.mouse.move(...at(1, 0), { steps: 3 });
+  await page.mouse.click(...at(1, 0));
+  await expect(panel).toHaveAttribute('data-step', 'angle');
+  await page.mouse.move(...at(0, 2), { steps: 3 });
+  await expect(page.getByTestId('rotate-step')).toContainText('giro: 90°');
+  await expect(page.getByTestId('plan-preview-ghost')).toHaveCount(3);
+  await page.mouse.click(...at(0, 2));
+  await expect(message).toContainText('3 elementos girados 90°');
+  await expect(await ctl(page, 'tool-select')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
+
+  // Ângulo digitado, com o centro na origem do elemento: -90° desfaz o giro.
+  await page.mouse.click(...at(0, 1.5), { button: 'right' });
+  await page.getByTestId('context-rotate').click();
+  await page.getByTestId('rotate-center-origin').click();
+  await page.getByTestId('rotate-chip--90').click();
+  await page.getByTestId('rotate-apply').click();
+  await expect(message).toContainText('girados -90°');
+  await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
+
+  // Um passo de histórico por giro.
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  const download = page.waitForEvent('download');
+  await (await ctl(page, 'action-export')).click();
+  const exported = JSON.parse(await readFile(await (await download).path(), 'utf8')) as {
+    elements: ExportedElement[];
+    connections: unknown[];
+  };
+  const first = exported.elements.find((e) => e.kind === 'pipe');
+  expect(first?.start?.x).toBeCloseTo(0);
+  expect(first?.start?.y).toBeCloseTo(0);
+  expect(exported.connections).toHaveLength(2);
+  expect(errors).toEqual([]);
+});
+
+test('planta: janela e cruzamento selecionam; Espaço gira a seleção 90°', async ({ page }) => {
+  const errors = trackErrors(page);
+  await start(page);
+  await page.getByTestId('view-mode-plan').click();
+  await (await ctl(page, 'tool-pipe')).click();
+  const svg = page.getByTestId('plan-svg');
+  const box = await svg.boundingBox();
+  if (!box) throw new Error('Planta sem dimensões.');
+  const at = (x: number, y: number): [number, number] => [
+    box.x + box.width / 2 + x * 100,
+    box.y + box.height / 2 - y * 100,
+  ];
+  await page.mouse.click(...at(0, 0));
+  await page.mouse.click(...at(3, 0));
+  await page.mouse.click(...at(3, 2));
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  const selected = page.locator('[data-testid="plan-svg"] [data-element-id][data-selected]');
+
+  // Da esquerda para a direita: janela contida, os três elementos do L.
+  await page.mouse.move(...at(-0.5, -0.5));
+  await page.mouse.down();
+  await page.mouse.move(...at(3.5, 2.5), { steps: 6 });
+  await expect(page.getByTestId('plan-selection-window')).toHaveAttribute('data-mode', 'contain');
+  await page.mouse.up();
+  await expect(page.getByTestId('plan-selection-window')).toHaveCount(0);
+  await expect(selected).toHaveCount(3);
+
+  // Da direita para a esquerda, só cortando o primeiro tubo: cruzamento.
+  await page.mouse.move(...at(1.4, 0.4));
+  await page.mouse.down();
+  await page.mouse.move(...at(1.2, -0.4), { steps: 6 });
+  await expect(page.getByTestId('plan-selection-window')).toHaveAttribute('data-mode', 'cross');
+  await page.mouse.up();
+  await expect(selected).toHaveCount(1);
+  await expect(selected).toHaveAttribute('data-element-kind', 'pipe');
+
+  // Espaço: 90° em torno do centro da seleção, com a rede ligada.
+  await page.mouse.move(...at(-2, -2));
+  await page.keyboard.press(' ');
+  await expect(page.getByTestId('status-message')).toContainText('girados 90°');
+  await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
+  expect(errors).toEqual([]);
+});
+
+test('Opções de projeto: precisão de 5 cm e 1° no traçado, ajustável e lembrada', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await start(page);
+  const status = page.getByTestId('status-precision');
+  await expect(status).toContainText('5 cm · 1°');
+  await status.click();
+  const dialog = page.getByTestId('project-options-dialog');
+  await expect(dialog).toBeVisible();
+  await page.getByTestId('precision-length-10').click();
+  await page.getByTestId('precision-angle-5').click();
+  await expect(status).toContainText('10 cm · 5°');
+  await page.getByTestId('precision-enabled').uncheck();
+  await expect(status).toContainText('Precisão desligada');
+  await page.getByTestId('precision-reset').click();
+  await expect(status).toContainText('5 cm · 1°');
+  await page.getByTestId('project-options-close').click();
+  await expect(dialog).toBeHidden();
+
+  // Traçado na planta: o trecho sai com comprimento múltiplo de 5 cm.
+  await page.getByTestId('view-mode-plan').click();
+  await (await ctl(page, 'tool-pipe')).click();
+  const box = await page.getByTestId('plan-svg').boundingBox();
+  if (!box) throw new Error('Planta sem dimensões.');
+  const at = (x: number, y: number): [number, number] => [
+    box.x + box.width / 2 + x * 100,
+    box.y + box.height / 2 - y * 100,
+  ];
+  await page.mouse.click(...at(0, 0));
+  await page.mouse.move(...at(2.03, 0.004), { steps: 4 });
+  await expect(page.getByTestId('status-snap')).toBeVisible();
+  await page.mouse.click(...at(2.03, 0.004));
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  const download = page.waitForEvent('download');
+  await (await ctl(page, 'action-export')).click();
+  const exported = JSON.parse(await readFile(await (await download).path(), 'utf8')) as {
+    elements: ExportedElement[];
+  };
+  const pipe = exported.elements.find((e) => e.kind === 'pipe');
+  const length = Math.hypot(
+    (pipe?.end?.x ?? 0) - (pipe?.start?.x ?? 0),
+    (pipe?.end?.y ?? 0) - (pipe?.start?.y ?? 0),
+  );
+  expect(Math.abs(length * 20 - Math.round(length * 20))).toBeLessThan(1e-6);
+  expect(pipe?.end?.y ?? 1).toBeCloseTo(0, 6);
+  expect(errors).toEqual([]);
+});

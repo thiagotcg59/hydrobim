@@ -12,11 +12,16 @@ import { useMemo } from 'react';
 import { diffProjects } from '../editor/operationPreview';
 import {
   chosenCandidate,
+  moveIdsOf,
   moveTargetOf,
   pipeJunctionOf,
   planMove,
+  planRotate,
+  rotationSweepOf,
+  rotateStepOf,
   useEditorStore,
 } from './editorStore';
+import { alignStepOf, alignTargetOf, planAlign } from './alignTool';
 import { planPipeSegment, planPipeTarget } from './pipePreview';
 
 /**
@@ -74,6 +79,8 @@ export function useViewPreview(): ViewPreview | null {
   const activeSpec = useEditorStore((s) => s.activeSpec);
   const viewMode = useEditorStore((s) => s.viewMode);
   const move = useEditorStore((s) => s.move);
+  const rotation = useEditorStore((s) => s.rotate);
+  const align = useEditorStore((s) => s.align);
 
   return useMemo(() => {
     if (junctionPreview && junctionPreview.base === project) {
@@ -98,6 +105,29 @@ export function useViewPreview(): ViewPreview | null {
             },
         plan.value.guides,
       );
+    }
+    if (tool === 'rotate') {
+      if (!rotation?.center || rotation.reference === null || !cursor) return null;
+      const angle = rotationSweepOf(
+        rotation.center,
+        rotation.reference,
+        cursor.point,
+        rotateStepOf(),
+      );
+      if (angle === null) return null;
+      return fromResult(project, planRotate(project, rotation, angle));
+    }
+    if (tool === 'align') {
+      if (!align?.source1 || !cursor) return null;
+      // Antes do 2º par a prévia é só o deslocamento (destino 1 pelo cursor ou já indicado).
+      const step = alignStepOf(align);
+      const staged =
+        step === 'target1'
+          ? { ...align, target1: alignTargetOf(align.source1, cursor.point, cursor.snap) }
+          : align;
+      const target2 = step === 'target2' ? cursor.point : null;
+      const result = planAlign(project, staged, moveIdsOf(project, staged), target2);
+      return result?.ok && result.value === project ? null : fromResult(project, result);
     }
     if (tool === 'move') {
       if (!move?.from || !cursor) return null;
@@ -130,6 +160,8 @@ export function useViewPreview(): ViewPreview | null {
     activeSpec,
     viewMode,
     move,
+    rotation,
+    align,
   ]);
 }
 

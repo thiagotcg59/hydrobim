@@ -13,6 +13,7 @@ import { isAnnotationTool, useEditorStore } from '../state/editorStore';
 import { useUiStore, type WorkspaceView } from '../state/uiStore';
 import { useTerrainStore } from '../terrain/terrainStore';
 import { Viewport } from '../viewport/Viewport';
+import { WalkView } from '../walk/WalkView';
 import { CommandButton } from './CommandButton';
 import { ReferenceBar } from './ReferenceBar';
 
@@ -44,6 +45,7 @@ function PaneHeader({ pane, solo, split, maximized, context }: HeaderProps) {
   const infra = context.project.discipline === 'infra';
   const drawingScale = useEditorStore((s) => s.project.drawingScale);
   const bim = context.viewMode === 'bim';
+  const walking = bim && context.bimWalk === true;
   const planLabel = infra ? 'Planta Infra' : 'Planta MEP';
   const show3dControls = solo || pane === '3d';
 
@@ -64,6 +66,16 @@ function PaneHeader({ pane, solo, split, maximized, context }: HeaderProps) {
             variant="small"
             label="Perfil…"
             testId="view-mode-profile"
+          />
+        )}
+        {bim && (
+          // Aba de vista da consulta: o mesmo modelo, percorrido em primeira pessoa.
+          <CommandButton
+            id="bim.walk"
+            context={context}
+            variant="small"
+            label="Percurso"
+            testId="view-mode-walk"
           />
         )}
         {bim && (
@@ -91,7 +103,7 @@ function PaneHeader({ pane, solo, split, maximized, context }: HeaderProps) {
         )}
       </div>
       <div className="pane__nav" role="group" aria-label="Navegação da vista">
-        {show3dControls ? (
+        {walking ? null : show3dControls ? (
           <>
             <CommandButton id="view.fit" context={context} variant="icon" />
             <CommandButton id="view.fitSelection" context={context} variant="icon" />
@@ -141,6 +153,7 @@ export function Workspace({ ready }: { ready: boolean }) {
   const dragging = useRef(false);
 
   const bim = viewMode === 'bim';
+  const walking = bim && context.bimWalk === true;
   // A consulta BIM / IFC só existe sobre o Modelo 3D.
   const split = layout === 'split' && !bim;
   const maximized = split ? maximizedView : null;
@@ -215,7 +228,9 @@ export function Workspace({ ready }: { ready: boolean }) {
             context={context}
           />
         )}
-        <div className="pane__view">{id === 'plan' ? <PlanView /> : <Viewport />}</div>
+        <div className="pane__view">
+          {id === 'plan' ? <PlanView /> : walking ? <WalkView /> : <Viewport />}
+        </div>
       </section>
     );
   };

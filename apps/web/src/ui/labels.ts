@@ -33,6 +33,8 @@ export const TOOL_LABELS: Record<ToolId, string> = {
   measure: 'Medir',
   connect: 'Alinhar e conectar',
   move: 'Mover',
+  rotate: 'Girar',
+  align: 'Alinhar por pontos',
   dimension: 'Cota',
   text: 'Texto',
   leader: 'Chamada',
@@ -53,6 +55,10 @@ export const TOOL_HINTS: Record<ToolId, string> = {
   connect:
     'Clique a extremidade livre do trecho e, em seguida, a porta de referência (bocal do equipamento ou de outra peça). Escolha a alternativa no painel: alinhar move o trecho; conectar completa a montagem e registra a ligação. O equipamento fica fixo. Esc: recomeçar.',
   move: 'Clique o ponto-base (uma porta ou um ponto do elemento) e, em seguida, o destino; a prévia mostra o resultado antes do clique. Sobre um ponto do plano o deslocamento é horizontal; para mudar a cota, capture uma porta ou use Shift (vertical). Tubos ligados se ajustam quando o acoplamento permite; senão, marque "Levar a rede ligada". Esc: outro ponto-base; Esc de novo: sair.',
+  rotate:
+    'Gira em planta, em torno de um eixo vertical: clique o centro de giro (ou use a origem do elemento) e, em seguida, a direção — o ângulo é medido a partir de +X, no sentido anti-horário, de 15° em 15°; para outro valor, digite o ângulo. Com "Girar a rede ligada" (padrão), tubos, conexões e acessórios ligados giram junto, sem romper as ligações; as cotas não mudam. Esc: outro centro; Esc de novo: sair.',
+  align:
+    'Como o ALIGN do AutoCAD: clique o 1º ponto de origem (uma porta ou um ponto do elemento) e o destino dele; depois o 2º ponto de origem e o 2º destino. O conjunto vai da origem 1 ao destino 1 e gira, em planta, até a direção origem 1 → 2 apontar para o destino 2 — sem escala e sem tombar (giro só em torno do eixo vertical). Fora de porta, o destino 1 mantém a cota da origem. "Aplicar só o 1º par" apenas desloca. Com "Levar a rede ligada" (padrão), tubos e peças ligados vão junto. Esc: desfaz o último ponto; sem pontos, sai.',
   dimension: 'Clique os dois pontos a cotar e, em seguida, a posição da linha de cota.',
   text: 'Clique na planta para posicionar o texto e digite o conteúdo.',
   leader: 'Clique o ponto indicado e, em seguida, a posição do texto da chamada.',

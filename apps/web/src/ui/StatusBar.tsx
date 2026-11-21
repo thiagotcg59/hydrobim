@@ -1,4 +1,4 @@
-import { formatMeters, validateProject } from '@hydrobim/core';
+import { formatDegrees, formatMeters, validateProject } from '@hydrobim/core';
 import {
   AlertTriangle,
   ArrowUpToLine,
@@ -6,12 +6,15 @@ import {
   Crosshair,
   Move3d,
   Ruler,
+  SlidersHorizontal,
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { getCommand } from '../commands/commands';
 import { describeSnap } from '../editor/snapLabel';
+import { ALIGN_STEP_LABELS, alignStepOf } from '../state/alignTool';
 import { drawElevationOf, isAnnotationTool, useEditorStore } from '../state/editorStore';
+import { usePrecisionStore } from '../state/precisionStore';
 import { useUiStore } from '../state/uiStore';
 import { TOOL_LABELS } from './labels';
 
@@ -25,6 +28,12 @@ export function StatusBar() {
   const tool = useEditorStore((s) => s.tool);
   const anchor = useEditorStore((s) => s.anchor);
   const moveFrom = useEditorStore((s) => s.move?.from ?? null);
+  const rotateCenter = useEditorStore((s) => s.rotate?.center ?? null);
+  const rotateReference = useEditorStore((s) => s.rotate?.reference ?? null);
+  const align = useEditorStore((s) => s.align);
+  const precisionOn = usePrecisionStore((s) => s.enabled);
+  const lengthStep = usePrecisionStore((s) => s.lengthStep);
+  const angleStep = usePrecisionStore((s) => s.angleStep);
   const message = useEditorStore((s) => s.message);
   const project = useEditorStore((s) => s.project);
   const drawZ = useEditorStore(drawElevationOf);
@@ -50,10 +59,21 @@ export function StatusBar() {
         ? moveFrom
           ? 'aguardando destino'
           : 'aguardando ponto-base'
-        : 'pronto';
+        : tool === 'rotate'
+          ? rotateCenter
+            ? rotateReference === null
+              ? 'aguardando raio inicial'
+              : 'aguardando raio final ou ângulo'
+            : 'aguardando centro de giro'
+          : tool === 'align' && align
+            ? `aguardando ${ALIGN_STEP_LABELS[alignStepOf(align)]}`
+            : 'pronto';
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
-  // "Mover" não é ferramenta da faixa: o ícone é o do comando Modificar › Mover.
-  const ToolIcon = getCommand(tool === 'move' ? 'modify.move' : `tool.${tool}`).icon;
+  // "Mover", "Girar" e "Alinhar" não são ferramentas da faixa: o ícone é o do comando de
+  // Modificar.
+  const ToolIcon = getCommand(
+    tool === 'move' || tool === 'rotate' || tool === 'align' ? `modify.${tool}` : `tool.${tool}`,
+  ).icon;
   const capture = cursor ? (cursor.note ?? describeSnap(project, cursor)) : '—';
 
   return (
@@ -99,6 +119,19 @@ export function StatusBar() {
         <Ruler size={15} aria-hidden />
         Unidades: m · mm · °
       </span>
+      <button
+        type="button"
+        className="statusbar__item statusbar__button"
+        data-testid="status-precision"
+        data-enabled={precisionOn}
+        title="Precisão da modelagem (passos do cursor no traçado, ao esticar e ao girar). Clique para abrir as Opções de projeto."
+        onClick={() => useUiStore.getState().openDialog('options')}
+      >
+        <SlidersHorizontal size={15} aria-hidden />
+        {precisionOn
+          ? `Precisão ${(lengthStep * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} cm · ${formatDegrees(angleStep)}`
+          : 'Precisão desligada'}
+      </button>
 
       <span
         className={`statusbar__message statusbar__message--${message?.level ?? 'info'}`}

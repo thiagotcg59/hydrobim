@@ -7,6 +7,8 @@ import {
   PIPE_END_CONFIGURATIONS,
 } from '@hydrobim/catalog';
 import {
+  degToRad,
+  formatDegrees,
   formatMeters,
   getElement,
   MAX_BEND_VERTEX,
@@ -24,15 +26,21 @@ import {
   type FamilyKind,
   type FittingFamily,
   type JunctionChoice,
+  type Vec3,
 } from '@hydrobim/core';
 import { useState } from 'react';
+import { ALIGN_STEP_LABELS, alignAngleOf, alignStepOf } from '../state/alignTool';
 import { ConnectPanel } from './ConnectPanel';
 import {
   drawElevationOf,
   elbowAnglesOf,
+  elementOriginOf,
   familiesOf,
   moveIdsOf,
   pumpFamiliesOf,
+  rotationSweepOf,
+  rotateStepOf,
+  selectionCenterOf,
   tankFamiliesOf,
   useEditorStore,
 } from '../state/editorStore';
@@ -41,7 +49,237 @@ import { PLAN_TOOL_HINTS, TOOL_HINTS, TOOL_LABELS, VALVE_TYPE_LABELS } from './l
 import { SegmentEntry } from './SegmentEntry';
 import { SpecSelector } from './SpecSelector';
 
-const POINT_TOOLS = new Set(['pipe', 'measure', 'pump', 'tank', 'move']);
+const POINT_TOOLS = new Set(['pipe', 'measure', 'pump', 'tank', 'move', 'rotate', 'align']);
+
+const ROTATE_CHIPS = [90, -90, 180, 45, -45] as const;
+
+/**
+ * Girar em planta, no fluxo do Revit: centro no meio da seleção (ou outro), raio inicial e
+ * raio final pelo cursor, ou ângulo digitado; a rede ligada gira junto e "Copiar" mantém os
+ * originais.
+ */
+function RotatePanel() {
+  const project = useEditorStore((s) => s.project);
+  const rotation = useEditorStore((s) => s.rotate);
+  const cursor = useEditorStore((s) => s.cursor);
+  const [degrees, setDegrees] = useState(90);
+  if (!rotation) {
+    return (
+      <div className="options__group" data-testid="rotate-panel">
+        <span className="muted">Selecione elementos e use Girar (faixa, G ou botão direito).</span>
+      </div>
+    );
+  }
+  const store = () => useEditorStore.getState();
+  const ids = moveIdsOf(project, rotation);
+  const first = getElement(project, ids[0] ?? '');
+  const origin = elementOriginOf(project, rotation.ids[0] ?? '');
+  const middle = selectionCenterOf(project, rotation.ids);
+  const { center, reference } = rotation;
+  const live =
+    center && reference !== null && cursor
+      ? rotationSweepOf(center, reference, cursor.point, rotateStepOf())
+      : null;
+  const step = !center ? 'center' : reference === null ? 'reference' : 'angle';
+  return (
+    <div className="options__group" data-testid="rotate-panel" data-step={step}>
+      <span className="options__caption">
+        {ids.length === 1 && first ? first.name : `${ids.length} elementos`}
+      </span>
+      <span className="muted" data-testid="rotate-step">
+        {!center
+          ? 'Indique o centro de giro.'
+          : `Centro: ${formatMeters(center.x, 2)}; ${formatMeters(center.y, 2)}. ${
+              reference === null
+                ? 'Indique o raio inicial ou digite o ângulo.'
+                : `Indique o raio final${live === null ? '' : ` (giro: ${formatDegrees(live)})`} ou digite o ângulo.`
+            }`}
+      </span>
+      <div className="chips">
+        {center ? (
+          <button
+            type="button"
+            className="btn btn--compact"
+            data-testid="rotate-pick-center"
+            onClick={() => store().setRotateCenter(null)}
+          >
+            Escolher outro centro
+          </button>
+        ) : (
+          middle && (
+            <button
+              type="button"
+              className="btn btn--compact"
+              data-testid="rotate-center-middle"
+              onClick={() => store().setRotateCenter(middle)}
+            >
+              Centro da seleção
+            </button>
+          )
+        )}
+        {origin && (
+          <button
+            type="button"
+            className="btn btn--compact"
+            data-testid="rotate-center-origin"
+            onClick={() => store().setRotateCenter(origin)}
+          >
+            Origem do elemento
+          </button>
+        )}
+      </div>
+      <NumberField
+        label="Ângulo"
+        unit="°"
+        digits={2}
+        value={degrees}
+        onCommit={setDegrees}
+        title="Positivo: anti-horário, visto de cima"
+        testId="rotate-angle"
+      />
+      <div className="chips">
+        {ROTATE_CHIPS.map((value) => (
+          <button
+            key={value}
+            type="button"
+            className={degrees === value ? 'chip is-active' : 'chip'}
+            data-testid={`rotate-chip-${value}`}
+            onClick={() => setDegrees(value)}
+          >
+            {value > 0 ? `+${value}` : value}°
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="btn btn--compact btn--confirm"
+        data-testid="rotate-apply"
+        disabled={!center || degrees % 360 === 0}
+        title={center ? undefined : 'Indique primeiro o centro de giro'}
+        onClick={() => store().applyRotation(degToRad(degrees))}
+      >
+        {rotation.copy ? 'Copiar e girar' : 'Girar'} {String(degrees).replace('.', ',')}°
+      </button>
+      <label
+        className="check"
+        title="Tubos, conexões e acessórios ligados aos elementos giram junto, como um conjunto rígido"
+      >
+        <input
+          type="checkbox"
+          data-testid="rotate-with-connected"
+          checked={rotation.withConnected}
+          onChange={(event) => store().setRotateWithConnected(event.target.checked)}
+        />
+        Girar a rede ligada
+      </label>
+      <label className="check" title="Gira uma cópia; os elementos originais ficam onde estão">
+        <input
+          type="checkbox"
+          data-testid="rotate-copy"
+          checked={rotation.copy}
+          onChange={(event) => store().setRotateCopy(event.target.checked)}
+        />
+        Copiar
+      </label>
+      <span className="muted">
+        {rotation.copy
+          ? 'A cópia sai girada, com as ligações internas; os originais não mudam.'
+          : rotation.withConnected
+            ? 'Tubos, conexões e acessórios ligados giram junto; comprimentos, ligações e cotas se mantêm.'
+            : 'Só a seleção gira: recusado se romper uma ligação com o restante da rede.'}
+      </span>
+    </div>
+  );
+}
+
+const formatPoint = (p: Vec3): string =>
+  `${formatMeters(p.x, 2)}; ${formatMeters(p.y, 2)}; ${formatMeters(p.z, 2)}`;
+
+/**
+ * Alinhar por pontos (ALIGN do AutoCAD): a etapa, os pontos já indicados, o giro que o cursor
+ * produziria, "Aplicar só o 1º par" (apenas desloca), rede ligada e cópia.
+ */
+function AlignPanel() {
+  const project = useEditorStore((s) => s.project);
+  const align = useEditorStore((s) => s.align);
+  const cursor = useEditorStore((s) => s.cursor);
+  if (!align) {
+    return (
+      <div className="options__group" data-testid="align-panel">
+        <span className="muted">
+          Selecione elementos e use Alinhar por pontos (faixa, N ou botão direito).
+        </span>
+      </div>
+    );
+  }
+  const store = () => useEditorStore.getState();
+  const ids = moveIdsOf(project, align);
+  const first = getElement(project, ids[0] ?? '');
+  const step = alignStepOf(align);
+  const angle = step === 'target2' && cursor ? alignAngleOf(align, cursor.point) : null;
+  const done: [string, Vec3 | null][] = [
+    ['Origem 1', align.source1],
+    ['Destino 1', align.target1],
+    ['Origem 2', align.source2],
+  ];
+  return (
+    <div className="options__group" data-testid="align-panel" data-step={step}>
+      <span className="options__caption">
+        {ids.length === 1 && first ? first.name : `${ids.length} elementos`}
+      </span>
+      {done.map(
+        ([label, point]) =>
+          point && (
+            <span key={label} className="muted">
+              {label}: {formatPoint(point)}
+            </span>
+          ),
+      )}
+      <span className="muted" data-testid="align-step">
+        Indique o {ALIGN_STEP_LABELS[step]}
+        {angle === null ? '' : ` (giro: ${formatDegrees(angle)})`}.
+      </span>
+      {(step === 'source2' || step === 'target2') && (
+        <button
+          type="button"
+          className="btn btn--compact btn--confirm"
+          data-testid="align-apply-first"
+          title="Leva o 1º ponto de origem ao 1º destino, sem girar (como o Enter do ALIGN do AutoCAD)"
+          onClick={() => store().applyAlign(null)}
+        >
+          {align.copy ? 'Copiar só com o 1º par' : 'Aplicar só o 1º par'}
+        </button>
+      )}
+      <label
+        className="check"
+        title="Tubos, conexões e acessórios ligados aos elementos vão junto, como um conjunto rígido"
+      >
+        <input
+          type="checkbox"
+          data-testid="align-with-connected"
+          checked={align.withConnected}
+          onChange={(event) => store().setAlignWithConnected(event.target.checked)}
+        />
+        Levar a rede ligada
+      </label>
+      <label className="check" title="Alinha uma cópia; os elementos originais ficam onde estão">
+        <input
+          type="checkbox"
+          data-testid="align-copy"
+          checked={align.copy}
+          onChange={(event) => store().setAlignCopy(event.target.checked)}
+        />
+        Copiar
+      </label>
+      <span className="muted">
+        Giro só em torno do eixo vertical e sem escala: a cota do 2º par não inclina o conjunto.
+        {align.withConnected
+          ? ' A rede ligada vai junto; comprimentos e ligações se mantêm.'
+          : ' Só a seleção se alinha: com giro, recusado se romper uma ligação com o restante da rede.'}
+      </span>
+    </div>
+  );
+}
 
 /** Mover interativo: o que se move, a etapa atual e a opção de levar a rede ligada. */
 function MovePanel() {
@@ -97,6 +335,9 @@ function CoordinateEntry() {
   const [z, setZ] = useState<number | null>(null);
   const effectiveZ = z ?? workPlaneZ;
   const moveFrom = useEditorStore((s) => s.move?.from ?? null);
+  const rotateCenter = useEditorStore((s) => s.rotate?.center ?? null);
+  const rotateReference = useEditorStore((s) => s.rotate?.reference ?? null);
+  const align = useEditorStore((s) => s.align);
   const caption =
     tool === 'pipe'
       ? anchor
@@ -108,7 +349,15 @@ function CoordinateEntry() {
           ? moveFrom
             ? 'Destino'
             : 'Ponto-base'
-          : 'Posição';
+          : tool === 'rotate'
+            ? rotateCenter
+              ? rotateReference === null
+                ? 'Raio inicial'
+                : 'Raio final'
+              : 'Centro de giro'
+            : tool === 'align' && align
+              ? ALIGN_STEP_LABELS[alignStepOf(align)].replace(/^./, (c) => c.toUpperCase())
+              : 'Posição';
 
   return (
     <div className="options__group" data-testid="coordinate-entry">
@@ -859,53 +1108,59 @@ export function ToolOptions() {
       )}
 
       {tool === 'move' && <MovePanel />}
+      {tool === 'rotate' && <RotatePanel />}
+      {tool === 'align' && <AlignPanel />}
 
-      {tool !== 'select' && tool !== 'connect' && tool !== 'move' && (
-        <div className="options__group">
-          <span className="options__caption">Nível e elevação</span>
-          <SelectField
-            label="Nível"
-            testId="option-level"
-            value={level?.id ?? 'custom'}
-            options={[
-              ...levels.map((l) => ({
-                value: l.id,
-                label: `${l.name} (${formatMeters(l.elevation, 2)})`,
-              })),
-              ...(level ? [] : [{ value: 'custom', label: 'Cota livre' }]),
-            ]}
-            onChange={(id) => {
-              const picked = levels.find((l) => l.id === id);
-              if (picked) setWorkPlaneZ(picked.elevation);
-            }}
-          />
-          <NumberField
-            label="Cota Z"
-            unit="m"
-            value={workPlaneZ}
-            onCommit={setWorkPlaneZ}
-            testId="option-work-z"
-          />
-          {tool === 'pipe' && (
-            <>
-              <NumberField
-                label="Elevação do eixo"
-                unit="m"
-                value={pipeElevation}
-                onCommit={(value) => useEditorStore.getState().setPipeElevation(value)}
-                title="Altura do eixo das tubulações acima do nível"
-                testId="option-pipe-elevation"
-              />
-              <span className="muted" data-testid="pipe-elevation-info">
-                Eixo na cota Z {formatMeters(workPlaneZ + pipeElevation, 2)}.{' '}
-                {drawing
-                  ? 'Alterar a elevação agora cria a prumada a partir do último ponto.'
-                  : 'A elevação acompanha a extremidade de onde o trecho parte.'}
-              </span>
-            </>
-          )}
-        </div>
-      )}
+      {tool !== 'select' &&
+        tool !== 'connect' &&
+        tool !== 'move' &&
+        tool !== 'rotate' &&
+        tool !== 'align' && (
+          <div className="options__group">
+            <span className="options__caption">Nível e elevação</span>
+            <SelectField
+              label="Nível"
+              testId="option-level"
+              value={level?.id ?? 'custom'}
+              options={[
+                ...levels.map((l) => ({
+                  value: l.id,
+                  label: `${l.name} (${formatMeters(l.elevation, 2)})`,
+                })),
+                ...(level ? [] : [{ value: 'custom', label: 'Cota livre' }]),
+              ]}
+              onChange={(id) => {
+                const picked = levels.find((l) => l.id === id);
+                if (picked) setWorkPlaneZ(picked.elevation);
+              }}
+            />
+            <NumberField
+              label="Cota Z"
+              unit="m"
+              value={workPlaneZ}
+              onCommit={setWorkPlaneZ}
+              testId="option-work-z"
+            />
+            {tool === 'pipe' && (
+              <>
+                <NumberField
+                  label="Elevação do eixo"
+                  unit="m"
+                  value={pipeElevation}
+                  onCommit={(value) => useEditorStore.getState().setPipeElevation(value)}
+                  title="Altura do eixo das tubulações acima do nível"
+                  testId="option-pipe-elevation"
+                />
+                <span className="muted" data-testid="pipe-elevation-info">
+                  Eixo na cota Z {formatMeters(workPlaneZ + pipeElevation, 2)}.{' '}
+                  {drawing
+                    ? 'Alterar a elevação agora cria a prumada a partir do último ponto.'
+                    : 'A elevação acompanha a extremidade de onde o trecho parte.'}
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
       {tool === 'pipe' && <SegmentEntry />}
       {POINT_TOOLS.has(tool) && <CoordinateEntry />}

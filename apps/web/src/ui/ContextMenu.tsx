@@ -1,5 +1,5 @@
 import { getElement, resolvePort } from '@hydrobim/core';
-import { Crosshair, Move, Spline } from 'lucide-react';
+import { AlignStartVertical, Crosshair, Move, RotateCw, Spline } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
@@ -7,7 +7,8 @@ import { useUiStore } from '../state/uiStore';
 /**
  * Menu do botão direito sobre um elemento. "Criar tubo" aciona a ferramenta Tubo já partindo
  * da porta livre apontada (sem porta livre, a opção aparece desabilitada com o motivo);
- * "Mover" começa o mover interativo do elemento ou da seleção que o contém.
+ * "Mover", "Girar" e "Alinhar por pontos" começam o mover, o girar e o alinhar interativos do
+ * elemento ou da seleção que o contém (no girar e no alinhar, a rede ligada vai junto).
  */
 export function ContextMenu() {
   const menu = useEditorStore((s) => s.contextMenu);
@@ -58,7 +59,7 @@ export function ContextMenu() {
       // Mantém o menu dentro da janela quando o clique é junto à borda.
       style={{
         left: Math.min(menu.x, window.innerWidth - 240),
-        top: Math.min(menu.y, window.innerHeight - 190),
+        top: Math.min(menu.y, window.innerHeight - 300),
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
@@ -93,6 +94,42 @@ export function ContextMenu() {
         <span>
           <strong>Mover</strong>
           <small data-testid="context-move-hint">{moveHint}</small>
+        </span>
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="context-menu__item"
+        data-testid="context-rotate"
+        onClick={() => {
+          const state = useEditorStore.getState();
+          if (!inSelection) state.select(element.id);
+          useEditorStore.getState().startRotate();
+        }}
+      >
+        <RotateCw size={14} />
+        <span>
+          <strong>Girar</strong>
+          <small data-testid="context-rotate-hint">
+            {moveHint.replace('ponto-base e destino', 'com a rede ligada')}
+          </small>
+        </span>
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="context-menu__item"
+        data-testid="context-align"
+        onClick={() => {
+          const state = useEditorStore.getState();
+          if (!inSelection) state.select(element.id);
+          useEditorStore.getState().startAlign();
+        }}
+      >
+        <AlignStartVertical size={14} />
+        <span>
+          <strong>Alinhar por pontos</strong>
+          <small>{moveHint.replace('ponto-base e destino', 'dois pares origem → destino')}</small>
         </span>
       </button>
       {(element.kind === 'tee' || element.kind === 'cross') && (

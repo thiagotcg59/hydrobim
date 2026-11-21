@@ -48,6 +48,7 @@ export const SimplifiedElement = memo(function SimplifiedElement({
     'data-element-id': element.id,
     'data-element-kind': element.kind,
     'data-lod': 'symbol',
+    'data-selected': selected || undefined,
   } as const;
   if (element.kind === 'pipe') {
     const x1 = n(element.start.x - origin.x);

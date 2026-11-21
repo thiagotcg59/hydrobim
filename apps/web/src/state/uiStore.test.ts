@@ -1,5 +1,6 @@
 import { createProject, vec3 } from '@hydrobim/core';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { runCommand } from '../commands/commands';
 import { selectIsDirty, useEditorStore } from './editorStore';
 import { DEFAULT_LAYOUT, PANEL_LIMITS, parseLayout, TASKS, useUiStore } from './uiStore';
 
@@ -189,6 +190,37 @@ describe('abas de tarefa', () => {
     ui().setTask('export');
     expect(editor().viewMode).toBe('plan');
     expect(ui().task).toBe('export');
+  });
+
+  it('o percurso abre a consulta BIM / IFC, não altera o projeto e termina com ela', () => {
+    editor().setTool('pipe');
+    editor().commitPoint(vec3(0, 0, 0));
+    editor().commitPoint(vec3(2, 0, 0));
+    const before = editor();
+
+    // De qualquer aba, percorrer entra na consulta (a modelagem fica suspensa).
+    runCommand('bim.walk');
+    expect(ui().bimWalk).toBe(true);
+    expect(ui().task).toBe('bim');
+    expect(editor().viewMode).toBe('bim');
+    expect(editor().project).toBe(before.project);
+    expect(editor().past).toHaveLength(before.past.length);
+
+    // "Modelo 3D" volta à órbita, ainda na consulta.
+    runCommand('view.model');
+    expect(ui().bimWalk).toBe(false);
+    expect(editor().viewMode).toBe('bim');
+
+    // Sair da consulta encerra o percurso e retoma a modelagem.
+    runCommand('bim.walk');
+    ui().setTask('model');
+    expect(ui().bimWalk).toBe(false);
+    expect(editor().viewMode).toBe('3d');
+    expect(editor().tool).toBe('pipe');
+
+    // Fora da consulta, o percurso não fica ligado.
+    ui().setBimWalk(false);
+    expect(ui().bimWalk).toBe(false);
   });
 
   it('não retoma o trecho se o ponto de partida deixou de existir', () => {

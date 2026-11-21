@@ -94,6 +94,9 @@ import {
   requiredEndType,
   resolvePort,
   rollFitting,
+  rotateElements,
+  getPorts,
+  copyRotatedElements,
   scale,
   setElementElevation,
   setElementProperty,
@@ -106,6 +109,8 @@ import {
   setPipeEnds,
   setPipeLength,
   setTerrain,
+  inlineClearancesOf,
+  setInlineClearance,
   slideAxesOf,
   slideElements,
   stretchPipe,
@@ -162,6 +167,7 @@ import {
 } from '@hydrobim/ifc';
 import { create } from 'zustand';
 import { chooseSlideDirection, snapStretchLength, stretchLengthAt } from '../editor/directEdit';
+import { inlineSlideTarget } from '../editor/inlineSlide';
 import { distanceAlongPipe, type SnapKind } from '../editor/picking';
 import { nextRenderOrigin, NO_RENDER_ORIGIN } from '../editor/renderOrigin';
 import { loadCustomSource, storeCustomSource, type CustomBasemapSource } from '../map/customSource';
@@ -171,6 +177,8 @@ import {
   nextIsoQuadrant,
   type ViewPreset,
 } from '../editor/viewPresets';
+import { precision } from './precisionStore';
+import { alignAngleOf, alignStepOf, alignTargetOf, planAlign, type AlignState } from './alignTool';
 
 export type { ViewPreset };
 
@@ -188,7 +196,9 @@ export type ModelToolId =
   | 'tank'
   | 'measure'
   | 'connect'
-  | 'move';
+  | 'move'
+  | 'rotate'
+  | 'align';
 export type ToolId = ModelToolId | AnnotationToolId;
 
 /**
@@ -201,8 +211,113 @@ export interface MoveState {
   readonly withConnected: boolean;
 }
 
+/**
+ * Girar interativo em planta (eixo vertical), no fluxo do Revit: o centro começa no meio da
+ * seleção (`null` = o usuário escolhe outro), o primeiro clique indica o raio inicial
+ * (`reference`, ângulo a partir de +X) e o segundo o raio final; o giro é o ângulo entre os
+ * dois. `withConnected`: a rede ligada gira junto (padrão). `copy`: gira uma cópia e mantém
+ * os originais.
+ */
+export interface RotateState {
+  readonly ids: readonly string[];
+  readonly center: Vec3 | null;
+  readonly reference: number | null;
+  readonly withConnected: boolean;
+  readonly copy: boolean;
+}
+
+/** Passo de captura do ângulo pelo cursor; ângulos quaisquer entram pelo campo numérico. */
+export const ROTATE_SNAP = degToRad(15);
+
+/** Passo do girar pelo cursor: o passo angular da precisão, se ligada; senão, 15°. */
+export const rotateStepOf = (): number => {
+  const settings = precision();
+  return settings.enabled ? settings.angleStep : ROTATE_SNAP;
+};
+
+/**
+ * Ângulo do giro indicado pelo cursor, medido a partir de +X (leste) no sentido anti-horário,
+ * como no comando girar dos programas de CAD, arredondado a `step`. `null` = cursor no centro.
+ */
+export function rotationAngleOf(center: Vec3, point: Vec3, step = ROTATE_SNAP): number | null {
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  if (Math.hypot(dx, dy) < 1e-6) return null;
+  const angle = Math.atan2(dy, dx);
+  return step > 0 ? Math.round(angle / step) * step : angle;
+}
+
+/**
+ * Giro entre o raio inicial (`reference`) e o raio pelo cursor, no intervalo (−180°, 180°],
+ * arredondado a `step`. `null` = cursor no centro.
+ */
+export function rotationSweepOf(
+  center: Vec3,
+  reference: number,
+  point: Vec3,
+  step = ROTATE_SNAP,
+): number | null {
+  const direction = rotationAngleOf(center, point, 0);
+  if (direction === null) return null;
+  let sweep = direction - reference;
+  while (sweep <= -Math.PI) sweep += 2 * Math.PI;
+  while (sweep > Math.PI) sweep -= 2 * Math.PI;
+  return step > 0 ? Math.round(sweep / step) * step : sweep;
+}
+
+/** Centro da seleção em planta (meio da envoltória das portas e origens), como no Revit. */
+export function selectionCenterOf(project: Project, ids: readonly string[]): Vec3 | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const id of ids) {
+    const element = getElement(project, id);
+    if (!element) continue;
+    const points = getPorts(element).map((port) => port.position);
+    if (element.kind !== 'pipe') points.push(element.placement.position);
+    for (const p of points) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y);
+      maxY = Math.max(maxY, p.y);
+      minZ = Math.min(minZ, p.z);
+      maxZ = Math.max(maxZ, p.z);
+    }
+  }
+  if (!Number.isFinite(minX)) return null;
+  return vec3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+}
+
+/** Resultado do giro (ou da cópia girada) — o mesmo para a prévia e para a confirmação. */
+export function planRotate(
+  project: Project,
+  rotation: RotateState,
+  angle: number,
+): Result<Project> | null {
+  if (!rotation.center) return null;
+  const ids = moveIdsOf(project, rotation);
+  if (!rotation.copy) return rotateElements(project, ids, rotation.center, angle);
+  const copied = copyRotatedElements(project, ids, rotation.center, angle);
+  return copied.ok ? success(copied.value.project) : copied;
+}
+
+/** Origem de referência do elemento: meio do tubo ou origem da peça/equipamento. */
+export function elementOriginOf(project: Project, id: string): Vec3 | null {
+  const element = getElement(project, id);
+  if (!element) return null;
+  return element.kind === 'pipe'
+    ? scale(add(element.start, element.end), 0.5)
+    : element.placement.position;
+}
+
 /** Elementos efetivamente deslocados: a seleção ou, com a rede junto, os conjuntos ligados. */
-export function moveIdsOf(project: Project, move: MoveState): string[] {
+export function moveIdsOf(
+  project: Project,
+  move: { readonly ids: readonly string[]; readonly withConnected: boolean },
+): string[] {
   const ids = move.ids.filter((id) => getElement(project, id));
   if (!move.withConnected) return ids;
   return [...new Set(ids.flatMap((id) => connectedComponent(project, id)))];
@@ -463,6 +578,15 @@ export interface PipeStretch {
   readonly base: Project;
 }
 
+/** Arrasto de uma peça ao longo da linha (alça da válvula, tê, cruzeta...). */
+export interface InlineSlide {
+  readonly elementId: string;
+  /** Ponto agarrado, sobre o eixo da peça, no início do arrasto. */
+  readonly grab: Vec3;
+  /** Projeto no início do arrasto: base de cada prévia e do registro único no histórico. */
+  readonly base: Project;
+}
+
 /** Menu de contexto do botão direito, junto a uma extremidade de tubo ou a uma conexão. */
 export interface ContextMenuState {
   /** Posição na janela (px). */
@@ -522,8 +646,14 @@ interface EditorState {
   measure: { a: Vec3 | null; b: Vec3 | null };
   cursor: CursorInfo | null;
   stretch: PipeStretch | null;
+  /** Peça sendo arrastada ao longo da linha. */
+  inlineSlide: InlineSlide | null;
   /** Mover interativo em andamento (ferramenta `move`). */
   move: MoveState | null;
+  /** Girar interativo em andamento (ferramenta `rotate`). */
+  rotate: RotateState | null;
+  /** Alinhar por pontos em andamento (ferramenta `align`). */
+  align: AlignState | null;
   contextMenu: ContextMenuState | null;
   message: EditorMessage | null;
   /** selection: enquadra só os elementos selecionados. */
@@ -643,6 +773,31 @@ interface EditorState {
   /** Leva junto (rigidamente) os elementos ligados aos que se movem. */
   setMoveWithConnected: (enabled: boolean) => void;
   /**
+   * Começa o girar em planta dos elementos indicados (padrão: a seleção), com a rede ligada
+   * junto: centro e, depois, a direção (cursor) ou o ângulo digitado. Um passo no histórico.
+   */
+  startRotate: (ids?: readonly string[]) => void;
+  setRotateCenter: (center: Vec3 | null) => void;
+  setRotateWithConnected: (enabled: boolean) => void;
+  /** Girar uma cópia (os originais ficam), como a opção "Copiar" do Revit. */
+  setRotateCopy: (enabled: boolean) => void;
+  /** Gira a seleção 90° em torno do próprio centro, com a rede ligada (Espaço, como no Revit). */
+  rotateSelectionQuarter: () => boolean;
+  /** Aplica o giro de `angle` radianos (anti-horário) em torno do centro indicado. */
+  applyRotation: (angle: number) => boolean;
+  /**
+   * Começa o alinhar por pontos dos elementos indicados (padrão: a seleção), como o ALIGN do
+   * AutoCAD: origem 1 → destino 1 e origem 2 → destino 2. Um passo no histórico.
+   */
+  startAlign: (ids?: readonly string[]) => void;
+  setAlignWithConnected: (enabled: boolean) => void;
+  setAlignCopy: (enabled: boolean) => void;
+  /**
+   * Aplica o alinhamento com o destino 2 indicado; `null` aplica só o primeiro par (desloca).
+   * Recusado, o alinhar continua.
+   */
+  applyAlign: (target2: Vec3 | null) => boolean;
+  /**
    * Desliza a seleção um passo ao longo da linha (setas do teclado). `preferences` são as
    * direções da seta no modelo, em ordem de prioridade (ver `chooseSlideDirection`).
    */
@@ -653,6 +808,14 @@ interface EditorState {
   stretchTo: (point: Vec3) => void;
   /** Encerra o arrasto; `apply` falso restaura o projeto do início. */
   endStretch: (apply: boolean) => void;
+  /** Começa a deslizar a peça `elementId` entre os tubos, agarrada em `grab` (eixo da peça). */
+  beginInlineSlide: (elementId: string, grab: Vec3) => void;
+  /** Prévia do arrasto: a peça vai para a cota que corresponde a `point` (sobre o eixo). */
+  inlineSlideTo: (point: Vec3) => void;
+  /** Encerra o arrasto; `apply` falso restaura o projeto do início. */
+  endInlineSlide: (apply: boolean) => void;
+  /** Posiciona a peça com a cota `value` (m) na extremidade `portId` (painel de propriedades). */
+  setInlineClearanceOf: (elementId: string, portId: string, value: number) => void;
   openContextMenu: (menu: ContextMenuState) => void;
   closeContextMenu: () => void;
   /** Aciona a ferramenta Tubo já partindo da porta livre indicada. */
@@ -1311,7 +1474,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     measure: { a: null, b: null },
     cursor: null,
     stretch: null,
+    inlineSlide: null,
     move: null,
+    rotate: null,
+    align: null,
     contextMenu: null,
     message: null,
     viewRequest: null,
@@ -1341,7 +1507,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         planDraft: EMPTY_DRAFT,
         anchor: null,
         stretch: null,
+        inlineSlide: null,
         move: null,
+        rotate: null,
+        align: null,
         connect: EMPTY_CONNECT,
         junctionPreview: null,
         contextMenu: null,
@@ -1407,6 +1576,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           anchor: null,
           connect: EMPTY_CONNECT,
           move: null,
+          rotate: null,
+          align: null,
           contextMenu: null,
           measure: { a: null, b: null },
           planDraft: EMPTY_DRAFT,
@@ -1595,15 +1766,32 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const { anchor, measure, tool, planDraft, stretch, contextMenu } = get();
       if (contextMenu) set({ contextMenu: null });
       else if (stretch) get().endStretch(false);
+      else if (get().inlineSlide) get().endInlineSlide(false);
       else if (planDraft.points.length > 0 || planDraft.elementId) set({ planDraft: EMPTY_DRAFT });
       else if (get().junctionPreview) set({ junctionPreview: null });
       else if (get().connect.from) set({ connect: EMPTY_CONNECT });
-      else if (get().move?.from) {
+      else if (get().align?.source1) {
+        // Cada Esc desfaz o último ponto indicado; sem pontos, o seguinte encerra o alinhar.
+        const align = get().align;
+        if (align) {
+          set({
+            align: align.source2
+              ? { ...align, source2: null }
+              : align.target1
+                ? { ...align, target1: null }
+                : { ...align, source1: null },
+          });
+        }
+      } else if ((get().rotate?.reference ?? null) !== null) {
+        // Primeiro Esc: volta a pedir o raio inicial; o segundo encerra o girar.
+        const rotation = get().rotate;
+        if (rotation) set({ rotate: { ...rotation, reference: null } });
+      } else if (get().move?.from) {
         // Primeiro Esc: volta a pedir o ponto-base; o segundo encerra o mover.
         const move = get().move;
         if (move) set({ move: { ...move, from: null } });
       } else if (anchor || measure.a) set({ anchor: null, measure: { a: null, b: null } });
-      else if (tool !== 'select') set({ tool: 'select', move: null });
+      else if (tool !== 'select') set({ tool: 'select', move: null, rotate: null, align: null });
       else set({ selection: [], annotationSelection: null });
     },
 
@@ -1628,6 +1816,23 @@ export const useEditorStore = create<EditorState>()((set, get) => {
               : 'Indique a extremidade livre do trecho a ligar (marcadores ciano).',
           );
         }
+        return;
+      }
+      if (tool === 'rotate') {
+        if (click.point) state.commitPoint(click.point);
+        return;
+      }
+      if (tool === 'align') {
+        if (!click.point) return;
+        const align = state.align;
+        // O destino 1 segue a mesma regra da prévia (`alignTargetOf`); os demais pontos valem
+        // como capturados (do ponto 2 só a direção em planta importa).
+        const snap = click.port ? 'port' : (state.cursor?.snap ?? null);
+        state.commitPoint(
+          align?.source1 && !align.target1
+            ? alignTargetOf(align.source1, click.point, snap)
+            : click.point,
+        );
         return;
       }
       if (tool === 'move') {
@@ -1706,6 +1911,68 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     commitPoint: (point, portRef) => {
       const state = get();
       const { project, tool } = state;
+
+      if (tool === 'align') {
+        const align = state.align;
+        if (!align) return;
+        const step = alignStepOf(align);
+        if (step === 'target2') {
+          state.applyAlign(point);
+          return;
+        }
+        const next: AlignState =
+          step === 'source1'
+            ? { ...align, source1: point }
+            : step === 'target1'
+              ? { ...align, target1: point }
+              : { ...align, source2: point };
+        set({
+          align: next,
+          message: {
+            level: 'info',
+            text:
+              step === 'source1'
+                ? 'Indique o 1º ponto de destino (para onde vai o 1º ponto de origem).'
+                : step === 'target1'
+                  ? 'Indique o 2º ponto de origem (define a direção a alinhar) ou "Aplicar só o 1º par" para apenas deslocar.'
+                  : 'Indique o 2º ponto de destino: a direção origem 1 → 2 passa a apontar para ele. Esc: desfaz o último ponto.',
+            at: Date.now(),
+          },
+        });
+        return;
+      }
+
+      if (tool === 'rotate') {
+        const rotation = state.rotate;
+        if (!rotation) return;
+        if (!rotation.center) {
+          state.setRotateCenter(point);
+          return;
+        }
+        if (rotation.reference === null) {
+          const reference = rotationAngleOf(rotation.center, point, 0);
+          if (reference === null) {
+            state.notify('info', 'Indique o raio inicial afastado do centro de giro.');
+            return;
+          }
+          set({
+            rotate: { ...rotation, reference },
+            message: {
+              level: 'info',
+              text: `Indique o raio final (de ${formatDegrees(rotateStepOf())} em ${formatDegrees(rotateStepOf())}) ou digite o ângulo. Esc: outro raio inicial.`,
+              at: Date.now(),
+            },
+          });
+          return;
+        }
+        const angle = rotationSweepOf(rotation.center, rotation.reference, point, rotateStepOf());
+        if (angle === null) {
+          state.notify('info', 'Indique o raio final afastado do centro de giro.');
+          return;
+        }
+        state.applyRotation(angle);
+        return;
+      }
 
       if (tool === 'move') {
         const { move } = state;
@@ -2309,6 +2576,191 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       if (move) set({ move: { ...move, withConnected: enabled } });
     },
 
+    startRotate: (ids) => {
+      const { project, selection } = get();
+      const targets = (ids ?? selection).filter((id) => getElement(project, id));
+      if (targets.length === 0) {
+        get().notify('info', 'Selecione um ou mais elementos para girar.');
+        return;
+      }
+      get().setTool('rotate');
+      set({
+        rotate: {
+          ids: targets,
+          center: selectionCenterOf(project, targets),
+          reference: null,
+          withConnected: true,
+          copy: false,
+        },
+        selection: targets,
+        annotationSelection: null,
+        contextMenu: null,
+        message: {
+          level: 'info',
+          text: 'Girar: o centro está no meio da seleção (ou escolha outro). Indique o raio inicial e o final, ou digite o ângulo.',
+          at: Date.now(),
+        },
+      });
+    },
+
+    setRotateCenter: (center) => {
+      const { rotate: rotation } = get();
+      if (!rotation) return;
+      if (center && !Number.isFinite(center.x + center.y + center.z)) return;
+      set({
+        rotate: { ...rotation, center, reference: null },
+        message: {
+          level: 'info' as const,
+          text: center
+            ? 'Indique o raio inicial e, depois, o final, ou digite o ângulo.'
+            : 'Indique o novo centro de giro.',
+          at: Date.now(),
+        },
+      });
+    },
+
+    setRotateWithConnected: (enabled) => {
+      const { rotate: rotation } = get();
+      if (rotation) set({ rotate: { ...rotation, withConnected: enabled } });
+    },
+
+    setRotateCopy: (enabled) => {
+      const { rotate: rotation } = get();
+      if (rotation) set({ rotate: { ...rotation, copy: enabled } });
+    },
+
+    rotateSelectionQuarter: () => {
+      const { project, selection, tool } = get();
+      if (tool !== 'select' || selection.length === 0) return false;
+      const rotation: RotateState = {
+        ids: selection,
+        center: selectionCenterOf(project, selection),
+        reference: null,
+        withConnected: true,
+        copy: false,
+      };
+      const result = planRotate(project, rotation, Math.PI / 2);
+      if (!result) return false;
+      const count = moveIdsOf(project, rotation).length;
+      return commit(
+        result,
+        count === 1
+          ? `"${getElement(project, selection[0] ?? '')?.name ?? ''}" girado 90°.`
+          : `${count} elementos girados 90° (rede ligada junto).`,
+      );
+    },
+
+    applyRotation: (angle) => {
+      const { project, rotate: rotation } = get();
+      if (!rotation?.center) {
+        get().notify('info', 'Indique primeiro o centro de giro.');
+        return false;
+      }
+      const result = planRotate(project, rotation, angle);
+      if (!result) return false;
+      if (result.ok && result.value === project) {
+        get().notify('info', 'Giro nulo: nada a alterar.');
+        return false;
+      }
+      const ids = moveIdsOf(project, rotation);
+      const degrees = formatDegrees(angle);
+      const done = commit(
+        result,
+        rotation.copy
+          ? `${ids.length} elemento(s) copiado(s) e girado(s) ${degrees}.`
+          : ids.length === 1
+            ? `"${getElement(project, ids[0] ?? '')?.name ?? ''}" girado ${degrees}.`
+            : `${ids.length} elementos girados ${degrees} (tubos, conexões e acessórios ligados juntos).`,
+      );
+      // Recusado: o girar continua, para outro ângulo ou com a rede ligada. Na cópia, as
+      // peças novas ficam selecionadas.
+      if (done) {
+        const known = new Set(project.elements.map((element) => element.id));
+        const created = get()
+          .project.elements.filter((element) => !known.has(element.id))
+          .map((element) => element.id);
+        set({
+          tool: 'select',
+          rotate: null,
+          selection: rotation.copy ? created : [...rotation.ids],
+        });
+      }
+      return done;
+    },
+
+    startAlign: (ids) => {
+      const { project, selection } = get();
+      const targets = (ids ?? selection).filter((id) => getElement(project, id));
+      if (targets.length === 0) {
+        get().notify('info', 'Selecione um ou mais elementos para alinhar.');
+        return;
+      }
+      get().setTool('align');
+      set({
+        align: {
+          ids: targets,
+          source1: null,
+          target1: null,
+          source2: null,
+          withConnected: true,
+          copy: false,
+        },
+        selection: targets,
+        annotationSelection: null,
+        contextMenu: null,
+        message: {
+          level: 'info',
+          text: 'Alinhar: indique o 1º ponto de origem (uma porta ou um ponto do elemento), depois o destino dele; em seguida o 2º par.',
+          at: Date.now(),
+        },
+      });
+    },
+
+    setAlignWithConnected: (enabled) => {
+      const { align } = get();
+      if (align) set({ align: { ...align, withConnected: enabled } });
+    },
+
+    setAlignCopy: (enabled) => {
+      const { align } = get();
+      if (align) set({ align: { ...align, copy: enabled } });
+    },
+
+    applyAlign: (target2) => {
+      const { project, align } = get();
+      if (!align?.source1 || !align.target1) {
+        get().notify('info', 'Indique primeiro o 1º ponto de origem e o seu destino.');
+        return false;
+      }
+      // Sem destino 2, aplica só o primeiro par (desloca), como o Enter do ALIGN do AutoCAD.
+      const applied: AlignState = target2 ? align : { ...align, source2: null };
+      const ids = moveIdsOf(project, applied);
+      const result = planAlign(project, applied, ids, target2);
+      if (!result) return false;
+      if (result.ok && result.value === project) {
+        get().notify('info', 'Os pontos de origem já estão nos destinos: nada a alterar.');
+        return false;
+      }
+      const angle = alignAngleOf(applied, target2) ?? 0;
+      const turn = Math.abs(angle) > 1e-9 ? ` e girados ${formatDegrees(angle)}` : '';
+      const done = commit(
+        result,
+        applied.copy
+          ? `${ids.length} elemento(s) copiado(s) e alinhado(s)${turn}.`
+          : ids.length === 1
+            ? `"${getElement(project, ids[0] ?? '')?.name ?? ''}" alinhado${turn}.`
+            : `${ids.length} elementos alinhados${turn}.`,
+      );
+      if (done) {
+        const known = new Set(project.elements.map((element) => element.id));
+        const created = get()
+          .project.elements.filter((element) => !known.has(element.id))
+          .map((element) => element.id);
+        set({ tool: 'select', align: null, selection: applied.copy ? created : [...align.ids] });
+      }
+      return done;
+    },
+
     nudgeSelection: (preferences, step) => {
       const { project, selection } = get();
       const primary = selection[0];
@@ -2336,12 +2788,13 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       const { stretch } = state;
       const pipe = stretch ? getElement(stretch.base, stretch.pipeId) : undefined;
       if (!stretch || pipe?.kind !== 'pipe') return;
-      const length = snapStretchLength(
-        pipe,
-        stretch.which,
-        stretchLengthAt(pipe, stretch.which, point),
-        state.snapToGrid ? state.gridStep : 0,
-      );
+      const settings = precision();
+      const raw = stretchLengthAt(pipe, stretch.which, point);
+      // Com a precisão ligada, o comprimento anda pelo passo (5 cm em 5 cm, por padrão);
+      // sem ela, a extremidade segue a grade.
+      const length = settings.enabled
+        ? Math.round(raw / settings.lengthStep) * settings.lengthStep
+        : snapStretchLength(pipe, stretch.which, raw, state.snapToGrid ? state.gridStep : 0);
       // Aquém da extremidade oposta não há tubo: a prévia permanece como está.
       if (length < MIN_PIPE_LENGTH) return;
       // Cada prévia parte do projeto do início do arrasto; o histórico só é registrado no fim.
@@ -2376,6 +2829,74 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           at: Date.now(),
         },
       });
+    },
+
+    beginInlineSlide: (elementId, grab) => {
+      const { project } = get();
+      const element = getElement(project, elementId);
+      if (!element || element.kind === 'pipe') return;
+      set({ inlineSlide: { elementId, grab, base: project }, contextMenu: null });
+    },
+
+    inlineSlideTo: (point) => {
+      const state = get();
+      const { inlineSlide } = state;
+      if (!inlineSlide) return;
+      const target = inlineSlideTarget(
+        inlineSlide.base,
+        inlineSlide.elementId,
+        inlineSlide.grab,
+        point,
+        state.snapToGrid ? state.gridStep : 0,
+      );
+      if (!target) return;
+      // Cada prévia parte do projeto do início do arrasto; o histórico só é registrado no fim.
+      const result = setInlineClearance(
+        inlineSlide.base,
+        inlineSlide.elementId,
+        target.portId,
+        target.value,
+      );
+      if (!result.ok) {
+        if (state.message?.text !== result.error.message) {
+          state.notify('error', result.error.message);
+        }
+        return;
+      }
+      if (result.value !== state.project) set({ project: result.value });
+    },
+
+    endInlineSlide: (apply) => {
+      const { inlineSlide, project, past } = get();
+      if (!inlineSlide) return;
+      if (!apply || project === inlineSlide.base) {
+        set({ inlineSlide: null, project: inlineSlide.base });
+        return;
+      }
+      const element = getElement(project, inlineSlide.elementId);
+      const sides = inlineClearancesOf(project, inlineSlide.elementId)
+        .filter((c) => c.pipeIds.length > 0)
+        .map((c) => formatMeters(c.length, 3))
+        .join(' | ');
+      set({
+        inlineSlide: null,
+        past: [...past, inlineSlide.base].slice(-HISTORY_LIMIT),
+        future: [],
+        message: {
+          level: 'success',
+          text: `"${element?.name ?? ''}" reposicionado na linha${sides ? `: ${sides}` : ''}.`,
+          at: Date.now(),
+        },
+      });
+    },
+
+    setInlineClearanceOf: (elementId, portId, value) => {
+      const { project } = get();
+      const element = getElement(project, elementId);
+      commit(
+        setInlineClearance(project, elementId, portId, value),
+        `"${element?.name ?? ''}" a ${formatMeters(value, 3)} do elemento vizinho.`,
+      );
     },
 
     openContextMenu: (menu) => set({ contextMenu: menu }),
@@ -2619,6 +3140,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     undo: () => {
       // Desfazer no meio de um arrasto de alça abandona o arrasto.
       get().endStretch(false);
+      get().endInlineSlide(false);
       const { past, future, project } = get();
       const previous = past[past.length - 1];
       if (!previous) return;
