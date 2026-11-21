@@ -151,4 +151,18 @@ def validate_project(project: Project) -> list[ValidationIssue]:
                 "Há uma etiqueta na planta que referencia um elemento inexistente.",
                 [],
             )
+
+    # Vistas de projeto (esquema v15): identificadores únicos e planta de nível existente.
+    level_ids = {level.id for level in project.levels}
+    seen_views: set[str] = set()
+    for view in project.views:
+        if view.id in seen_views:
+            add("DUPLICATE_VIEW", f'Vista duplicada: "{view.name}".', [])
+        seen_views.add(view.id)
+        if view.kind == "plan" and view.level_id not in level_ids:
+            add(
+                "DANGLING_VIEW_LEVEL",
+                f'A planta "{view.name}" referencia um nível inexistente.',
+                [],
+            )
     return issues

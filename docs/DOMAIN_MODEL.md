@@ -20,7 +20,7 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 14
+  schemaVersion: 15
   id, name
   discipline: 'mep' | 'infra'
   units: { length: 'm', angle: 'rad' }
@@ -38,6 +38,7 @@ Project {
   annotations: Annotation[]       // anotações da planta baixa
   drawingScale: number            // denominador da escala do desenho (50 = 1:50), planta do MEP
   infra: InfraSettings            // configuração da Planta Infra (independente da planta do MEP)
+  views: ProjectView[]            // vistas de projeto (plantas, cortes, elevações, 3D), na ordem do navegador
 }
 ```
 
@@ -81,6 +82,45 @@ Vivem no plano XY do projeto, em metros (`Point2 { x, y }`), e fazem parte do do
 - `drawingScale` define o tamanho de textos, traços e cotas (2,5 mm de papel para o texto), tanto na tela quanto no SVG exportado.
 - Operações: `addAnnotation`, `updateAnnotation`, `deleteAnnotations`, `setDrawingScale`; derivados: `dimensionGeometry`, `tagText`, `planSnapPoints` (`annotations.ts`).
 - A projeção em planta dos elementos é derivada da malha paramétrica (`planOutline`, em `packages/geometry`).
+
+## Vistas de projeto
+
+Uma vista é só uma forma de **mostrar** o modelo: observador, corte, recorte, escala, visibilidade e estilo. Nenhuma operação de vista altera elementos ou conexões — cortar uma vista não corta um tubo — e a representação é sempre derivada do modelo atual (nada de geometria gravada na vista). Ficam em `Project.views`, na ordem do navegador, e entram no arquivo e no histórico como o restante do projeto.
+
+```ts
+ProjectView =
+  | { kind: 'plan',      ...vista2d, levelId, cutHeight, depth, rotation }
+  | { kind: 'section',   ...vista2d, a: Point2, b: Point2, side: 1 | -1, depth }
+  | { kind: 'elevation', ...vista2d, direction: 'north' | 'south' | 'east' | 'west' }
+  | { kind: '3d', id, name, visibility, camera | null, sectionBox | null, display: 'shaded' | 'wireframe' }
+
+vista2d {
+  id, name                         // nome único no projeto
+  visibility: { hiddenSystemIds, hiddenCategories, details }
+  scale                            // denominador da escala de documentação da vista
+  style: { theme: 'color' | 'mono', thinLines }
+  crop: { enabled, min, max } | null    // região de recorte, nas coordenadas da vista
+  frame: { center, height } | null      // enquadramento salvo
+  details: ViewDetail[]            // linhas, polilinhas, retângulos, círculos, textos e cotas
+}
+ViewCamera { target: Vec3, direction: Vec3, halfHeight, projection: 'perspective' | 'orthographic' }
+SectionBox { enabled, min: Vec3, max: Vec3 }    // coordenadas do projeto
+```
+
+| Vista | O que define | O que mostra |
+| --- | --- | --- |
+| Planta (`plan`) | Nível, altura do plano de corte acima dele (`cutHeight`), profundidade abaixo do corte (`depth`) e giro (`rotation`) | O que está na faixa `[cota + cutHeight − depth, cota + cutHeight]`, cortado nos limites |
+| Corte (`section`) | Linha `a`–`b` em planta (coordenadas do projeto), lado do olhar (`side`: +1 = à esquerda de `a`→`b`) e alcance (`depth`) | O que está entre a linha e o alcance, limitado às pontas da linha; o eixo vertical do desenho é a cota real |
+| Elevação (`elevation`) | A fachada vista de fora | O modelo inteiro, sem corte |
+| Vista 3D (`3d`) | Câmera salva (alvo, direção, ampliação, perspectiva ou ortográfica) e caixa de corte | O modelo dentro da caixa |
+
+- **Referencial** (`viewFrameOf`): `u` aponta para a direita do desenho, `v` para cima e `w` para o observador; as coordenadas da vista são `(p − origem)·u` e `(p − origem)·v`, em metros. Na planta sem giro coincidem com X e Y do projeto; no corte a linha ocupa `x` de 0 ao comprimento dela. `viewClipPlanesOf` devolve os semiespaços que delimitam a vista; `toViewPoint`/`fromViewPoint` convertem pontos.
+- **Projeção**: `viewOutline` (`packages/geometry`) leva a malha paramétrica ao referencial da vista, recorta os triângulos pelos planos e entrega o resultado à mesma projeção com linhas ocultas da planta (`planOutline`). As bordas abertas pelo corte saem como linhas visíveis.
+- **Visibilidade** (`viewElementsOf`): soma-se à do sistema — o que o projeto oculta (`system.visible`) não aparece em vista nenhuma; o que a vista oculta (sistemas e categorias: tubos, conexões, válvulas, equipamentos, reservatórios) continua nas demais.
+- **Detalhes** (`ViewDetail`): `line`, `polyline` (com `closed`), `rect`, `circle`, `text` e `dimension` (estes dois com a mesma forma das anotações). Pertencem à vista em que foram desenhados e ficam nas coordenadas dela; **não** são elementos: não entram no grafo, no quantitativo, na validação da rede nem nas exportações do modelo.
+- **Regras**: nome não vazio e único; planta de nível existente (excluir um nível usado por uma planta é recusado — `LEVEL_IN_USE`); linha de corte com dois pontos distintos e alcance positivo; recorte e caixa com extensão em todos os eixos; campos de outro tipo de vista são recusados (`INVALID_VIEW_PATCH`).
+- **Operações** (`views.ts`): `addView`, `updateView`, `renameView`, `duplicateView` (com os detalhes, com novos identificadores), `moveView` (reordena dentro do tipo), `deleteView`; `addViewDetail`, `updateViewDetail`, `moveViewDetails`, `copyViewDetails`, `deleteViewDetails`; derivados: `planRangeOf`, `sectionFromPoints`, `defaultSectionBox`, `detailPointsOf`.
+- As anotações da planta de trabalho (`Project.annotations`) continuam sendo dela; a planta de trabalho e o Modelo 3D padrão não são vistas salvas.
 
 ## Elementos
 
@@ -247,7 +287,7 @@ As dimensões padrão das conexões (`dimensions.ts`) são proporções genéric
 
 ## Evolução do esquema
 
-Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. **v10** — trechos retos do joelho (`straight: { a, b }`) e, nos tamanhos de família, `centerToEnd2` e `bendRadius` (curvas ponta e bolsa); em válvulas e nos tamanhos de família, `bonnetLength` (dimensão do castelo ao longo do eixo do tubo, que com `width` define o castelo retangular das gavetas). Todos opcionais (documentos v9 já são válidos). **v11** — configuração do ambiente Infra (`infra`) e referência altimétrica da georreferência (`verticalDatum`); a migração cria a configuração padrão, leva a escala da planta de um projeto Infra para a Planta Infra e deixa a referência altimétrica não informada. Documentos de versões anteriores são migrados ao abrir. O tipo `flowMeter` (medidor de vazão em linha; `height` = do eixo ao topo do cabeçote) entrou no próprio v11, ainda não publicado em commit, sem migração. **v12** — a superfície do terreno ganha limite (`boundary`), linhas de quebra (`breaklines`) e procedência (`source`); um terreno v11 é migrado como levantamento por pontos, sem limite informado e com datum, exatidão, resolução e data **não informados**. **v13** — famílias de bombas: forma construtiva (`pumpType`), linha da tabela (`variantId`), estágios, classes dos flanges e cotas do dimensional na bomba; `dischargeOffset` e `dischargeHeight` passam a opcionais (só a genérica os usa); famílias de bombas personalizadas no projeto (`pumpFamilies`, vazia nos documentos v12). **v14** — cruzeta como elemento (`cross`, portas `a`, `b`, `branch`, `branch2`) e famílias de cruzetas (`kind: 'cross'`); só acrescenta tipos (documentos v13 já são válidos).
+Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. **v10** — trechos retos do joelho (`straight: { a, b }`) e, nos tamanhos de família, `centerToEnd2` e `bendRadius` (curvas ponta e bolsa); em válvulas e nos tamanhos de família, `bonnetLength` (dimensão do castelo ao longo do eixo do tubo, que com `width` define o castelo retangular das gavetas). Todos opcionais (documentos v9 já são válidos). **v11** — configuração do ambiente Infra (`infra`) e referência altimétrica da georreferência (`verticalDatum`); a migração cria a configuração padrão, leva a escala da planta de um projeto Infra para a Planta Infra e deixa a referência altimétrica não informada. Documentos de versões anteriores são migrados ao abrir. O tipo `flowMeter` (medidor de vazão em linha; `height` = do eixo ao topo do cabeçote) entrou no próprio v11, ainda não publicado em commit, sem migração. **v12** — a superfície do terreno ganha limite (`boundary`), linhas de quebra (`breaklines`) e procedência (`source`); um terreno v11 é migrado como levantamento por pontos, sem limite informado e com datum, exatidão, resolução e data **não informados**. **v13** — famílias de bombas: forma construtiva (`pumpType`), linha da tabela (`variantId`), estágios, classes dos flanges e cotas do dimensional na bomba; `dischargeOffset` e `dischargeHeight` passam a opcionais (só a genérica os usa); famílias de bombas personalizadas no projeto (`pumpFamilies`, vazia nos documentos v12). **v14** — cruzeta como elemento (`cross`, portas `a`, `b`, `branch`, `branch2`) e famílias de cruzetas (`kind: 'cross'`); só acrescenta tipos (documentos v13 já são válidos). **v15** — vistas de projeto (`views`: plantas por nível, cortes, elevações e vistas 3D, com os detalhes 2D de cada uma); documentos v14 migram com a lista vazia.
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
 

@@ -679,6 +679,11 @@ interface EditorState {
   customBasemap: CustomBasemapSource | null;
 
   notify: (level: MessageLevel, text: string) => void;
+  /**
+   * Aplica o resultado de uma operação de domínio calculada fora desta store (vistas de
+   * projeto e detalhes 2D), com o mesmo histórico de desfazer/refazer e as mesmas mensagens.
+   */
+  applyOperation: (result: Result<Project>, successMessage?: string) => boolean;
   loadProject: (project: Project, options?: { saved?: boolean }) => void;
   newProject: (discipline?: Discipline) => void;
   markSaved: () => void;
@@ -1494,6 +1499,7 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     customBasemap: loadCustomSource(),
 
     notify: (level, text) => set({ message: { level, text, at: Date.now() } }),
+    applyOperation: (result, successMessage) => commit(result, successMessage),
 
     loadProject: (project, options) => {
       // Outro projeto: o ponto de interesse anterior não vale mais.

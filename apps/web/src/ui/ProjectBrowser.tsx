@@ -19,6 +19,7 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { getCommand } from '../commands/commands';
 import { useCommandContext } from '../commands/useCommands';
 import { useEditorStore } from '../state/editorStore';
+import { ViewNavigator } from '../views/ViewNavigator';
 import { CommandButton } from './CommandButton';
 import { ELEMENT_ICONS } from './EngineeringIcons';
 import { SYSTEM_KIND_LABELS } from './labels';
@@ -483,6 +484,8 @@ export function ProjectBrowser() {
             testId="nav-view-profile"
           />
         </div>
+        {/* Vistas salvas no projeto: plantas, cortes, elevações e vistas 3D. */}
+        <ViewNavigator />
       </section>
       <div className="browser__footer" data-testid="nav-summary">
         <span>{project.elements.length} elementos</span>

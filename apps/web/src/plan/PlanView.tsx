@@ -77,6 +77,8 @@ import {
 } from '../state/editorStore';
 import { alignGuidesOf, pointGridStepOf } from '../state/alignTool';
 import { useUiStore } from '../state/uiStore';
+import { SectionDraft, SectionMarkers } from '../views/SectionMarkers';
+import { useViewStore } from '../views/viewStore';
 import { cursorElementOf } from '../state/viewPreview';
 import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
 import { planDrawOrder } from './drawOrder';
@@ -253,6 +255,9 @@ export function PlanView() {
   const measure = useEditorStore((s) => s.measure);
   const align = useEditorStore((s) => s.align);
   const workPlaneZ = useEditorStore((s) => s.workPlaneZ);
+  /** Corte em criação (vistas de projeto): a linha é desenhada aqui, em planta. */
+  const sectionTool = useViewStore((s) => s.tool === 'section');
+  const sectionDraft = useViewStore((s) => s.draft);
   /** Ferramenta de modelagem ativa (tubo, conexões, equipamentos, medição). */
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
 
@@ -609,6 +614,10 @@ export function PlanView() {
       return;
     }
     const point = snap(raw).point;
+    if (useViewStore.getState().tool === 'section') {
+      useViewStore.getState().clickPoint(point);
+      return;
+    }
     if (tool === 'select') {
       if (d.annotationId) store.selectAnnotation(d.annotationId);
       else store.select(d.elementId, additive);
@@ -744,7 +753,7 @@ export function PlanView() {
               ? 'annotation'
               : // Em Selecionar, o arrasto com o botão esquerdo abre a janela de seleção (como no
                 // 3D); a vista se desloca com o botão direito ou o do meio.
-                tool === 'select' && event.pointerType !== 'touch'
+                tool === 'select' && !sectionTool && event.pointerType !== 'touch'
                 ? 'window'
                 : 'click';
     if (mode === 'grip' && gripPipe && (grip === 'start' || grip === 'end')) {
@@ -871,6 +880,7 @@ export function PlanView() {
     }
     const snapped = terrainMode ? { point: raw, snap: 'plane' as const } : snap(raw);
     setPointer(snapped);
+    if (sectionTool) useViewStore.getState().setCursor(snapped.point);
     useEditorStore.getState().setCursor({
       point: vec3(snapped.point.x, snapped.point.y, 0),
       snap: snapped.snap,
@@ -1162,6 +1172,7 @@ export function PlanView() {
       data-testid="plan-view"
       data-tool={tool}
       data-terrain-mode={terrainMode ?? ''}
+      data-view-tool={sectionTool ? 'section' : ''}
       data-theme={theme}
       data-environment={project.discipline}
       data-origin={`${origin.x};${origin.y}`}
@@ -1174,7 +1185,7 @@ export function PlanView() {
         width={size.width}
         height={size.height}
         viewBox={`${X(view.cx) - (size.width / 2) * view.mpp} ${Y(view.cy) - (size.height / 2) * view.mpp} ${Math.max(size.width, 1) * view.mpp} ${Math.max(size.height, 1) * view.mpp}`}
-        style={{ cursor: drafting || terrainMode ? 'crosshair' : 'default' }}
+        style={{ cursor: drafting || terrainMode || sectionTool ? 'crosshair' : 'default' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -1255,6 +1266,13 @@ export function PlanView() {
               />
             ))}
         </g>
+        {/* Cortes do projeto: o marcador seleciona a vista e o duplo clique a abre. */}
+        <SectionMarkers
+          project={project}
+          interactive={tool === 'select' && !sectionTool && !terrainMode}
+          map={(p) => ({ x: X(p.x), y: Y(p.y) })}
+          mpp={view.mpp}
+        />
         <InlineClearanceLayer origin={origin} mpp={view.mpp} />
         {gripPipe && (
           <g data-ui="grips">
@@ -1303,6 +1321,26 @@ export function PlanView() {
           />
         )}
         <g data-ui="draft" pointerEvents="none">
+          {sectionTool && (
+            <>
+              <SectionDraft
+                draft={sectionDraft}
+                cursor={cursorPoint}
+                map={(p) => ({ x: X(p.x), y: Y(p.y) })}
+                mpp={view.mpp}
+              />
+              {pointer && (
+                <circle
+                  cx={X(pointer.point.x)}
+                  cy={Y(pointer.point.y)}
+                  r={marker}
+                  fill="none"
+                  stroke={HIGHLIGHT}
+                  strokeWidth={1.5 * view.mpp}
+                />
+              )}
+            </>
+          )}
           {tool === 'dimension' && first && !second && cursorPoint && (
             <line
               x1={X(first.x)}

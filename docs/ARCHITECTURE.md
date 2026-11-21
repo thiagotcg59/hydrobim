@@ -54,6 +54,9 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Provedores de mapa e ladrilhos (sem conhecer o domínio hidráulico) | `apps/web/src/map` |
 | Planta Infra (mapa de fundo, camadas, rótulos, níveis de detalhe) | `apps/web/src/infra`, dentro de `plan/PlanView.tsx` |
 | Origem de renderização das vistas | `apps/web/src/editor/renderOrigin.ts` |
+| Vistas de projeto: tipos, referencial, planos de corte, detalhes 2D e operações | `packages/core/src/views.ts` (puro) |
+| Projeção de um elemento em uma vista, com a malha cortada pelos planos | `packages/geometry/src/viewOutline.ts` |
+| Vistas de projeto no editor: sessão, vista 2D, navegador, painel, caixa de corte | `apps/web/src/views/` |
 
 ## Fluxo de uma edição
 
@@ -64,6 +67,12 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 4. A store registra o projeto anterior no histórico (desfazer/refazer) ou exibe o erro na barra de status. O projeto nunca fica em estado parcial.
 5. React re-renderiza apenas os elementos cujo objeto mudou; `ElementMesh` regenera a malha a partir de `buildElementGeometry`.
 6. `validateProject` é recalculado a partir do modelo e exibido na barra de status.
+
+## Vistas de projeto
+
+Plantas por nível, cortes, elevações e vistas 3D são **dados do projeto** (`Project.views`), mas só descrevem como o modelo é mostrado. O caminho é o mesmo de uma edição: o comando chama a sessão das vistas (`views/viewStore.ts`), que chama uma operação pura de `core/views.ts` e entrega o resultado à store do editor (`applyOperation`) — um passo no histórico, como qualquer outra alteração. A sessão (vista aberta em cada área, ferramenta de desenho 2D, pontos informados, seleção de detalhes) não é persistida.
+
+A representação é derivada a cada desenho: `viewFrameOf` e `viewClipPlanesOf` (núcleo) dão o referencial e os planos de corte; `viewOutline` (geometria) projeta a malha paramétrica cortada; `views/viewGeometry.ts` guarda a projeção por elemento e por vista enquanto o objeto do elemento for o mesmo. Uma alteração de engenharia troca o objeto do elemento, e todas as vistas o redesenham. No modelo 3D a caixa de corte são planos de recorte nos materiais (`views/clipContext.ts`); a malha não muda.
 
 ## Convenções geométricas
 

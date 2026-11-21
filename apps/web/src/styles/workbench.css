@@ -211,6 +211,17 @@ textarea {
   box-shadow: inset 3px 0 0 var(--accent-strong);
 }
 
+/* Grupo denso: comandos secundários só com o símbolo, em qualquer largura. */
+.ribbon__group--dense .cmd--compact {
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+}
+
+.ribbon__group--dense .cmd--compact .cmd__label {
+  display: none;
+}
+
 /* Comandos secundários: o nome só aparece quando há largura; a dica sempre o traz. */
 @media (max-width: 1699px) {
   .cmd--compact {
@@ -1233,4 +1244,307 @@ textarea {
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(12, 17, 24, 0.7);
   pointer-events: none;
+}
+
+/* ----- Vistas de projeto: navegador, vista 2D, painel "Vista" e caixa de corte ----- */
+
+.viewnav {
+  max-height: 34vh;
+  margin-top: 4px;
+  overflow-y: auto;
+}
+
+.viewnav__empty {
+  margin: 4px 6px 0;
+  line-height: 1.35;
+}
+
+.viewnav__item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.viewnav__item > .tree__row {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Corte selecionado pelo marcador (ainda não aberto): contorno, sem competir com a vista aberta. */
+.viewnav__item.is-selected > .tree__row {
+  box-shadow: inset 3px 0 0 var(--confirm);
+  font-weight: 600;
+}
+
+.viewnav__actions {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.viewnav__item:hover .viewnav__actions,
+.viewnav__item:focus-within .viewnav__actions {
+  display: inline-flex;
+}
+
+.viewnav__actions .tree__action {
+  width: 21px;
+  height: 22px;
+}
+
+.viewnav__rename {
+  flex: 1;
+  min-width: 0;
+  margin: 1px 4px 1px 40px;
+  padding: 2px 5px;
+  border: 1px solid var(--accent-strong);
+  border-radius: 3px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+}
+
+/* Vista de projeto aberta na área de desenho: nome e fechar, ao lado do título. */
+.pane__open {
+  display: inline-flex;
+  flex-shrink: 1;
+  align-items: center;
+  min-width: 0;
+  height: 24px;
+  margin-left: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--bg-1);
+  color: var(--text-dim);
+}
+
+.pane__open.is-active {
+  border-color: var(--accent-strong);
+  background: var(--select-bg);
+  color: var(--select-text);
+}
+
+.pane__open-name,
+.pane__open-close {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pane__open-name {
+  gap: 5px;
+  min-width: 0;
+  padding: 0 4px 0 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pane__open-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane__open-close {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-left: 1px solid var(--line);
+}
+
+.pane__open-close:hover {
+  background: #dbe5f1;
+  color: var(--text);
+}
+
+/* Vista 2D salva: usa a base da planta (`.plan`) e as suas linhas finas. */
+.plan--thin [data-layer='details'] line:not([data-ui]),
+.plan--thin [data-layer='details'] polyline:not([data-ui]),
+.plan--thin [data-layer='details'] polygon:not([data-ui]),
+.plan--thin [data-layer='details'] rect:not([data-ui]),
+.plan--thin [data-layer='details'] circle:not([data-ui]) {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1px;
+}
+
+.docview__title {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: calc(100% - 20px);
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-dim);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.docview__title strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.docview__empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: 360px;
+  padding: 10px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.docview__entry {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 20px);
+  padding: 5px 8px;
+  border: 1px solid var(--accent-strong);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(12, 17, 24, 0.14);
+  font-size: 12.5px;
+}
+
+.docview__entry--notice {
+  border-color: var(--warning);
+}
+
+.docview__entry--notice .btn {
+  flex-shrink: 0;
+}
+
+.docview__entry strong {
+  flex-shrink: 0;
+  color: var(--select-text);
+}
+
+.docview__entry span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docview__entry input {
+  flex-shrink: 0;
+  width: 190px;
+  padding: 3px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--mono);
+}
+
+/* Painel "Vista". */
+.viewpanel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.viewpanel__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  font-size: 13.5px;
+}
+
+.viewpanel__note {
+  margin: 4px 12px 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.viewpanel .section .viewpanel__note {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.viewpanel__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 8px;
+}
+
+.viewpanel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+
+.viewpanel__actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.viewpanel__group {
+  display: block;
+  margin: 8px 0 2px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.viewpanel__check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Alças da caixa de corte no modelo 3D: uma por face, com a letra do eixo. */
+.section-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #2f6fde;
+  box-shadow: 0 0 0 1px rgba(12, 17, 24, 0.6);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+.section-grip:hover,
+.section-grip--active {
+  background: #ffd166;
+  color: #0c1118;
+  transform: scale(1.2);
 }

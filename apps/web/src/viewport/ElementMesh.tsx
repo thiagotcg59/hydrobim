@@ -1,7 +1,8 @@
 import type { HydroElement, Material } from '@hydrobim/core';
 import { buildElementGeometry, type MeshData, type MeshPart } from '@hydrobim/geometry';
-import { memo, useEffect, useMemo } from 'react';
-import { BufferAttribute, BufferGeometry } from 'three';
+import { memo, useContext, useEffect, useMemo } from 'react';
+import { BufferAttribute, BufferGeometry, DoubleSide, FrontSide } from 'three';
+import { ModelDisplayContext } from '../views/clipContext';
 import { partFinish } from './materials';
 
 // Ciano: o mesmo destaque da seleção na planta. A cor da peça é trocada (e não só somada à
@@ -47,6 +48,8 @@ export const PartMeshes = memo(function PartMeshes({
     [geometries],
   );
   const emissive = selected ? SELECTED_EMISSIVE : hovered ? HOVER_EMISSIVE : '#000000';
+  // Vista 3D aberta: caixa de corte e estilo aramado (só apresentação).
+  const display = useContext(ModelDisplayContext);
   return (
     <>
       {geometries.map((part, index) => {
@@ -59,6 +62,10 @@ export const PartMeshes = memo(function PartMeshes({
               emissiveIntensity={selected ? 0.55 : hovered ? 0.7 : 0}
               roughness={finish.roughness}
               metalness={finish.metalness}
+              clippingPlanes={display.planes}
+              // Cortado, o interior da peça fica à vista: as faces de dentro também são desenhadas.
+              side={display.planes ? DoubleSide : FrontSide}
+              wireframe={display.wireframe}
             />
           </mesh>
         );

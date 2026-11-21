@@ -22,6 +22,7 @@ import { StatusBar } from './ui/StatusBar';
 import { ToolBar } from './ui/ToolBar';
 import { ToolOptions } from './ui/ToolOptions';
 import { TopBar } from './ui/TopBar';
+import { ViewPanel } from './views/ViewPanel';
 import { Workspace } from './ui/Workspace';
 
 /** Largura da régua de um painel recolhido. */
@@ -53,11 +54,13 @@ function RightPanel() {
   if (bim) return <IfcPanel />;
   const creating = tool !== 'select' && !isAnnotationTool(tool);
   const showTool = creating && tab === 'tool';
+  // Aba "Vista": configuração da vista de projeto em uso e do detalhe 2D selecionado.
+  const showView = tab === 'view' && !creating;
   return (
     <div
       className="rightpanel"
       data-testid="right-panel"
-      data-tab={showTool ? 'tool' : 'properties'}
+      data-tab={showTool ? 'tool' : showView ? 'view' : 'properties'}
     >
       <div className="rightpanel__tabs" role="tablist" aria-label="Painel">
         <button
@@ -80,15 +83,27 @@ function RightPanel() {
           type="button"
           role="tab"
           data-testid="panel-tab-properties"
-          aria-selected={!showTool}
-          className={!showTool ? 'rightpanel__tab is-active' : 'rightpanel__tab'}
+          aria-selected={!showTool && !showView}
+          className={!showTool && !showView ? 'rightpanel__tab is-active' : 'rightpanel__tab'}
           title="Propriedades dos elementos já selecionados"
           onClick={() => setTab('properties')}
         >
           Propriedades{selectionSize > 0 ? ` · ${selectionSize}` : ''}
         </button>
+        <button
+          type="button"
+          role="tab"
+          data-testid="panel-tab-view"
+          aria-selected={showView}
+          className={showView ? 'rightpanel__tab is-active' : 'rightpanel__tab'}
+          disabled={creating}
+          title="Vista de projeto em uso: escala, orientação, corte, recorte, visibilidade e estilo; e o detalhe 2D selecionado"
+          onClick={() => setTab('view')}
+        >
+          Vista
+        </button>
       </div>
-      {showTool ? <ToolOptions /> : <PropertiesPanel />}
+      {showTool ? <ToolOptions /> : showView ? <ViewPanel /> : <PropertiesPanel />}
     </div>
   );
 }

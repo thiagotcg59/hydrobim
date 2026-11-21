@@ -3,8 +3,15 @@ import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { useTerrainStore } from '../terrain/terrainStore';
+import { useViewStore } from '../views/viewStore';
 import { isWalkKey } from '../walk/walkMotion';
-import { commandForKey, GLOBAL_SHORTCUTS, runCommand, type CommandContext } from './commands';
+import {
+  commandForKey,
+  GLOBAL_SHORTCUTS,
+  runCommand,
+  viewContextOf,
+  type CommandContext,
+} from './commands';
 
 /** Estado de que os comandos dependem, sem reagir a cada movimento do cursor. */
 export function useCommandContext(): CommandContext {
@@ -37,9 +44,24 @@ export function useCommandContext(): CommandContext {
   );
   const terrainMode = useTerrainStore((s) => s.mode);
   const terrainPanelOpen = useTerrainStore((s) => s.panelOpen);
+  const views = useViewStore(
+    useShallow((s) => ({
+      open2d: s.open2d,
+      open3d: s.open3d,
+      tool: s.tool,
+      marker: s.marker,
+      detailSelection: s.detailSelection,
+    })),
+  );
   return useMemo(
-    () => ({ ...editor, ...layout, terrainMode, terrainPanelOpen }),
-    [editor, layout, terrainMode, terrainPanelOpen],
+    () => ({
+      ...editor,
+      ...layout,
+      terrainMode,
+      terrainPanelOpen,
+      ...viewContextOf(editor.project, views),
+    }),
+    [editor, layout, terrainMode, terrainPanelOpen, views],
   );
 }
 
@@ -80,7 +102,8 @@ export function useKeyboardShortcuts(): void {
       if (event.key === 'Escape') {
         const ui = useUiStore.getState();
         if (ui.validationOpen) ui.setValidationOpen(false);
-        else useEditorStore.getState().cancelInteraction();
+        // O desenho 2D em andamento (ou a seleção de detalhes) é o primeiro a ser desfeito.
+        else if (!useViewStore.getState().cancel()) useEditorStore.getState().cancelInteraction();
         return;
       }
       if (!id) return;

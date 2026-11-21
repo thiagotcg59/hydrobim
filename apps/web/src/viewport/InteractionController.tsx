@@ -44,6 +44,7 @@ import {
   pipeSnapOf,
   useEditorStore,
 } from '../state/editorStore';
+import { getActiveClipPlanes } from '../views/clipContext';
 import { pointGridStepOf } from '../state/alignTool';
 import { useTerrainStore } from '../terrain/terrainStore';
 
@@ -145,7 +146,12 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       };
 
       const group = elementsRef.current;
-      const intersection = group ? raycaster.intersectObject(group, true)[0] : undefined;
+      // Com a caixa de corte, o primeiro ponto atingido que ela não esconde.
+      const clip = getActiveClipPlanes();
+      const hits = group ? raycaster.intersectObject(group, true) : [];
+      const intersection = clip
+        ? hits.find((entry) => clip.every((plane) => plane.distanceToPoint(entry.point) >= 0))
+        : hits[0];
       const elementId = intersection ? elementIdOf(intersection.object) : null;
       const hit =
         intersection && elementId

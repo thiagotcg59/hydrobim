@@ -43,3 +43,4 @@ export * from './terrain/survey';
 export * from './terrain/surface';
 export * from './units';
 export * from './validation';
+export * from './views';
