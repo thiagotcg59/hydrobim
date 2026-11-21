@@ -142,6 +142,17 @@ Os comandos de **Modificar** e **Conectar** que dependem de valores (deslocament
 
 As exportações de planta funcionam de qualquer vista: o DXF é gerado do modelo (`plan/planExport.ts`); o SVG é o desenho da planta e por isso a abre antes de gerar o arquivo.
 
+## Tela compacta e toque (dobráveis e tablets)
+
+Até 1023 px de largura (`ui/compactLayout.ts`; Galaxy Z Fold aberto fica entre ~850 e ~990 px nas duas orientações) o editor entra no modo compacto, marcado em `.app[data-compact]` e estilizado em `styles/compact.css`. Acima disso o layout de desktop não muda.
+
+- **Área de desenho com a largura toda**: ao entrar no modo, navegador e propriedades recolhem para as réguas laterais e a área mostra uma vista por vez (o "Lado a lado" continua disponível). Abertos, os painéis **flutuam** sobre a área de desenho, um por vez.
+- **Faixa em uma linha**, rolável com o dedo (as abas de tarefa também); sem os títulos dos grupos. As listas dos botões com seta abrem fixas logo abaixo do botão; o menu de camadas do Infra abre abaixo da faixa.
+- **Cabeçalho**: ambiente e situação de gravação só com o símbolo (o nome fica na dica); o nome do projeto ocupa o espaço livre.
+- **Alvos de toque** (`@media (pointer: coarse)`, em qualquer largura): comandos de 40 px, abas, botões, campos e linhas do navegador maiores.
+- **Gestos na planta** (`plan/touchGestures.ts`): toque = clique; um dedo arrastando desloca a vista (em Selecionar não abre janela de seleção); **pinça** amplia e desloca ao mesmo tempo; **toque longo** (0,55 s, dedo parado) = botão direito, abre o menu de contexto. O dedo tem tolerância de 10 px entre toque e arrasto. No 3D, os gestos são os do OrbitControls (um dedo gira, dois aproximam e deslocam).
+- Teste: `tests/e2e/compact.spec.ts`, com a tela do dobrável (884 × 980, toque) e eventos de toque reais.
+
 ## Registro de comandos
 
 `apps/web/src/commands/commands.ts` é a definição única de cada comando: identificador, rótulo, finalidade, ícone, atalho, `data-testid`, disponibilidade (`state`, com o motivo) e execução. Leem dele:

@@ -1,0 +1,258 @@
+/*
+ * Tela compacta e toque. Carregado por último: só acrescenta regras.
+ *
+ * - `.app[data-compact='true']` — largura de até 1023 px (dobráveis abertos, tablets em
+ *   retrato). O atributo vem de `ui/compactLayout.ts`, a mesma consulta que decide o
+ *   comportamento (painéis flutuantes, uma vista por vez): aparência e comportamento não
+ *   divergem. Acima disso nada aqui se aplica — o layout de desktop fica como estava.
+ * - `@media (pointer: coarse)` — o dedo é o ponteiro principal: alvos de toque maiores, em
+ *   qualquer largura. Notebook com tela sensível tem ponteiro principal fino e não muda.
+ */
+
+/* ===== Tela compacta ===== */
+
+.app[data-compact='true'] {
+  /* Os painéis abertos são posicionados sobre a área da coluna (régua) e a área de desenho. */
+  position: relative;
+}
+
+/* ----- Cabeçalho: identidade e ambiente só com o símbolo; o nome fica na dica ----- */
+
+.app[data-compact='true'] .topbar {
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.app[data-compact='true'] .topbar__brand span,
+.app[data-compact='true'] .topbar__caption,
+.app[data-compact='true'] .segmented__label,
+.app[data-compact='true'] .topbar__dirty-label {
+  display: none;
+}
+
+.app[data-compact='true'] .topbar .segmented__item {
+  padding: 4px 10px;
+}
+
+.app[data-compact='true'] .topbar__dirty {
+  padding: 3px 7px;
+}
+
+.app[data-compact='true'] .topbar__project {
+  flex: 1 1 auto;
+  max-width: none;
+}
+
+.app[data-compact='true'] .topbar__project input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* ----- Faixa: uma linha de comandos, rolável com o dedo; abas também roláveis ----- */
+
+.app[data-compact='true'] .ribbon__tabs {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.app[data-compact='true'] .ribbon__tab,
+.app[data-compact='true'] .ribbon__search,
+.app[data-compact='true'] .ribbon__collapse {
+  flex-shrink: 0;
+}
+
+.app[data-compact='true'] .ribbon__tabs::-webkit-scrollbar,
+.app[data-compact='true'] .ribbon__body::-webkit-scrollbar {
+  display: none;
+}
+
+.app[data-compact='true'] .ribbon__body {
+  flex-wrap: nowrap;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  /* A rolagem pede algo à vista: sombra na borda direita quando há mais comandos. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+
+.app[data-compact='true'] .ribbon__group {
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.app[data-compact='true'] .ribbon__caption {
+  display: none;
+}
+
+.app[data-compact='true'] .ribbon__items {
+  min-height: 0;
+  flex-wrap: nowrap;
+}
+
+/*
+ * Menus da faixa (camadas do Infra): a âncora deixa de ser o botão, que está dentro da faixa
+ * rolável (cortaria a lista), e passa a ser a própria faixa — a lista abre logo abaixo dela.
+ */
+.app[data-compact='true'] .ribbon .infra__menu {
+  position: static;
+}
+
+.app[data-compact='true'] .ribbon .infra__popover {
+  top: calc(100% + 4px);
+  left: 8px;
+  width: min(330px, calc(100vw - 16px));
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ----- Navegador e propriedades: flutuam sobre a área de desenho ----- */
+
+.app[data-compact='true'] .dock--overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 35;
+  width: min(var(--dock-width, 320px), calc(100vw - 56px));
+  box-shadow: 0 10px 30px rgba(16, 32, 64, 0.28);
+}
+
+.app[data-compact='true'] .dock--nav.dock--overlay {
+  left: 0;
+}
+
+.app[data-compact='true'] .dock--panel.dock--overlay {
+  right: 0;
+}
+
+/* A largura do painel flutuante segue a do desktop; não há borda para arrastar. */
+.app[data-compact='true'] .dock--overlay .dock__resizer {
+  display: none;
+}
+
+/* ----- Área de desenho ----- */
+
+/* Abas da vista e navegação roláveis: nada se sobrepõe quando não cabe. */
+.app[data-compact='true'] .pane__header {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.app[data-compact='true'] .pane__header::-webkit-scrollbar {
+  display: none;
+}
+
+.app[data-compact='true'] .pane__nav {
+  margin-left: auto;
+}
+
+.app[data-compact='true'] .refbar {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* Painéis sobre a planta (terreno, terraplenagem, perfil): não passam da largura da vista. */
+.app[data-compact='true'] .terrain {
+  width: min(380px, calc(100% - 20px));
+}
+
+/* ----- Menu Arquivo: não passa da largura da tela ----- */
+
+.app[data-compact='true'] .menu__list {
+  width: min(380px, calc(100vw - 16px));
+}
+
+/* ===== Toque: alvos maiores ===== */
+
+@media (pointer: coarse) {
+  .cmd--large,
+  .cmd--compact {
+    height: 40px;
+  }
+
+  .cmd--compact,
+  .ribbon__group--dense .cmd--compact {
+    width: 40px;
+  }
+
+  .cmd--icon {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .ribbon__tabs {
+    height: 40px;
+  }
+
+  .ribbon__search,
+  .ribbon__collapse {
+    min-height: 32px;
+  }
+
+  .topbar .cmd--icon {
+    width: 40px;
+    height: 36px;
+  }
+
+  .topbar .segmented__item {
+    min-height: 32px;
+  }
+
+  .pane__header {
+    height: 40px;
+  }
+
+  .pane__tabs .cmd {
+    height: 32px;
+  }
+
+  .pane__nav .cmd--icon {
+    width: 36px;
+    min-width: 36px;
+    height: 32px;
+  }
+
+  .dock__collapse {
+    padding: 8px;
+  }
+
+  .dock__rail {
+    padding: 12px 0;
+  }
+
+  .refbar {
+    height: 38px;
+  }
+
+  .refbar__step select {
+    height: 30px;
+  }
+
+  .tree__row,
+  .browser__views .cmd {
+    min-height: 36px;
+  }
+
+  .chip,
+  .btn {
+    min-height: 32px;
+  }
+
+  .btn--compact {
+    min-height: 32px;
+  }
+
+  .menu__list .cmd--menu {
+    min-height: 40px;
+  }
+
+  .field input,
+  .field select,
+  .plan__field input,
+  .plan__field select {
+    min-height: 32px;
+  }
+}
