@@ -24,7 +24,7 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 - Por padrão, alterar o diâmetro muda **apenas a peça selecionada**: reduções de catálogo são inseridas junto aos vizinhos, ajustadas se já existirem e removidas quando deixam de ser necessárias. A alternativa é aplicar a todo o trecho conectado.
 
 **Interoperabilidade e análises**
-- Exportação **IFC 4.3** no navegador, verificada com IfcOpenShell.
+- Exportação **IFC 4.3** no navegador, verificada com IfcOpenShell — rede e arquitetura no mesmo arquivo (paredes, lajes, revestimentos, portas e janelas com vãos reais, ambientes, camadas de material e quantitativos).
 - Exportação **DXF**: planta baixa em R2000 (camadas `REDE_*` por categoria, cotas como `DIMENSION`, conexões como blocos, textos e etiquetas) e modelo 3D em malhas (metros).
 - Quantitativo em CSV e rede em formato EPANET (INP).
 - Georreferência informada pelo usuário, terreno por pontos XYZ, perfil longitudinal com recobrimento e detecção de interferências entre tubos.
@@ -111,9 +111,10 @@ Backend: `cd services/api && uv run ruff check . && uv run pytest`.
 
 ```
 apps/web/            Editor React + Three.js (interface, viewport, estado, persistência)
-packages/core/       Modelo de domínio, portas, conectividade, operações, validação, serialização
+packages/core/       Modelo de domínio, portas, conectividade, operações, validação, serialização;
+                     arquitetura (paredes, pisos, portas, janelas, ambientes) em architecture/
 packages/geometry/   Malhas paramétricas dos elementos (independente de motor gráfico)
-packages/catalog/    Especificações de tubos e famílias de conexões (catálogos)
+packages/catalog/    Especificações de tubos, famílias de conexões e famílias arquitetônicas (catálogos)
 packages/ifc/        Exportação IFC 4.3 (escritor IFC-SPF puro, roda no navegador)
 packages/dxf/        Exportação DXF (planta anotada em R2000 e modelo 3D em R12)
 services/api/        API FastAPI (validação do projeto; verificação do IFC nos testes)
@@ -129,6 +130,7 @@ docs/                Arquitetura, modelo de domínio, mapeamento IFC, decisões,
 - [Catálogos e famílias](docs/CATALOGS.md)
 - [Mapeamento IFC](docs/IFC_MAPPING.md)
 - [Ambiente Infra](docs/INFRA.md)
+- [Arquitetura](docs/ARQUITETURA.md) — paredes, pisos, portas, janelas e ambientes; requisitos adotados e limites
 - [Decisões técnicas](docs/DECISIONS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Instruções para agentes e colaboradores](AGENTS.md)

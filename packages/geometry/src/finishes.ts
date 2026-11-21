@@ -22,6 +22,8 @@ export interface SurfaceFinish {
   readonly roughness: number;
   /** 0 = dielétrico (plástico, tinta, borracha), 1 = metal. */
   readonly metalness: number;
+  /** 1 (ou ausente) = opaco; menor que 1 = translúcido (vidro). */
+  readonly opacity?: number;
 }
 
 export const FINISHES = {
@@ -66,6 +68,13 @@ export const FINISHES = {
   },
   /** Anéis de vedação em borracha EPDM. */
   epdmRubber: { label: 'Borracha EPDM', color: '#1b1c1f', roughness: 0.85, metalness: 0 },
+  // Arquitetura: aparência genérica por categoria (não descreve o material das camadas).
+  wallBody: { label: 'Parede', color: '#d9d4c7', roughness: 0.9, metalness: 0 },
+  slabBody: { label: 'Laje', color: '#a9aaa8', roughness: 0.85, metalness: 0 },
+  floorFinish: { label: 'Revestimento de piso', color: '#c9b79a', roughness: 0.6, metalness: 0 },
+  doorPanel: { label: 'Folha de porta', color: '#8a6747', roughness: 0.55, metalness: 0 },
+  joineryFrame: { label: 'Marco de esquadria', color: '#eceef0', roughness: 0.45, metalness: 0.1 },
+  glazing: { label: 'Vidro', color: '#9cc9df', roughness: 0.08, metalness: 0, opacity: 0.35 },
 } as const satisfies Record<string, SurfaceFinish>;
 
 export type FinishName = keyof typeof FINISHES;
@@ -89,13 +98,30 @@ export const ROLE_FINISH: Record<Exclude<PartRole, 'body'>, FinishName> = {
   steel: 'bareSteel',
   galvanized: 'galvanized',
   liner: 'blueLiner',
+  wall: 'wallBody',
+  slab: 'slabBody',
+  flooring: 'floorFinish',
+  joinery: 'doorPanel',
+  frame: 'joineryFrame',
+  glass: 'glazing',
 };
 
 /**
  * Papéis que mantêm a própria cor mesmo quando o sistema hidráulico tem cor definida:
  * identificam uma função (acionamento, vedação, acessório, revestimento interno), não a rede.
  */
-const FIXED_COLOR_ROLES: ReadonlySet<PartRole> = new Set(['accent', 'trim', 'seal', 'liner']);
+const FIXED_COLOR_ROLES: ReadonlySet<PartRole> = new Set([
+  'accent',
+  'trim',
+  'seal',
+  'liner',
+  'wall',
+  'slab',
+  'flooring',
+  'joinery',
+  'frame',
+  'glass',
+]);
 
 /** Acabamento de uma parte; a cor do sistema, se houver, substitui apenas a cor. */
 export function partFinish(

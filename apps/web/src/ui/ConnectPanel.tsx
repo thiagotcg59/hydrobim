@@ -71,6 +71,12 @@ export function ConnectPanel() {
           <span className="muted" data-testid="connection-guides">
             {RELATION_LABELS[plan.value.guides.relation]}: {guidesText(plan.value.guides)}.
           </span>
+          {plan.value.candidates.some((option) => option.key.startsWith('route:')) && (
+            <span className="muted" data-testid="connection-route-hint">
+              Há um traçado alternativo entre as extremidades. Escolha o percurso e confira a prévia
+              na planta ou no 3D antes de confirmar.
+            </span>
+          )}
           {!plan.value.candidates.some((option) => option.connects) && (
             <span className="options__error" data-testid="connection-none">
               Montagem impossível: {plan.value.refusals.join(' ') || 'sem peças compatíveis.'}

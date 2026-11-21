@@ -1,4 +1,9 @@
 import { useEffect, useState, type CSSProperties } from 'react';
+import { ArchCatalogDialog } from './arch/ArchCatalogDialog';
+import { ArchProperties } from './arch/ArchProperties';
+import { ArchQuantitiesDialog } from './arch/ArchQuantitiesDialog';
+import { ARCH_TOOL_LABELS, useArchStore } from './arch/archStore';
+import { ArchToolOptions } from './arch/ArchToolOptions';
 import { BimTree } from './bim/BimTree';
 import { IfcLibraryDialog } from './bim/IfcLibraryDialog';
 import { IfcPanel } from './bim/IfcPanel';
@@ -48,11 +53,14 @@ function useUnsavedChangesGuard(): void {
 function RightPanel() {
   const tool = useEditorStore((s) => s.tool);
   const bim = useEditorStore((s) => s.viewMode === 'bim');
-  const selectionSize = useEditorStore((s) => s.selection.length);
+  const archTool = useArchStore((s) => s.tool);
+  const archSelected = useArchStore((s) => s.selection.length);
+  const selectionSize = useEditorStore((s) => s.selection.length) + archSelected;
   const tab = useUiStore((s) => s.panelTab);
   const setTab = useUiStore((s) => s.setPanelTab);
-  if (bim) return <IfcPanel />;
-  const creating = tool !== 'select' && !isAnnotationTool(tool);
+  if (bim) return archSelected > 0 ? <ArchProperties /> : <IfcPanel />;
+  const creating = archTool !== null || (tool !== 'select' && !isAnnotationTool(tool));
+  const toolLabel = archTool ? ARCH_TOOL_LABELS[archTool] : TOOL_LABELS[tool];
   const showTool = creating && tab === 'tool';
   // Aba "Vista": configuração da vista de projeto em uso e do detalhe 2D selecionado.
   const showView = tab === 'view' && !creating;
@@ -72,12 +80,12 @@ function RightPanel() {
           disabled={!creating}
           title={
             creating
-              ? `Opções da ferramenta ${TOOL_LABELS[tool]}: parâmetros do próximo elemento a criar`
+              ? `Opções da ferramenta ${toolLabel}: parâmetros do próximo elemento a criar`
               : 'Sem ferramenta de criação ativa. Escolha uma em Modelagem › Criar para ver as suas opções.'
           }
           onClick={() => setTab('tool')}
         >
-          Ferramenta{creating ? ` · ${TOOL_LABELS[tool]}` : ''}
+          Ferramenta{creating ? ` · ${toolLabel}` : ''}
         </button>
         <button
           type="button"
@@ -103,7 +111,17 @@ function RightPanel() {
           Vista
         </button>
       </div>
-      {showTool ? <ToolOptions /> : showView ? <ViewPanel /> : <PropertiesPanel />}
+      {showTool ? (
+        archTool ? (
+          <ArchToolOptions tool={archTool} />
+        ) : (
+          <ToolOptions />
+        )
+      ) : showView ? (
+        <ViewPanel />
+      ) : (
+        <PropertiesPanel />
+      )}
     </div>
   );
 }
@@ -177,6 +195,18 @@ export function App() {
         <ExportDialog open={dialog === 'export'} onClose={closeDialog('export')} />
         <CommandPalette open={dialog === 'commands'} onClose={closeDialog('commands')} />
         <ProjectOptionsDialog open={dialog === 'options'} onClose={closeDialog('options')} />
+        {dialog === 'archCatalog' && (
+          <ArchCatalogDialog
+            onClose={closeDialog('archCatalog')}
+            onUseType={(typeId, category) => {
+              useUiStore.getState().closeDialog('archCatalog');
+              useArchStore.getState().activateType(typeId, category);
+            }}
+          />
+        )}
+        {dialog === 'archQuantities' && (
+          <ArchQuantitiesDialog onClose={closeDialog('archQuantities')} />
+        )}
         <ProjectDialog
           open={projectDialog}
           onClose={() => setProjectDialog(false)}

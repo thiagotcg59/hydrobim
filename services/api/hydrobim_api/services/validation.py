@@ -1,11 +1,22 @@
 """Validação estrutural/referencial; não verifica acoplamento geométrico de portas."""
 
+from collections.abc import Callable
 from math import dist
 from typing import Literal
 
 from hydrobim_api.models.project import CamelModel, HydroElement, PipeSpec, Project
 
 MIN_PIPE_LENGTH = 1e-3
+# Mesmo valor de MIN_WALL_LENGTH (core/architecture/walls.ts).
+MIN_WALL_LENGTH = 0.05
+# Rótulos de ARCH_KIND_LABELS (core/architecture/derive.ts), em minúsculas.
+ARCH_KIND_LABELS = {
+    "wall": "parede",
+    "slab": "laje",
+    "flooring": "piso",
+    "door": "porta",
+    "window": "janela",
+}
 SPEC_TOLERANCE = 1e-6
 VALID_PORTS = {
     "pipe": frozenset({"start", "end"}),
@@ -165,4 +176,76 @@ def validate_project(project: Project) -> list[ValidationIssue]:
                 f'A planta "{view.name}" referencia um nível inexistente.',
                 [],
             )
+    _validate_architecture(project, level_ids, seen_ids, add)
     return issues
+
+
+def _validate_architecture(
+    project: Project, level_ids: set[str], hydraulic_ids: set[str], add: Callable[..., None]
+) -> None:
+    """Integridade referencial da arquitetura (esquema v16), como `archIntegrityProblem`.
+
+    Ficam só no cliente as verificações que dependem da geometria derivada: polígonos de
+    lajes, revestimentos e ambientes (contorno simples, aberturas contidas) e o vão de portas
+    e janelas cabendo no trecho livre da parede hospedeira, já descontados os encontros com
+    as paredes vizinhas (`OPENING_DOES_NOT_FIT`).
+    """
+    architecture = project.architecture
+    types = {}
+    for arch_type in architecture.types:
+        if arch_type.id in types:
+            add("ARCH_DUPLICATE_TYPE", f'Tipo duplicado: "{arch_type.name}".', [])
+        else:
+            types[arch_type.id] = arch_type
+        # Produto de fabricante só com fonte identificada; nada é presumido.
+        if not arch_type.generic and arch_type.source is None:
+            add(
+                "ARCH_SOURCE_REQUIRED",
+                f'"{arch_type.name}" é produto de fabricante: informe a fonte (catálogo, '
+                "edição, página e URL) ou marque o tipo como genérico.",
+                [],
+            )
+
+    walls: set[str] = set()
+    seen: set[str] = set()
+    for element in architecture.elements:
+        if element.id in seen:
+            add("ARCH_DUPLICATE_ID", f"Identificador duplicado ({element.id}).", [element.id])
+        elif element.kind == "wall":
+            # Como no cliente, vale a primeira ocorrência do identificador.
+            walls.add(element.id)
+        seen.add(element.id)
+        # Os identificadores são únicos no projeto inteiro, não só dentro da arquitetura.
+        if element.id in hydraulic_ids:
+            add("DUPLICATE_ID", f"Identificador duplicado: {element.id}.", [element.id])
+        if element.kind != "space":
+            arch_type = types.get(element.type_id)
+            if arch_type is None:
+                add("ARCH_TYPE_NOT_FOUND", f'"{element.name}" não tem tipo.', [element.id])
+            elif arch_type.category != element.kind:
+                add(
+                    "ARCH_TYPE_MISMATCH",
+                    f'O tipo "{arch_type.name}" não é de {ARCH_KIND_LABELS[element.kind]}.',
+                    [element.id],
+                )
+        if element.kind in ("door", "window"):
+            continue
+        if element.level_id not in level_ids:
+            add(
+                "LEVEL_NOT_FOUND",
+                f'"{element.name}" referencia um nível inexistente.',
+                [element.id],
+            )
+        if element.kind == "wall":
+            length = dist((element.start.x, element.start.y), (element.end.x, element.end.y))
+            if length < MIN_WALL_LENGTH:
+                add(
+                    "WALL_TOO_SHORT",
+                    f'"{element.name}" ficaria sem comprimento '
+                    f"(mínimo de {MIN_WALL_LENGTH * 100:g} cm).",
+                    [element.id],
+                )
+
+    for element in architecture.elements:
+        if element.kind in ("door", "window") and element.host_id not in walls:
+            add("HOST_NOT_FOUND", f'"{element.name}" não tem parede hospedeira.', [element.id])

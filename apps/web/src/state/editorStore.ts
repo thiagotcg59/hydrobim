@@ -1568,7 +1568,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           text:
             discipline === 'infra'
               ? 'Ambiente Infra: especificação e grade ajustadas para redes e adutoras.'
-              : 'Ambiente MEP: especificação e grade ajustadas para instalações prediais.',
+              : discipline === 'architecture'
+                ? 'Ambiente Arquitetura: paredes, pisos, esquadrias e ambientes. O projeto, as coordenadas e os elementos são os mesmos.'
+                : 'Ambiente MEP: especificação e grade ajustadas para instalações prediais.',
           at: Date.now(),
         },
       });
@@ -2294,9 +2296,10 @@ export const useEditorStore = create<EditorState>()((set, get) => {
           get().notify('error', problem);
           return;
         }
-        const { createdIds, removedIds } = result.value;
+        const { createdIds, removedIds, stubIds } = result.value;
         const details = [
           createdIds.length > 0 ? `${createdIds.length} redução(ões) inserida(s)` : '',
+          stubIds.length > 0 ? `${stubIds.length} toco(s) de tubo entre bolsas` : '',
           removedIds.length > 0 ? `${removedIds.length} redução(ões) removida(s)` : '',
         ].filter(Boolean);
         commit(

@@ -66,6 +66,10 @@ def test_standard_sets_follow_the_ifc43_templates(example):
     model = ifcopenshell.open(str(example))
     checked = set()
     for definition in model.by_type("IfcPropertySetDefinition"):
+        # Conjuntos predefinidos do esquema (`IfcWindowPanelProperties` das folhas de janela
+        # etc.) são entidades com atributos próprios e nome livre: não seguem os modelos.
+        if definition.is_a("IfcPreDefinedPropertySet"):
+            continue
         name = definition.Name
         template = TEMPLATES.get_by_name(name)
         if template is None:
@@ -121,9 +125,11 @@ def test_every_element_has_type_material_and_system(example):
         groups = [a.RelatingGroup for a in entity.HasAssignments if a.is_a("IfcRelAssignsToGroup")]
         assert [g.is_a() for g in groups] == ["IfcDistributionSystem"]
     # Elementos do mesmo produto compartilham o tipo: há menos tipos que ocorrências.
-    types = model.by_type("IfcElementType")
+    # A conta vale para os tipos da rede; os de arquitetura (`IfcWallType` etc.) tipificam
+    # ocorrências que não estão em `elements`.
+    types = model.by_type("IfcDistributionElementType")
     assert 0 < len(types) <= len(document["elements"])
-    assert all(t.Types and t.Types[0].RelatedObjects for t in types)
+    assert all(t.Types and t.Types[0].RelatedObjects for t in model.by_type("IfcElementType"))
 
 
 def _values(definition):

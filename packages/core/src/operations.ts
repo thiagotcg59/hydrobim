@@ -60,6 +60,7 @@ import { getPort, pipeLength, type Port } from './ports';
 import { reconcile, setPipeEnd, translateFitting, verifyCoupling } from './reconcile';
 import { fail, ok, type Result } from './result';
 import {
+  defaultEarthworks,
   defaultInfraSettings,
   PROJECT_FORMAT,
   SCHEMA_VERSION,
@@ -160,12 +161,14 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     ifcTypes: {},
     georeference: null,
     terrain: null,
+    earthworks: defaultEarthworks(),
     elements: [],
     connections: [],
     annotations: [],
     drawingScale: discipline === 'infra' ? 500 : 50,
     infra: defaultInfraSettings(),
     views: [],
+    architecture: { types: [], elements: [] },
   };
 }
 

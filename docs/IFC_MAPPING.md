@@ -4,7 +4,7 @@
 
 ## Esquema alvo
 
-- **Principal: IFC 4.3** (`IFC4X3_ADD2`, ISO 16739-1:2024).
+- **Principal: IFC 4.3.2.0** (`IFC4X3_ADD2`, ISO 16739-1:2024), para a rede e para a arquitetura.
 - **Compatibilidade futura: IFC 4** (`IFC4`), mediante testes de interoperabilidade.
 
 ### O que foi verificado
@@ -195,6 +195,67 @@ Observações:
 - `Qto_TankBaseQuantities` (pesos e área total) não é emitido: o catálogo não informa pesos.
 - A referência do catálogo e a origem dos parâmetros dependem das famílias, passadas a `exportIfc` em `tankFamilies` (o pacote `ifc` não depende do catálogo).
 
+## Arquitetura
+
+Esquema adotado: **IFC 4.3.2.0 (`IFC4X3_ADD2`)**, o mesmo da rede. Entidades, ordem dos atributos, enumerações e modelos de conjuntos conferidos no IfcOpenShell 0.9.0.post1 (`schema_by_name('IFC4X3_ADD2')` e `ifcopenshell.util.pset.get_template('IFC4X3')`); as descrições dos tipos predefinidos e das quantidades foram lidas em `ifcopenshell.util.doc`. A documentação HTML da buildingSMART não respondeu ao acesso automático (403) na data da implementação.
+
+| HydroBIM | Entidade / tipo | PredefinedType | Conjuntos |
+| --- | --- | --- | --- |
+| `wall` | `IfcWall` / `IfcWallType` | Da família: `SOLIDWALL` (alvenaria, blocos), `ELEMENTEDWALL` (drywall) | `Pset_WallCommon`, `Qto_WallBaseQuantities` |
+| `slab` | `IfcSlab` / `IfcSlabType` | `FLOOR` | `Pset_SlabCommon`, `Qto_SlabBaseQuantities` |
+| `flooring` | `IfcCovering` / `IfcCoveringType` | `FLOORING` | `Pset_CoveringCommon`, `Pset_CoveringFlooring`, `Qto_CoveringBaseQuantities` |
+| `door` | `IfcDoor` / `IfcDoorType` | `DOOR` | `Pset_DoorCommon`, `Pset_DoorWindowGlazingType`, `Qto_DoorBaseQuantities` |
+| `window` | `IfcWindow` / `IfcWindowType` | `WINDOW` | `Pset_WindowCommon`, `Pset_DoorWindowGlazingType`, `Qto_WindowBaseQuantities` |
+| `space` | `IfcSpace` (sem `IfcSpaceType`) | `SPACE`; `INTERNAL`/`EXTERNAL` só com `Pset_SpaceCommon.IsExternal` informado | `Pset_SpaceCommon`, `Qto_SpaceBaseQuantities` |
+| vão de porta, janela ou piso | `IfcOpeningElement` | `OPENING` | — |
+
+- **Tipo predefinido**: nasce da família do catálogo e fica no tipo (`ifcPredefinedType`); o usuário pode trocá-lo por outro valor da enumeração oficial. `STANDARD` (parede) consta no esquema como obsoleto e não é usado pelas famílias.
+- **Não confundir**: a categoria interna (`flooring`), a entidade (`IfcCovering`) e o tipo predefinido (`FLOORING`) são três níveis; o revestimento de piso **não** é um `IfcSlab`. Classificações externas (NBR 15965, SINAPI) vão em `IfcClassificationReference` e nunca substituem a entidade.
+- **Atributos** (não são propriedades): `OverallWidth` e `OverallHeight` na porta e na janela; `OperationType` na porta e no `IfcDoorType`; `PartitioningType` na janela e no `IfcWindowType`; `LongName` (nome) e `Name` (número, quando há) no ambiente, com `ElevationWithFlooring`.
+
+| Abertura do tipo | No IFC |
+| --- | --- |
+| Porta de giro, uma folha | `SINGLE_SWING_LEFT` / `SINGLE_SWING_RIGHT`, pela mão da ocorrência |
+| Porta de giro, duas folhas | `DOUBLE_DOOR_SINGLE_SWING` |
+| Porta de correr | `SLIDING_TO_LEFT` / `SLIDING_TO_RIGHT` |
+| Porta pivotante | `USERDEFINED` + `UserDefinedOperationType = 'PIVOT'` (a enumeração não tem pivotante de eixo deslocado) |
+| Janela: 1, 2, 3 folhas | `SINGLE_PANEL`, `DOUBLE_PANEL_VERTICAL`, `TRIPLE_PANEL_VERTICAL`; mais de três: `USERDEFINED` com a descrição |
+| Janela: abertura de cada folha | `IfcWindowPanelProperties` no tipo (até três folhas): fixa `FIXEDCASEMENT`, correr `SLIDINGHORIZONTAL`, abrir `SIDEHUNGLEFTHAND`/`SIDEHUNGRIGHTHAND`, basculante `PIVOTHORIZONTAL`, maxim-ar `TOPHUNG` |
+
+Como o IFC põe a mão da porta no tipo, um tipo do projeto usado com as duas mãos gera dois `IfcDoorType` (o mesmo vale para a janela de abrir de uma folha).
+
+### Geometria, vãos e estrutura espacial
+
+- Parede, laje e revestimento: `IfcExtrudedAreaSolid` do contorno **bruto** (`IfcArbitraryClosedProfileDef`). Cada vão é um `IfcOpeningElement` com sólido próprio, ligado por `IfcRelVoidsElement`; o da porta ou janela é ligado a ela por `IfcRelFillsElement`. As aberturas de laje e de revestimento são `IfcOpeningElement` sem preenchimento. O sólido do vão passa 5 mm além das faces, para a subtração não ter faces coincidentes.
+- Porta e janela: `IfcTriangulatedFaceSet` por parte (marco, folha, vidro), com o estilo de superfície de cada parte; o vidro leva transparência.
+- Ambiente: representação `FootPrint` (contorno) sempre; `Body` (sólido extrudado) só com o pé-direito informado. É elemento **espacial**: decompõe o pavimento (`IfcRelAggregates`) e não entra em `IfcRelContainedInSpatialStructure`.
+- Pavimentos: os elementos ficam no `IfcBuildingStorey` do seu nível (portas e janelas, no da parede). A estrutura edifício › pavimentos vale para os ambientes Arquitetura e MEP; no Infra tudo fica no terreno.
+- `GlobalId` da ocorrência: derivado do `id` persistente do elemento; o do tipo, do `id` do tipo (e da mão, quando há) — reexportar preserva as identidades.
+
+### Materiais
+
+- Parede, laje e revestimento: `IfcMaterialLayerSet` no tipo (uma `IfcMaterialLayer` por camada, com o material, a espessura e a função em `Category`) e `IfcMaterialLayerSetUsage` em cada ocorrência — parede: `AXIS2`, sentido `NEGATIVE`, a partir da face esquerda; laje e revestimento: `AXIS3`, de cima para baixo.
+- Porta e janela: `IfcMaterialConstituentSet` (`Frame`, `Panel`, `Glazing`) **só** com os materiais informados; sem informação não há associação de material.
+
+### Propriedades
+
+`packages/ifc/src/bim/archDefinitions.ts` é a parte arquitetônica do registro central. Os conjuntos padronizados não são transcritos: para cada um, **todas** as propriedades de valor simples ou enumerado são lidas de `schemaData.ts`, com nome, tipo de valor e enumeração oficiais. O registro só decide a categoria, o escopo, o rótulo e o grupo do painel. Propriedades em outras formas (valor por referência, intervalo) não são oferecidas.
+
+| Escopo | Propriedades |
+| --- | --- |
+| Tipo (`Ifc…Type.HasPropertySets`) | `Reference` (nome do tipo) e as de desempenho do `Pset_*Common` (`FireRating`, `AcousticRating`, `ThermalTransmittance`, `Combustible`…); `Pset_DoorWindowGlazingType`; `Pset_ManufacturerTypeInformation`; `HydroBIM_Composicao`, `HydroBIM_Esquadria` |
+| Ocorrência | `Status`, `IsExternal`, `LoadBearing`, `ExtendToStructure`, `Compartmentation`, `PitchAngle`, `FireExit`, `HandicapAccessible`, `PubliclyAccessible`, áreas planejadas; `Pset_InstallationOccurrence`; `Qto_*`; `HydroBIM_Parede`, `HydroBIM_Piso`, `HydroBIM_Vao`, `HydroBIM_Posicao`, `HydroBIM_Planejamento`, `HydroBIM_Ambiente`, `HydroBIM_Propriedades` |
+
+- Os `Pset_*Common` são, no esquema, conjuntos de tipo com sobreposição por ocorrência (`PSET_TYPEDRIVENOVERRIDE`). Aqui cada propriedade tem **um** escopo; o mesmo conjunto aparece no tipo e na ocorrência com propriedades diferentes, sem repetição.
+- **Sem valor = pendente.** Propriedade editável não informada é gravada sem `NominalValue` (ou sem `EnumerationValues`). Nenhuma propriedade da arquitetura é exigida por padrão, e o IDS exportado não traz requisitos de arquitetura.
+- **Quantidades**: só as que o modelo calcula; critérios em [ARQUITETURA.md](ARQUITETURA.md). Não são emitidos pesos, `Length`/`Depth` da laje, quantidades líquidas do ambiente nem `Qto_OpeningElementBaseQuantities`.
+- **Unidades novas**: transmitância térmica (`THERMALTRANSMITTANCEUNIT`, kg·s⁻³·K⁻¹ = W/m²·K), com quilograma e kelvin declarados. Datas (`IfcDate`) em AAAA-MM-DD.
+- `validateArchIfcModel` confere entidade, tipo predefinido, atributos enumerados, aplicabilidade dos conjuntos e tipos de valor contra o esquema.
+
+### Verificação
+
+`services/api/tests/test_ifc_architecture.py` reabre `examples/edificacao-simples.ifc` com o IfcOpenShell: `ifcopenshell.validate` sem ocorrências; contagem e tipos predefinidos; `GlobalId` de cada elemento; tipos compartilhados; atributos e modo de abertura; vãos e preenchimentos; ambientes agregados ao pavimento; camadas de material e uso; propriedades pendentes sem valor; unidades; quantidades brutas e líquidas; e o volume do sólido tesselado (com os vãos subtraídos pelo próprio IfcOpenShell) contra o volume líquido gravado.
+
 ## Portas e conectividade
 
 - Cada porta do HydroBIM vira um `IfcDistributionPort` (`PredefinedType = PIPE`, `SystemType` conforme o sistema), posicionado no referencial local do elemento.
@@ -205,7 +266,7 @@ Observações:
 ## Estrutura do arquivo a exportar
 
 1. `IfcProject` com `IfcUnitAssignment` (metro, radiano) e contextos geométricos (`Model`/`Body`, eventualmente `Axis`).
-2. Estrutura espacial: `IfcSite` → `IfcBuilding` → `IfcBuildingStorey` para MEP; para Infra, avaliar `IfcFacility`/`IfcFacilityPart` (existem apenas no IFC 4.3).
+2. Estrutura espacial: `IfcSite` → `IfcBuilding` → `IfcBuildingStorey` para MEP e Arquitetura; para Infra, avaliar `IfcFacility`/`IfcFacilityPart` (existem apenas no IFC 4.3).
 3. Elementos com `IfcLocalPlacement` derivado do referencial local e contidos por `IfcRelContainedInSpatialStructure`.
 4. Geometria (a decidir e testar em visualizadores):
    - tubo: `IfcExtrudedAreaSolid` com `IfcCircleHollowProfileDef`, ou `IfcSweptDiskSolid` com `InnerRadius`;
@@ -213,6 +274,23 @@ Observações:
    - tê, redução e válvula: composição de sólidos ou malha (`IfcTriangulatedFaceSet`) gerada a partir de `packages/geometry`.
 5. Propriedades: conjuntos padrão quando existirem (ex.: `Pset_PipeSegmentTypeCommon`) e um conjunto próprio `HydroBIM_*` para DN, norma, classe de pressão e propriedades livres. Os nomes dos Psets padrão devem ser conferidos na Fase 3.
 6. Identificadores: `GlobalId` de 22 caracteres derivado de forma determinística do UUID do elemento (`ifcopenshell.guid.compress`), para que reexportações preservem a identidade.
+
+## Terreno e terraplenagem
+
+Entidades, tipos predefinidos e conjuntos de quantidades conferidos em `schemaData.ts` (gerado do esquema IFC4X3_ADD2; `packages/ifc/src/terrainExport.ts`):
+
+| HydroBIM | Entidade IFC | Tipo predefinido | Geometria e relações |
+| --- | --- | --- | --- |
+| Superfície do terreno NATURAL (`project.terrain`) | `IfcGeographicElement` | `TERRAIN` | `IfcTriangulatedFaceSet` aberto com os vértices e as faces da superfície; contido no `IfcSite`; `GlobalId` derivado de `terrain.id`, `Tag` = `terrain.tag` |
+| Corte de um platô | `IfcEarthworksCut` | `CUT` | Sólido entre o terreno natural (tampa) e o projetado (fundo); `IfcRelVoidsElement` com o terreno (`IfcEarthworksCut` é um `IfcFeatureElementSubtraction`) |
+| Aterro de um platô | `IfcEarthworksFill` | `EMBANKMENT` | Sólido entre o terreno projetado (tampa) e o natural (fundo); contido no `IfcSite` |
+
+- **Terreno projetado**: não é uma entidade à parte. É o terreno natural menos os cortes mais os aterros — a mesma relação do modelo do HydroBIM, que não precisa reimportar o IFC para recalcular.
+- **Coordenadas**: locais do projeto, relativas ao canto da superfície (um `IfcLocalPlacement` leva a esse canto); a posição no sistema projetado é a do `IfcMapConversion`.
+- **Sólidos**: a tampa e o fundo se encontram na linha em que as duas superfícies coincidem, sem parede lateral. `Closed` = `.T.` quando toda aresta pertence a duas faces de sentidos opostos (terrenos planos e inclinados); em relevo irregular podem restar lascas submilimétricas abertas, e o atributo sai `.F.` — o volume gravado é sempre o integrado, não o do sólido.
+- **Quantidades**: `Qto_EarthworksCutBaseQuantities.UndisturbedVolume` (corte in situ) e `LooseVolume` (corte × (1 + empolamento), só com o empolamento informado); `Qto_EarthworksFillBaseQuantities.CompactedVolume` (aterro) e `LooseVolume` (aterro ÷ fator × (1 + empolamento), só com os dois parâmetros). `Length`, `Width`, `Depth` e `Weight` não são emitidos (não têm definição única para um platô; o peso exigiria a massa específica). Conjuntos próprios: `HydroBIM_Terreno` (procedência, referência altimétrica, cotas mínima e máxima, editada), `HydroBIM_TerrenoQuantidades` (área em planta e da superfície), `HydroBIM_Plato` (cota, taludes H:V, empolamento, fator, aproveitamento) e `HydroBIM_TerraplenagemQuantidades` (área em planta em corte ou em aterro). Valor não informado sai sem valor.
+- **Não emitido**: `IfcTriangulatedIrregularNetwork` (o significado de `Flags` por triângulo não foi conferido; a superfície sai como `IfcTriangulatedFaceSet`), linhas de quebra e limite como curvas, e a superfície original de antes das edições.
+- **Fora do registro central**: estes conjuntos são escritos direto pela exportação e ainda não aparecem na aba BIM / IFC nem no IDS.
 
 ## Georreferenciamento (Infra)
 
@@ -222,7 +300,7 @@ Atributos do `IfcProjectedCRS`: `Name` = `EPSG:<código>` (ou o nome informado, 
 
 ## Verificação automática
 
-Os testes do backend abrem os arquivos IFC de `examples/` (gerados por `npm run examples:generate`) com IfcOpenShell e conferem: contagem de entidades por classe e tipo predefinido, portas e `IfcRelConnectsPorts` equivalentes ao grafo, sistema e unidades, e validade do arquivo (`ifcopenshell.validate`).
+Os testes do backend abrem os arquivos IFC de `examples/` (gerados por `npm run examples:generate`) com IfcOpenShell e conferem: contagem de entidades por classe e tipo predefinido, portas e `IfcRelConnectsPorts` equivalentes ao grafo, sistema e unidades, e validade do arquivo (`ifcopenshell.validate`). O exemplo `terraplenagem-platos` cobre o terreno e a terraplenagem (`tests/test_ifc_terrain.py`): classe e tipo do terreno, malha igual à do projeto, cortes abrindo vazio no terreno, aterros contidos no `IfcSite`, conversão dos volumes soltos e tesselagem nas coordenadas do projeto.
 
 ## Limitações conhecidas da exportação atual
 

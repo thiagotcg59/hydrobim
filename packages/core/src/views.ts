@@ -1,12 +1,15 @@
 import { dimensionGeometry } from './annotations';
+import { archViewCategoryOf, computeArchBounds } from './architecture/derive';
 import { computeBounds } from './bounds';
 import { newId } from './ids';
 import { now } from './internal';
 import { add, dot, scale, sub, vec3, type Vec3 } from './math';
 import { fail, ok, type Result } from './result';
 import {
+  defaultArchCutHeight,
   ProjectViewSchema,
   ViewDetailSchema,
+  type ArchElement,
   type ElevationDirection,
   type HydroElement,
   type ModelProjectView,
@@ -83,6 +86,18 @@ export function viewElementsOf(project: Project, view: ProjectView): HydroElemen
   return project.elements.filter(
     (element) =>
       !hiddenSystems.has(element.systemId) && !hiddenCategories.has(viewCategoryOf(element)),
+  );
+}
+
+/**
+ * Elementos de arquitetura que a vista mostra: todos, menos as categorias que a vista oculta
+ * (paredes, pisos, portas, janelas, ambientes). Não pertencem a sistemas hidráulicos.
+ */
+export function viewArchElementsOf(project: Project, view: ProjectView): ArchElement[] {
+  const hidden = new Set(view.visibility.hiddenCategories);
+  if (hidden.size === 0) return project.architecture.elements;
+  return project.architecture.elements.filter(
+    (element) => !hidden.has(archViewCategoryOf(element)),
   );
 }
 
@@ -174,6 +189,35 @@ export function planRangeOf(
 }
 
 /**
+ * Cota do plano em que a planta corta a arquitetura (nível + `archCutHeight`), nunca acima
+ * do topo da faixa da vista.
+ */
+export function planArchCutOf(
+  project: Pick<Project, 'levels'>,
+  view: Pick<PlanProjectView, 'levelId' | 'cutHeight' | 'depth' | 'archCutHeight'>,
+): number {
+  const { top, bottom } = planRangeOf(project, view);
+  const elevation = project.levels.find((level) => level.id === view.levelId)?.elevation ?? 0;
+  return Math.max(bottom, Math.min(top, elevation + view.archCutHeight));
+}
+
+/**
+ * Planos de corte da ARQUITETURA na vista: como os da rede, mas a planta corta no plano da
+ * arquitetura (o primeiro plano devolvido é sempre o de corte — o da seção hachurada).
+ */
+export function viewArchClipPlanesOf(
+  project: Pick<Project, 'levels'>,
+  view: ProjectView2d,
+): ViewClipPlane[] {
+  if (view.kind !== 'plan') return viewClipPlanesOf(project, view);
+  const { bottom } = planRangeOf(project, view);
+  return [
+    { point: vec3(0, 0, planArchCutOf(project, view)), normal: vec3(0, 0, -1) },
+    { point: vec3(0, 0, bottom), normal: vec3(0, 0, 1) },
+  ];
+}
+
+/**
  * Planos que delimitam o que a vista mostra: a faixa de corte da planta; no corte, o plano da
  * linha, o alcance (`depth`) e as duas pontas da linha. A elevação não corta nada.
  */
@@ -214,8 +258,29 @@ export function sectionFromPoints(
 }
 
 /** Caixa de corte inicial: a envoltória dos elementos com folga (ou um cubo junto à origem). */
-export function defaultSectionBox(project: Pick<Project, 'elements'>): SectionBox {
-  const bounds = computeBounds(project.elements);
+export function defaultSectionBox(
+  project: Pick<Project, 'elements'> & Partial<Pick<Project, 'levels' | 'architecture'>>,
+): SectionBox {
+  const network = computeBounds(project.elements);
+  const arch =
+    project.levels && project.architecture
+      ? computeArchBounds({ levels: project.levels, architecture: project.architecture })
+      : null;
+  const bounds =
+    network && arch
+      ? {
+          min: vec3(
+            Math.min(network.min.x, arch.min.x),
+            Math.min(network.min.y, arch.min.y),
+            Math.min(network.min.z, arch.min.z),
+          ),
+          max: vec3(
+            Math.max(network.max.x, arch.max.x),
+            Math.max(network.max.y, arch.max.y),
+            Math.max(network.max.z, arch.max.z),
+          ),
+        }
+      : (network ?? arch);
   if (!bounds) return { enabled: true, min: vec3(-5, -5, -1), max: vec3(5, 5, 3) };
   const pad = 0.5;
   return {
@@ -344,6 +409,7 @@ export function addView(
       levelId: level.id,
       cutHeight,
       depth: cutHeight + 0.3,
+      archCutHeight: defaultArchCutHeight(cutHeight),
       rotation: 0,
     };
   } else if (input.kind === 'section') {

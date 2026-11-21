@@ -20,9 +20,9 @@ Fonte única de verdade: [`packages/core/src/schema.ts`](../packages/core/src/sc
 ```ts
 Project {
   format: 'hydrobim-project'
-  schemaVersion: 15
+  schemaVersion: 17
   id, name
-  discipline: 'mep' | 'infra'
+  discipline: 'mep' | 'infra' | 'architecture'
   units: { length: 'm', angle: 'rad' }
   createdAt, updatedAt
   systems: HydraulicSystem[]      // ao menos um; cor e visibilidade opcionais
@@ -32,13 +32,15 @@ Project {
   pumpFamilies: PumpFamily[]      // famílias de bombas personalizadas (somam-se ao catálogo)
   ifcTypes: { [chaveDoTipo]: { [Conjunto.Propriedade]: valor } }  // valores IFC do usuário por tipo
   georeference: Georeference | null   // informada pelo usuário; nunca presumida
-  terrain: Terrain | null         // superfície do terreno (TIN) com limite, linhas de quebra e procedência
+  terrain: Terrain | null         // superfície do terreno NATURAL (TIN) com limite, linhas de quebra e procedência
+  earthworks: Earthworks          // platôs e parâmetros de volume; o terreno projetado é derivado
   elements: HydroElement[]
   connections: Connection[]       // grafo de conectividade
   annotations: Annotation[]       // anotações da planta baixa
   drawingScale: number            // denominador da escala do desenho (50 = 1:50), planta do MEP
   infra: InfraSettings            // configuração da Planta Infra (independente da planta do MEP)
   views: ProjectView[]            // vistas de projeto (plantas, cortes, elevações, 3D), na ordem do navegador
+  architecture: { types: ArchType[], elements: ArchElement[] }   // modelo arquitetônico (abaixo)
 }
 ```
 
@@ -89,7 +91,7 @@ Uma vista é só uma forma de **mostrar** o modelo: observador, corte, recorte, 
 
 ```ts
 ProjectView =
-  | { kind: 'plan',      ...vista2d, levelId, cutHeight, depth, rotation }
+  | { kind: 'plan',      ...vista2d, levelId, cutHeight, depth, archCutHeight, rotation }
   | { kind: 'section',   ...vista2d, a: Point2, b: Point2, side: 1 | -1, depth }
   | { kind: 'elevation', ...vista2d, direction: 'north' | 'south' | 'east' | 'west' }
   | { kind: '3d', id, name, visibility, camera | null, sectionBox | null, display: 'shaded' | 'wireframe' }
@@ -116,11 +118,55 @@ SectionBox { enabled, min: Vec3, max: Vec3 }    // coordenadas do projeto
 
 - **Referencial** (`viewFrameOf`): `u` aponta para a direita do desenho, `v` para cima e `w` para o observador; as coordenadas da vista são `(p − origem)·u` e `(p − origem)·v`, em metros. Na planta sem giro coincidem com X e Y do projeto; no corte a linha ocupa `x` de 0 ao comprimento dela. `viewClipPlanesOf` devolve os semiespaços que delimitam a vista; `toViewPoint`/`fromViewPoint` convertem pontos.
 - **Projeção**: `viewOutline` (`packages/geometry`) leva a malha paramétrica ao referencial da vista, recorta os triângulos pelos planos e entrega o resultado à mesma projeção com linhas ocultas da planta (`planOutline`). As bordas abertas pelo corte saem como linhas visíveis.
-- **Visibilidade** (`viewElementsOf`): soma-se à do sistema — o que o projeto oculta (`system.visible`) não aparece em vista nenhuma; o que a vista oculta (sistemas e categorias: tubos, conexões, válvulas, equipamentos, reservatórios) continua nas demais.
+- **Visibilidade** (`viewElementsOf`): soma-se à do sistema — o que o projeto oculta (`system.visible`) não aparece em vista nenhuma; o que a vista oculta (sistemas e categorias: tubos, conexões, válvulas, equipamentos, reservatórios) continua nas demais. A arquitetura segue as categorias paredes, pisos, portas, janelas e ambientes (`viewArchElementsOf`).
+- **Corte da arquitetura em planta**: `archCutHeight` é a altura, acima do nível, do plano em que paredes, portas e janelas são cortadas (`planArchCutOf`, `viewArchClipPlanesOf`); a rede continua visível até `cutHeight`. A seção cortada vem de `sectionLoops` (`packages/geometry`).
 - **Detalhes** (`ViewDetail`): `line`, `polyline` (com `closed`), `rect`, `circle`, `text` e `dimension` (estes dois com a mesma forma das anotações). Pertencem à vista em que foram desenhados e ficam nas coordenadas dela; **não** são elementos: não entram no grafo, no quantitativo, na validação da rede nem nas exportações do modelo.
 - **Regras**: nome não vazio e único; planta de nível existente (excluir um nível usado por uma planta é recusado — `LEVEL_IN_USE`); linha de corte com dois pontos distintos e alcance positivo; recorte e caixa com extensão em todos os eixos; campos de outro tipo de vista são recusados (`INVALID_VIEW_PATCH`).
 - **Operações** (`views.ts`): `addView`, `updateView`, `renameView`, `duplicateView` (com os detalhes, com novos identificadores), `moveView` (reordena dentro do tipo), `deleteView`; `addViewDetail`, `updateViewDetail`, `moveViewDetails`, `copyViewDetails`, `deleteViewDetails`; derivados: `planRangeOf`, `sectionFromPoints`, `defaultSectionBox`, `detailPointsOf`.
 - As anotações da planta de trabalho (`Project.annotations`) continuam sendo dela; a planta de trabalho e o Modelo 3D padrão não são vistas salvas.
+
+## Arquitetura
+
+Paredes, lajes, revestimentos de piso, portas, janelas e ambientes ficam em `Project.architecture`, **fora** de `Project.elements`: não têm sistema hidráulico, DN, especificação de tubo nem portas e não entram no grafo de conectividade. Compartilham com a rede os níveis, as coordenadas, o histórico e as vistas. Requisitos de origem, limites e quantitativos: [ARQUITETURA.md](ARQUITETURA.md).
+
+```ts
+ArchType =                        // família com dimensões e composição, gravada no projeto
+  | { category: 'wall' | 'slab' | 'flooring', ...tipo, layers: ArchLayer[] }      // espessura = soma
+  | { category: 'door',   ...tipo, operation, width, height, frameWidth, panelThickness, materials }
+  | { category: 'window', ...tipo, operation, width, height, sillHeight, panels, frameWidth, materials }
+tipo { id, name, familyId | null, generic, source | null, manufacturing, classifications[], ifcPredefinedType, ifc }
+ArchLayer { id, material, thickness, function, hatch }
+
+ArchElement =
+  | { kind: 'wall',     typeId, levelId, start: Point2, end: Point2, locationLine, baseOffset, height }
+  | { kind: 'slab',     typeId, levelId, boundary: Point2[], openings: { id, boundary }[], offset }   // offset = topo
+  | { kind: 'flooring', typeId, levelId, boundary, openings, offset }                                 // offset = base
+  | { kind: 'door' | 'window', typeId, hostId, offset, sillHeight, hand, facing }
+  | { kind: 'space',    levelId, number?, boundary, offset, height: number | null }
+// comuns: id (persistente), name, properties, ifc?, meta
+```
+
+| Campo | Significado |
+| --- | --- |
+| `generic` / `source` | `true` = modelo genérico parametrizável (dimensões do usuário, sem produto). `false` exige `source` (fabricante, catálogo, edição, página, URL) |
+| `ifcPredefinedType` | Tipo predefinido IFC da categoria; nasce da família do catálogo |
+| `ifc` (tipo e ocorrência) | Valores IFC informados pelo usuário, por `Conjunto.Propriedade`; o que não foi informado fica pendente |
+| `classifications` | Classificações externas (NBR 15965, SINAPI, outra), sempre informadas |
+| `locationLine` | Onde a linha `start`–`end` fica na espessura: `center`, `faceLeft` ou `faceRight` (esquerda de quem vai do início ao fim) |
+| `baseOffset`, `height` | A base da parede fica em cota do nível + `baseOffset` |
+| `layers` | Parede: da face esquerda para a direita; laje e revestimento: de cima para baixo |
+| `hostId`, `offset` | Parede hospedeira e distância do início dela ao centro do vão |
+| `sillHeight` | Soleira ou peitoril acima da base da parede |
+| `hand`, `facing` | Lado das dobradiças e face para a qual a folha abre (+1 = esquerda da parede) |
+| `height` (ambiente) | Pé-direito; `null` = não informado (sem volume) |
+
+- **Derivados, nunca gravados** (`architecture/`): contorno da parede com os encontros em L e em T (`wallFootprint`), trecho de seção completa (`clear`), vãos (`wallOpenings`), cotas (`archVerticalRange`), quantidades (`wallQuantities`, `floorQuantities`, `hostedQuantities`, `spaceQuantities`), malhas (`buildArchGeometry`, em `packages/geometry`) e o modelo de informação IFC (`buildArchIfcModel`, em `packages/ifc`).
+- **Encontros**: extremidades a até 1 mm uma da outra formam canto em bisel; extremidade sobre o corpo de outra parede termina na face dela. Não há dado de encontro no arquivo: mover uma parede refaz os encontros.
+- **Hospedagem**: porta e janela não têm nível nem posição próprios — herdam da parede. O vão tem de caber no trecho de seção completa, dentro da altura e sem sobrepor outro.
+- **Integridade** (`archIntegrityProblem`): conferida ao fim de toda operação e ao abrir o arquivo; uma operação que deixaria a arquitetura inconsistente é recusada sem alteração parcial.
+- **Operações** (`architecture/ops.ts`): `addArchType`, `duplicateArchType`, `updateArchType` (devolve as ocorrências afetadas), `removeArchType` (recusa tipo em uso), `setArchTypeIfcValue`; `addWalls` (traçado contínuo), `addFloor`, `addFloorOpening`, `removeFloorOpening`, `addSpace`, `addHosted`; `updateArchElement`, `renameArchElement`, `setArchElementIfcValue`, `setArchElementProperty`, `deleteArchElements` (a parede leva os hospedados); `moveArchElements` (vão sozinho desliza na parede), `copyArchElements`, `rotateArchElements`, `mirrorArchElements`. `setArchIfcValue` (`@hydrobim/ifc`) confere o valor contra o esquema antes de gravar.
+- **Quantitativo**: `computeArchQuantities` (por pavimento, categoria e tipo, com NBR 15965 e SINAPI ou "NC"), `computeSpaceSchedule`, `archQuantitiesToCsv`.
+- Excluir um nível com elementos de arquitetura é recusado (`LEVEL_IN_USE`).
 
 ## Elementos
 
@@ -258,8 +304,8 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 | `runToPort` | Leva um trecho até uma porta livre, chegando pelo eixo dela (recusa `OFF_PORT_AXIS` com o desvio): prolonga o tubo de partida quando alinhado, senão tubo novo (com joelho automático). Destino flangeado: a face recebe flange de família de tubos com flanges que case; flange só com flange de mesma furação, bolsa só com ponta (`endMismatch`) |
 | `convertTeeToCross`, `convertCrossToTee` (`junctions.ts`) | Troca tê ⇄ cruzeta preservando `id`, nome, sistema, propriedades e ligações (`a`, `b`, `branch`); dimensões e extremidades do catálogo (mesmo acabamento, ou a família pedida) e reconciliação dos vizinhos. A cruzeta ganha `branch2` livre. Em tê, só remove derivação livre (com só `branch` livre, gira meia volta sobre a passagem e a ligação de `branch2` passa a `branch`); com as duas ligadas, recusa sem apagar nada. Sem família, recusa (`NO_CATALOG_JUNCTION`) listando o que existe, salvo `allowGeneric`. Dados de fabricação do produto anterior são descartados, com aviso em `notes`; valores IFC da ocorrência que deixarem de se aplicar aparecem como aviso na validação IFC |
 | `drawPipeToJunction`, `drawPipeFromJunction`, `junctionPortToward` | Ramal até (ou a partir de) um tê/cruzeta existente pela porta livre voltada para o ponto; no lado oposto à derivação de um tê, converte-o em cruzeta (mesmo `id`) numa única operação; `convert: false` recusa |
-| `connectionGuides`, `planConnection` (`alignConnect.ts`) | "Alinhar e conectar": guias pela porta de referência (relação dos eixos, projeção, encontro, desvios horizontal e vertical, distância) e alternativas com o projeto resultante de cada uma — conectar (fechamento), alinhar (translação rígida do conjunto da extremidade, sem ligação), alinhar e conectar, e mover o equipamento (só quando solto). Equipamento ligado ao trecho nunca é movido |
-| `resizeWithReducers` | Altera o diâmetro só do elemento, inserindo/ajustando/removendo reduções |
+| `connectionGuides`, `planConnection` (`alignConnect.ts`) | "Alinhar e conectar": guias pela porta de referência (relação dos eixos, projeção, encontro, desvios horizontal e vertical, distância) e alternativas com o projeto resultante de cada uma — conectar (fechamento), alinhar (translação rígida do conjunto da extremidade, sem ligação), alinhar e conectar, e mover o equipamento (só quando solto). Alinhar é oferecido para os dois lados: o trecho em relação à porta (`align:…`) e o lado da referência em relação ao trecho (`align:target:…`), sempre como movimento rígido do conjunto ligado. Quando o conjunto inclui um equipamento, ele vai junto e a alternativa sai como `moveEquipment` (`move:align:…`), identificada e ordenada por último. Sem montagem possível como está e com os eixos desencontrados em planta, entra a alternativa `turn`: giro em torno do eixo vertical pela própria porta mais o deslocamento até o eixo da referência |
+| `resizeWithReducers` | Altera o diâmetro só do elemento, inserindo/ajustando/removendo reduções; redução de bolsas junto a peça de bolsas recebe um toco de tubo entre as duas (`stubIds`), com a soma das profundidades das bolsas; junto a um flange a redução é flange × flange (recusa com `NO_FLANGED_FITTING` se o catálogo não a tiver) e a face do tubo que encosta nela recebe o flange da família de tubos com flanges |
 | `applySpec` | Altera material/diâmetro, opcionalmente propagando pelo trecho até as reduções |
 | `duplicatePumpFamily`, `upsertPumpFamily`, `applyPumpFamilyToInstances`, `removePumpFamily` | Famílias de bombas personalizadas: duplicar (a cópia deixa de ser do fabricante), gravar a tabela editada (recusa linhas incoerentes), reaplicar às bombas inseridas (recusa boca conectada que mudaria de DN) e excluir (as bombas mantêm forma e cotas, sem vínculo) |
 | `pumpParametersFromFamily`, `setPumpFlange` | Monta os parâmetros de uma bomba de catálogo (linha da tabela ou cotas do usuário); troca a classe de pressão do flange de sucção ou de descarga |
@@ -287,7 +333,7 @@ As dimensões padrão das conexões (`dimensions.ts`) são proporções genéric
 
 ## Evolução do esquema
 
-Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. **v10** — trechos retos do joelho (`straight: { a, b }`) e, nos tamanhos de família, `centerToEnd2` e `bendRadius` (curvas ponta e bolsa); em válvulas e nos tamanhos de família, `bonnetLength` (dimensão do castelo ao longo do eixo do tubo, que com `width` define o castelo retangular das gavetas). Todos opcionais (documentos v9 já são válidos). **v11** — configuração do ambiente Infra (`infra`) e referência altimétrica da georreferência (`verticalDatum`); a migração cria a configuração padrão, leva a escala da planta de um projeto Infra para a Planta Infra e deixa a referência altimétrica não informada. Documentos de versões anteriores são migrados ao abrir. O tipo `flowMeter` (medidor de vazão em linha; `height` = do eixo ao topo do cabeçote) entrou no próprio v11, ainda não publicado em commit, sem migração. **v12** — a superfície do terreno ganha limite (`boundary`), linhas de quebra (`breaklines`) e procedência (`source`); um terreno v11 é migrado como levantamento por pontos, sem limite informado e com datum, exatidão, resolução e data **não informados**. **v13** — famílias de bombas: forma construtiva (`pumpType`), linha da tabela (`variantId`), estágios, classes dos flanges e cotas do dimensional na bomba; `dischargeOffset` e `dischargeHeight` passam a opcionais (só a genérica os usa); famílias de bombas personalizadas no projeto (`pumpFamilies`, vazia nos documentos v12). **v14** — cruzeta como elemento (`cross`, portas `a`, `b`, `branch`, `branch2`) e famílias de cruzetas (`kind: 'cross'`); só acrescenta tipos (documentos v13 já são válidos). **v15** — vistas de projeto (`views`: plantas por nível, cortes, elevações e vistas 3D, com os detalhes 2D de cada uma); documentos v14 migram com a lista vazia.
+Versões: **v2** — famílias, níveis, georreferência, terreno e extremidades; **v3** — tipo de válvula `pressureReducing` e largura opcional (`width`) em válvulas e tamanhos de família. **v4** — anotações da planta baixa e escala do desenho; **v5** — tipo de válvula `strainer` (filtro Y; `height` = do eixo ao ponto mais baixo do bojo) e furação opcional dos flanges (`boltCircle`, `boltCount`, `boltHoleDiameter`) nas extremidades dos elementos e nos tamanhos de família. **v6** — forma construtiva, modelo comercial, bocais adicionais e acessórios dos reservatórios (campos opcionais: documentos v5 já são válidos). **v7** — ressalto dos flanges (`raisedFaceDiameter`, `raisedFaceHeight`) e extremidades dos tubos (`ends` em `pipe`), ambos opcionais (documentos v6 já são válidos). **v8** — famílias de reservatórios personalizadas no projeto (`tankFamilies`). **v9** — valores IFC informados pelo usuário: `ifcTypes` no projeto e `ifc` (opcional) em cada elemento. **v10** — trechos retos do joelho (`straight: { a, b }`) e, nos tamanhos de família, `centerToEnd2` e `bendRadius` (curvas ponta e bolsa); em válvulas e nos tamanhos de família, `bonnetLength` (dimensão do castelo ao longo do eixo do tubo, que com `width` define o castelo retangular das gavetas). Todos opcionais (documentos v9 já são válidos). **v11** — configuração do ambiente Infra (`infra`) e referência altimétrica da georreferência (`verticalDatum`); a migração cria a configuração padrão, leva a escala da planta de um projeto Infra para a Planta Infra e deixa a referência altimétrica não informada. Documentos de versões anteriores são migrados ao abrir. O tipo `flowMeter` (medidor de vazão em linha; `height` = do eixo ao topo do cabeçote) entrou no próprio v11, ainda não publicado em commit, sem migração. **v12** — a superfície do terreno ganha limite (`boundary`), linhas de quebra (`breaklines`) e procedência (`source`); um terreno v11 é migrado como levantamento por pontos, sem limite informado e com datum, exatidão, resolução e data **não informados**. **v13** — famílias de bombas: forma construtiva (`pumpType`), linha da tabela (`variantId`), estágios, classes dos flanges e cotas do dimensional na bomba; `dischargeOffset` e `dischargeHeight` passam a opcionais (só a genérica os usa); famílias de bombas personalizadas no projeto (`pumpFamilies`, vazia nos documentos v12). **v14** — cruzeta como elemento (`cross`, portas `a`, `b`, `branch`, `branch2`) e famílias de cruzetas (`kind: 'cross'`); só acrescenta tipos (documentos v13 já são válidos). **v15** — vistas de projeto (`views`: plantas por nível, cortes, elevações e vistas 3D, com os detalhes 2D de cada uma); documentos v14 migram com a lista vazia. **v16** — modelo arquitetônico (`architecture`: tipos, paredes, lajes, revestimentos de piso, portas, janelas e ambientes), ambiente `architecture`, categorias de arquitetura na visibilidade das vistas e `archCutHeight` nas plantas; documentos v15 migram com a arquitetura vazia e o plano de corte em 1,20 m (limitado à faixa da planta). **v17** — a superfície do terreno vira elemento (`id` persistente, `tag` e `original`, a malha guardada na primeira edição) e o projeto ganha a terraplenagem (`earthworks`: platôs e parâmetros de volume); um terreno v16 recebe o identificador fixo `terreno`, identificação vazia e `original: null`, e a terraplenagem migra sem platôs e com os três parâmetros de volume **não informados**.
 
 Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `MIGRATIONS` (`serialization.ts`), atualizar `services/api/hydrobim_api/models/project.py`, regenerar `examples/` (`npm run examples:generate`) e este documento.
 
@@ -295,13 +341,18 @@ Ao alterar o esquema: incrementar `SCHEMA_VERSION`, registrar a migração em `M
 
 ```ts
 Terrain {
+  id                                // persistente: o mesmo nas edições e no IFC (GlobalId)
   name
+  tag                               // identificação dada pelo projetista ('' = não informada)
   points: Vec3[]                    // vértices em coordenadas locais (m), arredondados a 0,1 mm
   triangles: number[]               // três índices por triângulo, anti-horário em planta
   boundary: Vec3[][] | null         // [contorno externo, ...furos]; null = envoltória convexa dos pontos
   breaklines: Vec3[][]              // arestas obrigatórias da triangulação
   source: TerrainSource
+  original: TerrainMesh | null      // malha como importada, guardada na 1ª edição; null = nunca editada
 }
+
+TerrainMesh { points, triangles, boundary, breaklines }
 
 TerrainSource {
   kind: 'survey' | 'dem'
@@ -319,13 +370,40 @@ TerrainSource {
 
 Regras (ver `docs/INFRA.md`, seção Superfície do terreno):
 
-- **Um terreno por projeto**, em coordenadas locais: o sistema horizontal e a referência altimétrica são os da georreferência do projeto. Gerar outra superfície substitui a anterior (com desfazer).
+- **Um terreno por projeto**, em coordenadas locais — o terreno NATURAL (o projetado é derivado dele e de `earthworks`): o sistema horizontal e a referência altimétrica são os da georreferência do projeto. Gerar outra superfície substitui a anterior (com desfazer).
 - **Triangulação restrita** (`terrain/delaunay.ts`): as arestas do limite e das linhas de quebra são arestas da malha; nenhum triângulo fica fora do contorno, dentro de um furo ou atravessando uma linha de quebra. Linhas de quebra que se cruzam sem vértice comum são recusadas (`TERRAIN_BREAKLINE_CROSSING`): a cota do cruzamento não pode ser presumida.
 - **Nada é inventado**: os vértices são dados de entrada. Em um DEM, são os próprios nós do raster (ou um a cada *n*); onde o raster não tem dado não há vértice nem triângulo; a única interpolação é a bilinear dentro de uma célula, para cotar os vértices do limite, e ela exige os quatro nós da célula.
 - **Resolução não é exatidão**: `resolution` é o espaçamento das amostras; `verticalAccuracy` e `verticalDatum` só são preenchidos quando a fonte (ou o responsável pelo levantamento) os declara. Nenhuma conversão de datum vertical é aplicada.
 - **Limite**: `MAX_TERRAIN_VERTICES` = 25.000 vértices (cerca de 2 MB no arquivo do projeto).
 - **Derivados, nunca persistidos**: cota e declividade em um ponto, estatísticas, curvas de nível e cortes.
-- **Intercâmbio**: `terrainExchange` entrega pontos numerados, faces por índices, limite e linhas de quebra no sistema projetado do projeto — o conteúdo de uma superfície TIN do LandXML (`Pnts`, `Faces`, `Breaklines`, `Boundaries`) e de um `IfcTriangulatedIrregularNetwork`. Os escritores LandXML e IFC do terreno ainda não existem; o DXF do modelo 3D já leva a malha.
+- **Intercâmbio**: `terrainExchange` entrega pontos numerados, faces por índices, limite e linhas de quebra no sistema projetado do projeto — o conteúdo de uma superfície TIN do LandXML (`Pnts`, `Faces`, `Breaklines`, `Boundaries`) e de um `IfcTriangulatedIrregularNetwork`. O escritor LandXML ainda não existe; o IFC leva o terreno como `IfcGeographicElement` (`docs/IFC_MAPPING.md`) e o DXF do modelo 3D leva a malha.
+- **Edição** (`terrain/edit.ts`): `addTerrainPoint`, `moveTerrainPoint`, `setTerrainPointElevation`, `removeTerrainPoint`, `setTerrainBoundary`, `retriangulateTerrain`, `restoreOriginalTerrain`, `setTerrainProperties`. Cada operação devolve uma superfície nova com o mesmo `id` e guarda a malha original na primeira edição. Mudar a posição de um ponto ou o limite refaz a triangulação pelo construtor da importação; trocar só a cota não muda a malha. O limite novo tem de ficar dentro da superfície e é cotado por ela. Lacunas do DEM continuam abertas (um ponto cotado posto em uma lacuna a preenche em volta dele). Os índices dos pontos valem para a superfície recebida: depois de uma operação que refaz a triangulação a ordem pode mudar.
+
+## Terraplenagem
+
+```ts
+Earthworks {
+  platforms: Platform[]             // na ordem de execução: cada um é aplicado sobre o resultado dos anteriores
+  swellPercent: number | null       // empolamento (%): V solto = V corte in situ × (1 + e ÷ 100)
+  compactionFactor: number | null   // m³ de aterro COMPACTADO obtidos de 1 m³ de corte IN SITU
+  reusePercent: number | null       // parcela (%) do corte que serve para os aterros
+}
+
+Platform {
+  id, name
+  outline: Point2[]                 // perímetro em planta, anti-horário, sem repetir o primeiro vértice
+  elevation                         // cota de implantação (Z local)
+  cutSlope, fillSlope               // taludes H:V (metros na horizontal por metro na vertical)
+}
+```
+
+Regras (ver `docs/INFRA.md`, seção Terraplenagem):
+
+- **O projeto guarda só os parâmetros.** O terreno projetado (`designSurfaceFor`), os taludes, a linha de encontro com o terreno, os volumes e os sólidos de corte e de aterro são derivados da superfície natural e dos platôs — nunca gravados. A superfície natural não é alterada pelos platôs.
+- **Parâmetros de volume não informados ficam `null`**, e as quantidades que dependem deles (solto, aproveitável, balanço, empréstimo, excedente) ficam pendentes: empolamento e fator de conversão dependem do solo e não são presumidos.
+- **Estados de volume**: corte = in situ; aterro = compactado; solto = corte × (1 + empolamento). O balanço é feito em m³ compactados; nenhuma soma mistura estados sem conversão (`earthworkQuantities`).
+- **Operações** (`terrain/earthworks.ts`): `addPlatform`, `updatePlatform`, `removePlatform`, `setEarthworkSettings`. Um platô só é gravado se puder ser gerado sobre o terreno atual; se o terreno mudar depois e o platô deixar de caber, ele fica fora do terreno projetado e dos volumes, com a pendência `PLATFORM_NOT_GENERATED` na validação.
+
 ## Análises e exportações (derivadas do modelo)
 
 | Função | Resultado |

@@ -1,5 +1,6 @@
 export * from './alignConnect';
 export * from './analysis';
+export * from './architecture';
 export * from './annotations';
 export * from './bounds';
 export * from './catalogPolicy';
@@ -37,6 +38,10 @@ export * from './terrain/contours';
 export * from './terrain/cover';
 export * from './terrain/delaunay';
 export * from './terrain/dem';
+export * from './terrain/earthworks';
+export * from './terrain/edit';
+export * from './terrain/grading';
+export * from './terrain/volumes';
 export * from './terrain/polygon';
 export * from './terrain/profile';
 export * from './terrain/survey';

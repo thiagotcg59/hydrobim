@@ -8,6 +8,7 @@ import {
   Folder,
   FolderOpen,
   Globe2,
+  House,
   Layers2,
   Mountain,
   MousePointerClick,
@@ -16,13 +17,16 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useArchStore } from '../arch/archStore';
+import { archTreeCount, archTreeOf } from '../arch/archTree';
 import { getCommand } from '../commands/commands';
 import { useCommandContext } from '../commands/useCommands';
 import { useEditorStore } from '../state/editorStore';
+import { EarthworkNavRows } from '../terrain/EarthworkNavRows';
 import { ViewNavigator } from '../views/ViewNavigator';
 import { CommandButton } from './CommandButton';
-import { ELEMENT_ICONS } from './EngineeringIcons';
-import { SYSTEM_KIND_LABELS } from './labels';
+import { ARCH_ICONS, ELEMENT_ICONS } from './EngineeringIcons';
+import { DISCIPLINE_LABELS, PLAN_LABELS, SYSTEM_KIND_LABELS } from './labels';
 
 /** Acima disto a lista de uma categoria é cortada: redes extensas se percorrem pela busca. */
 const MAX_ROWS = 300;
@@ -130,6 +134,14 @@ export function ProjectBrowser() {
     return groups;
   }, [matching]);
   const selected = useMemo(() => new Set(selection), [selection]);
+  const archSelection = useArchStore((s) => s.selection);
+  const archSelected = useMemo(() => new Set(archSelection), [archSelection]);
+  const archTree = useMemo(
+    () => archTreeOf({ levels: project.levels, architecture: project.architecture }, query),
+    [project.levels, project.architecture, query],
+  );
+  const archCount = archTreeCount(archTree);
+  const archTotal = project.architecture.elements.length;
   const pumps = matching.filter((element) => element.kind === 'pump');
   const tanks = matching.filter((element) => element.kind === 'tank');
 
@@ -187,6 +199,105 @@ export function ProjectBrowser() {
     </>
   );
 
+  // Arquitetura: pavimento › categoria › elemento (portas e janelas no pavimento da hospedeira).
+  const archBranch = (
+    <Branch
+      id="architecture"
+      level={1}
+      label="Arquitetura"
+      icon={<House size={17} />}
+      count={archCount}
+      open={isOpen('architecture')}
+      onToggle={toggle}
+      testId="nav-architecture"
+    >
+      {archTotal === 0 && (
+        <li className="muted tree__more" style={indent(2)} data-testid="nav-arch-empty">
+          Nenhum elemento de arquitetura. No ambiente Arquitetura, use Modelagem › Parede.
+        </li>
+      )}
+      {archTotal > 0 && archCount === 0 && (
+        <li className="muted tree__more" style={indent(2)}>
+          Nenhum elemento de arquitetura corresponde à busca.
+        </li>
+      )}
+      {archTree.map((floor) => {
+        const floorId = `arch:${floor.levelId ?? 'none'}`;
+        return (
+          <Branch
+            key={floorId}
+            id={floorId}
+            level={2}
+            label={floor.name}
+            icon={<Layers2 size={17} />}
+            count={floor.count}
+            open={isOpen(floorId)}
+            onToggle={toggle}
+            testId="nav-arch-level"
+          >
+            {floor.categories.map((category) => {
+              const id = `${floorId}:${category.kind}`;
+              const Icon = ARCH_ICONS[category.kind];
+              return (
+                <Branch
+                  key={id}
+                  id={id}
+                  level={3}
+                  label={category.label}
+                  icon={<Icon size={17} />}
+                  count={category.items.length}
+                  open={isOpen(id)}
+                  onToggle={toggle}
+                  testId={`nav-arch-${category.kind}`}
+                >
+                  {category.items.slice(0, MAX_ROWS).map(({ element, detail }) => {
+                    const active = archSelected.has(element.id);
+                    return (
+                      <li key={element.id}>
+                        <button
+                          type="button"
+                          data-testid="arch-item"
+                          data-arch-id={element.id}
+                          data-arch-kind={element.kind}
+                          aria-pressed={active}
+                          className={
+                            active
+                              ? 'tree__row tree__row--leaf is-active'
+                              : 'tree__row tree__row--leaf'
+                          }
+                          style={indent(4)}
+                          title={`${element.name}${detail ? ` · ${detail}` : ''} · ${floor.name}\nCtrl+clique para selecionar vários`}
+                          onClick={(event) =>
+                            useArchStore
+                              .getState()
+                              .select(element.id, event.ctrlKey || event.metaKey || event.shiftKey)
+                          }
+                        >
+                          <span className="tree__icon" aria-hidden>
+                            <Icon size={17} />
+                          </span>
+                          <span className="tree__label">{element.name}</span>
+                          {element.kind === 'space' && (
+                            <span className="tree__value">{detail}</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                  {category.items.length > MAX_ROWS && (
+                    <li className="muted tree__more" style={indent(4)}>
+                      … mais {category.items.length - MAX_ROWS} elemento(s). Use a busca.
+                    </li>
+                  )}
+                </Branch>
+              );
+            })}
+          </Branch>
+        );
+      })}
+    </Branch>
+  );
+
   return (
     <div className="browser" data-testid="project-browser">
       <header className="panel__header browser__header">
@@ -208,7 +319,7 @@ export function ProjectBrowser() {
         </label>
         {searching && (
           <span className="browser__results" data-testid="nav-search-count">
-            {matching.length} elemento(s) encontrado(s)
+            {matching.length + archCount} elemento(s) encontrado(s)
           </span>
         )}
       </div>
@@ -216,10 +327,18 @@ export function ProjectBrowser() {
       <div className="panel__scroll browser__tree">
         <div className="tree__row tree__row--root" style={indent(0)} title={project.name}>
           <span className="tree__icon" aria-hidden>
-            {infra ? <Network size={17} /> : <Building2 size={17} />}
+            {infra ? (
+              <Network size={17} />
+            ) : project.discipline === 'architecture' ? (
+              <House size={17} />
+            ) : (
+              <Building2 size={17} />
+            )}
           </span>
           <span className="tree__label">{project.name}</span>
-          <span className="browser__discipline">{infra ? 'INFRA' : 'MEP'}</span>
+          <span className="browser__discipline">
+            {DISCIPLINE_LABELS[project.discipline].toUpperCase()}
+          </span>
         </div>
         <ul className="tree">
           <Branch
@@ -266,6 +385,8 @@ export function ProjectBrowser() {
               );
             })}
           </Branch>
+
+          {archBranch}
 
           <Branch
             id="systems"
@@ -443,6 +564,8 @@ export function ProjectBrowser() {
                 </span>
               </button>
             </li>
+            <EarthworkNavRows indent={indent(3)} />
+
             <li>
               <button
                 type="button"
@@ -472,7 +595,7 @@ export function ProjectBrowser() {
             id="view.plan"
             context={context}
             variant="small"
-            label={infra ? 'Planta Infra' : 'Planta MEP'}
+            label={PLAN_LABELS[project.discipline]}
             testId="nav-view-plan"
           />
           <CommandButton id="view.model" context={context} variant="small" testId="nav-view-3d" />
@@ -489,7 +612,8 @@ export function ProjectBrowser() {
       </section>
       <div className="browser__footer" data-testid="nav-summary">
         <span>{project.elements.length} elementos</span>
-        <span>{selection.length} selecionados</span>
+        {archTotal > 0 && <span data-testid="nav-arch-count">{archTotal} de arquitetura</span>}
+        <span>{selection.length + archSelection.length} selecionados</span>
       </div>
     </div>
   );

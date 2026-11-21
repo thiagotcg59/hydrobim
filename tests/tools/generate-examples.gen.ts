@@ -4,7 +4,9 @@ import { BUILTIN_FAMILIES, FLANGED_PIPE_FAMILIES, TANK_FAMILIES } from '@hydrobi
 import { mergeFamilies, serializeProject, type Project } from '@hydrobim/core';
 import { exportIfc } from '@hydrobim/ifc';
 import { it } from 'vitest';
+import { createBuildingDemoProject } from '../../apps/web/src/demo/buildingDemo';
 import { createDemoProject } from '../../apps/web/src/demo/demoProject';
+import { createEarthworkDemoProject } from '../../apps/web/src/demo/earthworkDemo';
 import { createJunctionDemoProject } from '../../apps/web/src/demo/junctionDemo';
 import { createTankDemoProject } from '../../apps/web/src/demo/tankDemo';
 
@@ -63,6 +65,36 @@ it('gera examples/reservatorios-tramec (.hydrobim.json e .ifc)', () => {
   );
   writeFileSync(
     join(directory, 'reservatorios-tramec.ifc'),
+    exportIfc(project, ifcOptions(project)),
+    'utf8',
+  );
+});
+
+it('gera examples/terraplenagem-platos (.hydrobim.json e .ifc)', () => {
+  const directory = join(import.meta.dirname, '..', '..', 'examples');
+  const project = createEarthworkDemoProject();
+  writeFileSync(
+    join(directory, 'terraplenagem-platos.hydrobim.json'),
+    `${serializeProject(project)}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    join(directory, 'terraplenagem-platos.ifc'),
+    exportIfc(project, ifcOptions(project)),
+    'utf8',
+  );
+});
+
+it('gera examples/edificacao-simples (.hydrobim.json e .ifc)', () => {
+  const directory = join(import.meta.dirname, '..', '..', 'examples');
+  const project = createBuildingDemoProject();
+  writeFileSync(
+    join(directory, 'edificacao-simples.hydrobim.json'),
+    `${serializeProject(project)}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    join(directory, 'edificacao-simples.ifc'),
     exportIfc(project, ifcOptions(project)),
     'utf8',
   );

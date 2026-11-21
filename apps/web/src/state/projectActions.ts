@@ -10,6 +10,7 @@ import {
 } from '@hydrobim/core';
 import { encodeDxf, exportModelDxf } from '@hydrobim/dxf';
 import { exportIds, exportIfc } from '@hydrobim/ifc';
+import { createBuildingDemoProject } from '../demo/buildingDemo';
 import { createDemoProject } from '../demo/demoProject';
 import {
   downloadProject,
@@ -95,7 +96,7 @@ export function exportCurrentProject(): void {
 /** Exporta o modelo em IFC 4.3 (gerado no navegador, sem servidor). */
 export function exportIfcFile(): void {
   const { project } = store();
-  if (project.elements.length === 0) {
+  if (project.elements.length + project.architecture.elements.length === 0) {
     store().notify('error', 'O projeto não tem elementos para exportar.');
     return;
   }
@@ -107,7 +108,10 @@ export function exportIfcFile(): void {
       ...ifcOptionsOf(project),
     });
     downloadText(`${projectFileBase(project)}.ifc`, text, 'application/x-step');
-    store().notify('success', `IFC 4.3 exportado (${project.elements.length} elementos).`);
+    store().notify(
+      'success',
+      `IFC 4.3 exportado (${project.elements.length + project.architecture.elements.length} elementos).`,
+    );
   } catch (error) {
     console.error('[HydroBIM] Falha na exportação IFC.', error);
     store().notify('error', 'Não foi possível exportar o IFC.');
@@ -212,6 +216,17 @@ export function openDemoProject(): void {
   } catch (error) {
     console.error('[HydroBIM] Falha ao criar o projeto de demonstração.', error);
     store().notify('error', 'Não foi possível criar o projeto de demonstração.');
+  }
+}
+
+/** Demonstração da arquitetura: edificação simples com uma prumada de água fria. */
+export function openBuildingDemoProject(): void {
+  try {
+    store().loadProject(createBuildingDemoProject());
+    store().notify('info', 'Demonstração "Edificação simples" carregada.');
+  } catch (error) {
+    console.error('[HydroBIM] Falha ao criar a edificação de demonstração.', error);
+    store().notify('error', 'Não foi possível criar a edificação de demonstração.');
   }
 }
 

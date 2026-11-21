@@ -161,6 +161,234 @@ describe('troca de diâmetro com reduções automáticas', () => {
   });
 });
 
+const socketFamily = {
+  specificationId: 'test-spec',
+  endType: 'socket',
+  manufacturer: null,
+  standard: 'Teste',
+  source: 'teste',
+  origin: 'builtin',
+} as const;
+const socketEnd = (dn: number) => ({ length: dn / 1000, outerDiameter: (dn * 1.6) / 1000 });
+const socketTee: FittingFamily = {
+  ...socketFamily,
+  id: 'fam-te-bolsas',
+  name: 'Tê com bolsas de teste',
+  kind: 'tee',
+  sizes: [50, 100].map((dn) => ({
+    dn,
+    centerToEnd: (dn * 1.5) / 1000,
+    centerToBranch: (dn * 1.5) / 1000,
+    end: socketEnd(dn),
+  })),
+};
+const socketReducer: FittingFamily = {
+  ...socketFamily,
+  id: 'fam-reducao-bolsas',
+  name: 'Redução com bolsas de teste',
+  kind: 'reducer',
+  sizes: [
+    { dn: 50, dn2: 25, length: 0.08, end: socketEnd(50), end2: socketEnd(25) },
+    { dn: 100, dn2: 50, length: 0.12, end: socketEnd(100), end2: socketEnd(50) },
+  ],
+};
+
+describe('redução de bolsas junto a peça de bolsas', () => {
+  const catalog = createFamilyCatalog([socketTee, socketReducer]);
+
+  /** Tubo A — tê com bolsas (em linha) — tubo C, tudo DN 50 ao longo de X. */
+  function line() {
+    const p0 = createProject('Rede');
+    const a = unwrap(addPipe(p0, { start: vec3(0, 0, 0), end: vec3(6, 0, 0), spec: testSpec(50) }));
+    const tee = unwrap(
+      insertInline(a.project, {
+        pipeId: a.elementId,
+        distanceFromStart: 3,
+        fitting: { kind: 'tee' },
+        catalog,
+      }),
+    );
+    return { project: tee.project, a: a.elementId, tee: tee.elementId, c: tee.createdIds[1]! };
+  }
+
+  it('tubo alterado: um toco separa a bolsa do tê da bolsa da redução', () => {
+    const n = line();
+    const result = unwrap(resizeWithReducers(n.project, n.c, testSpec(25), { catalog }));
+    const project = result.project;
+    expect(result.createdIds).toHaveLength(1);
+    expect(result.stubIds).toHaveLength(1);
+    const tee = getElement(project, n.tee)!;
+    const reducer = getElement(project, result.createdIds[0]!)!;
+    const stub = pipeOf(project, result.stubIds[0]!);
+    const teePort = getPort(tee, 'b')!;
+    const inlet = getPort(reducer, 'a')!;
+    // Toco no diâmetro do tê, com a soma das profundidades das duas bolsas (DN 50 + DN 50).
+    expect(stub.spec.dn).toBe(50);
+    expect(pipeLength(stub)).toBeCloseTo(0.05 + 0.05);
+    expect(distance(stub.start, teePort.position)).toBeLessThan(1e-9);
+    expect(distance(stub.end, inlet.position)).toBeLessThan(1e-9);
+    // As bolsas não se sobrepõem: a boca de uma termina onde começa a da outra.
+    expect(distance(teePort.position, inlet.position)).toBeCloseTo(
+      (teePort.end?.length ?? 0) + (inlet.end?.length ?? 0),
+    );
+    // O tubo alterado começa na saída da redução e mantém a outra extremidade.
+    const c = pipeOf(project, n.c);
+    expect(c.spec.dn).toBe(25);
+    expect(distance(c.start, getPort(reducer, 'b')!.position)).toBeLessThan(1e-9);
+    expect(c.end).toEqual(pipeOf(n.project, n.c).end);
+    expect(getElement(project, n.tee)).toEqual(getElement(n.project, n.tee));
+    expectCoupled(project);
+  });
+
+  it('tê alterado: tocos no novo diâmetro entre o tê e cada redução', () => {
+    const n = line();
+    const result = unwrap(resizeWithReducers(n.project, n.tee, testSpec(100), { catalog }));
+    const project = result.project;
+    expect(result.createdIds).toHaveLength(2);
+    expect(result.stubIds).toHaveLength(2);
+    for (const id of result.stubIds) {
+      const stub = pipeOf(project, id);
+      expect(stub.spec.dn).toBe(100);
+      expect(pipeLength(stub)).toBeCloseTo(0.1 + 0.1);
+    }
+    expect(pipeOf(project, n.a).spec.dn).toBe(50);
+    expect(pipeOf(project, n.c).spec.dn).toBe(50);
+    expectCoupled(project);
+  });
+
+  it('voltar ao diâmetro original remove a redução e mantém a rede acoplada', () => {
+    const n = line();
+    const reduced = unwrap(resizeWithReducers(n.project, n.c, testSpec(25), { catalog }));
+    const restored = unwrap(resizeWithReducers(reduced.project, n.c, testSpec(50), { catalog }));
+    expect(restored.removedIds).toEqual(reduced.createdIds);
+    expect(kinds(restored.project, 'reducer')).toHaveLength(0);
+    expectCoupled(restored.project);
+  });
+
+  it('recusa quando o tubo não comporta o toco e a redução', () => {
+    const p0 = createProject('Rede');
+    const a = unwrap(
+      addPipe(p0, { start: vec3(0, 0, 0), end: vec3(3.2, 0, 0), spec: testSpec(50) }),
+    );
+    const tee = unwrap(
+      insertInline(a.project, {
+        pipeId: a.elementId,
+        distanceFromStart: 3,
+        fitting: { kind: 'tee' },
+        catalog,
+      }),
+    );
+    // Sobram 125 mm depois do tê: menos que o toco (100 mm) mais a redução (80 mm).
+    const result = resizeWithReducers(tee.project, tee.createdIds[1]!, testSpec(25), { catalog });
+    expect(result.ok ? '' : result.error.code).toBe('NO_ROOM');
+  });
+});
+
+const flangeEnd = (dn: number) => ({
+  length: 0.02,
+  outerDiameter: (dn * 2.2) / 1000,
+  boltCircle: (dn * 1.8) / 1000,
+  boltCount: 4,
+  boltHoleDiameter: 0.018,
+});
+const flangedTee: FittingFamily = {
+  ...socketFamily,
+  endType: 'flange',
+  id: 'fam-te-flanges',
+  name: 'Tê com flanges de teste',
+  kind: 'tee',
+  sizes: [50, 100].map((dn) => ({
+    dn,
+    centerToEnd: (dn * 2) / 1000,
+    centerToBranch: (dn * 2) / 1000,
+    end: flangeEnd(dn),
+  })),
+};
+const flangedReducer: FittingFamily = {
+  ...socketFamily,
+  endType: 'flange',
+  id: 'fam-reducao-flanges',
+  name: 'Redução com flanges de teste',
+  kind: 'reducer',
+  sizes: [
+    { dn: 50, dn2: 25, length: 0.15, end: flangeEnd(50), end2: flangeEnd(25) },
+    { dn: 100, dn2: 50, length: 0.2, end: flangeEnd(100), end2: flangeEnd(50) },
+  ],
+};
+
+describe('redução junto a peça flangeada', () => {
+  const PIPE_FAMILY = 'fam-tubo-flanges';
+  const extensions = {
+    flangedPipeFamilies: () => [PIPE_FAMILY],
+    pipeFlange: (spec: { dn: number }, familyId: string) =>
+      familyId === PIPE_FAMILY ? { type: 'flange' as const, ...flangeEnd(spec.dn) } : undefined,
+  };
+  // A redução de bolsas vem antes na lista: não pode ser a escolhida junto a um flange.
+  const catalog = createFamilyCatalog([socketReducer, flangedTee, flangedReducer], {}, extensions);
+
+  /** Tubo A — tê com flanges (em linha) — tubo C, tudo DN 50 ao longo de X. */
+  function line(use = catalog) {
+    const p0 = createProject('Rede');
+    const a = unwrap(addPipe(p0, { start: vec3(0, 0, 0), end: vec3(6, 0, 0), spec: testSpec(50) }));
+    const tee = unwrap(
+      insertInline(a.project, {
+        pipeId: a.elementId,
+        distanceFromStart: 3,
+        fitting: { kind: 'tee', familyId: flangedTee.id },
+        catalog: use,
+      }),
+    );
+    return { project: tee.project, a: a.elementId, tee: tee.elementId, c: tee.createdIds[1]! };
+  }
+
+  it('tubo alterado: redução flange × flange, com o flange do catálogo na face do tubo', () => {
+    const n = line();
+    const result = unwrap(resizeWithReducers(n.project, n.c, testSpec(25), { catalog }));
+    const project = result.project;
+    expect(result.createdIds).toHaveLength(1);
+    expect(result.stubIds).toEqual([]);
+    const reducer = getElement(project, result.createdIds[0]!)!;
+    expect(reducer.familyId).toBe(flangedReducer.id);
+    expect(getPort(reducer, 'a')?.end).toEqual({ type: 'flange', ...flangeEnd(50) });
+    expect(getPort(reducer, 'b')?.end).toEqual({ type: 'flange', ...flangeEnd(25) });
+    // Face a face com o flange do tê, que não se move.
+    const teePort = getPort(getElement(project, n.tee)!, 'b')!;
+    expect(distance(teePort.position, getPort(reducer, 'a')!.position)).toBeLessThan(1e-9);
+    expect(getElement(project, n.tee)).toEqual(getElement(n.project, n.tee));
+    // O tubo alterado leva o flange do novo diâmetro na face que encosta na redução.
+    const c = pipeOf(project, n.c);
+    expect(c.spec.dn).toBe(25);
+    expect(c.ends?.start).toEqual({ type: 'flange', ...flangeEnd(25) });
+    expect(c.familyId).toBe(PIPE_FAMILY);
+    expect(distance(c.start, getPort(reducer, 'b')!.position)).toBeLessThan(1e-9);
+    expectCoupled(project);
+  });
+
+  it('tê alterado: reduções flangeadas casam com os flanges já existentes dos tubos', () => {
+    const n = line();
+    const result = unwrap(resizeWithReducers(n.project, n.tee, testSpec(100), { catalog }));
+    const project = result.project;
+    expect(result.createdIds).toHaveLength(2);
+    expect(result.stubIds).toEqual([]);
+    for (const id of result.createdIds) {
+      const reducer = getElement(project, id)!;
+      expect(reducer.familyId).toBe(flangedReducer.id);
+      expect(getPort(reducer, 'a')?.end).toEqual({ type: 'flange', ...flangeEnd(100) });
+      expect(getPort(reducer, 'b')?.end).toEqual({ type: 'flange', ...flangeEnd(50) });
+    }
+    expect(pipeOf(project, n.a).ends?.end).toEqual({ type: 'flange', ...flangeEnd(50) });
+    expect(pipeOf(project, n.c).ends?.start).toEqual({ type: 'flange', ...flangeEnd(50) });
+    expectCoupled(project);
+  });
+
+  it('recusa quando o catálogo não tem redução flangeada (não usa a de bolsas)', () => {
+    const without = createFamilyCatalog([socketReducer, flangedTee], {}, extensions);
+    const n = line(without);
+    const result = resizeWithReducers(n.project, n.c, testSpec(25), { catalog: without });
+    expect(result.ok ? '' : result.error.code).toBe('NO_FLANGED_FITTING');
+  });
+});
+
 const elbowFamily: FittingFamily = {
   id: 'fam-joelho-90',
   name: 'Joelho 90° de teste',

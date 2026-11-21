@@ -4,7 +4,7 @@
 
 HydroBIM é um editor BIM hidráulico paramétrico para web (instalações prediais/industriais — MEP — e redes de abastecimento/adutoras — Infra). É software de engenharia em evolução: cada recurso deve ser realmente operacional, testado e coerente com a prática de engenharia. Não é um visualizador IFC nem uma demonstração gráfica.
 
-Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md` e `docs/DOMAIN_MODEL.md` antes de alterar o domínio, `docs/INTERFACE.md` antes de alterar a organização da interface, e `docs/INFRA.md` antes de alterar o ambiente Infra.
+Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md` e `docs/DOMAIN_MODEL.md` antes de alterar o domínio, `docs/INTERFACE.md` antes de alterar a organização da interface, `docs/INFRA.md` antes de alterar o ambiente Infra, e `docs/ARQUITETURA.md` antes de alterar a seção de arquitetura (paredes, pisos, portas, janelas e ambientes).
 
 ## Organização
 

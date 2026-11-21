@@ -4,6 +4,7 @@ Objetos ignoram campos extras, como z.object(); números não aceitam strings,
 booleanos, NaN ou infinito. Timestamps são strings livres, conforme o schema.
 """
 
+from math import isfinite
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -18,7 +19,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 17
 
 
 def _json_number(value: Any) -> int | float:
@@ -52,7 +53,7 @@ EndType = Literal["plain", "socket", "flange"]
 SystemKind = Literal[
     "domesticColdWater", "domesticHotWater", "fireProtection", "waterSupply", "other"
 ]
-Discipline = Literal["mep", "infra"]
+Discipline = Literal["mep", "infra", "architecture"]
 DimensionMode = Literal["aligned", "horizontal", "vertical"]
 TankType = Literal[
     "generic",
@@ -557,16 +558,26 @@ def survey_source() -> dict[str, Any]:
     }
 
 
-class Terrain(CamelModel):
-    name: str
+class TerrainMesh(CamelModel):
+    """Malha de uma superfície: pontos, faces, limite e linhas de quebra."""
+
     points: list[Vec3]
     triangles: list[NonNegativeInteger]
-    # Esquema v12: limite (contorno e furos), linhas de quebra e procedência.
+    # Esquema v12: limite (contorno e furos) e linhas de quebra.
     boundary: (
         Annotated[list[Annotated[list[Vec3], Field(min_length=3)]], Field(min_length=1)] | None
     )
     breaklines: list[Annotated[list[Vec3], Field(min_length=2)]]
+
+
+class Terrain(TerrainMesh):
+    # Esquema v17: identificador persistente, identificação dada pelo projetista e a malha
+    # original (guardada na primeira edição; nula enquanto a superfície não é editada).
+    id: NonEmptyString
+    name: str
+    tag: str
     source: TerrainSource
+    original: TerrainMesh | None
 
 
 class Point2(CamelModel):
@@ -574,6 +585,36 @@ class Point2(CamelModel):
 
     x: FiniteNumber
     y: FiniteNumber
+
+
+class Platform(CamelModel):
+    """Platô (esquema v17): perímetro, cota de implantação e taludes H:V."""
+
+    id: NonEmptyString
+    name: str
+    outline: Annotated[list[Point2], Field(min_length=3)]
+    elevation: FiniteNumber
+    cut_slope: PositiveNumber
+    fill_slope: PositiveNumber
+
+
+class Earthworks(CamelModel):
+    """Terraplenagem (esquema v17). Parâmetro de volume não informado fica nulo."""
+
+    platforms: list[Platform]
+    swell_percent: Annotated[FiniteNumber, Field(ge=0, le=200)] | None
+    # m³ de aterro compactado obtidos de 1 m³ de corte in situ.
+    compaction_factor: Annotated[FiniteNumber, Field(gt=0, le=2)] | None
+    reuse_percent: Annotated[FiniteNumber, Field(ge=0, le=100)] | None
+
+
+def default_earthworks() -> dict[str, Any]:
+    return {
+        "platforms": [],
+        "swellPercent": None,
+        "compactionFactor": None,
+        "reusePercent": None,
+    }
 
 
 class DimensionAnnotation(CamelModel):
@@ -639,7 +680,19 @@ ViewDetail = Annotated[
     DetailLine | DetailPolyline | DetailRect | DetailCircle | TextAnnotation | DimensionAnnotation,
     Field(discriminator="kind"),
 ]
-ViewCategory = Literal["pipes", "fittings", "valves", "equipment", "tanks"]
+# Esquema v16: as categorias de arquitetura também podem ser ocultadas na vista.
+ViewCategory = Literal[
+    "pipes",
+    "fittings",
+    "valves",
+    "equipment",
+    "tanks",
+    "walls",
+    "floors",
+    "doors",
+    "windows",
+    "spaces",
+]
 
 
 class ViewVisibility(CamelModel):
@@ -683,6 +736,8 @@ class PlanView(View2dBase):
     level_id: NonEmptyString
     cut_height: FiniteNumber
     depth: PositiveNumber
+    # Esquema v16: altura, acima do nível, do plano em que a arquitetura é cortada.
+    arch_cut_height: PositiveNumber
     rotation: FiniteNumber
 
 
@@ -724,6 +779,185 @@ ProjectView = Annotated[
 ]
 
 
+# Esquema v16: arquitetura — tipos, ocorrências e ambientes (espelha core/schema.ts).
+# Os elementos arquitetônicos ficam em `Project.architecture`, fora de `Project.elements`:
+# não têm sistema hidráulico, especificação de tubo nem portas.
+ArchLayerFunction = Literal["structure", "substrate", "finish", "insulation", "membrane", "other"]
+ArchHatch = Literal["none", "solid", "diagonal", "crossed", "dotted"]
+
+
+class ArchLayer(CamelModel):
+    """Camada de material de um tipo (parede, laje ou revestimento), na ordem de montagem."""
+
+    id: NonEmptyString
+    material: NonEmptyString
+    thickness: PositiveNumber
+    function: ArchLayerFunction
+    hatch: ArchHatch
+
+
+class ArchClassification(CamelModel):
+    """Classificação externa do tipo; o código é sempre informado pelo usuário."""
+
+    system: Literal["nbr15965", "sinapi", "other"]
+    table: NonEmptyString = Field(default=None, validate_default=False)
+    code: NonEmptyString
+    description: NonEmptyString = Field(default=None, validate_default=False)
+
+
+class ArchTypeBase(CamelModel):
+    id: NonEmptyString
+    name: NonEmptyString
+    # None = tipo criado sem família do catálogo.
+    family_id: NonEmptyString | None
+    # False = produto de fabricante: a fonte é obrigatória (ver services/validation.py).
+    generic: bool
+    source: NonEmptyString | None
+    manufacturing: Manufacturing
+    classifications: list[ArchClassification]
+    ifc_predefined_type: NonEmptyString
+    ifc: dict[str, PropertyValue]
+
+
+class LayeredArchType(ArchTypeBase):
+    # A espessura do tipo é a soma das camadas.
+    layers: Annotated[list[ArchLayer], Field(min_length=1)]
+
+
+class WallType(LayeredArchType):
+    category: Literal["wall"]
+
+
+class SlabType(LayeredArchType):
+    category: Literal["slab"]
+
+
+class FlooringType(LayeredArchType):
+    category: Literal["flooring"]
+
+
+class JoineryMaterials(CamelModel):
+    """Materiais dos componentes da esquadria, quando informados (sem valor = pendente)."""
+
+    frame: NonEmptyString = Field(default=None, validate_default=False)
+    panel: NonEmptyString = Field(default=None, validate_default=False)
+    glazing: NonEmptyString = Field(default=None, validate_default=False)
+
+
+class DoorType(ArchTypeBase):
+    category: Literal["door"]
+    operation: Literal["singleSwing", "doubleSwing", "sliding", "pivot"]
+    width: PositiveNumber
+    height: PositiveNumber
+    frame_width: PositiveNumber
+    panel_thickness: PositiveNumber
+    materials: JoineryMaterials
+
+
+class WindowType(ArchTypeBase):
+    category: Literal["window"]
+    operation: Literal["fixed", "sliding", "casement", "pivotHorizontal", "topHung"]
+    width: PositiveNumber
+    height: PositiveNumber
+    sill_height: NonNegativeNumber
+    panels: PositiveInteger
+    frame_width: PositiveNumber
+    materials: JoineryMaterials
+
+
+ArchType = Annotated[
+    WallType | SlabType | FlooringType | DoorType | WindowType, Field(discriminator="category")
+]
+
+
+class ArchElementBase(CamelModel):
+    id: NonEmptyString
+    name: str
+    properties: dict[str, PropertyValue]
+    # Valores IFC informados pelo usuário para a ocorrência (sobrepõem os do tipo); opcional.
+    ifc: dict[str, PropertyValue] = Field(default=None, validate_default=False)
+    meta: ElementMeta
+
+
+class Wall(ArchElementBase):
+    kind: Literal["wall"]
+    type_id: NonEmptyString
+    level_id: NonEmptyString
+    start: Point2
+    end: Point2
+    location_line: Literal["center", "faceLeft", "faceRight"]
+    base_offset: FiniteNumber
+    height: PositiveNumber
+
+
+class FloorOpening(CamelModel):
+    """Abertura em laje ou revestimento: contorno fechado, sem repetir o primeiro ponto."""
+
+    id: NonEmptyString
+    boundary: Annotated[list[Point2], Field(min_length=3)]
+
+
+class FloorBase(ArchElementBase):
+    type_id: NonEmptyString
+    level_id: NonEmptyString
+    boundary: Annotated[list[Point2], Field(min_length=3)]
+    openings: list[FloorOpening]
+    # Laje: cota do topo em relação ao nível; revestimento: cota da base.
+    offset: FiniteNumber
+
+
+class Slab(FloorBase):
+    kind: Literal["slab"]
+
+
+class Flooring(FloorBase):
+    kind: Literal["flooring"]
+
+
+class HostedBase(ArchElementBase):
+    type_id: NonEmptyString
+    # Parede hospedeira: o vão não existe sem ela.
+    host_id: NonEmptyString
+    offset: FiniteNumber
+    sill_height: NonNegativeNumber
+    hand: Literal["left", "right"]
+    facing: Annotated[Literal[1, -1], BeforeValidator(_json_number)]
+
+
+class Door(HostedBase):
+    kind: Literal["door"]
+
+
+class Window(HostedBase):
+    kind: Literal["window"]
+
+
+class Space(ArchElementBase):
+    """Ambiente: região do pavimento; o pé-direito fica nulo enquanto não for informado."""
+
+    kind: Literal["space"]
+    level_id: NonEmptyString
+    number: NonEmptyString = Field(default=None, validate_default=False)
+    boundary: Annotated[list[Point2], Field(min_length=3)]
+    offset: FiniteNumber
+    height: PositiveNumber | None
+
+
+ArchElement = Annotated[Wall | Slab | Flooring | Door | Window | Space, Field(discriminator="kind")]
+
+
+class Architecture(CamelModel):
+    types: list[ArchType]
+    elements: list[ArchElement]
+
+
+def default_arch_cut_height(cut_height: Any) -> float:
+    """Mesmo padrão de `defaultArchCutHeight` (core/schema.ts): 1,20 m, limitado à planta."""
+    is_number = isinstance(cut_height, int | float) and not isinstance(cut_height, bool)
+    top = cut_height if is_number and isfinite(cut_height) else 1.2
+    return max(0.1, min(1.2, top))
+
+
 class Units(CamelModel):
     length: Literal["m"]
     angle: Literal["rad"]
@@ -731,7 +965,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[15], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[17], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -748,6 +982,8 @@ class Project(CamelModel):
     ifc_types: dict[str, dict[str, PropertyValue]]
     georeference: Georeference | None
     terrain: Terrain | None
+    # Esquema v17: platôs e parâmetros de volume (o terreno projetado é derivado).
+    earthworks: Earthworks
     elements: list[HydroElement]
     connections: list[Connection]
     annotations: list[Annotation]
@@ -755,13 +991,36 @@ class Project(CamelModel):
     infra: InfraSettings
     # Esquema v15: vistas de projeto, na ordem do navegador.
     views: list[ProjectView]
+    # Esquema v16: modelo arquitetônico, nos mesmos níveis e coordenadas da rede.
+    architecture: Architecture
 
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v15), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v17), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
+        version = document.get("schemaVersion", document.get("schema_version"))
+        if isinstance(version, bool) or version not in tuple(range(1, 17)):
+            return document
+        if version != 16:
+            document = cls._migrate_before_v16(document)
+        # v16 → v17: superfície do terreno como elemento (identificador fixo nas superfícies
+        # antigas, identificação vazia, nunca editada) e terraplenagem sem platôs nem
+        # parâmetros de volume presumidos.
+        terrain = document.get("terrain")
+        return {
+            "earthworks": default_earthworks(),
+            **document,
+            "schemaVersion": 17,
+            "terrain": {"id": "terreno", "tag": "", "original": None, **terrain}
+            if isinstance(terrain, dict)
+            else terrain,
+        }
+
+    @classmethod
+    def _migrate_before_v16(cls, document: dict[str, Any]) -> dict[str, Any]:
+        """Migrações v1 → … → v16."""
         version = document.get("schemaVersion", document.get("schema_version"))
         if isinstance(version, bool) or version not in (
             1,
@@ -778,21 +1037,27 @@ class Project(CamelModel):
             12,
             13,
             14,
+            15,
         ):
+            return document
+        # v15 → v16: modelo arquitetônico (vazio nos documentos antigos) e altura do plano de
+        # corte da arquitetura nas plantas (1,20 m, limitada à faixa da planta).
+        document = cls._migrate_v15(document)
+        if version == 15:
             return document
         # v14 → v15: vistas de projeto (plantas, cortes, elevações e vistas 3D); documentos
         # antigos não têm vistas salvas.
         document = {"views": [], **document}
         if version == 14:
-            return {**document, "schemaVersion": 15}
+            return {**document, "schemaVersion": 16}
         # v13 → v14: cruzeta como elemento e famílias de cruzetas; só acrescenta tipos.
         if version == 13:
-            return {**document, "schemaVersion": 15}
+            return {**document, "schemaVersion": 16}
         # v12 → v13: famílias de bombas — campos opcionais na bomba e a lista de famílias
         # personalizadas, vazia nos documentos antigos.
         document = {"pumpFamilies": [], **document}
         if version == 12:
-            return {**document, "schemaVersion": 15}
+            return {**document, "schemaVersion": 16}
         # v11 → v12: limite, linhas de quebra e procedência da superfície do terreno. Um
         # terreno antigo é um levantamento por pontos, sem limite informado.
         terrain = document.get("terrain")
@@ -803,7 +1068,7 @@ class Project(CamelModel):
             else terrain,
         }
         if version == 11:
-            return {**document, "schemaVersion": 15}
+            return {**document, "schemaVersion": 16}
         # v10 → v11: configuração do ambiente Infra e referência altimétrica (não informada).
         # A escala que um projeto Infra usava na planta passa a ser a da Planta Infra.
         # v9 → v10: trechos retos do joelho e cotas das curvas ponta e bolsa (opcionais).
@@ -813,7 +1078,7 @@ class Project(CamelModel):
         # v5 → v6: forma construtiva, bocais e acessórios dos reservatórios (opcionais).
         # v4 → v5: filtro Y e furação opcional dos flanges. Nos dois casos o documento
         # já era válido.
-        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 15}
+        document = {"tankFamilies": [], "ifcTypes": {}, **document, "schemaVersion": 16}
         if version != 1 and version != 2 and version != 3:
             return cls._migrate_v10(document)
         # v3 → v4: anotações da planta baixa e escala do desenho.
@@ -823,6 +1088,25 @@ class Project(CamelModel):
             return cls._migrate_v10(document)
         elements = document.get("elements")
         return cls._migrate_v10(cls._migrate_v1(document, elements))
+
+    @staticmethod
+    def _migrate_v15(document: dict[str, Any]) -> dict[str, Any]:
+        views = document.get("views")
+        migrated = {
+            "architecture": {"types": [], "elements": []},
+            **document,
+            "schemaVersion": 16,
+        }
+        if isinstance(views, list):
+            migrated["views"] = [
+                {**view, "archCutHeight": default_arch_cut_height(view.get("cutHeight"))}
+                if isinstance(view, dict)
+                and view.get("kind") == "plan"
+                and "archCutHeight" not in view
+                else view
+                for view in views
+            ]
+        return migrated
 
     @staticmethod
     def _migrate_v10(document: dict[str, Any]) -> dict[str, Any]:

@@ -1,8 +1,9 @@
 import { connectPorts, findConnection, getElement, oppositeRef } from './connectivity';
 import { MIN_PIPE_LENGTH } from './dimensions';
 import { GENERIC_CATALOG, requiredEndType, type FittingCatalog } from './families';
+import { describeDrilling, flangesMate, pipeFlangeFor } from './flangeMatch';
 import { baseFields, putElement, touch } from './internal';
-import { dot, sub, QUAT_IDENTITY, ZERO } from './math';
+import { add, dot, scale, sub, QUAT_IDENTITY, ZERO } from './math';
 import { deleteElements, placeAtPort } from './operations';
 import { getPort, getPorts, pipeLength } from './ports';
 import { pumpTypeOf, unlinkPumpVariant } from './pumps';
@@ -231,6 +232,23 @@ export interface ResizeResult {
   createdIds: string[];
   /** Reduções removidas por terem se tornado desnecessárias. */
   removedIds: string[];
+  /** Tocos de tubo criados entre a bolsa de uma peça e a bolsa da redução. */
+  stubIds: string[];
+}
+
+/**
+ * Bolsa não recebe bolsa: entre a bolsa da peça fixa e a da redução vai um toco de tubo
+ * (pontas lisas). As portas ficam no fundo das bolsas, então o menor toco que entra por
+ * inteiro nas duas mede a soma das profundidades — as bocas se tocam, sem sobreposição.
+ * Devolve 0 quando o acoplamento direto é possível.
+ */
+function socketStubLength(
+  fixed: EndTreatment | null,
+  reducerEnd: EndTreatment | undefined,
+): number {
+  return fixed?.type === 'socket' && reducerEnd?.type === 'socket'
+    ? fixed.length + reducerEnd.length
+    : 0;
 }
 
 function replaceConnection(
@@ -262,9 +280,45 @@ function shortenPipe(pipe: Pipe, portId: string, point: Pipe['start']): Result<P
 }
 
 /**
+ * Face de tubo que encosta no flange `mate` da redução: o flange que o tubo já tem precisa
+ * casar; ponta lisa recebe o flange de uma família de tubos com flanges do catálogo (tabela
+ * única de flanges), nunca um flange presumido.
+ */
+function flangePipeFace(
+  catalog: FittingCatalog,
+  pipe: Pipe,
+  portId: string,
+  mate: EndTreatment,
+): Result<Pipe> {
+  const current = pipe.ends?.[portId];
+  if (current?.type === 'flange') {
+    return flangesMate(current, mate)
+      ? ok(pipe)
+      : fail(
+          'FLANGE_MISMATCH',
+          `O flange de "${pipe.name}" (${describeDrilling(current)}) não casa com o da redução (${describeDrilling(mate)}).`,
+        );
+  }
+  const found = pipeFlangeFor(catalog, pipe, mate);
+  if (!found.ok) return found;
+  const ends = { ...pipe.ends, [portId]: found.value.end };
+  const needed = Object.values(ends).reduce((sum, end) => sum + end.length, 0) + MIN_PIPE_LENGTH;
+  if (pipeLength(pipe) < needed) {
+    return fail(
+      'NO_ROOM',
+      `"${pipe.name}" é curto demais para a redução flangeada e os flanges do tubo.`,
+    );
+  }
+  return ok(touch({ ...pipe, familyId: found.value.familyId, ends }));
+}
+
+/**
  * Altera o diâmetro APENAS do elemento indicado, mantendo a rede coerente:
  *  - vizinho de outro diâmetro → insere uma redução entre os dois (o tubo adjacente cede
- *    o comprimento da redução; as demais peças não se movem);
+ *    o comprimento da redução; as demais peças não se movem); se a peça fixa e a redução
+ *    têm bolsa no encontro, um toco de tubo as separa (bolsa não recebe bolsa); junto a
+ *    um flange a redução é flange × flange, com furação que case, e a face de tubo que
+ *    encosta nela recebe o flange do catálogo;
  *  - vizinho que já é uma redução → ajusta o lado dela; se os dois lados ficarem iguais,
  *    a redução é removida e o tubo é prolongado;
  *  - vizinho que passa a ter o mesmo diâmetro → conexão direta.
@@ -295,7 +349,8 @@ export function resizeWithReducers(
   }
   const createdIds: string[] = [];
   const removedIds: string[] = [];
-  if (spec.dn === current.dn) return ok({ project, createdIds, removedIds });
+  const stubIds: string[] = [];
+  if (spec.dn === current.dn) return ok({ project, createdIds, removedIds, stubIds });
 
   let next = putElement(project, touch(withSpec(original, spec, group, catalog)));
   const roots = [elementId];
@@ -375,7 +430,44 @@ export function resizeWithReducers(
     // A porta `a` da redução fica no lado que permanece fixo (âncora).
     const anchor = element.kind === 'pipe' ? otherPort : myPort;
     const moving = element.kind === 'pipe' ? myPort : otherPort;
-    const dims = catalog.reducer(anchor.spec, moving.spec);
+    // Porta flangeada só recebe peça flangeada: a redução acompanha o acabamento do encontro.
+    const endType = requiredEndType(anchor.end, moving.end);
+    const dims = catalog.reducer(anchor.spec, moving.spec, undefined, endType);
+    const flangeA = dims.ends['a']?.type === 'flange' ? dims.ends['a'] : undefined;
+    const flangeB = dims.ends['b']?.type === 'flange' ? dims.ends['b'] : undefined;
+    if (endType === 'flange' && (!flangeA || !flangeB)) {
+      return fail(
+        'NO_FLANGED_FITTING',
+        `A extremidade é flangeada e não há redução flangeada no catálogo entre ${anchor.spec.sizeLabel} e ${moving.spec.sizeLabel} (${anchor.spec.standard}): a ligação exige peça flange × flange.`,
+      );
+    }
+    const anchorElement = element.kind === 'pipe' ? other : element;
+    let anchorPipe: Pipe | undefined;
+    if (flangeA) {
+      if (anchorElement.kind === 'pipe') {
+        const faced = flangePipeFace(catalog, anchorElement, anchor.ref.portId, flangeA);
+        if (!faced.ok) return faced;
+        anchorPipe = faced.value;
+      } else if (!anchor.end || !flangesMate(anchor.end, flangeA)) {
+        return fail(
+          'FLANGE_MISMATCH',
+          anchor.end?.type === 'flange'
+            ? `O flange de "${anchorElement.name}" (${describeDrilling(anchor.end)}) não casa com o da redução (${describeDrilling(flangeA)}).`
+            : `"${anchorElement.name}" não tem flange nessa extremidade: a redução flangeada exigiria peça de transição.`,
+        );
+      }
+    }
+    const stubLength = socketStubLength(anchor.end, dims.ends['a']);
+    const inlet = add(anchor.position, scale(anchor.direction, stubLength));
+    const stub: Pipe | undefined =
+      stubLength > 0
+        ? {
+            ...baseFields(next, 'pipe', anchor.spec, element.systemId),
+            kind: 'pipe',
+            start: anchor.position,
+            end: inlet,
+          }
+        : undefined;
     const reducer: Reducer = placeAtPort(
       {
         ...baseFields(next, 'reducer', anchor.spec, element.systemId),
@@ -386,24 +478,39 @@ export function resizeWithReducers(
         outletSpec: moving.spec,
         length: dims.length,
       },
-      anchor.position,
+      inlet,
       anchor.direction,
     );
     const outlet = getPort(reducer, 'b');
     if (!outlet) continue;
     const shortened = shortenPipe(pipeGives, moving.ref.portId, outlet.position);
     if (!shortened.ok) return shortened;
-    next = putElement(putElement(next, reducer), shortened.value);
+    const faced = flangeB
+      ? flangePipeFace(catalog, shortened.value, moving.ref.portId, flangeB)
+      : shortened;
+    if (!faced.ok) return faced;
+    next = putElement(putElement(next, reducer), faced.value);
+    if (anchorPipe) next = putElement(next, anchorPipe);
+    if (stub) next = putElement(next, stub);
     const linked = replaceConnection(next, connection.id, [
-      [anchor.ref, { elementId: reducer.id, portId: 'a' }],
+      ...(stub
+        ? ([
+            [anchor.ref, { elementId: stub.id, portId: 'start' }],
+            [
+              { elementId: stub.id, portId: 'end' },
+              { elementId: reducer.id, portId: 'a' },
+            ],
+          ] as [PortRef, PortRef][])
+        : ([[anchor.ref, { elementId: reducer.id, portId: 'a' }]] as [PortRef, PortRef][])),
       [{ elementId: reducer.id, portId: 'b' }, moving.ref],
     ]);
     if (!linked.ok) return linked;
     next = linked.value;
     createdIds.push(reducer.id);
+    if (stub) stubIds.push(stub.id);
   }
 
   const settled = reconcile(next, roots);
   if (!settled.ok) return settled;
-  return ok({ project: settled.value, createdIds, removedIds });
+  return ok({ project: settled.value, createdIds, removedIds, stubIds });
 }

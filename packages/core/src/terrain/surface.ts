@@ -1,3 +1,4 @@
+import { newId } from '../ids';
 import type { Vec3 } from '../math';
 import { fail, ok, type Result } from '../result';
 import type { Point2, Terrain, TerrainSource } from '../schema';
@@ -37,9 +38,16 @@ export interface SurfaceInput {
    * não gerar triângulos-agulha junto ao contorno. 0 = nenhum descarte.
    */
   readonly clearance?: number;
-  /** Devolve `false` para triângulos sobre região sem dado (lacunas do DEM): são removidos. */
-  readonly keepTriangle?: (x: number, y: number) => boolean;
+  /**
+   * Devolve `false` para triângulos sobre região sem dado (lacunas do DEM): são removidos.
+   * Recebe o baricentro e os três vértices do triângulo.
+   */
+  readonly keepTriangle?: (x: number, y: number, corners: readonly [Vec3, Vec3, Vec3]) => boolean;
   readonly maxVertices?: number;
+  /** Identificador da superfície; sem ele, um novo é gerado. */
+  readonly id?: string;
+  /** Identificação dada pelo projetista (vazia por padrão). */
+  readonly tag?: string;
 }
 
 export interface SurfaceReport {
@@ -212,7 +220,12 @@ export function buildTerrainSurface(input: SurfaceInput): Result<BuiltSurface> {
     if (input.keepTriangle) {
       const x = ((xs[a] as number) + (xs[b] as number) + (xs[c] as number)) / 3;
       const y = ((ys[a] as number) + (ys[b] as number) + (ys[c] as number)) / 3;
-      if (!input.keepTriangle(x, y)) {
+      const corner = (i: number): Vec3 => ({
+        x: xs[i] as number,
+        y: ys[i] as number,
+        z: zs[i] as number,
+      });
+      if (!input.keepTriangle(x, y, [corner(a), corner(b), corner(c)])) {
         trianglesWithoutData += 1;
         continue;
       }
@@ -242,12 +255,15 @@ export function buildTerrainSurface(input: SurfaceInput): Result<BuiltSurface> {
 
   return ok({
     terrain: {
+      id: input.id ?? newId(),
       name: input.name,
+      tag: input.tag ?? '',
       points,
       triangles,
       boundary: input.boundary ? boundary : null,
       breaklines,
       source: input.source,
+      original: null,
     },
     report: { duplicates, outside, breaklineSegmentsDropped, trianglesWithoutData },
   });

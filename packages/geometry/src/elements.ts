@@ -53,7 +53,9 @@ import type { MeshData } from './sweep';
  * `seal` = anéis de vedação (borracha); `castIron` = corpo de ferro fundido com a pintura
  * cinza-azulada do fabricante. Reservatórios metálicos: `paint` = pintura clara de
  * acabamento; `steel` = aço aparente; `galvanized` = chapa corrugada galvanizada;
- * `liner` = revestimento interno azul.
+ * `liner` = revestimento interno azul. Arquitetura: `wall`, `slab`, `flooring` (corpo de
+ * parede, laje e revestimento de piso), `joinery` (folha de porta), `frame` (marco de
+ * esquadria) e `glass` (vidro).
  */
 export type PartRole =
   | 'body'
@@ -65,7 +67,13 @@ export type PartRole =
   | 'paint'
   | 'steel'
   | 'galvanized'
-  | 'liner';
+  | 'liner'
+  | 'wall'
+  | 'slab'
+  | 'flooring'
+  | 'joinery'
+  | 'frame'
+  | 'glass';
 
 export interface MeshPart {
   readonly role: PartRole;

@@ -1,8 +1,10 @@
+import { archIntegrityProblem } from './architecture/ops';
 import { MIN_PIPE_LENGTH } from './dimensions';
 import { quatNormalize } from './math';
 import { pipeLength } from './ports';
 import { fail, ok, type Result } from './result';
 import {
+  defaultArchCutHeight,
   defaultInfraSettings,
   PROJECT_FORMAT,
   ProjectSchema,
@@ -103,6 +105,38 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   // v14 → v15: vistas de projeto (plantas por nível, cortes, elevações e vistas 3D, com os
   // detalhes 2D de cada uma). Documentos antigos não têm vistas salvas.
   14: (doc) => ({ views: [], ...doc, schemaVersion: 15 }),
+  // v15 → v16: modelo arquitetônico (`architecture`: tipos, paredes, lajes, revestimentos de
+  // piso, portas, janelas e ambientes), o ambiente `architecture` e as categorias de
+  // arquitetura na visibilidade das vistas. Documentos antigos não têm arquitetura; nada da
+  // rede é alterado.
+  // As plantas ganham a altura do plano de corte da arquitetura (`archCutHeight`): 1,20 m,
+  // limitada à faixa da planta.
+  15: (doc) => ({
+    architecture: { types: [], elements: [] },
+    ...doc,
+    schemaVersion: 16,
+    views: Array.isArray(doc.views)
+      ? doc.views.map((view: unknown) => {
+          if (typeof view !== 'object' || view === null) return view;
+          const v = view as Record<string, unknown>;
+          if (v.kind !== 'plan' || 'archCutHeight' in v) return v;
+          return { ...v, archCutHeight: defaultArchCutHeight(v.cutHeight) };
+        })
+      : doc.views,
+  }),
+  // v16 → v17: superfície do terreno como elemento (identificador persistente, identificação
+  // e a malha original, guardada na primeira edição) e terraplenagem (`earthworks`: platôs e
+  // parâmetros de volume). Uma superfície antiga nunca foi editada (`original: null`) e
+  // recebe um identificador fixo; nenhum parâmetro de volume é presumido.
+  16: (doc) => ({
+    earthworks: { platforms: [], swellPercent: null, compactionFactor: null, reusePercent: null },
+    ...doc,
+    schemaVersion: 17,
+    terrain:
+      typeof doc.terrain === 'object' && doc.terrain !== null
+        ? { id: 'terreno', tag: '', original: null, ...doc.terrain }
+        : doc.terrain,
+  }),
 };
 
 export function serializeProject(project: Project): string {
@@ -175,6 +209,16 @@ export function parseProjectDocument(input: unknown): Result<Project> {
         'DANGLING_VIEW_LEVEL',
         `Projeto inválido: a planta "${view.name}" referencia um nível inexistente.`,
       );
+    }
+  }
+
+  const archProblem = archIntegrityProblem(project);
+  if (archProblem) {
+    return fail(archProblem.code, `Projeto inválido: ${archProblem.message}`);
+  }
+  for (const element of project.architecture.elements) {
+    if (ids.has(element.id)) {
+      return fail('DUPLICATE_ID', `Projeto inválido: identificador duplicado (${element.id}).`);
     }
   }
 

@@ -175,9 +175,96 @@ def test_reports_view_problems(project_document):
         "levelId": "nivel-inexistente",
         "cutHeight": 3,
         "depth": 3.3,
+        "archCutHeight": 1.2,
         "rotation": 0,
     }
     project_document["views"] = [view, deepcopy(view)]
     codes = [issue.code for issue in validate_project(Project.model_validate(project_document))]
     assert codes.count("DANGLING_VIEW_LEVEL") == 2
     assert codes.count("DUPLICATE_VIEW") == 1
+
+
+ARCH_CASES = [
+    "ARCH_DUPLICATE_TYPE",
+    "ARCH_SOURCE_REQUIRED",
+    "ARCH_DUPLICATE_ID",
+    "DUPLICATE_ID",
+    "ARCH_TYPE_NOT_FOUND",
+    "ARCH_TYPE_MISMATCH",
+    "LEVEL_NOT_FOUND:wall",
+    "LEVEL_NOT_FOUND:slab",
+    "LEVEL_NOT_FOUND:flooring",
+    "LEVEL_NOT_FOUND:space",
+    "HOST_NOT_FOUND:missing",
+    "HOST_NOT_FOUND:not-a-wall",
+    "WALL_TOO_SHORT",
+]
+
+
+@pytest.mark.parametrize("case", ARCH_CASES)
+def test_each_architecture_referential_error(client, arch_document, case):
+    """Esquema v16: mesmos códigos de `archIntegrityProblem` (core/architecture/ops.ts)."""
+    code, _, variant = case.partition(":")
+    architecture = arch_document["architecture"]
+    types = architecture["types"]
+    by_id = {element["id"]: element for element in architecture["elements"]}
+    if code == "ARCH_DUPLICATE_TYPE":
+        types.append(deepcopy(types[0]))
+        expected_ids = []
+    elif code == "ARCH_SOURCE_REQUIRED":
+        types[3]["generic"] = False
+        expected_ids = []
+    elif code == "ARCH_DUPLICATE_ID":
+        architecture["elements"].append(deepcopy(by_id["space-1"]))
+        expected_ids = ["space-1"]
+    elif code == "DUPLICATE_ID":
+        # O identificador é único no projeto inteiro: não pode repetir o de um tubo.
+        by_id["space-1"]["id"] = "pipe-1"
+        expected_ids = ["pipe-1"]
+    elif code == "ARCH_TYPE_NOT_FOUND":
+        by_id["door-1"]["typeId"] = "missing"
+        expected_ids = ["door-1"]
+    elif code == "ARCH_TYPE_MISMATCH":
+        by_id["slab-1"]["typeId"] = "type-flooring"
+        expected_ids = ["slab-1"]
+    elif code == "LEVEL_NOT_FOUND":
+        target = f"{variant}-1"
+        by_id[target]["levelId"] = "missing"
+        expected_ids = [target]
+    elif code == "HOST_NOT_FOUND":
+        by_id["window-1"]["hostId"] = "missing" if variant == "missing" else "slab-1"
+        expected_ids = ["window-1"]
+    else:
+        by_id["wall-1"]["end"] = {"x": 0.049, "y": 0}
+        expected_ids = ["wall-1"]
+    response = client.post(VALIDATE_URL, json=arch_document)
+    assert response.status_code == 200
+    result = response.json()
+    assert result["valid"] is False
+    assert [(issue["code"], issue["elementIds"]) for issue in result["issues"]] == [
+        (code, expected_ids)
+    ]
+    assert result["issues"][0]["severity"] == "error"
+    assert result["issues"][0]["message"]
+
+
+def test_type_mismatch_message_names_the_category(arch_document):
+    arch_document["architecture"]["elements"][3]["typeId"] = "type-flooring"
+    issues = validate_project(Project.model_validate(arch_document))
+    assert [issue.message for issue in issues] == [
+        'O tipo "Porcelanato sobre contrapiso" não é de laje.'
+    ]
+
+
+def test_non_generic_type_with_source_and_wall_at_minimum_length_are_valid(arch_document):
+    architecture = arch_document["architecture"]
+    architecture["types"][3].update(generic=False, source="Fabricante X, catálogo 2026, p. 12")
+    architecture["elements"][0]["end"] = {"x": 0.05, "y": 0}
+    assert validate_project(Project.model_validate(arch_document)) == []
+
+
+def test_architecture_validation_does_not_mutate_project(arch_document):
+    project = Project.model_validate(arch_document)
+    original = project.model_dump(by_alias=True)
+    assert validate_project(project) == []
+    assert project.model_dump(by_alias=True) == original

@@ -1,12 +1,48 @@
-import { Building2, CheckCircle2, ChevronDown, Circle, Network } from 'lucide-react';
+import type { Discipline } from '@hydrobim/core';
+import {
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  Circle,
+  House,
+  Network,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useCommandContext } from '../commands/useCommands';
 import type { ProjectSummary } from '../persistence/ProjectRepository';
 import { selectIsDirty, useEditorStore } from '../state/editorStore';
 import { confirmDiscard, openStoredProject, repository } from '../state/projectActions';
 import { CommandButton } from './CommandButton';
+import { DISCIPLINE_LABELS } from './labels';
 
 const RECENT_LIMIT = 5;
+
+/**
+ * Ambientes do seletor. Trocar de ambiente só muda a disciplina do projeto (as ferramentas à
+ * mostra, a especificação e a grade padrão): o modelo, as coordenadas e os elementos — da rede
+ * e da arquitetura — são os mesmos nos três.
+ */
+const ENVIRONMENTS: readonly { value: Discipline; icon: LucideIcon; title: string }[] = [
+  {
+    value: 'architecture',
+    icon: House,
+    title:
+      'Ambiente Arquitetura: paredes, lajes, pisos, portas, janelas e ambientes. O projeto e os elementos são os mesmos dos outros ambientes.',
+  },
+  {
+    value: 'mep',
+    icon: Building2,
+    title:
+      'Ambiente MEP: instalações prediais, industriais e casas de bombas. Muda a disciplina do projeto (especificação e grade padrão).',
+  },
+  {
+    value: 'infra',
+    icon: Network,
+    title:
+      'Ambiente Infra: redes de distribuição e adutoras. Muda a disciplina do projeto (especificação e grade padrão).',
+  },
+];
 
 /** Menu Arquivo: novo, abrir, recentes, salvar no navegador e baixar o arquivo nativo. */
 function FileMenu() {
@@ -92,8 +128,8 @@ function FileMenu() {
                   <span className="cmd__text">
                     <strong>{project.name}</strong>
                     <small>
-                      {project.discipline === 'mep' ? 'MEP' : 'Infra'} · {project.elementCount}{' '}
-                      elementos · {new Date(project.updatedAt).toLocaleString('pt-BR')}
+                      {DISCIPLINE_LABELS[project.discipline]} · {project.elementCount} elementos ·{' '}
+                      {new Date(project.updatedAt).toLocaleString('pt-BR')}
                     </small>
                   </span>
                 </button>
@@ -192,7 +228,7 @@ export function TopBar() {
           Ambiente:
         </span>
         <div className="segmented" role="group" aria-labelledby="environment-caption">
-          {(['mep', 'infra'] as const).map((value) => (
+          {ENVIRONMENTS.map(({ value, icon: Icon, title }) => (
             <button
               key={value}
               type="button"
@@ -200,18 +236,10 @@ export function TopBar() {
               className={discipline === value ? 'segmented__item is-active' : 'segmented__item'}
               aria-pressed={discipline === value}
               onClick={() => setDiscipline(value)}
-              title={
-                value === 'mep'
-                  ? 'Ambiente MEP: instalações prediais, industriais e casas de bombas. Muda a disciplina do projeto (especificação e grade padrão).'
-                  : 'Ambiente Infra: redes de distribuição e adutoras. Muda a disciplina do projeto (especificação e grade padrão).'
-              }
+              title={title}
             >
-              {value === 'mep' ? (
-                <Building2 size={15} aria-hidden />
-              ) : (
-                <Network size={15} aria-hidden />
-              )}
-              {value === 'mep' ? 'MEP' : 'Infra'}
+              <Icon size={15} aria-hidden />
+              {DISCIPLINE_LABELS[value]}
             </button>
           ))}
         </div>

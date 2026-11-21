@@ -1,6 +1,7 @@
 import {
   add,
   angleBetween,
+  computeArchBounds,
   computeBounds,
   AXIS_X,
   AXIS_Y,
@@ -25,6 +26,7 @@ import {
   vec3,
   type Annotation,
   type AnnotationPatch,
+  type Discipline,
   type HydroElement,
   type Point2,
   type Project,
@@ -39,6 +41,10 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { snapArchPoint } from '../arch/archGeometry';
+import { ArchDraftLayer, ArchPlanLayer } from '../arch/ArchPlanLayer';
+import { ArchLengthEntry } from '../arch/ArchPlanTools';
+import { useArchStore } from '../arch/archStore';
 import { SNAP_PX, type SnapKind } from '../editor/picking';
 import { formatSegment } from '../editor/segment';
 import { describeSnap } from '../editor/snapLabel';
@@ -80,6 +86,7 @@ import { useUiStore } from '../state/uiStore';
 import { SectionDraft, SectionMarkers } from '../views/SectionMarkers';
 import { useViewStore } from '../views/viewStore';
 import { cursorElementOf } from '../state/viewPreview';
+import { EarthworkPanel } from '../terrain/EarthworkPanel';
 import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
 import { planDrawOrder } from './drawOrder';
 import { PlanPreviewLayer } from './PlanPreviewLayer';
@@ -122,6 +129,7 @@ interface Drag {
   readonly mode: 'pan' | 'annotation' | 'click' | 'grip' | 'window';
   readonly annotationId: string | null;
   readonly elementId: string | null;
+  readonly archId: string | null;
   readonly origin: Point2;
   readonly view: View;
   moved: boolean;
@@ -131,7 +139,7 @@ const CLICK_TOLERANCE_PX = 4;
 const DEFAULT_TEXT = 'TEXTO';
 
 /** Maior ampliação de afastamento (m por pixel): no Infra a vista alcança dezenas de km. */
-const MAX_MPP = { mep: 10, infra: 200 } as const;
+const MAX_MPP: Record<Discipline, number> = { mep: 10, infra: 200, architecture: 10 };
 
 // O projeto é imutável: a caixa de um elemento vale enquanto o objeto for o mesmo.
 const boxCache = new WeakMap<HydroElement, ViewBounds>();
@@ -194,6 +202,11 @@ function planBounds(project: Project): Bounds | null {
   }
   for (const annotation of project.annotations) {
     for (const p of annotationPoints(project, annotation)) include(p.x, p.y);
+  }
+  const arch = computeArchBounds(project);
+  if (arch) {
+    include(arch.min.x, arch.min.y);
+    include(arch.max.x, arch.max.y);
   }
   // No Infra, a superfície do terreno faz parte do desenho: enquadrar leva até ela.
   if (project.discipline === 'infra' && project.terrain && project.infra.layers.terrain) {
@@ -260,6 +273,7 @@ export function PlanView() {
   const sectionDraft = useViewStore((s) => s.draft);
   /** Ferramenta de modelagem ativa (tubo, conexões, equipamentos, medição). */
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
+  const archTool = useArchStore((s) => s.tool);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -446,6 +460,19 @@ export function PlanView() {
     return { point: raw, snap: 'plane' };
   };
 
+  const archPoint = (raw: Point2): { point: Point2; snap: SnapKind } => {
+    const state = useEditorStore.getState();
+    if (archTool === 'door' || archTool === 'window') return { point: raw, snap: 'plane' };
+    const snapped = snapArchPoint(state.project.architecture, raw, {
+      tolerance: SNAP_PX * view.mpp,
+      gridStep: snapToGrid ? gridStep : 0,
+    });
+    return {
+      point: snapped.point,
+      snap: snapped.kind === 'grid' ? 'grid' : snapped.kind === 'free' ? 'plane' : 'port',
+    };
+  };
+
   /** Escolha manual entre extremidades sobrepostas em planta (tecla Tab). */
   const stackCycle = useRef(0);
   const lastHover = useRef<{ raw: Point2; elementId: string | null } | null>(null);
@@ -609,6 +636,10 @@ export function PlanView() {
       useTerrainStore.getState().click(raw, SNAP_PX * view.mpp);
       return;
     }
+    if (archTool) {
+      useArchStore.getState().clickPoint(archPoint(raw).point, SNAP_PX * view.mpp);
+      return;
+    }
     if (modeling) {
       modelClick(d, raw, additive);
       return;
@@ -620,7 +651,11 @@ export function PlanView() {
     }
     if (tool === 'select') {
       if (d.annotationId) store.selectAnnotation(d.annotationId);
-      else store.select(d.elementId, additive);
+      else if (d.archId) useArchStore.getState().select(d.archId, additive);
+      else {
+        if (!additive) useArchStore.getState().select(null);
+        store.select(d.elementId, additive);
+      }
       return;
     }
     if (tool === 'dimension') {
@@ -745,7 +780,7 @@ export function PlanView() {
     const mode =
       event.button !== 0
         ? 'pan'
-        : terrainMode
+        : terrainMode || archTool
           ? 'click'
           : gripPipe && (grip === 'start' || grip === 'end')
             ? 'grip'
@@ -766,6 +801,7 @@ export function PlanView() {
       mode,
       annotationId,
       elementId: idOf(event.target, 'data-element-id'),
+      archId: idOf(event.target, 'data-arch-id'),
       origin: toModel(event),
       view,
       moved: false,
@@ -874,6 +910,17 @@ export function PlanView() {
       }
       return;
     }
+    if (archTool) {
+      const snapped = archPoint(raw);
+      setPointer(snapped);
+      useArchStore.getState().setCursor(snapped.point);
+      useEditorStore.getState().setCursor({
+        point: vec3(snapped.point.x, snapped.point.y, workPlaneZ),
+        snap: snapped.snap,
+        port: null,
+      });
+      return;
+    }
     if (modeling) {
       hoverModel(raw, idOf(event.target, 'data-element-id'));
       return;
@@ -944,6 +991,7 @@ export function PlanView() {
     if (drag.current) return;
     setPointer(null);
     useEditorStore.getState().setCursor(null);
+    if (archTool) useArchStore.getState().setCursor(null);
   };
 
   const exportSvg = (): void => {
@@ -1172,6 +1220,7 @@ export function PlanView() {
       data-testid="plan-view"
       data-tool={tool}
       data-terrain-mode={terrainMode ?? ''}
+      data-arch-tool={archTool ?? ''}
       data-view-tool={sectionTool ? 'section' : ''}
       data-theme={theme}
       data-environment={project.discipline}
@@ -1185,12 +1234,17 @@ export function PlanView() {
         width={size.width}
         height={size.height}
         viewBox={`${X(view.cx) - (size.width / 2) * view.mpp} ${Y(view.cy) - (size.height / 2) * view.mpp} ${Math.max(size.width, 1) * view.mpp} ${Math.max(size.height, 1) * view.mpp}`}
-        style={{ cursor: drafting || terrainMode || sectionTool ? 'crosshair' : 'default' }}
+        style={{
+          cursor: drafting || terrainMode || sectionTool || archTool ? 'crosshair' : 'default',
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerLeave}
         onContextMenu={(event) => event.preventDefault()}
+        onDoubleClick={() => {
+          if (archTool) useArchStore.getState().finish();
+        }}
       >
         {/* Fundo: imagem de satélite georreferenciada (só com o georreferenciamento pronto). */}
         {imagery && provider && geo.state === 'ready' && (
@@ -1218,6 +1272,13 @@ export function PlanView() {
           />
         )}
         {/* Vista geral do Infra: eixos e símbolos de tamanho fixo na tela (fora de escala). */}
+        <ArchPlanLayer
+          origin={origin}
+          mpp={view.mpp}
+          unit={unit}
+          monochrome={theme === 'mono'}
+          interactive={tool === 'select' && !archTool && !sectionTool && !terrainMode}
+        />
         <g data-layer-infra="network">
           {drawn
             .filter((entry) => entry.simplified)
@@ -1321,6 +1382,7 @@ export function PlanView() {
           />
         )}
         <g data-ui="draft" pointerEvents="none">
+          <ArchDraftLayer origin={origin} mpp={view.mpp} tolerance={SNAP_PX * view.mpp} />
           {sectionTool && (
             <>
               <SectionDraft
@@ -1457,7 +1519,7 @@ export function PlanView() {
               {pointer.info}
             </text>
           )}
-          {drafting && pointer && (
+          {(drafting || archTool) && pointer && (
             <circle
               cx={X(pointer.point.x)}
               cy={Y(pointer.point.y)}
@@ -1480,6 +1542,7 @@ export function PlanView() {
       </svg>
 
       {infra && <TerrainPanel />}
+      {infra && <EarthworkPanel />}
       {infra && <TerrainProfilePanel />}
       {infra && (
         <InfraOverlay
@@ -1504,6 +1567,7 @@ export function PlanView() {
         // ampliação, já com o mapa ao fundo.
         <GeoPicker onDone={(mpp) => setView({ cx: 0, cy: 0, mpp })} />
       )}
+      <ArchLengthEntry />
       <AnnotationInspector focusId={focusId} />
     </div>
   );

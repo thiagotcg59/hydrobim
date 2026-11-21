@@ -1,4 +1,9 @@
-import { georeferenceStatus, terrainStats } from '@hydrobim/core';
+import {
+  georeferenceStatus,
+  projectEarthworks,
+  terrainStats,
+  type EarthworkSolid,
+} from '@hydrobim/core';
 import { useContext, useEffect, useMemo, useState } from 'react';
 import {
   BufferAttribute,
@@ -11,6 +16,8 @@ import {
 import { findBasemapProvider } from '../map/providers';
 import { useEditorStore } from '../state/editorStore';
 import { drapeMosaic, drapeUvs, loadDrapeCanvas } from '../terrain/drape';
+import { CUT_COLOR, FILL_COLOR } from '../terrain/EarthworkPanel';
+import { shownSurface, useEarthworkStore } from '../terrain/earthworkStore';
 import { buildTerrainMesh, contourSegments, terrainEdges } from '../terrain/terrainColors';
 import { contourIntervalOf } from '../terrain/TerrainLayers';
 import { useTerrainStore } from '../terrain/terrainStore';
@@ -38,8 +45,79 @@ export function TerrainSurface() {
   return visible ? <TerrainSurfaceMesh /> : null;
 }
 
+/** Sólidos de corte (vermelho) e de aterro (azul) sobre o terreno projetado, na comparação. */
+function CutFillSolids({ base }: { base: { x: number; y: number; z: number } }) {
+  const project = useEditorStore((s) => s.project);
+  const { planes } = useContext(ModelDisplayContext);
+  const geometries = useMemo(() => {
+    const summary = projectEarthworks(project);
+    if (!summary) return null;
+    const build = (solids: (EarthworkSolid | null)[]): BufferGeometry | null => {
+      const positions: number[] = [];
+      for (const solid of solids) {
+        if (!solid) continue;
+        for (const index of solid.triangles) {
+          const p = solid.points[index];
+          if (p) positions.push(p.x - base.x, p.y - base.y, p.z - base.z);
+        }
+      }
+      if (positions.length === 0) return null;
+      const geometry = new BufferGeometry();
+      geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+      geometry.computeVertexNormals();
+      return geometry;
+    };
+    return {
+      cut: build(summary.platforms.map((p) => p.volumes?.cutSolid ?? null)),
+      fill: build(summary.platforms.map((p) => p.volumes?.fillSolid ?? null)),
+    };
+  }, [project, base]);
+  useEffect(
+    () => () => {
+      geometries?.cut?.dispose();
+      geometries?.fill?.dispose();
+    },
+    [geometries],
+  );
+  if (!geometries) return null;
+  const material = (color: string) => (
+    <meshBasicMaterial
+      color={color}
+      side={DoubleSide}
+      transparent
+      opacity={0.55}
+      depthWrite={false}
+      clippingPlanes={planes}
+      polygonOffset
+      polygonOffsetFactor={-2}
+      polygonOffsetUnits={-2}
+    />
+  );
+  return (
+    <group userData={{ earthwork: true }}>
+      {geometries.cut && (
+        <mesh geometry={geometries.cut} raycast={() => null} userData={{ earthwork: 'cut' }}>
+          {material(CUT_COLOR)}
+        </mesh>
+      )}
+      {geometries.fill && (
+        <mesh geometry={geometries.fill} raycast={() => null} userData={{ earthwork: 'fill' }}>
+          {material(FILL_COLOR)}
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 function TerrainSurfaceMesh() {
-  const terrain = useEditorStore((s) => s.project.terrain);
+  // Superfície à mostra: o terreno projetado (com os platôs), o natural ou o original.
+  const natural = useEditorStore((s) => s.project.terrain);
+  const platforms = useEditorStore((s) => s.project.earthworks.platforms);
+  const surfaceView = useEarthworkStore((s) => s.view);
+  const terrain = useMemo(
+    () => (natural ? shownSurface(natural, platforms, surfaceView) : null),
+    [natural, platforms, surfaceView],
+  );
   // Caixa de corte da vista 3D aberta: a superfície é cortada com os elementos.
   const { planes } = useContext(ModelDisplayContext);
   const display = useTerrainStore((s) => s.display);
@@ -190,8 +268,11 @@ function TerrainSurfaceMesh() {
         exaggeration: display.exaggeration,
         opacity: display.opacity,
         draped,
+        surfaceView,
+        triangles: mesh.triangleCount,
       }}
     >
+      {surfaceView === 'compare' && platforms.length > 0 && <CutFillSolids base={base} />}
       <mesh geometry={geometry} raycast={() => null}>
         <meshStandardMaterial
           // Trocar entre cor por vértice e imagem exige recompilar o material.

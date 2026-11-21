@@ -11,7 +11,38 @@ import type { DrapeState } from './drape';
  */
 
 /** Operação do terreno em andamento na Planta Infra. */
-export type TerrainMode = 'area' | 'hole' | 'profile' | 'query';
+export type TerrainMode =
+  | 'area'
+  | 'hole'
+  | 'profile'
+  | 'query'
+  /** Edição da superfície: novo ponto, escolha de um ponto, nova posição e novo limite. */
+  | 'point-add'
+  | 'point-edit'
+  | 'point-move'
+  | 'boundary'
+  /** Terraplenagem: perímetro de um platô e escolha da superfície ou de um platô. */
+  | 'platform'
+  | 'pick';
+
+/** Modos em que cada clique é uma ação (não há poligonal em desenho). */
+const POINT_MODES: readonly TerrainMode[] = ['point-add', 'point-edit', 'point-move', 'pick'];
+/** Modos em que se desenha um anel fechado entregue à edição do terreno. */
+const RING_MODES: readonly TerrainMode[] = ['boundary', 'platform'];
+
+/**
+ * Quem atende os cliques e os anéis dos modos de edição e de terraplenagem (`earthworkStore`).
+ * Registrado de fora para que esta store continue sem conhecer as operações.
+ */
+export interface TerrainEditHandlers {
+  point: (mode: TerrainMode, point: Point2, tolerance: number) => void;
+  /** Devolve `true` quando o anel foi aceito (o desenho termina). */
+  ring: (mode: TerrainMode, ring: Point2[]) => boolean;
+}
+let editHandlers: TerrainEditHandlers | null = null;
+export function registerTerrainEditHandlers(handlers: TerrainEditHandlers): void {
+  editHandlers = handlers;
+}
 
 export type TerrainColorMode = 'elevation' | 'slope' | 'plain';
 
@@ -116,6 +147,16 @@ export const MODE_HINTS: Record<TerrainMode, string> = {
   profile:
     'Corte longitudinal: clique os pontos do eixo do corte; clique de novo no último ponto (ou Enter) para gerar o perfil.',
   query: 'Consulta de cota: clique sobre a superfície para fixar o ponto. Esc encerra.',
+  'point-add':
+    'Novo ponto do terreno: clique a posição na planta; a cota é confirmada no painel. Esc encerra.',
+  'point-edit':
+    'Editar ponto: clique um ponto da superfície para escolhê-lo; a cota e a posição são alteradas no painel. Esc encerra.',
+  'point-move': 'Mover ponto: clique a nova posição do ponto escolhido. Esc cancela.',
+  boundary:
+    'Limite da superfície: clique os vértices do novo limite, dentro da superfície; clique no primeiro ponto (ou Enter) para fechar.',
+  platform:
+    'Platô: clique os vértices do perímetro sobre o terreno; clique no primeiro ponto (ou Enter) para fechar. Esc cancela, Backspace desfaz o último ponto.',
+  pick: 'Selecionar: clique a superfície do terreno ou um platô para ver as propriedades. Esc encerra.',
 };
 
 export const useTerrainStore = create<TerrainState>()((set, get) => ({
@@ -163,6 +204,10 @@ export const useTerrainStore = create<TerrainState>()((set, get) => ({
       set({ query: point });
       return;
     }
+    if (POINT_MODES.includes(mode)) {
+      editHandlers?.point(mode, point, tolerance);
+      return;
+    }
     const near = (p: Point2 | undefined): boolean =>
       p !== undefined && Math.hypot(p.x - point.x, p.y - point.y) <= tolerance;
     const closing = mode !== 'profile' && draft.length >= 3 && near(draft[0]);
@@ -176,7 +221,15 @@ export const useTerrainStore = create<TerrainState>()((set, get) => ({
 
   finishDraft: () => {
     const { mode, draft, area, holes } = get();
-    if (!mode || mode === 'query') return;
+    if (!mode || mode === 'query' || POINT_MODES.includes(mode)) return;
+    if (RING_MODES.includes(mode)) {
+      if (draft.length < 3) {
+        notify('info', 'O contorno precisa de ao menos três pontos.');
+        return;
+      }
+      if (editHandlers?.ring(mode, draft)) set({ draft: [], mode: null });
+      return;
+    }
     if (mode === 'profile') {
       if (draft.length < 2) {
         notify('info', 'O corte precisa de ao menos dois pontos.');

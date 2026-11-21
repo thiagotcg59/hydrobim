@@ -1,3 +1,5 @@
+export * from './architecture';
+export * from './archSection';
 export * from './elements';
 export * from './finishes';
 export * from './flange';

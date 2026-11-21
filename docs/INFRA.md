@@ -238,23 +238,135 @@ Visualizar › Terreno › **Superfície (3D)** oferece, além de altitude, decl
 
 ### Limitações declaradas
 
-- Uma superfície por projeto; sem edição de vértices, sem fusão de DEM com levantamento em regiões diferentes.
+- Uma superfície por projeto; sem fusão de DEM com levantamento em regiões diferentes.
 - Curvas de nível e corte são vistas: ainda não entram no DXF/SVG da planta nem viram anotações.
-- LandXML e a entidade IFC do terreno ainda não são exportados (a estrutura de dados está pronta: `terrainExchange`). O DXF do modelo 3D já leva a malha.
+- LandXML ainda não é exportado (a estrutura de dados está pronta: `terrainExchange`). O IFC leva o terreno e a terraplenagem (`docs/IFC_MAPPING.md`); o DXF do modelo 3D leva a malha do terreno natural.
 - O perfil do terreno e o perfil da rede (Análise › Perfil longitudinal) são painéis separados.
 - Abrir o Modelo 3D com um tubo selecionado emite no console um aviso do React ("Attempted to synchronously unmount a root…") vindo das alças do tubo; não é causado pelo terreno e não afeta o resultado, mas ainda não foi corrigido.
 - O caminho Mapbox não foi exercitado com uma chave real; a fonte aberta (Terrain Tiles) não foi exercitada contra o serviço real nos testes automatizados, que interceptam a rede.
+
+## Edição do terreno e terraplenagem
+
+Decisão correspondente: [ADR-045](DECISIONS.md). Estrutura de dados: `docs/DOMAIN_MODEL.md`, seções Terreno e Terraplenagem. Faixa: Modelagem › Terraplenagem › **Editar Terreno | Criar Platô | Corte/Aterro | Volumes** (ambiente Infra, com superfície no projeto).
+
+```
+packages/core/src/terrain/
+  edit.ts        edição da superfície: pontos, cota, limite, triangulação, original
+  grading.ts     terreno projetado: platôs, taludes e remalhamento local
+  volumes.ts     integração entre as duas superfícies, sólidos e quantidades
+  earthworks.ts  operações do projeto (platôs, parâmetros) e quadro de quantidades
+apps/web/src/terrain/
+  earthworkStore.ts        estado de sessão e casos de uso (gravam pela store do editor)
+  EarthworkPanel.tsx       painel com as quatro abas, sobre a Planta Infra
+  EarthworkLayers.tsx      platôs, linha de encontro, corte/aterro e pontos na planta
+  EarthworkProperties.tsx  superfície e platô no painel de propriedades
+  EarthworkNavRows.tsx     superfície e platôs no navegador do projeto
+packages/ifc/src/terrainExport.ts   terreno, cortes e aterros no IFC
+```
+
+### Superfície como elemento
+
+A superfície tem identificador persistente, nome e identificação (`tag`). Selecionada (Editar Terreno, navegador do projeto › Referências, ou "Selecionar na planta"), mostra no painel de propriedades: nome e identificação editáveis, área em planta e da superfície, cotas mínima e máxima, vértices e triângulos, declividade média, origem dos dados (tipo, fonte, conjunto, data, resolução e exatidão — "não informado" quando a fonte não declara), sistema horizontal, referência altimétrica e os cantos da extensão (E/N com georreferência, X/Y sem ela).
+
+### Editar Terreno
+
+| Operação | Como funciona |
+| --- | --- |
+| Adicionar ponto | Clique a posição na planta; o painel mostra a cota da superfície no local e pede a cota do ponto. Dentro do limite, quando há limite; sem limite, um ponto de fora amplia a superfície |
+| Editar ponto | Clique um ponto (todos aparecem na planta durante a edição). X, Y e Z no painel; **Mover na planta** leva o ponto ao próximo clique, mantendo a cota |
+| Excluir ponto | A triangulação é refeita em volta; um vértice do limite ou de uma linha de quebra sai deles também |
+| Redesenhar limite | Anel desenhado dentro da superfície, cotado pela triangulação atual (interseção exata com as arestas); o que fica de fora sai. Um limite que ultrapassa a região com dado é recusado |
+| Regenerar triangulação | Refaz a malha com os pontos, o limite e as linhas de quebra atuais |
+| Restaurar original | Volta à superfície como foi importada |
+
+- **Mesmo construtor da importação**: mudar posição ou limite refaz a triangulação (Delaunay com restrições); trocar só a cota não muda a malha. Nenhuma cota é interpolada ou suavizada.
+- **Original preservada**: na primeira edição a malha importada é guardada no projeto (`terrain.original`). A vista **Original** (aba Corte/Aterro) a mostra na planta e no 3D para comparação. Importar ou gerar outra superfície descarta a anterior e a original dela (com desfazer).
+- **Lacunas do DEM continuam abertas**; um ponto cotado posto em uma lacuna a preenche só em volta dele.
+- **Custo**: cada edição de posição refaz a triangulação inteira (meta de 1 s para 20.000 pontos); a edição é confirmada operação a operação, com desfazer.
+- **Tamanho do arquivo**: a original dobra o espaço do terreno no JSON enquanto a superfície estiver editada.
+
+### Criar Platô
+
+1. Informe a **cota de implantação** (Z local) e os **taludes de corte e de aterro** em H:V (metros na horizontal por metro na vertical). A cota começa vazia — é dado do projeto; os taludes começam em 1 e 1,5 só como ponto de partida: a inclinação estável depende do solo e é do projetista.
+2. **Desenhar perímetro**: clique os vértices sobre o terreno e feche no primeiro ponto (ou Enter).
+3. O terreno projetado, a linha de encontro dos taludes com o terreno e os volumes são gerados e mostrados na planta e no 3D.
+
+O platô é paramétrico: mudar a cota, os taludes ou o perímetro (Redesenhar perímetro) regenera tudo. Vários platôs são aplicados **em sequência** — o segundo encontra o terreno já modificado pelo primeiro (um aterro pode apoiar no talude do vizinho). A superfície natural nunca é alterada: o projeto guarda só os parâmetros.
+
+**Geometria** (`grading.ts`):
+
+- De cada ponto do perímetro sai, na direção normal ao lado, uma linha de maior declive do talude — subindo no corte, descendo no aterro. Ela termina na **primeira** interseção com o terreno existente, calculada exatamente, trecho a trecho, sobre os triângulos atravessados. Não é deslocamento de vértices nem amostragem em grade.
+- O perímetro é amostrado onde cruza arestas do terreno e onde o terreno cruza a cota do platô: ali o talude tem altura zero e muda de corte para aterro.
+- **Cantos salientes**: as linhas abrem em leque (7,5° entre elas) — o talude é um trecho de cone, a única forma de manter a inclinação constante em volta de um canto. O leque é uma aproximação poligonal do cone (diferença de volume da ordem de 0,3 % da parcela do canto).
+- **Cantos reentrantes**: os taludes dos dois lados se encontram em uma aresta sobre a bissetriz.
+- **Remalhamento local**: os triângulos tocados saem e a região é triangulada de novo com o perímetro, as linhas de talude e a linha de encontro como arestas obrigatórias. A linha de encontro ganha um vértice, na cota do terreno, em cada aresta atravessada — as duas superfícies coincidem exatamente ao longo dela. Fora da região a malha é idêntica à do terreno. A área refeita é conferida com a removida.
+
+**Recusas** (com o motivo, sem resultado parcial): perímetro fora da superfície ou que se cruza; talude que não encontra o terreno dentro da superfície; platô ou talude sobre a borda ou sobre uma lacuna sem dado; reentrância estreita demais (os taludes de lados opostos se encontram antes de chegar ao terreno); linhas de talude que se cruzam.
+
+### Corte/Aterro
+
+Alterna a superfície à mostra na planta e no 3D: **Natural**, **Projetado**, **Comparação** (projetado com o corte em vermelho e o aterro em azul, com legenda) e, se a superfície foi editada, **Original**. As curvas de nível e a triangulação são as da superfície à mostra. Na planta, a linha tracejada em volta de cada platô é o encontro dos taludes com o terreno (crista do corte ou pé do aterro). É opção de visualização da sessão.
+
+### Volumes
+
+**Integração** (`volumes.ts`): cada triângulo do terreno projetado é recortado pelos triângulos do terreno natural que ele cobre; em cada pedaço as duas superfícies são planos e a diferença de cota é linear. O pedaço é dividido pela linha em que a diferença é zero — de um lado corte, do outro aterro — e o volume de cada parte é a área em planta vezes a média das diferenças nos vértices, exato para faces planas. Não há grade de amostragem: onde as superfícies se cruzam, corte e aterro são separados na linha de cruzamento, e nenhum volume sai negativo.
+
+**Convenções** — cada volume está em um estado, e estados diferentes não são somados sem conversão:
+
+| Quantidade | Estado | Cálculo |
+| --- | --- | --- |
+| Corte | in situ | integração geométrica |
+| Aterro | compactado | integração geométrica |
+| Escavado solto | solto | corte × (1 + empolamento ÷ 100) |
+| Aproveitável | in situ | corte × aproveitamento ÷ 100 |
+| Aterro com material do corte | compactado | aproveitável × fator de conversão |
+| Saldo | compactado | aterro com material do corte − aterro (positivo = sobra; negativo = falta) |
+| Empréstimo | compactado | falta de aterro, a cobrir com material de fora |
+| Empréstimo na jazida | in situ | empréstimo ÷ fator (supõe o mesmo fator do corte para o material de empréstimo) |
+| Excedente (bota-fora) | in situ | corte não aproveitável + sobra ÷ fator |
+| Excedente a transportar | solto | excedente × (1 + empolamento ÷ 100) |
+
+- **Fator de conversão** = m³ de aterro **compactado** obtidos de 1 m³ de corte **in situ** (ex.: 0,90). Não é o grau de compactação.
+- **Os três parâmetros são do projetista** e começam não informados: sem eles, corte e aterro geométricos aparecem e o restante fica pendente ("—"). O editor não traz valores de solo.
+- **Quadro** por platô e total do projeto, com exportação CSV. O volume de cada platô é medido sobre a região dele (platô e taludes) contra o terreno natural; o total é a soma.
+
+### Verificação
+
+| Caso (Vitest, `earthworks.test.ts`) | Referência | Tolerância |
+| --- | --- | --- |
+| Aterro de 2 m, 20 × 20 m, talude 1,5, terreno plano | a²h + 4·a·r·h/2 + π r² h/3 = 1.058,85 m³ | 0,1 m³ |
+| Corte de 3 m, talude 1, terreno plano | 1.588,27 m³ | 0,1 m³ |
+| Mesmo aterro fora do alinhamento da malha | idem | 0,1 m³ |
+| Platô a meia encosta em plano inclinado, taludes iguais | corte = aterro (antissimetria) e integração independente em grade de 5 cm | 0,5 % |
+| Plano inclinado nas duas direções, quadrilátero, taludes 1 e 2 | integração independente em grade de 5 cm | 1 % |
+| Platô em L (canto reentrante) em terreno plano | h·[A + P r/2 + (5π/2 − 2) r²/6] = 1.727,56 m³ | 0,2 m³ |
+| Relevo irregular | volumes positivos, área da superfície conservada, natural intacto fora da linha de encontro, volume dos sólidos = volume integrado | — |
+
+No navegador (`tests/e2e/earthworks.spec.ts`): criação do platô pelo desenho, volumes conferidos com as mesmas fórmulas, mudança de cota de aterro para corte, parâmetros do material, comparação na planta e no 3D, edição de pontos e de limite, original e desfazer.
+
+### Limitações declaradas
+
+- Reentrâncias estreitas (pátios, formas em U cujos taludes se encontram antes do terreno) são recusadas; divida o platô.
+- Platôs são horizontais; sem bermas, sem taludes variáveis por lado, sem platôs inclinados.
+- O perímetro é alterado redesenhando-o (não há arraste de vértices).
+- O assentamento por recobrimento, o assentamento de equipamentos, o perfil longitudinal, o percurso e o DXF usam o terreno **natural**, não o projetado.
+- Os sólidos de corte e de aterro podem ter lascas submilimétricas abertas em relevo irregular (o IFC informa `Closed = .F.`); os volumes do quadro vêm da integração, não do sólido.
+- Não há peso, distância de transporte, distribuição de massas (Brückner) nem camadas de solo.
+- Cada alteração recalcula o terreno projetado de todos os platôs; o resultado é guardado enquanto o terreno e os platôs não mudam. Não foi medido com superfícies de 25.000 vértices e dezenas de platôs.
+
 ## Persistência
 
 | O quê | Onde | Observação |
 | --- | --- | --- |
 | Georreferência e referência altimétrica | `project.georeference` | Dado de engenharia |
 | Escala de documentação, fonte e opacidade do mapa, camadas, rótulos | `project.infra` | Reabre a planta como foi deixada |
-| Superfície do terreno (malha, limite, linhas de quebra, procedência) | `project.terrain` | Dado de engenharia, com desfazer |
-| Zoom, centro, origem de renderização, estado do mapa, área do terreno em edição, corte, opções de visualização do terreno | Estado de sessão | Não entra no arquivo |
+| Superfície do terreno (identificação, malha, limite, linhas de quebra, procedência e a malha original, depois da primeira edição) | `project.terrain` | Dado de engenharia, com desfazer |
+| Platôs (perímetro, cota, taludes) e parâmetros de volume | `project.earthworks` | Dado de engenharia, com desfazer |
+| Terreno projetado, taludes, linha de encontro, volumes e sólidos de corte e de aterro | Derivados | Nunca gravados |
+| Zoom, centro, origem de renderização, estado do mapa, área do terreno em edição, corte, opções de visualização do terreno, superfície à mostra (natural, projetada, comparação), ponto e platô escolhidos | Estado de sessão | Não entra no arquivo |
 | Chave de acesso de fonte de elevação | `localStorage` do navegador | Nunca entra no projeto |
 
-Esquema v12 (o projeto está hoje no v13, que só acrescenta as famílias de bombas); documentos anteriores são migrados ao abrir (v10 → v11: configuração padrão, escala da planta levada para a Planta Infra nos projetos Infra, referência altimétrica não informada; v11 → v12: terreno existente vira levantamento por pontos, sem limite informado e sem datum, exatidão ou data presumidos).
+O terreno entrou no esquema v12 e virou elemento, com a terraplenagem, no v17 (migração v16 → v17: identificador fixo, identificação vazia, nunca editado, sem platôs e sem parâmetros de volume presumidos); documentos anteriores são migrados ao abrir (v10 → v11: configuração padrão, escala da planta levada para a Planta Infra nos projetos Infra, referência altimétrica não informada; v11 → v12: terreno existente vira levantamento por pontos, sem limite informado e sem datum, exatidão ou data presumidos).
 
 ## Desempenho
 
@@ -275,7 +387,8 @@ O limite de cada teste é cinco vezes a meta: o tempo medido oscila com a máqui
 3. **Alinhamentos e estaqueamento:** alinhamento de referência como entidade distinta da tubulação; estacas; a rede só passa a existir quando conexões, dimensões e compatibilidade estiverem resolvidas.
 4. **Assentamento por recobrimento:** já existe nos cliques da Planta Infra (ver Superfície do terreno); faltam a entrada por valores e o 3D, reassentar trechos existentes, pontos intermediários automáticos onde o recobrimento cai e as pendências de recobrimento na validação.
 5. **Perfil como vista:** perfil longitudinal na área de trabalho, sincronizado com a seleção e a posição na planta e no 3D (hoje abre no diálogo de análises, pelo botão Perfil… ou por Análise › Perfil longitudinal).
-6. **Terreno:** importação e exportação LandXML, entidade IFC do terreno, curvas de nível e corte na documentação (DXF/SVG, anotações), mais de uma superfície por projeto, BigTIFF e rasters maiores lidos por janela.
-7. **Mapa:** ortofoto georreferenciada em arquivo (GeoTIFF) fornecida pelo usuário; imagem na exportação quando a licença da fonte permitir; satélite no modelo 3D.
-8. **Documentação:** prancha com carimbo, legenda, norte e malha de coordenadas; exportação em PDF; fator de escala combinado no projeto.
-9. **Desempenho do 3D:** instanciamento e níveis de detalhe para milhares de elementos.
+6. **Terreno:** importação e exportação LandXML, curvas de nível e corte na documentação (DXF/SVG, anotações), mais de uma superfície por projeto, BigTIFF e rasters maiores lidos por janela.
+7. **Terraplenagem:** reentrâncias estreitas, bermas e platôs inclinados, arraste dos vértices do perímetro, rede e equipamentos assentados sobre o terreno projetado, conjuntos do terreno na aba BIM / IFC e no IDS, DXF do terreno projetado, distribuição de massas.
+8. **Mapa:** ortofoto georreferenciada em arquivo (GeoTIFF) fornecida pelo usuário; imagem na exportação quando a licença da fonte permitir; satélite no modelo 3D.
+9. **Documentação:** prancha com carimbo, legenda, norte e malha de coordenadas; exportação em PDF; fator de escala combinado no projeto.
+10. **Desempenho do 3D:** instanciamento e níveis de detalhe para milhares de elementos.
