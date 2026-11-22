@@ -1,4 +1,9 @@
-import { closureCandidates, type Closure, type ClosureInput } from './closure';
+import {
+  closureCandidates,
+  deflectedElbowClosure,
+  type Closure,
+  type ClosureInput,
+} from './closure';
 import { prepareConnectionReduction } from './connectionReduction';
 import { routeConnection } from './connectionRoute';
 import { connectedComponent, getElement, isPortFree, resolvePort } from './connectivity';
@@ -147,6 +152,8 @@ function closureLabel(closure: Closure): string {
       return 'Desvio com dois joelhos';
     case 'deflected':
       return 'Tubo com deflexão nas juntas';
+    case 'elbowDeflected':
+      return 'Um joelho com deflexão na junta';
   }
 }
 
@@ -213,38 +220,41 @@ function connectOptions(
         )
       : joined;
   }
-  const found = closureCandidates(project, { ...input, a: input.from, b: input.to });
-  if (!found.ok) {
-    const route = routeConnection(project, { ...input, a: input.from, b: input.to });
-    if (!route.ok)
-      return fail(
-        found.error.code,
-        `${found.error.message} Percurso alternativo: ${route.error.message}`,
-      );
-    return ok([
-      {
-        key: `${prefix}route:orthogonal`,
-        action,
-        label: `${lead}Traçar conexão em planos diferentes`,
-        summary: route.value.summary,
-        project: route.value.project,
-        createdIds: route.value.createdIds,
-        movedIds,
-        connects: true,
-      },
-    ]);
-  }
-  return ok(
-    found.value.map((closure) => ({
-      key: `${prefix}${closure.kind}${closure.angle === null ? '' : `:${Math.round(((closure.angle * 180) / Math.PI) * 100) / 100}`}`,
+  const ends = { ...input, a: input.from, b: input.to };
+  const fromClosure = (closure: Closure): ConnectionCandidate => ({
+    key: `${prefix}${closure.kind}${closure.angle === null ? '' : `:${Math.round(((closure.angle * 180) / Math.PI) * 100) / 100}`}`,
+    action,
+    label: `${lead}${closureLabel(closure)}`,
+    summary: closure.summary,
+    project: closure.project,
+    createdIds: closure.createdIds,
+    movedIds,
+    connects: true,
+  });
+  const found = closureCandidates(project, ends);
+  if (found.ok) return ok(found.value.map(fromClosure));
+  // Sem fechamento exato: primeiro o mais simples (um joelho, com a sobra na deflexão que a
+  // junta admite); depois o percurso de três joelhos, que não depende de deflexão.
+  const options: ConnectionCandidate[] = [];
+  const simple = deflectedElbowClosure(project, ends);
+  if (simple.ok) options.push(fromClosure(simple.value));
+  const route = routeConnection(project, ends);
+  if (route.ok) {
+    options.push({
+      key: `${prefix}route:orthogonal`,
       action,
-      label: `${lead}${closureLabel(closure)}`,
-      summary: closure.summary,
-      project: closure.project,
-      createdIds: closure.createdIds,
+      label: `${lead}Traçar conexão em planos diferentes`,
+      summary: route.value.summary,
+      project: route.value.project,
+      createdIds: route.value.createdIds,
       movedIds,
       connects: true,
-    })),
+    });
+  }
+  if (options.length > 0) return ok(options);
+  return fail(
+    found.error.code,
+    `${found.error.message} Um joelho: ${simple.ok ? '' : simple.error.message} Percurso alternativo: ${route.ok ? '' : route.error.message}`,
   );
 }
 

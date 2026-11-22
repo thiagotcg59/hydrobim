@@ -1,6 +1,7 @@
 import {
   alignmentTolerance,
   connectPorts,
+  describeAllowance,
   findConnection,
   getElement,
   deflectionAllowance,
@@ -53,7 +54,8 @@ import { degToRad, formatDegrees, formatMeters } from './units';
  * recusados com explicação.
  */
 
-export type ClosureKind = 'coincident' | 'straight' | 'elbow' | 'offset' | 'deflected';
+export type ClosureKind =
+  'coincident' | 'straight' | 'elbow' | 'offset' | 'deflected' | 'elbowDeflected';
 
 export interface ClosureInput {
   a: PortRef;
@@ -508,6 +510,117 @@ function rigidClosures(project: Project, input: ClosureInput): Result<Closure[]>
     [...first.value.createdIds, ...second.value.createdIds],
   );
   return closed.ok ? ok([closed.value]) : closed;
+}
+
+/**
+ * Um joelho no eixo de partida e um tubo direto até a chegada, que entra na porta de destino
+ * com a deflexão que a junta admite. O vértice fica onde o joelho tem exatamente o ângulo de
+ * catálogo; a sobra (eixos reversos por poucos milímetros, ou encontro fora do ângulo
+ * fabricado) vai para a junta de chegada, nunca para o joelho.
+ */
+function elbowFromDeparture(project: Project, input: ClosureInput): Result<Closure> {
+  const pa = resolvePort(project, input.a);
+  const pb = resolvePort(project, input.b);
+  if (!pa || !pb) return fail('PORT_NOT_FOUND', 'Porta de conexão inexistente.');
+  if (!isPortFree(project, input.a) || !isPortFree(project, input.b)) {
+    return fail('PORT_OCCUPIED', 'Uma das extremidades já está conectada.');
+  }
+  const spec = sameSpec(pa, pb);
+  if (!spec.ok) return spec;
+
+  const gap = sub(pb.position, pa.position);
+  const along = dot(gap, pa.direction);
+  const offset = length(sub(gap, scale(pa.direction, along)));
+  if (offset < MIN_PIPE_LENGTH) {
+    return fail('NO_SOLUTION', 'A extremidade de destino está no eixo de partida: não há joelho.');
+  }
+  const between = angleBetween(pa.direction, negate(pb.direction));
+  // Do ângulo de catálogo mais próximo do encontro dos eixos ao mais distante.
+  const angles = input.elbowAngles?.length
+    ? [...input.elbowAngles].sort((x, y) => Math.abs(x - between) - Math.abs(y - between))
+    : [between];
+  let refusal: Result<Closure> = fail(
+    'NO_SOLUTION',
+    'Não há joelho que feche as extremidades com a deflexão admitida pela junta.',
+  );
+  for (const angle of angles) {
+    if (angle <= ANGLE_TOLERANCE || angle >= Math.PI - ANGLE_TOLERANCE) continue;
+    const reach = along - (offset * Math.cos(angle)) / Math.sin(angle);
+    if (reach < MIN_PIPE_LENGTH) {
+      refusal = fail(
+        'CROSSING_BEHIND',
+        `O joelho de ${formatDegrees(angle, 2)} ficaria atrás da extremidade de partida.`,
+      );
+      continue;
+    }
+    const corner = add(pa.position, scale(pa.direction, reach));
+    const leg = sub(pb.position, corner);
+    const arrival = angleBetween(leg, negate(pb.direction));
+    const plain = { spec: pa.spec, end: null, run: length(leg) };
+    const allowance = deflectionAllowance(pb, plain);
+    if (arrival > alignmentTolerance(pb, plain)) {
+      refusal = fail(
+        'DEFLECTION_EXCEEDED',
+        `Com um joelho de ${formatDegrees(angle, 2)}, o tubo chegaria à extremidade com deflexão de ${formatDegrees(arrival, 2)}${
+          allowance.limit > 0
+            ? `; ${describeAllowance(allowance)}`
+            : ', e a junta não admite deflexão'
+        }.`,
+      );
+      continue;
+    }
+    const first = extendTo(project, input.a, corner, input);
+    if (!first.ok) {
+      refusal = first;
+      continue;
+    }
+    const second = runTo(first.value.project, first.value.ref, pb.position, input);
+    if (!second.ok) {
+      refusal = second;
+      continue;
+    }
+    const closed = finish(
+      project,
+      second.value.project,
+      second.value.ref,
+      input.b,
+      'elbowDeflected',
+      angle,
+      [...first.value.createdIds, ...second.value.createdIds],
+    );
+    if (!closed.ok) {
+      refusal = closed;
+      continue;
+    }
+    // A sobra é sempre declarada, mesmo abaixo da tolerância de alinhamento das portas.
+    const host = getElement(project, input.b.elementId);
+    const admitted =
+      arrival <= ANGLE_TOLERANCE
+        ? 'dentro da tolerância de alinhamento'
+        : `admitida: ${formatDegrees(allowance.limit, 2)}`;
+    return ok({
+      ...closed.value,
+      summary: `${closed.value.summary}; deflexão de ${formatDegrees(arrival, 2)} na junta com "${host?.name ?? '?'}" (${admitted})`,
+    });
+  }
+  return refusal;
+}
+
+/**
+ * Fechamento com um único joelho quando os eixos não fecham exatamente (reversos por pouco, ou
+ * encontro fora do ângulo de catálogo): joelho de ângulo fabricado e a sobra absorvida pela
+ * deflexão admitida na junta de uma das extremidades. Tenta primeiro o joelho no eixo de `a`
+ * (a extremidade `b` não é alterada); sem solução, o joelho no eixo de `b`. Não entra em
+ * `closureCandidates`: é alternativa oferecida à escolha, nunca aplicada por omissão.
+ */
+export function deflectedElbowClosure(project: Project, input: ClosureInput): Result<Closure> {
+  if (input.a.elementId === input.b.elementId) {
+    return fail('SAME_ELEMENT', 'Escolha extremidades de dois elementos diferentes.');
+  }
+  const direct = elbowFromDeparture(project, input);
+  if (direct.ok) return direct;
+  const reverse = elbowFromDeparture(project, { ...input, a: input.b, b: input.a });
+  return reverse.ok ? reverse : direct;
 }
 
 /** Fecha as duas extremidades com a primeira solução disponível (ver `closureCandidates`). */
