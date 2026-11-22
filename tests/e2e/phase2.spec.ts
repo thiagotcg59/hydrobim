@@ -112,6 +112,58 @@ test('trocar o diâmetro altera só o tubo e insere reduções de catálogo', as
   expect(errors).toEqual([]);
 });
 
+test('elevação: a prumada ligada ao joelho estica ou encolhe, com a outra extremidade fixa', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await openEmptyProject(page);
+  // Trecho horizontal de 3 m, joelho e prumada até a cota 2,5.
+  await (await ctl(page, 'tool-pipe')).click();
+  await addPoint(page, '0', '0', '0');
+  await addPoint(page, '3', '0', '0');
+  await addPoint(page, '3', '0', '2,5');
+  await expectNoError(page);
+  await page.keyboard.press('Escape');
+  await (await ctl(page, 'tool-select')).click();
+  await showProject(page);
+
+  await items(page, 'pipe').nth(1).click();
+  await expect(await ctl(page, 'prop-end-z')).toHaveValue('2,5');
+  await expect(await ctl(page, 'prop-length')).toHaveValue('2,482');
+
+  // Joelho de 0 para 0,5: o trecho horizontal sobe junto e a prumada encolhe 0,5 m.
+  await showProject(page);
+  await items(page, 'elbow').first().click();
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('0');
+  await expect(await ctl(page, 'prop-elevation-info')).toContainText('esticam ou encolhem');
+  await setField(page, 'prop-elevation', '0,5');
+  await expect(page.getByTestId('status-message')).toContainText('Elevação alterada');
+  await showProject(page);
+  await items(page, 'pipe').nth(1).click();
+  await expect(await ctl(page, 'prop-end-z')).toHaveValue('2,5');
+  await expect(await ctl(page, 'prop-length')).toHaveValue('1,982');
+  await showProject(page);
+  await items(page, 'pipe').first().click();
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('0,5');
+  await expect(await ctl(page, 'prop-length')).toHaveValue('2,982');
+
+  // Descer estica a prumada; subir além do topo dela é recusado, sem alterar nada.
+  await showProject(page);
+  await items(page, 'elbow').first().click();
+  await setField(page, 'prop-elevation', '-1');
+  await showProject(page);
+  await items(page, 'pipe').nth(1).click();
+  await expect(await ctl(page, 'prop-end-z')).toHaveValue('2,5');
+  await expect(await ctl(page, 'prop-length')).toHaveValue('3,482');
+  await showProject(page);
+  await items(page, 'elbow').first().click();
+  await setField(page, 'prop-elevation', '3');
+  await expect(page.getByTestId('status-message')).toContainText('Não há espaço');
+  await expect(await ctl(page, 'prop-elevation')).toHaveValue('-1');
+  await expect(page.getByTestId('validation-toggle')).toHaveAttribute('data-errors', '0');
+  expect(errors).toEqual([]);
+});
+
 test('elevação: alterar a cota de um tubo move os elementos conectados', async ({ page }) => {
   const errors = trackErrors(page);
   await openEmptyProject(page);

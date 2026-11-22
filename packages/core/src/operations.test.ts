@@ -28,7 +28,6 @@ import {
   rollFitting,
   rotateElements,
   copyRotatedElements,
-  setElementElevation,
   setPipeEndpoint,
   setPipeLength,
   translateElements,
@@ -36,6 +35,7 @@ import {
 } from './operations';
 import { getPort, pipeLength } from './ports';
 import { applySpec } from './sizing';
+import { elevationFollowers, setElementElevation } from './slide';
 import type { Result } from './result';
 import type { Pipe, Project } from './schema';
 import { testSpec } from './testSupport';
@@ -723,29 +723,40 @@ describe('elevação', () => {
     };
   }
 
-  it('eleva o tubo e todos os elementos conectados, sem deformar a rede', () => {
+  it('eleva o trecho acoplado; a prumada encolhe, com a outra extremidade fixa', () => {
     const n = network();
     const raised = unwrap(setElementElevation(n.project, n.a, 1.2));
     expectCoupled(raised);
     expect(raised.connections).toEqual(n.project.connections);
-    const connected = new Set(connectedComponent(n.project, n.a));
-    expect(connected.size).toBe(5);
+    expect(connectedComponent(n.project, n.a)).toHaveLength(5);
+    // Sobem os dois tubos horizontais e os dois joelhos; a prumada absorve a diferença.
+    const followers = new Set(elevationFollowers(n.project, n.a));
+    expect(followers.size).toBe(4);
+    expect(followers.has(n.riser)).toBe(false);
     for (const before of n.project.elements) {
+      if (before.id === n.riser) continue;
       const after = getElement(raised, before.id);
       if (!after) throw new Error('elemento perdido');
-      const expected = connected.has(before.id) ? 1.2 : 0;
+      const expected = followers.has(before.id) ? 1.2 : 0;
       expect(elementElevation(after) - elementElevation(before)).toBeCloseTo(expected);
     }
-    // A prumada sobe inteira: mantém o comprimento.
-    expect(pipeLength(pipeOf(raised, n.riser))).toBeCloseTo(pipeLength(pipeOf(n.project, n.riser)));
-    expect(pipeOf(raised, n.riser).end.z).toBeCloseTo(3.7);
+    // O topo da prumada não se move: ela passa de 2,5 − perna do joelho para 1,2 m a menos.
+    const before = pipeOf(n.project, n.riser);
+    const after = pipeOf(raised, n.riser);
+    expect(after.end).toEqual(before.end);
+    expect(after.start.z - before.start.z).toBeCloseTo(1.2);
+    expect(pipeLength(after)).toBeCloseTo(pipeLength(before) - 1.2);
     expect(pipeOf(raised, n.loose).start.z).toBe(0);
     expect(pipeOf(n.project, n.a).start.z).toBe(0); // imutabilidade
+    expect(validateProject(raised)).toEqual(validateProject(n.project));
   });
 
-  it('partindo de uma conexão, também move os elementos conectados', () => {
+  it('partindo do joelho da prumada: descer estica a prumada e leva o trecho horizontal', () => {
     const n = network();
-    const elbow = n.project.elements.find((e) => e.kind === 'elbow');
+    const riserStart = pipeOf(n.project, n.riser).start;
+    const elbow = n.project.elements.find(
+      (e) => e.kind === 'elbow' && Math.abs(e.placement.position.y - riserStart.y) < 1e-6,
+    );
     if (!elbow) throw new Error('sem joelho');
     const lowered = unwrap(setElementElevation(n.project, elbow.id, -0.5));
     expectCoupled(lowered);
@@ -753,6 +764,24 @@ describe('elevação', () => {
     expect(pipeOf(lowered, n.a).end.z).toBeCloseTo(-0.5);
     const after = getElement(lowered, elbow.id);
     expect(after && elementElevation(after)).toBeCloseTo(-0.5);
+    expect(pipeOf(lowered, n.riser).end).toEqual(pipeOf(n.project, n.riser).end);
+    expect(pipeLength(pipeOf(lowered, n.riser))).toBeCloseTo(
+      pipeLength(pipeOf(n.project, n.riser)) + 0.5,
+    );
+  });
+
+  it('recusa quando a prumada ficaria sem comprimento; sem prumada, a rede sobe inteira', () => {
+    const n = network();
+    const before = n.project;
+    const tooHigh = setElementElevation(before, n.a, 3);
+    expect(!tooHigh.ok && tooHigh.error.code).toBe('NO_ROOM');
+    expect(pipeOf(before, n.riser).start.z).toBeCloseTo(pipeOf(n.project, n.riser).start.z);
+    // A própria prumada: ela e tudo o que está acoplado mudam de cota, sem deformar.
+    const whole = unwrap(setElementElevation(before, n.riser, pipeOf(before, n.riser).start.z + 2));
+    expectCoupled(whole);
+    expect(elevationFollowers(before, n.riser)).toHaveLength(5);
+    expect(pipeLength(pipeOf(whole, n.riser))).toBeCloseTo(pipeLength(pipeOf(before, n.riser)));
+    expect(pipeOf(whole, n.a).start.z).toBeCloseTo(2);
   });
 
   it('elemento isolado muda só a própria elevação', () => {

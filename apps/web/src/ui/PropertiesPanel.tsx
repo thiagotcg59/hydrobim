@@ -11,6 +11,7 @@ import {
   connectedComponent,
   connectedPortRef,
   elementElevation,
+  elevationFollowers,
   degToRad,
   elementKindLabel,
   formatMeters,
@@ -260,8 +261,9 @@ function PointFields({
 }
 
 /**
- * Cota Z do elemento. Em tubos e conexões a alteração leva junto todos os elementos
- * conectados; em equipamentos, só o próprio elemento (a regra está no domínio).
+ * Cota Z do elemento. Em tubos e conexões a alteração leva junto o trecho acoplado até os
+ * tubos verticais, que esticam ou encolhem com a outra extremidade fixa; em equipamentos, só
+ * o próprio elemento (a regra está no domínio).
  */
 function ElevationField({
   element,
@@ -274,6 +276,7 @@ function ElevationField({
 }) {
   const equipment = element.kind === 'pump' || element.kind === 'tank';
   const connected = equipment ? 0 : connectedComponent(project, element.id).length - 1;
+  const followers = equipment ? 0 : elevationFollowers(project, element.id).length - 1;
   return (
     <>
       <NumberField
@@ -287,9 +290,11 @@ function ElevationField({
       <span className="muted" data-testid="prop-elevation-info">
         {equipment
           ? 'Altera só este equipamento; tubos conectados se ajustam quando o acoplamento permite.'
-          : connected > 0
-            ? `Alterar a elevação move também os ${connected} elemento(s) conectado(s).`
-            : 'Sem elementos conectados: só este elemento é movido.'}
+          : connected === 0
+            ? 'Sem elementos conectados: só este elemento é movido.'
+            : followers < connected
+              ? `Alterar a elevação move também ${followers} elemento(s) acoplado(s); os tubos verticais ligados esticam ou encolhem, com a outra extremidade fixa.`
+              : `Alterar a elevação move também os ${connected} elemento(s) conectado(s).`}
       </span>
     </>
   );
