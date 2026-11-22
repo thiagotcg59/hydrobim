@@ -118,7 +118,9 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ✅ Superfície do terreno como elemento (esquema v17): selecionável, com propriedades no painel (nome, identificação, área, cotas, origem dos dados, referenciais); edição de pontos cotados (acrescentar, mover, excluir, trocar a cota), do limite e da triangulação; superfície original guardada para comparação e restauração.
 - ✅ Terraplenagem (`docs/INFRA.md`): platôs paramétricos (perímetro, cota, taludes H:V de corte e de aterro) aplicados em sequência sobre o terreno natural, sem alterá-lo; terreno projetado refeito localmente com as linhas de talude e a linha de encontro como arestas; corte em vermelho e aterro em azul na planta e no 3D; volumes por sobreposição exata das duas malhas, conferidos com resultados analíticos; quadro por platô e total com empolamento, fator de conversão e aproveitamento informados pelo projetista (pendentes quando não informados).
 - ✅ IFC do terreno e da terraplenagem: `IfcGeographicElement`/`TERRAIN`, `IfcEarthworksCut` (vazio no terreno) e `IfcEarthworksFill`, com quantidades padronizadas; validado com IfcOpenShell.
-- 🟡 Terraplenagem, pendente: reentrâncias estreitas do perímetro (taludes de lados opostos que se encontram antes do terreno são recusados), taludes com bermas, platôs inclinados, edição do perímetro por arraste dos vértices, assentamento de rede e de equipamentos sobre o terreno projetado (hoje usam o natural), conjuntos do terreno na aba BIM / IFC e no IDS, DXF do terreno projetado.
+- 🟡 Terraplenagem, pendente: reentrâncias estreitas do perímetro (taludes de lados opostos que se encontram antes do terreno são recusados), taludes com bermas, platôs inclinados, edição do perímetro por arraste dos vértices, conjuntos do terreno na aba BIM / IFC e no IDS.
+- ✅ Terreno natural e projetado em toda a modelagem: assentamento de rede e equipamentos na superfície escolhida (projetado por padrão), cotas e "Assentar" para as duas no painel de propriedades, perfil longitudinal da rede e corte do terreno com as duas linhas e os dois recobrimentos, rótulos TP/TN na Planta Infra, cursor com as duas cotas, percurso sobre a superfície à mostra e DXF do modelo 3D com o terreno natural, o projetado e os sólidos de corte e aterro.
+- ✅ Arquitetura sobre o terreno: parede, laje, piso e ambiente assentados no terreno natural ou no projetado ao criar ou pelo painel (base horizontal, um ponto de referência, sem vínculo com a superfície) e elevações absolutas da base e do topo de cada elemento no painel de propriedades.
 - ⬜ Terreno: LandXML (importação e exportação), curvas de nível e corte na documentação (DXF/SVG), mais de uma superfície por projeto, BigTIFF e rasters lidos por janela.
 - ⬜ Perfil longitudinal como vista sincronizada com a planta e o 3D (hoje no diálogo de análises, por Análise › Perfil longitudinal ou pelo botão Perfil… junto das abas de vista).
 - ✅ Mapa de ruas ou de satélite estendido sobre a superfície do terreno no modelo 3D, acompanhando o relevo, com atribuição.
@@ -149,6 +151,17 @@ Ver `docs/ARQUITETURA.md` (requisitos adotados do Caderno BIM de SC v3.0, vigên
 - ⬜ `IfcSpaceType`, `IfcZone`, limites de espaço e áreas líquidas de ambientes; detecção do ambiente pelas paredes.
 - ⬜ Camadas da parede desenhadas e cortadas uma a uma; junção em X; paredes curvas ou inclinadas.
 - ⬜ Telhados, escadas, rampas, forros, estrutura e mobiliário.
+
+## Realidade virtual (WebXR) 🟡
+
+Ver `docs/WEBXR.md` (arquitetura, controles, publicação, roteiro de teste e limites).
+
+- ✅ Fundação: detecção de compatibilidade, comando **Entrar em VR** (Visualizar), sessão `immersive-vr` no renderizador da vista, `local-floor` com alternativa de piso estimado, saída e retorno ao editor, mensagens para navegador incompatível.
+- ✅ Modelo: a rede do projeto em lotes (poucas chamadas de desenho, identidade por elemento), terreno e arquitetura com os componentes do Modelo 3D; Z para cima → Y para cima sem espelhamento, escala 1:1 e origem local para coordenadas UTM.
+- ✅ Navegação: teletransporte por arco só em terreno, lajes e pisos (ou piso virtual por nível), com recusa de ponto sem piso, talude íngreme e obstáculo; giro de 30°; ponto inicial e recentrar.
+- ✅ Inspeção: seleção com o raio do controle, painel de propriedades lido do elemento, menu com visibilidade por categoria, terreno, informações do projeto e saída.
+- 🟡 Verificação: testes unitários e no navegador com dispositivo WebXR simulado. **⬜ Validação no Meta Quest 2 (roteiro em `docs/WEBXR.md`)**: sessão no navegador do headset, escala, conforto, legibilidade, controles reais e taxa de quadros.
+- ⬜ Níveis de detalhe e simplificação visual; terreno por região visível; medição e leitura de cota; pontos de visita salvos; colisão; propriedades IFC completas; realidade mista (passthrough).
 
 ## Próxima etapa recomendada
 

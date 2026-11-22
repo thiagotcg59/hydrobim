@@ -46,12 +46,14 @@ test('planta: Shift trava o primeiro trecho nos eixos e os seguintes a 45° e 90
   await page.mouse.click(...at(1, 0.8));
   await expect(message).toHaveText('Tubo criado com joelho automático.');
   await page.keyboard.up('Shift');
+  // Soltar o Shift atualiza a prévia do próximo trecho (com o joelho dela): a contagem é feita
+  // depois de encerrar a ferramenta, só com os elementos criados.
+  for (let i = 0; i < 3; i += 1) await page.keyboard.press('Escape');
   await expect(svg.locator('[data-element-kind="elbow"]')).toHaveCount(1);
   await expect(svg.locator('[data-element-kind="pipe"]')).toHaveCount(2);
 
   // O primeiro tubo ficou sobre o eixo X: o painel mostra o início em X = -2 e nenhuma
   // coordenada com o desvio de 0,35 m que o cursor indicava.
-  for (let i = 0; i < 3; i += 1) await page.keyboard.press('Escape');
   await page.locator('[data-testid="element-item"][data-element-kind="pipe"]').first().click();
   const panel = page.getByTestId('properties-panel');
   await expect(panel).toContainText('-2,00');

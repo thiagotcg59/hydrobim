@@ -31,6 +31,9 @@ O HydroBIM é um **editor BIM paramétrico web**: os componentes hidráulicos t�
 - Superfície do terreno por área na Planta Infra: DEM em ladrilhos, GeoTIFF ou levantamento com linhas de quebra; curvas de nível, consulta de cota, corte longitudinal e visualização 3D em escala real (`docs/INFRA.md`).
 - Salvar/abrir no navegador e em arquivo JSON versionado (projetos antigos são migrados).
 
+**Realidade virtual (WebXR)**
+- Visualizar › **Entrar em VR**: o modelo aberto, em escala real, no navegador de um headset (referência: Meta Quest 2), com teletransporte, giro por etapas, seleção com os controles e painel de propriedades. Modo de inspeção, sem aplicativo separado. Testado com um dispositivo simulado; **a validação em headset físico está pendente** — ver [realidade virtual](docs/WEBXR.md).
+
 ## Requisitos
 
 | Ferramenta | Versão testada |
@@ -131,6 +134,7 @@ docs/                Arquitetura, modelo de domínio, mapeamento IFC, decisões,
 - [Mapeamento IFC](docs/IFC_MAPPING.md)
 - [Ambiente Infra](docs/INFRA.md)
 - [Arquitetura](docs/ARQUITETURA.md) — paredes, pisos, portas, janelas e ambientes; requisitos adotados e limites
+- [Realidade virtual (WebXR)](docs/WEBXR.md) — arquitetura, controles, publicação e roteiro de teste no headset
 - [Decisões técnicas](docs/DECISIONS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Instruções para agentes e colaboradores](AGENTS.md)

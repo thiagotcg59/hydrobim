@@ -17,6 +17,9 @@ import {
   georeferenceStatus,
   getElement,
   getPorts,
+  GROUND_SURFACE_LABELS,
+  groundSurfaceOf,
+  hasDesignTerrain,
   ok,
   planSnapPoints,
   resolvePort,
@@ -27,6 +30,7 @@ import {
   type Annotation,
   type AnnotationPatch,
   type Discipline,
+  type GroundSurface,
   type HydroElement,
   type Point2,
   type Project,
@@ -51,7 +55,12 @@ import { describeSnap } from '../editor/snapLabel';
 import { getViewFocus, planScaleFor, setViewFocus } from '../editor/viewPresets';
 import { visibleElementsOf, visibleFreePortsOf } from '../editor/visibility';
 import { arrowPreferences, contextTargetOf, CONTEXT_PX, nudgeStep } from '../editor/directEdit';
-import { isPolarLockHeld, polarLockedPoint } from '../editor/polarLock';
+import {
+  isPolarLockHeld,
+  polarLockedPoint,
+  polarLockPlan,
+  polarLockPoint,
+} from '../editor/polarLock';
 import { lengthStepOf, precisePipePoint } from '../editor/precision';
 import { precision } from '../state/precisionStore';
 import { pickPlanPoint, pickPlanPort, planPipeHit, type PlanPick } from '../editor/planPicking';
@@ -79,6 +88,8 @@ import {
   isAnnotationTool,
   pipeCrossingOf,
   pipeSnapOf,
+  placementGroundLabel,
+  placementGroundOf,
   useEditorStore,
 } from '../state/editorStore';
 import { alignGuidesOf, pointGridStepOf } from '../state/alignTool';
@@ -475,6 +486,20 @@ export function PlanView() {
     return { point: raw, snap: 'plane' };
   };
 
+  /**
+   * Shift: o trecho que sai de `origin` (último ponto indicado) trava de 45° em 45° em relação
+   * aos eixos do projeto. Um ponto capturado (extremidade, face, porta) prevalece, como no
+   * traçado de tubos; com a grade ligada, o comprimento do trecho anda pelo passo dela.
+   */
+  const angleLocked = (
+    origin: Point2 | null | undefined,
+    raw: Point2,
+    snapped: { point: Point2; snap: SnapKind },
+  ): { point: Point2; snap: SnapKind } => {
+    if (!origin || !isPolarLockHeld() || snapped.snap === 'port') return snapped;
+    return { point: polarLockPlan(origin, raw, snapToGrid ? gridStep : 0), snap: 'angle' };
+  };
+
   const archPoint = (raw: Point2): { point: Point2; snap: SnapKind } => {
     const state = useEditorStore.getState();
     if (archTool === 'door' || archTool === 'window') return { point: raw, snap: 'plane' };
@@ -482,10 +507,32 @@ export function PlanView() {
       tolerance: SNAP_PX * view.mpp,
       gridStep: snapToGrid ? gridStep : 0,
     });
-    return {
+    const { points } = useArchStore.getState();
+    return angleLocked(points[points.length - 1], raw, {
       point: snapped.point,
       snap: snapped.kind === 'grid' ? 'grid' : snapped.kind === 'free' ? 'plane' : 'port',
-    };
+    });
+  };
+
+  /** Vértice do contorno ou do corte do terreno: o ponto do cursor, sem grade nem portas. */
+  const terrainPoint = (raw: Point2): { point: Point2; snap: SnapKind } => {
+    const { draft: vertices } = useTerrainStore.getState();
+    return angleLocked(vertices[vertices.length - 1], raw, { point: raw, snap: 'plane' });
+  };
+
+  /** Ponto das anotações e da linha de corte: o segundo ponto aceita a trava de ângulo. */
+  const annotationPoint = (raw: Point2): { point: Point2; snap: SnapKind } => {
+    const views = useViewStore.getState();
+    const { points } = useEditorStore.getState().planDraft;
+    const origin =
+      views.tool === 'section'
+        ? views.draft.length === 1
+          ? views.draft[0]
+          : null
+        : (tool === 'dimension' || tool === 'leader') && points.length === 1
+          ? points[0]
+          : null;
+    return angleLocked(origin, raw, snap(raw));
   };
 
   /** Escolha manual entre extremidades sobrepostas em planta (tecla Tab). */
@@ -515,7 +562,14 @@ export function PlanView() {
     });
     if (free.ok && free.value.port) return free;
     // Shift: o trecho trava a 0°, 45° ou 90° (do tubo de partida ou dos eixos do projeto).
-    const locked = free.ok && isPolarLockHeld() ? polarLockedPoint(state, free.value.point) : null;
+    // Na medição, o segundo ponto trava de 45° em 45° a partir do primeiro.
+    const measuring = state.tool === 'measure' && !state.measure.b ? state.measure.a : null;
+    const locked =
+      free.ok && isPolarLockHeld()
+        ? measuring
+          ? polarLockPoint(measuring, null, vec3(raw.x, raw.y, free.value.point.z))
+          : polarLockedPoint(state, free.value.point)
+        : null;
     // Precisão de modelagem: em ponto livre, direção e comprimento andam pelos passos.
     const precise =
       free.ok && !locked && (free.value.snap === 'grid' || free.value.snap === 'plane')
@@ -535,7 +589,8 @@ export function PlanView() {
     // Assentamento por recobrimento: em ponto livre, a cota do eixo vem do terreno. Portas e
     // tubos existentes mantêm a própria cota — é neles que a rede se conecta.
     const cover = state.toolOptions.terrainCover;
-    const { terrain } = state.project;
+    // Superfície escolhida nas opções: terreno projetado (padrão) ou natural.
+    const terrain = placementGroundOf(state);
     if (picked.ok && infra && state.tool === 'pipe' && cover.enabled && terrain) {
       const { point } = picked.value;
       const z = axisElevationForCover(
@@ -548,7 +603,7 @@ export function PlanView() {
       if (z === null) {
         return fail(
           'COVER_NO_TERRAIN',
-          'Ponto fora da superfície do terreno: não há cota para aplicar o recobrimento. Clique sobre a superfície ou desligue "Seguir o terreno pelo recobrimento".',
+          `Ponto fora da superfície do ${placementGroundLabel(state)}: não há cota para aplicar o recobrimento. Clique sobre a superfície ou desligue "Seguir o terreno pelo recobrimento".`,
         );
       }
       return ok({ ...picked.value, point: vec3(point.x, point.y, Math.round(z * 1000) / 1000) });
@@ -617,7 +672,7 @@ export function PlanView() {
   const reportCover = (before: Project): void => {
     const state = useEditorStore.getState();
     const { enabled, cover } = state.toolOptions.terrainCover;
-    const { terrain } = state.project;
+    const terrain = placementGroundOf(state);
     if (!infra || !enabled || !terrain || state.project === before) return;
     if (state.message?.level === 'error') return;
     const known = new Set(before.elements.map((element) => element.id));
@@ -632,14 +687,26 @@ export function PlanView() {
     const outside = result.length - result.coveredLength;
     // Tolerância de 5 mm: as cotas dos pontos são arredondadas ao milímetro.
     const short = result.min < cover - 0.005;
+    // Com platôs, o recobrimento sob a outra superfície também é informado (só informação: a
+    // conferência é feita na superfície escolhida).
+    const twoGrounds = hasDesignTerrain(state.project);
+    const otherSurface: GroundSurface =
+      state.toolOptions.groundSurface === 'design' ? 'natural' : 'design';
+    const other = twoGrounds ? groundSurfaceOf(state.project, otherSurface) : null;
+    const otherResult = other
+      ? coverAlongSegment(other, pipe.start, pipe.end, pipe.spec.outerDiameter)
+      : null;
     state.notify(
       short || outside > 1e-6 ? 'error' : 'success',
-      `${pipe.name}: recobrimento de ${text(result.min)} a ${text(result.max)} ao longo do trecho` +
+      `${pipe.name}: recobrimento ${twoGrounds ? `sob o ${placementGroundLabel(state)} ` : ''}de ${text(result.min)} a ${text(result.max)} ao longo do trecho` +
         (short
           ? ` — abaixo dos ${text(cover)} definidos a ${text(result.minAt)} do início (o terreno sobe entre os pontos). Acrescente um ponto intermediário ou aprofunde o trecho.`
           : '.') +
         (outside > 1e-6
           ? ` ${text(outside)} do trecho estão fora da superfície, sem conferência.`
+          : '') +
+        (otherResult
+          ? ` Sob o ${GROUND_SURFACE_LABELS[otherSurface]}: de ${text(otherResult.min)} a ${text(otherResult.max)}.`
           : ''),
     );
   };
@@ -648,7 +715,7 @@ export function PlanView() {
     const store = useEditorStore.getState();
     if (terrainMode) {
       // Vértices do contorno e do corte: o ponto clicado, sem captura de grade ou de portas.
-      useTerrainStore.getState().click(raw, SNAP_PX * view.mpp);
+      useTerrainStore.getState().click(terrainPoint(raw).point, SNAP_PX * view.mpp);
       return;
     }
     if (archTool) {
@@ -659,7 +726,7 @@ export function PlanView() {
       modelClick(d, raw, additive);
       return;
     }
-    const point = snap(raw).point;
+    const point = annotationPoint(raw).point;
     if (useViewStore.getState().tool === 'section') {
       useViewStore.getState().clickPoint(point);
       return;
@@ -951,6 +1018,51 @@ export function PlanView() {
     return () => window.removeEventListener('keydown', onKey);
   }, [stackedUnderCursor]);
 
+  /** Cursor da ferramenta em uso (sem arrasto em andamento). */
+  const lastMove = useRef<{ raw: Point2; elementId: string | null } | null>(null);
+  const hoverAt = (raw: Point2, elementId: string | null): void => {
+    lastMove.current = { raw, elementId };
+    if (archTool) {
+      const snapped = archPoint(raw);
+      setPointer(snapped);
+      useArchStore.getState().setCursor(snapped.point);
+      useEditorStore.getState().setCursor({
+        point: vec3(snapped.point.x, snapped.point.y, workPlaneZ),
+        snap: snapped.snap,
+        port: null,
+      });
+      return;
+    }
+    if (modeling) {
+      hoverModel(raw, elementId);
+      return;
+    }
+    const snapped = terrainMode ? terrainPoint(raw) : annotationPoint(raw);
+    setPointer(snapped);
+    if (sectionTool) useViewStore.getState().setCursor(snapped.point);
+    useEditorStore.getState().setCursor({
+      point: vec3(snapped.point.x, snapped.point.y, 0),
+      snap: snapped.snap,
+      port: null,
+    });
+  };
+  const hoverAtRef = useRef(hoverAt);
+  hoverAtRef.current = hoverAt;
+
+  // Apertar ou soltar o Shift com o cursor parado atualiza a prévia (trava de ângulo).
+  useEffect(() => {
+    const onShift = (event: KeyboardEvent): void => {
+      if (event.key !== 'Shift' || event.repeat || drag.current || !lastMove.current) return;
+      hoverAtRef.current(lastMove.current.raw, lastMove.current.elementId);
+    };
+    window.addEventListener('keydown', onShift);
+    window.addEventListener('keyup', onShift);
+    return () => {
+      window.removeEventListener('keydown', onShift);
+      window.removeEventListener('keyup', onShift);
+    };
+  }, []);
+
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>): void => {
     if (event.pointerType === 'touch' && touches.current.has(event.pointerId)) {
       touches.current.set(event.pointerId, screenOf(event));
@@ -1007,29 +1119,7 @@ export function PlanView() {
       }
       return;
     }
-    if (archTool) {
-      const snapped = archPoint(raw);
-      setPointer(snapped);
-      useArchStore.getState().setCursor(snapped.point);
-      useEditorStore.getState().setCursor({
-        point: vec3(snapped.point.x, snapped.point.y, workPlaneZ),
-        snap: snapped.snap,
-        port: null,
-      });
-      return;
-    }
-    if (modeling) {
-      hoverModel(raw, idOf(event.target, 'data-element-id'));
-      return;
-    }
-    const snapped = terrainMode ? { point: raw, snap: 'plane' as const } : snap(raw);
-    setPointer(snapped);
-    if (sectionTool) useViewStore.getState().setCursor(snapped.point);
-    useEditorStore.getState().setCursor({
-      point: vec3(snapped.point.x, snapped.point.y, 0),
-      snap: snapped.snap,
-      port: null,
-    });
+    hoverAt(raw, idOf(event.target, 'data-element-id'));
   };
 
   const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>): void => {
@@ -1099,6 +1189,7 @@ export function PlanView() {
 
   const onPointerLeave = (): void => {
     if (drag.current) return;
+    lastMove.current = null;
     setPointer(null);
     useEditorStore.getState().setCursor(null);
     if (archTool) useArchStore.getState().setCursor(null);
@@ -1221,11 +1312,14 @@ export function PlanView() {
   const labels = useMemo<PlanLabel[]>(() => {
     const { names, lengths, elevations } = settings.labels;
     if (!infra || !(names || lengths || elevations)) return [];
+    // Terreno projetado e, havendo platôs, também o natural (TP e TN nos rótulos).
+    const design = groundSurfaceOf(project, 'design');
+    const natural = hasDesignTerrain(project) ? project.terrain : null;
     const candidates = drawn
-      .map((entry) => labelOf(entry.element, settings.labels, project.terrain))
+      .map((entry) => labelOf(entry.element, settings.labels, design, natural))
       .filter((label): label is PlanLabel => label !== null);
     return placeLabels(candidates, view.mpp);
-  }, [infra, drawn, settings.labels, project.terrain, view.mpp]);
+  }, [infra, drawn, settings.labels, project, view.mpp]);
 
   const customBasemap = useEditorStore((s) => s.customBasemap);
   const provider = infra ? findBasemapProvider(settings.basemap.sourceId, customBasemap) : null;

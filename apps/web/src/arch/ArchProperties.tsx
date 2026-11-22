@@ -2,9 +2,15 @@ import {
   ARCH_KIND_CATEGORY,
   ARCH_KIND_LABELS,
   archTypeSizeLabel,
+  archGroundElevationAt,
+  archSeatPoint,
   archTypeUsage,
+  archVerticalRange,
   degToRad,
+  formatMeters,
   getArchElement,
+  hasDesignTerrain,
+  type GroundSurface,
   type ArchElement,
   type ArchElementPatch,
   type Project,
@@ -280,6 +286,84 @@ function MaterialDetails({ type }: { type: ArchIfcTypeInfo | undefined }) {
   );
 }
 
+/**
+ * Elevações absolutas do elemento (derivadas do nível, dos deslocamentos e do tipo) e, havendo
+ * terreno, a cota de cada superfície no ponto de referência com o atalho para assentar a base.
+ */
+function ElevationRows({ element, project }: { element: ArchElement; project: Project }) {
+  const range = archVerticalRange(project, element);
+  const point = archSeatPoint(element);
+  const twoGrounds = hasDesignTerrain(project);
+  const surfaces: GroundSurface[] =
+    project.terrain && point ? (twoGrounds ? ['design', 'natural'] : ['design']) : [];
+  // Ambiente sem pé-direito informado não tem cota superior.
+  const hasTop = !(element.kind === 'space' && element.height === null);
+  return (
+    <>
+      <ReadOnlyRow
+        label={
+          element.kind === 'door'
+            ? 'Elevação da soleira'
+            : element.kind === 'window'
+              ? 'Elevação do peitoril'
+              : element.kind === 'space'
+                ? 'Elevação do piso'
+                : 'Elevação da base'
+        }
+        value={
+          <span data-testid="arch-prop-base-elevation">
+            {range ? formatMeters(range.base, 3) : '—'}
+          </span>
+        }
+      />
+      <ReadOnlyRow
+        label="Elevação do topo"
+        value={
+          <span data-testid="arch-prop-top-elevation">
+            {range && hasTop ? formatMeters(range.top, 3) : '—'}
+          </span>
+        }
+      />
+      {point &&
+        surfaces.map((surface) => {
+          const ground = archGroundElevationAt(project, surface, point);
+          const suffix = surface === 'natural' ? '-natural' : '';
+          const name = twoGrounds
+            ? surface === 'natural'
+              ? 'Terreno natural'
+              : 'Terreno projetado'
+            : 'Terreno';
+          return (
+            <div key={surface}>
+              <ReadOnlyRow
+                label={`${name} no ponto de referência`}
+                value={
+                  <span data-testid={`arch-prop-ground${suffix}`}>
+                    {ground === null ? 'fora da superfície' : formatMeters(ground, 3)}
+                  </span>
+                }
+              />
+              <button
+                type="button"
+                className="chip"
+                data-testid={`arch-prop-seat${suffix}`}
+                disabled={
+                  ground === null || (range !== null && Math.abs(range.base - ground) < 5e-4)
+                }
+                title={`Leva a base do elemento à cota do ${name.toLowerCase()} no ponto de referência (${element.kind === 'wall' ? 'início da parede' : 'primeiro vértice do contorno'})`}
+                onClick={() => arch().seat(element.id, surface)}
+              >
+                {twoGrounds
+                  ? `Assentar no ${surface === 'natural' ? 'natural' : 'projetado'}`
+                  : 'Assentar no terreno'}
+              </button>
+            </div>
+          );
+        })}
+    </>
+  );
+}
+
 /** Parâmetros editáveis da ocorrência, conforme a categoria. */
 function InstanceFields({ element, project }: { element: ArchElement; project: Project }) {
   const update = (patch: ArchElementPatch): void => {
@@ -321,6 +405,7 @@ function InstanceFields({ element, project }: { element: ArchElement; project: P
           onChange={(levelId) => update({ levelId })}
         />
       )}
+      <ElevationRows element={element} project={project} />
       {element.kind === 'wall' && (
         <>
           <NumberField

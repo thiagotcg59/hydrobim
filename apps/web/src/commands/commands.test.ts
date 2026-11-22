@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { useTerrainStore } from '../terrain/terrainStore';
+import { resetVrStore, useVrStore } from '../vr/vrStore';
 import {
   commandContext,
   commandForKey,
@@ -265,5 +266,41 @@ describe('comandos do terreno', () => {
     useUiStore.getState().setTask('bim');
     expect(stateOf('terrain.area').enabled).toBe(false);
     useTerrainStore.getState().setPanelOpen(false);
+  });
+});
+
+describe('realidade virtual', () => {
+  beforeEach(() => resetVrStore());
+
+  it('"Entrar em VR" exige um projeto com algo para ver, e diz o motivo', () => {
+    expect(stateOf('view.vr')).toMatchObject({ enabled: false });
+    expect(stateOf('view.vr').reason).toContain('elementos');
+    drawBend();
+    expect(stateOf('view.vr')).toMatchObject({ enabled: true, active: false });
+  });
+
+  it('abre a vista de VR sem alterar o projeto nem o histórico; navegador sem WebXR é informado', async () => {
+    drawBend();
+    const before = editor().project;
+    const undo = editor().past.length;
+    expect(runCommand('view.vr')).toBe(true);
+    expect(useVrStore.getState().open).toBe(true);
+    expect(stateOf('view.vr').active).toBe(true);
+    // O ambiente de teste não tem `navigator.xr`: a incompatibilidade vira mensagem, sem erro.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useVrStore.getState()).toMatchObject({ phase: 'idle' });
+    expect(useVrStore.getState().message).toContain('WebXR');
+    expect(editor().project).toBe(before);
+    expect(editor().past.length).toBe(undo);
+  });
+
+  it('"Sair do VR" só vale com a vista aberta e a fecha', async () => {
+    drawBend();
+    expect(stateOf('view.vrExit')).toMatchObject({ enabled: false });
+    runCommand('view.vr');
+    expect(stateOf('view.vrExit').enabled).toBe(true);
+    runCommand('view.vrExit');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useVrStore.getState().open).toBe(false);
   });
 });

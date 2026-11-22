@@ -1,4 +1,5 @@
 import {
+  addPlatform,
   buildTerrainSurface,
   createProject,
   elementElevation,
@@ -82,6 +83,34 @@ describe('equipamentos sobre o terreno', () => {
     // Reassentar: volta à cota do terreno sob a origem.
     state().changeElevation(id, Math.round(ground(40, 30) * 1000) / 1000);
     expect(elementElevation(last())).toBeCloseTo(ground(40, 30), 3);
+  });
+
+  it('com platô, assenta no terreno projetado ou no natural, conforme a opção', () => {
+    // Platô de aterro na cota 705 (o natural ali fica em ~701).
+    const graded = addPlatform(state().project, {
+      outline: [
+        { x: 30, y: 30 },
+        { x: 60, y: 30 },
+        { x: 60, y: 60 },
+        { x: 30, y: 60 },
+      ],
+      elevation: 705,
+      cutSlope: 1,
+      fillSlope: 1.5,
+    });
+    if (!graded.ok) throw new Error(graded.error.message);
+    state().loadProject(graded.value.project);
+    state().setTool('tank');
+    expect(state().toolOptions.groundSurface).toBe('design');
+    state().commitPoint(vec3(45, 45, 0));
+    expect(elementElevation(last())).toBeCloseTo(705, 6);
+    expect(state().message?.text).toContain('sobre o terreno projetado');
+
+    state().setToolOptions({ groundSurface: 'natural' });
+    state().commitPoint(vec3(45, 50, 0));
+    expect(elementElevation(last())).toBeCloseTo(ground(45, 50), 6);
+    expect(state().message?.text).toContain('sobre o terreno natural');
+    state().setToolOptions({ groundSurface: 'design' });
   });
 
   it('no 3D, o cursor captura o ponto onde o raio atinge o terreno', () => {

@@ -399,6 +399,15 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       ],
     },
     {
+      // Realidade virtual (WebXR): o mesmo modelo, em escala real, no headset.
+      id: 'immersive',
+      label: 'VR',
+      // Só o símbolo, como os alternadores de "Vistas e painéis": a aba continua em uma linha a
+      // 1920 px. O nome ("Entrar em VR") está na dica, no leitor de tela e na busca de comandos.
+      dense: true,
+      items: [{ command: 'view.vr', compact: true }],
+    },
+    {
       id: 'plan',
       label: 'Aparência da planta',
       items: [{ key: 'plan-appearance', column: true, widget: () => <PlanAppearance /> }],

@@ -11,6 +11,8 @@ import {
   formatDegrees,
   formatMeters,
   getElement,
+  GROUND_SURFACES,
+  hasDesignTerrain,
   MAX_BEND_VERTEX,
   australianDiameter,
   mmToM,
@@ -37,6 +39,7 @@ import {
   elementOriginOf,
   familiesOf,
   moveIdsOf,
+  placementGroundLabel,
   pumpFamiliesOf,
   rotationSweepOf,
   rotateStepOf,
@@ -50,6 +53,41 @@ import { SegmentEntry } from './SegmentEntry';
 import { SpecSelector } from './SpecSelector';
 
 const POINT_TOOLS = new Set(['pipe', 'measure', 'pump', 'tank', 'move', 'rotate', 'align']);
+
+/**
+ * Superfície de referência do assentamento: terreno projetado (padrão) ou natural. Só aparece
+ * quando os dois diferem (há platôs gerados); sem platôs a cota é a mesma.
+ */
+function GroundSurfaceChoice({ disabled }: { disabled: boolean }) {
+  const project = useEditorStore((s) => s.project);
+  const surface = useEditorStore((s) => s.toolOptions.groundSurface);
+  if (!hasDesignTerrain(project)) return null;
+  const { setToolOptions } = useEditorStore.getState();
+  return (
+    <div
+      className="chips"
+      role="radiogroup"
+      aria-label="Superfície de referência"
+      data-testid="option-ground-surface"
+      title="Superfície de onde vem a cota do terreno: o projetado (natural modificado pelos platôs, o terreno acabado) ou o natural (como levantado)"
+    >
+      {GROUND_SURFACES.map((value) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={surface === value}
+          disabled={disabled}
+          className={surface === value ? 'chip is-active' : 'chip'}
+          data-testid={`option-ground-${value}`}
+          onClick={() => setToolOptions({ groundSurface: value })}
+        >
+          {value === 'design' ? 'Terreno projetado' : 'Terreno natural'}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const ROTATE_CHIPS = [90, -90, 180, 45, -45] as const;
 
@@ -907,11 +945,12 @@ export function ToolOptions() {
             }
             testId="option-terrain-placement-offset"
           />
+          <GroundSurfaceChoice disabled={!options.terrainPlacement.enabled} />
           <span className="muted" data-testid="option-terrain-placement-note">
             {project.terrain === null
               ? 'O projeto não tem superfície de terreno: o elemento fica na cota do plano de trabalho.'
               : options.terrainPlacement.enabled
-                ? `${tool === 'tank' ? 'Base do reservatório' : 'Eixo de sucção da bomba'} = terreno no ponto clicado${options.terrainPlacement.offset !== 0 ? ` ${options.terrainPlacement.offset > 0 ? '+' : '−'} ${formatMeters(Math.abs(options.terrainPlacement.offset), 2)}` : ''}. Fora da superfície, vale a cota do plano de trabalho. A elevação pode ser alterada depois em Propriedades.`
+                ? `${tool === 'tank' ? 'Base do reservatório' : 'Eixo de sucção da bomba'} = ${placementGroundLabel({ project, toolOptions: options })} no ponto clicado${options.terrainPlacement.offset !== 0 ? ` ${options.terrainPlacement.offset > 0 ? '+' : '−'} ${formatMeters(Math.abs(options.terrainPlacement.offset), 2)}` : ''}. Fora da superfície, vale a cota do plano de trabalho. A elevação pode ser alterada depois em Propriedades.`
                 : 'Desligado: o elemento fica na cota do plano de trabalho.'}
           </span>
         </div>
@@ -1023,11 +1062,12 @@ export function ToolOptions() {
             }
             testId="option-terrain-cover-value"
           />
+          <GroundSurfaceChoice disabled={!options.terrainCover.enabled} />
           <span className="muted" data-testid="option-terrain-cover-note">
             {project.terrain === null
               ? 'O projeto não tem superfície de terreno (Modelagem › Terreno › Superfície do terreno).'
               : options.terrainCover.enabled
-                ? `Eixo = terreno − ${options.terrainCover.cover.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} m − meio diâmetro externo (${activeSpec.sizeLabel}: ${(activeSpec.outerDiameter * 500).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mm). Vale nos pontos clicados na Planta Infra; entre eles o tubo é reto, e o recobrimento real do trecho é informado ao criá-lo. Fora da superfície o ponto é recusado.`
+                ? `Eixo = ${placementGroundLabel({ project, toolOptions: options })} − ${options.terrainCover.cover.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} m − meio diâmetro externo (${activeSpec.sizeLabel}: ${(activeSpec.outerDiameter * 500).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mm). Vale nos pontos clicados na Planta Infra; entre eles o tubo é reto, e o recobrimento real do trecho é informado ao criá-lo. Fora da superfície o ponto é recusado.`
                 : 'Desligado: os pontos usam a elevação do eixo acima do nível.'}
           </span>
         </div>

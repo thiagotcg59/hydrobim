@@ -1410,6 +1410,16 @@ code {
   background: #8fbf6a;
 }
 
+/* Terreno natural, quando há platôs: marrom tracejado, sob o projetado (verde, contínuo). */
+.profile__ground--natural {
+  stroke: #8a5a2b;
+  stroke-dasharray: 6 4;
+}
+
+.legend__item--ground-natural::before {
+  background: #8a5a2b;
+}
+
 .legend__item--axis::before {
   background: #f5b84c;
 }

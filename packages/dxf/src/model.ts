@@ -1,4 +1,4 @@
-import { rotate, vec3, type Project } from '@hydrobim/core';
+import { hasDesignTerrain, projectEarthworks, rotate, vec3, type Project } from '@hydrobim/core';
 import { buildElementGeometry, type PartRole } from '@hydrobim/geometry';
 import { systemLayers } from './layers';
 import { DxfDocument, type Aci } from './writer';
@@ -10,12 +10,17 @@ const WELD = 1e-5;
 /** Faces vizinhas com normais a menos de ~1° são tratadas como uma face plana. */
 const COPLANAR_COS = Math.cos((1 * Math.PI) / 180);
 const LAYER_TERRAIN = 'HB-TERRENO';
+const LAYER_DESIGN_TERRAIN = 'HB-TERRENO-PROJETADO';
+const LAYER_CUT = 'HB-TERRAPLENAGEM-CORTE';
+const LAYER_FILL = 'HB-TERRAPLENAGEM-ATERRO';
 
 /**
  * Modelo 3D em DXF: cada parte de cada elemento é uma malha poliface, em coordenadas do
  * projeto (metros, Z para cima), na camada do seu sistema. A geometria é a mesma malha
  * paramétrica do viewport e do IFC. Sistemas ocultos são exportados em camadas desligadas;
- * o terreno importado, quando existe, vai para a camada `HB-TERRENO`.
+ * o terreno natural, quando existe, vai para a camada `HB-TERRENO`; com platôs, o terreno
+ * projetado vai para `HB-TERRENO-PROJETADO` e os sólidos de corte e de aterro para
+ * `HB-TERRAPLENAGEM-CORTE` e `HB-TERRAPLENAGEM-ATERRO`.
  *
  * São superfícies facetadas, não sólidos: servem para coordenação e conferência no CAD, não
  * para operações booleanas nem para extrair diâmetros.
@@ -110,6 +115,32 @@ export function exportModelDxf(project: Project): string {
       terrain.points.flatMap((p) => [p.x, p.y, p.z]),
       terrain.triangles,
     );
+  }
+  // Terraplenagem: terreno projetado (natural modificado pelos platôs) e os sólidos de corte e
+  // de aterro, em camadas próprias. O natural segue em `HB-TERRENO`, como sempre esteve.
+  const summary = hasDesignTerrain(project) ? projectEarthworks(project) : null;
+  if (summary) {
+    const design = summary.design.terrain;
+    doc.polyface(
+      doc.addLayer(LAYER_DESIGN_TERRAIN, 4),
+      design.points.flatMap((p) => [p.x, p.y, p.z]),
+      design.triangles,
+    );
+    const solids = (pick: 'cutSolid' | 'fillSolid', layerName: string, color: Aci): void => {
+      let layer: string | null = null;
+      for (const entry of summary.platforms) {
+        const solid = entry.volumes?.[pick];
+        if (!solid || solid.triangles.length < 3) continue;
+        layer ??= doc.addLayer(layerName, color);
+        doc.polyface(
+          layer,
+          solid.points.flatMap((p) => [p.x, p.y, p.z]),
+          solid.triangles,
+        );
+      }
+    };
+    solids('cutSolid', LAYER_CUT, 1);
+    solids('fillSolid', LAYER_FILL, 5);
   }
   return doc.toString();
 }

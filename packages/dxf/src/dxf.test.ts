@@ -1,10 +1,12 @@
 import {
   addAnnotation,
   addPipe,
+  addPlatform,
   attachFitting,
   createProject,
   createTerrain,
   insertInline,
+  setTerrain,
   vec3,
   type AnnotationInput,
   type PipeSpec,
@@ -698,5 +700,40 @@ describe('exportModelDxf', () => {
     expect(entities.some((e) => e.type === 'POLYLINE' && e.layer === 'HB-TERRENO')).toBe(true);
     // Mesmo ocultos, os elementos são exportados.
     expect(entities.filter((e) => e.type === 'POLYLINE').length).toBeGreaterThanOrEqual(3);
+    // Sem platôs não há terreno projetado nem terraplenagem.
+    expect(layers.has('HB-TERRENO-PROJETADO')).toBe(false);
+  });
+
+  it('com platôs, leva o terreno natural, o projetado e os sólidos de corte e de aterro', () => {
+    const { project } = crossing();
+    const points = [];
+    for (let x = 0; x <= 60; x += 10) {
+      for (let y = 0; y <= 60; y += 10) points.push(vec3(x, y, 10 + 0.1 * x));
+    }
+    const terrain = must(createTerrain('Encosta', points));
+    // Platô a meia encosta (cota 13 = terreno em x = 30): metade em corte, metade em aterro.
+    const graded = must(
+      addPlatform(setTerrain(project, terrain), {
+        outline: [
+          { x: 20, y: 20 },
+          { x: 40, y: 20 },
+          { x: 40, y: 40 },
+          { x: 20, y: 40 },
+        ],
+        elevation: 13,
+        cutSlope: 1,
+        fillSlope: 1,
+      }),
+    ).project;
+    const { entities, layers } = parse(exportModelDxf(graded));
+    for (const name of [
+      'HB-TERRENO',
+      'HB-TERRENO-PROJETADO',
+      'HB-TERRAPLENAGEM-CORTE',
+      'HB-TERRAPLENAGEM-ATERRO',
+    ]) {
+      expect(layers.has(name)).toBe(true);
+      expect(entities.some((e) => e.type === 'POLYLINE' && e.layer === name)).toBe(true);
+    }
   });
 });
