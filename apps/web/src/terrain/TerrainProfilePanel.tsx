@@ -1,4 +1,10 @@
-import { formatMeters, terrainProfile, type TerrainProfile } from '@hydrobim/core';
+import {
+  designTerrainOf,
+  formatMeters,
+  hasDesignTerrain,
+  terrainProfile,
+  type TerrainProfile,
+} from '@hydrobim/core';
 import { Download, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { downloadText, projectFileBase } from '../persistence/fileIO';
@@ -29,37 +35,108 @@ function niceStep(range: number, ticks: number): number {
   return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 5 ? 5 : 10) * power;
 }
 
-export function profileCsv(profile: TerrainProfile): string {
-  const rows = profile.stations.map((s) =>
-    [
-      s.chainage.toFixed(3),
-      s.x.toFixed(3),
-      s.y.toFixed(3),
-      s.elevation === null ? '' : s.elevation.toFixed(3),
-    ].join(';'),
-  );
-  return `distancia_m;x_m;y_m;cota_m\n${rows.join('\n')}\n`;
+/**
+ * Cota de um perfil na distância `chainage`, interpolada entre as estacas (o perfil é exato:
+ * entre duas arestas do TIN o terreno é reto); `null` fora da superfície.
+ */
+export function elevationAlong(profile: TerrainProfile, chainage: number): number | null {
+  const { stations } = profile;
+  for (let i = 1; i < stations.length; i += 1) {
+    const a = stations[i - 1];
+    const b = stations[i];
+    if (!a || !b || chainage < a.chainage - 1e-9 || chainage > b.chainage + 1e-9) continue;
+    if (a.elevation === null || b.elevation === null) {
+      if (Math.abs(chainage - a.chainage) < 1e-9 && a.elevation !== null) return a.elevation;
+      if (Math.abs(chainage - b.chainage) < 1e-9 && b.elevation !== null) return b.elevation;
+      continue;
+    }
+    const span = b.chainage - a.chainage;
+    const t = span > 0 ? (chainage - a.chainage) / span : 0;
+    return a.elevation + t * (b.elevation - a.elevation);
+  }
+  return null;
+}
+
+/**
+ * Estacas em CSV. Com o terreno natural (havendo platôs), as estacas são as dos dois perfis,
+ * com a cota do terreno projetado (TP) e a do natural (TN) em cada uma.
+ */
+export function profileCsv(profile: TerrainProfile, natural: TerrainProfile | null = null): string {
+  if (!natural) {
+    const rows = profile.stations.map((s) =>
+      [
+        s.chainage.toFixed(3),
+        s.x.toFixed(3),
+        s.y.toFixed(3),
+        s.elevation === null ? '' : s.elevation.toFixed(3),
+      ].join(';'),
+    );
+    return `distancia_m;x_m;y_m;cota_m\n${rows.join('\n')}\n`;
+  }
+  const byChainage = new Map<string, { chainage: number; x: number; y: number }>();
+  for (const s of [...profile.stations, ...natural.stations]) {
+    const key = s.chainage.toFixed(3);
+    if (!byChainage.has(key)) byChainage.set(key, { chainage: s.chainage, x: s.x, y: s.y });
+  }
+  const cell = (value: number | null): string => (value === null ? '' : value.toFixed(3));
+  const rows = [...byChainage.values()]
+    .sort((a, b) => a.chainage - b.chainage)
+    .map((s) =>
+      [
+        s.chainage.toFixed(3),
+        s.x.toFixed(3),
+        s.y.toFixed(3),
+        cell(elevationAlong(profile, s.chainage)),
+        cell(elevationAlong(natural, s.chainage)),
+      ].join(';'),
+    );
+  return `distancia_m;x_m;y_m;cota_projetado_m;cota_natural_m\n${rows.join('\n')}\n`;
+}
+
+/** Faixa de cotas dos perfis à mostra. */
+function rangeOf(profiles: readonly (TerrainProfile | null)[]): { min: number; max: number } {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of profiles) {
+    if (!p) continue;
+    if (p.minElevation !== null) min = Math.min(min, p.minElevation);
+    if (p.maxElevation !== null) max = Math.max(max, p.maxElevation);
+  }
+  return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : { min: 0, max: 1 };
 }
 
 /** Exagero vertical efetivo do gráfico (o desenho escala por igual nas duas direções). */
-export function verticalFactor(profile: TerrainProfile, scale: Scale): number {
+export function verticalFactor(
+  profile: TerrainProfile,
+  scale: Scale,
+  natural: TerrainProfile | null = null,
+): number {
   if (scale !== 'auto') return scale;
   const innerWidth = WIDTH - MARGIN.left - MARGIN.right;
   const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
-  const relief = Math.max((profile.maxElevation ?? 1) - (profile.minElevation ?? 0), 1e-6);
+  const { min, max } = rangeOf([profile, natural]);
+  const relief = Math.max(max - min, 1e-6);
   return (innerHeight * 0.86) / (relief * (innerWidth / profile.length));
 }
 
-function Chart({ profile, scale }: { profile: TerrainProfile; scale: Scale }) {
+function Chart({
+  profile,
+  natural,
+  scale,
+}: {
+  profile: TerrainProfile;
+  /** Perfil do terreno natural, quando difere do projetado (há platôs). */
+  natural: TerrainProfile | null;
+  scale: Scale;
+}) {
   const [hover, setHover] = useState<number | null>(null);
   const innerWidth = WIDTH - MARGIN.left - MARGIN.right;
   const innerHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
-  const minZ = profile.minElevation ?? 0;
-  const maxZ = profile.maxElevation ?? 1;
+  const { min: minZ, max: maxZ } = rangeOf([profile, natural]);
   const relief = Math.max(maxZ - minZ, 1e-6);
   // Unidades do gráfico por metro, na horizontal; a vertical é a horizontal vezes o exagero.
   const perMeter = innerWidth / profile.length;
-  const factor = verticalFactor(profile, scale);
+  const factor = verticalFactor(profile, scale, natural);
   const shown = innerHeight / (perMeter * factor);
   // Com escala fixa o desnível pode não caber: a janela vertical é centrada no relevo.
   const z0 = (minZ + maxZ) / 2 - shown / 2;
@@ -67,10 +144,10 @@ function Chart({ profile, scale }: { profile: TerrainProfile; scale: Scale }) {
   const y = (z: number): number => MARGIN.top + innerHeight - (z - z0) * perMeter * factor;
   const clipped = !(scale === 'auto') && relief > shown;
 
-  const path = useMemo(() => {
+  const pathOf = (source: TerrainProfile): string => {
     let d = '';
     let pen = false;
-    for (const station of profile.stations) {
+    for (const station of source.stations) {
       if (station.elevation === null) {
         pen = false;
         continue;
@@ -79,8 +156,11 @@ function Chart({ profile, scale }: { profile: TerrainProfile; scale: Scale }) {
       pen = true;
     }
     return d;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, factor]);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const path = useMemo(() => pathOf(profile), [profile, factor, z0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const naturalPath = useMemo(() => (natural ? pathOf(natural) : ''), [natural, factor, z0]);
 
   const stepZ = niceStep(shown, 5);
   const stepX = niceStep(profile.length, 8);
@@ -93,21 +173,25 @@ function Chart({ profile, scale }: { profile: TerrainProfile; scale: Scale }) {
   const probe = useMemo(() => {
     if (hover === null) return null;
     const { stations } = profile;
+    const naturalAt = natural ? elevationAlong(natural, hover) : null;
     for (let i = 1; i < stations.length; i += 1) {
       const a = stations[i - 1];
       const b = stations[i];
       if (!a || !b || hover < a.chainage || hover > b.chainage) continue;
-      if (a.elevation === null || b.elevation === null) return { chainage: hover, elevation: null };
+      if (a.elevation === null || b.elevation === null) {
+        return { chainage: hover, elevation: null, natural: naturalAt };
+      }
       const span = b.chainage - a.chainage;
       const t = span > 0 ? (hover - a.chainage) / span : 0;
       return {
         chainage: hover,
         elevation: a.elevation + t * (b.elevation - a.elevation),
         grade: span > 0 ? (b.elevation - a.elevation) / span : 0,
+        natural: naturalAt,
       };
     }
     return null;
-  }, [hover, profile]);
+  }, [hover, profile, natural]);
 
   return (
     <svg
@@ -164,7 +248,20 @@ function Chart({ profile, scale }: { profile: TerrainProfile; scale: Scale }) {
           </text>
         </g>
       ))}
-      <path className="profile__ground" d={path} clipPath="url(#terrain-profile-clip)" />
+      {natural && (
+        <path
+          className="profile__ground profile__ground--natural"
+          data-testid="terrain-profile-natural"
+          d={naturalPath}
+          clipPath="url(#terrain-profile-clip)"
+        />
+      )}
+      <path
+        className="profile__ground"
+        data-testid="terrain-profile-ground"
+        d={path}
+        clipPath="url(#terrain-profile-clip)"
+      />
       {probe && (
         <g pointerEvents="none">
           <line
@@ -184,7 +281,8 @@ function Chart({ profile, scale }: { profile: TerrainProfile; scale: Scale }) {
             {nf(probe.chainage, 1)} m ·{' '}
             {probe.elevation === null
               ? 'sem terreno'
-              : `cota ${nf(probe.elevation)} m · ${nf((probe.grade ?? 0) * 100, 1)} %`}
+              : `${natural ? 'TP' : 'cota'} ${nf(probe.elevation)} m · ${nf((probe.grade ?? 0) * 100, 1)} %`}
+            {natural && probe.natural !== null ? ` · TN ${nf(probe.natural)} m` : ''}
           </text>
         </g>
       )}
@@ -193,13 +291,22 @@ function Chart({ profile, scale }: { profile: TerrainProfile; scale: Scale }) {
 }
 
 export function TerrainProfilePanel() {
-  const terrain = useEditorStore((s) => s.project.terrain);
+  const project = useEditorStore((s) => s.project);
   const path = useTerrainStore((s) => s.profilePath);
   const [scale, setScale] = useState<Scale>('auto');
+  // Perfil do terreno projetado (o natural, sem platôs) e, havendo platôs, também o natural.
+  const design = useMemo(() => designTerrainOf(project), [project]);
+  const twoGrounds = useMemo(() => hasDesignTerrain(project), [project]);
+  const natural = project.terrain;
   const result = useMemo(
-    () => (terrain && path ? terrainProfile(terrain, path) : null),
-    [terrain, path],
+    () => (design && path ? terrainProfile(design, path) : null),
+    [design, path],
   );
+  const naturalProfile = useMemo(() => {
+    if (!twoGrounds || !natural || !path) return null;
+    const computed = terrainProfile(natural, path);
+    return computed.ok ? computed.value : null;
+  }, [twoGrounds, natural, path]);
   if (!path) return null;
   const close = (): void => useTerrainStore.getState().clearProfile();
   if (!result?.ok) {
@@ -225,6 +332,12 @@ export function TerrainProfilePanel() {
     <div className="terrain-profile" data-testid="terrain-profile" data-state="ready">
       <div className="terrain-profile__bar">
         <strong>Perfil do terreno A–B</strong>
+        {naturalProfile && (
+          <span className="terrain-profile__legend" data-testid="terrain-profile-legend">
+            <span className="legend__item legend__item--ground">projetado (TP)</span>
+            <span className="legend__item legend__item--ground-natural">natural (TN)</span>
+          </span>
+        )}
         <span data-testid="terrain-profile-length">
           Extensão {formatMeters(profile.length, 2)} (em planta)
         </span>
@@ -274,7 +387,7 @@ export function TerrainProfilePanel() {
           onClick={() =>
             downloadText(
               `${projectFileBase(useEditorStore.getState().project)}-perfil-terreno.csv`,
-              profileCsv(profile),
+              profileCsv(profile, naturalProfile),
               'text/csv',
             )
           }
@@ -291,13 +404,13 @@ export function TerrainProfilePanel() {
           <X size={14} />
         </button>
       </div>
-      <Chart profile={profile} scale={scale} />
+      <Chart profile={profile} natural={naturalProfile} scale={scale} />
       <span className="muted terrain-profile__note" data-testid="terrain-profile-note">
         {profile.stations.filter((s) => s.elevation !== null).length} estacas (arestas da
         triangulação atravessadas).{' '}
         {scale === 1
           ? 'Escala real 1:1, sem exagero vertical.'
-          : `Exagero vertical de ${nf(verticalFactor(profile, scale), 1)}× só no gráfico: as declividades parecem maiores do que são.`}
+          : `Exagero vertical de ${nf(verticalFactor(profile, scale, naturalProfile), 1)}× só no gráfico: as declividades parecem maiores do que são.`}
       </span>
     </div>
   );

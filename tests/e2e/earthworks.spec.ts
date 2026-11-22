@@ -299,3 +299,167 @@ test('superfície como elemento: propriedades, pontos, limite e original preserv
 
   expect(errors).toEqual([]);
 });
+
+test('natural e projetado: assentamento, propriedades, rótulos e corte do terreno', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await startWithFlatTerrain(page);
+
+  // Platô de aterro na cota 12 (terreno natural plano na cota 10).
+  await page.getByTestId('terrain-cmd-platform').click();
+  await setNumber(page, 'earthwork-platform-elevation', '12');
+  await page.getByTestId('earthwork-platform-draw').click();
+  await drawRing(page, [
+    [40, 40],
+    [60, 40],
+    [60, 60],
+    [40, 60],
+  ]);
+  await expect(page.getByTestId('earthwork-platform-item')).toHaveCount(1);
+  await page.getByTestId('earthwork-panel-close').click();
+
+  // Cursor: as duas cotas sob o ponteiro.
+  const [px, py] = await screenOf(page, 50, 50);
+  await page.mouse.move(px, py);
+  await expect(page.getByTestId('infra-cursor-terrain')).toHaveAttribute(
+    'data-elevation',
+    '12.000',
+  );
+  await expect(page.getByTestId('infra-cursor-terrain-natural')).toHaveAttribute(
+    'data-elevation',
+    '10.000',
+  );
+
+  // Reservatório: por padrão no terreno projetado; com a opção, no natural.
+  await (await ctl(page, 'tool-tank')).click();
+  await expect(await ctl(page, 'option-ground-surface')).toBeVisible();
+  await expect(page.getByTestId('option-ground-design')).toHaveAttribute('aria-checked', 'true');
+  await clickModel(page, 50, 50);
+  await expect(page.getByTestId('status-message')).toContainText(
+    'sobre o terreno projetado, na cota 12,000 m',
+  );
+  await page.getByTestId('option-ground-natural').click();
+  await clickModel(page, 80, 20);
+  await expect(page.getByTestId('status-message')).toContainText(
+    'sobre o terreno natural, na cota 10,000 m',
+  );
+  await page.getByTestId('option-ground-design').click();
+  await page.keyboard.press('Escape');
+
+  // Propriedades do reservatório sobre o platô: as duas cotas e "Assentar" em cada uma.
+  await (await ctl(page, 'tool-select')).click();
+  await clickModel(page, 50, 50);
+  await expect(await ctl(page, 'prop-ground-elevation')).toHaveText('12,000 m');
+  await expect(page.getByTestId('prop-ground-elevation-natural')).toHaveText('10,000 m');
+  await expect(page.getByTestId('prop-seat-on-terrain')).toBeDisabled();
+  await page.getByTestId('prop-seat-on-terrain-natural').click();
+  await expect(page.getByTestId('prop-seat-on-terrain-natural')).toBeDisabled();
+  await expect(page.getByTestId('prop-seat-on-terrain')).toBeEnabled();
+
+  // Rótulos de cotas dos nós: TP e TN.
+  await page.keyboard.press('Escape');
+  await (await ctl(page, 'infra-layers')).click();
+  await (await ctl(page, 'infra-label-elevations')).check();
+  await expect(page.getByTestId('infra-label').first()).toContainText('TP ');
+  await expect(page.getByTestId('infra-label').first()).toContainText('TN ');
+  await (await ctl(page, 'infra-layers')).click();
+
+  // Corte do terreno atravessando o platô: as duas linhas, e o CSV com as duas cotas.
+  await openTask(page, 'model');
+  await page.getByTestId('terrain-cmd-profile').click();
+  await clickModel(page, 20, 50);
+  await clickModel(page, 85, 50);
+  await clickModel(page, 85, 50);
+  await expect(page.getByTestId('terrain-profile')).toHaveAttribute('data-state', 'ready');
+  await expect(page.getByTestId('terrain-profile-natural')).toHaveAttribute('d', /M/);
+  await expect(page.getByTestId('terrain-profile-legend')).toContainText('natural (TN)');
+  const download = page.waitForEvent('download');
+  await page.getByTestId('terrain-profile-csv').click();
+  const csv = await (await (await download).createReadStream()).toArray();
+  const text = Buffer.concat(csv as Buffer[]).toString('utf8');
+  expect(text.split('\n')[0]).toBe('distancia_m;x_m;y_m;cota_projetado_m;cota_natural_m');
+  // Sobre o platô (x de 40 a 60 = 20 a 40 m do início): projetado 12, natural 10.
+  const rows = text
+    .trim()
+    .split('\n')
+    .slice(1)
+    .map((line) => line.split(';'))
+    .filter((row) => row[3] !== '' && row[4] !== '')
+    .map((row) => row.map(Number));
+  const onPlatform = rows.filter((row) => (row[0] ?? 0) > 21 && (row[0] ?? 0) < 39);
+  expect(onPlatform.length).toBeGreaterThan(0);
+  for (const row of onPlatform) {
+    expect(row[3]).toBeCloseTo(12, 3);
+    expect(row[4]).toBeCloseTo(10, 3);
+  }
+
+  expect(errors).toEqual([]);
+});
+
+test('arquitetura: parede assentada no terreno projetado ou natural, com as elevações no painel', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const errors = trackErrors(page);
+  await startWithFlatTerrain(page);
+
+  // Platô de aterro na cota 12 (terreno natural plano na cota 10).
+  await page.getByTestId('terrain-cmd-platform').click();
+  await setNumber(page, 'earthwork-platform-elevation', '12');
+  await page.getByTestId('earthwork-platform-draw').click();
+  await drawRing(page, [
+    [40, 40],
+    [60, 40],
+    [60, 60],
+    [40, 60],
+  ]);
+  await expect(page.getByTestId('earthwork-platform-item')).toHaveCount(1);
+  await page.getByTestId('earthwork-panel-close').click();
+
+  // Ambiente Arquitetura: sem tipo de parede, a ferramenta leva ao catálogo.
+  await page.getByTestId('environment-architecture').click();
+  await page.getByTestId('arch-wall').click();
+  const dialog = page.getByTestId('arch-catalog-dialog');
+  await dialog.getByTestId('arch-family-item').first().click();
+  await dialog.getByTestId('arch-create-type').click();
+  await dialog.getByTestId('arch-type-use').click();
+  await expect(page.getByTestId('plan-view')).toHaveAttribute('data-arch-tool', 'wall');
+
+  // Por padrão no nível; a opção oferece o terreno projetado e o natural.
+  const seat = await ctl(page, 'arch-option-seat');
+  await expect(seat).toHaveValue('level');
+  await expect(page.getByTestId('arch-option-elevation')).toHaveText('0,000 m');
+  await seat.selectOption('design');
+  await expect(page.getByTestId('arch-option-elevation')).toHaveText('terreno no primeiro ponto');
+  await clickModel(page, 45, 50);
+  await expect(page.getByTestId('arch-option-elevation')).toHaveText('12,000 m');
+  await clickModel(page, 55, 50);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('status-message')).toContainText(
+    'Base assentada sobre o terreno projetado, na cota 12,000 m',
+  );
+
+  await seat.selectOption('natural');
+  await clickModel(page, 45, 55);
+  await clickModel(page, 55, 55);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('status-message')).toContainText(
+    'Base assentada sobre o terreno natural, na cota 10,000 m',
+  );
+  await page.keyboard.press('Escape');
+
+  // Painel: elevações absolutas da parede criada e "Assentar" em cada superfície.
+  await expect(await ctl(page, 'arch-prop-base-elevation')).toHaveText('10,000 m');
+  await expect(page.getByTestId('arch-prop-top-elevation')).toHaveText('12,800 m');
+  await expect(page.getByTestId('arch-prop-ground')).toHaveText('12,000 m');
+  await expect(page.getByTestId('arch-prop-ground-natural')).toHaveText('10,000 m');
+  await expect(page.getByTestId('arch-prop-seat-natural')).toBeDisabled();
+  await page.getByTestId('arch-prop-seat').click();
+  await expect(page.getByTestId('arch-prop-base-elevation')).toHaveText('12,000 m');
+  await expect(page.getByTestId('arch-prop-top-elevation')).toHaveText('14,800 m');
+  await expect(page.getByTestId('arch-prop-base-offset')).toHaveValue('12');
+  await expect(page.getByTestId('arch-prop-seat')).toBeDisabled();
+
+  expect(errors).toEqual([]);
+});

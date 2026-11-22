@@ -111,6 +111,15 @@ Detalhes dos campos em [DOMAIN_MODEL.md](DOMAIN_MODEL.md). Em resumo:
 - **Lajes e revestimentos de piso** são elementos distintos (`slab`: estrutural, `offset` = cota do topo; `flooring`: acabamento, `offset` = cota da base), com contorno fechado e aberturas.
 - **Ambientes**: contorno, nível, número e pé-direito (`null` = não informado). A área é a do contorno desenhado.
 
+### Elevação e assentamento sobre o terreno
+
+- **Elevação**: as cotas absolutas inferior e superior de cada elemento são **derivadas** (`archVerticalRange`: cota do nível + deslocamento da ocorrência + espessura ou altura do tipo) e mostradas no painel de propriedades e em `HydroBIM_Posicao`; não são gravadas.
+- **Assentar sobre o terreno** (`packages/core/src/architecture/ground.ts`): parede, laje, piso e ambiente podem ter a **base** levada à cota do terreno **natural** (como levantado) ou **projetado** (o natural modificado pelos platôs), ao criar (opção "Assentar sobre" da ferramenta) ou depois (botões "Assentar" do painel). Sem platôs gerados as duas superfícies coincidem e a interface mostra só "Terreno".
+- **Ponto de referência**: o primeiro ponto do traçado ou do contorno (o início da parede). A base é horizontal — em terreno inclinado o restante do elemento fica acima ou abaixo da superfície; nada é inclinado, recortado nem escalonado.
+- **Laje**: o que assenta é a face inferior (o parâmetro gravado, a cota do topo, recebe a espessura do tipo). Ao criar, o deslocamento da ferramenta passa a ser a folga da base acima do terreno.
+- **Sem vínculo**: o resultado é gravado como o deslocamento em relação ao nível (`baseOffset`/`offset`); o esquema não muda e o elemento **não acompanha** edições posteriores do terreno ou dos platôs — assenta-se de novo. O nível (pavimento IFC) do elemento continua o do plano de trabalho.
+- Portas e janelas acompanham a parede hospedeira (`ARCH_NOT_SEATABLE`); ponto de referência fora da superfície: ao criar, vale o nível e a mensagem avisa; no painel, a operação é recusada (`OUTSIDE_TERRAIN`).
+
 ### Operações impossíveis
 
 Toda operação termina conferindo a arquitetura inteira (`archIntegrityProblem`); se algo ficar inconsistente, nada é alterado e o motivo é devolvido: vão que não cabe (`OPENING_DOES_NOT_FIT`), parede sem comprimento (`WALL_TOO_SHORT`), contorno que se cruza (`POLYGON_SELF_INTERSECTION`), abertura fora do piso (`OPENING_OUTSIDE`), tipo de outra categoria (`ARCH_TYPE_MISMATCH`), tipo em uso (`ARCH_TYPE_IN_USE`), produto sem fonte (`ARCH_SOURCE_REQUIRED`), nível com elementos (`LEVEL_IN_USE`). Excluir uma parede exclui as portas e janelas hospedadas — é o único efeito em cascata, e é informado.
@@ -140,7 +149,7 @@ Critérios dos conjuntos `Qto_*BaseQuantities` do IFC 4.3 (descrições lidas no
 
 ## Limites conhecidos
 
-- Só paredes retas, de altura constante e base horizontal; sem paredes curvas, inclinadas ou de perfil editado. Camadas não são desenhadas nem cortadas uma a uma (o corpo é único; a hachura é a da camada estrutural).
+- Só paredes retas, de altura constante e base horizontal; sem paredes curvas, inclinadas ou de perfil editado. O assentamento sobre o terreno usa um único ponto de referência e não fica vinculado à superfície (ver "Elevação e assentamento sobre o terreno"). Camadas não são desenhadas nem cortadas uma a uma (o corpo é único; a hachura é a da camada estrutural).
 - Encontros: resolvidos por extremidades coincidentes (até 1 mm) ou apoiadas; não há junção em X entre paredes que se cruzam no meio, nem prioridade de camadas no encontro.
 - Lajes e revestimentos planos e horizontais; sem inclinação nem rebaixos.
 - Ambientes: o contorno é desenhado pelo usuário (não é detectado a partir das paredes); não há áreas líquidas, limites de espaço (`IfcRelSpaceBoundary`), zonas (`IfcZone`) nem tipo de ambiente (`IfcSpaceType`).

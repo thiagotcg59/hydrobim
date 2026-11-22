@@ -4,6 +4,8 @@ import {
   INFRA_DRAWING_SCALES,
   radToDeg,
   terrainHitAt,
+  designTerrainOf,
+  hasDesignTerrain,
   type GeoreferenceStatus,
   type InfraSettings,
   type Point2,
@@ -294,9 +296,13 @@ export function InfraOverlay({
   const rotation = useEditorStore((s) => s.project.georeference?.rotation ?? null);
   const verticalDatum = useEditorStore((s) => s.project.georeference?.verticalDatum ?? null);
   const drawingScale = useEditorStore((s) => s.project.infra.drawingScale);
-  const terrain = useEditorStore((s) => s.project.terrain);
+  const project = useEditorStore((s) => s.project);
+  // Terreno projetado (o natural, sem platôs) e, havendo platôs, também o natural.
+  const terrain = useMemo(() => designTerrainOf(project), [project]);
+  const natural = useMemo(() => (hasDesignTerrain(project) ? project.terrain : null), [project]);
   // Cota e declividade do terreno sob o cursor; fora da superfície não há valor a mostrar.
   const ground = cursor && terrain ? terrainHitAt(terrain, cursor.x, cursor.y) : null;
+  const naturalGround = cursor && natural ? terrainHitAt(natural, cursor.x, cursor.y) : null;
   const bar = scaleBarFor(mpp);
   const transform = geo.state === 'ready' ? geo.transform : null;
   const projected = cursor && transform ? transform.localToProjected(cursor) : null;
@@ -381,8 +387,20 @@ export function InfraOverlay({
                   title="Cota do terreno (referencial do projeto) e declividade do triângulo sob o cursor"
                 >
                   {ground
-                    ? `Terreno ${formatMeters(ground.elevation, 2)} · decliv. ${(ground.slope * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} %`
-                    : 'Terreno: sem dado'}
+                    ? `${natural ? 'Terreno projetado' : 'Terreno'} ${formatMeters(ground.elevation, 2)} · decliv. ${(ground.slope * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} %`
+                    : `${natural ? 'Terreno projetado' : 'Terreno'}: sem dado`}
+                </span>
+              )}
+              {natural && (
+                <span
+                  data-testid="infra-cursor-terrain-natural"
+                  data-elevation={naturalGround ? naturalGround.elevation.toFixed(3) : ''}
+                  className="infra__dim"
+                  title="Cota do terreno natural (como levantado) sob o cursor"
+                >
+                  {naturalGround
+                    ? `natural ${formatMeters(naturalGround.elevation, 2)}`
+                    : 'natural: sem dado'}
                 </span>
               )}
             </>

@@ -18,6 +18,8 @@ import { DocView } from '../views/DocView';
 import { VIEW_ICONS } from '../views/viewIcons';
 import { openView2dOf, useViewStore } from '../views/viewStore';
 import { Viewport } from '../viewport/Viewport';
+import { useVrStore } from '../vr/vrStore';
+import { VRView } from '../vr/VRView';
 import { WalkView } from '../walk/WalkView';
 import { CommandButton } from './CommandButton';
 import { PLAN_LABELS } from './labels';
@@ -209,6 +211,7 @@ export function Workspace({ ready }: { ready: boolean }) {
   const layout = useUiStore((s) => s.workspaceLayout);
   const ratio = useUiStore((s) => s.splitRatio);
   const maximizedView = useUiStore((s) => s.maximizedView);
+  const vrOpen = useVrStore((s) => s.open);
   const viewsRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
@@ -327,6 +330,10 @@ export function Workspace({ ready }: { ready: boolean }) {
       >
         {!ready ? (
           <div className="viewport-fallback">Carregando projeto…</div>
+        ) : vrOpen ? (
+          // A realidade virtual ocupa a área de desenho: as vistas convencionais são desmontadas
+          // (um só renderizador em uso) e voltam, com a navegação que tinham, ao sair.
+          <VRView />
         ) : (
           <>
             {pane('plan')}

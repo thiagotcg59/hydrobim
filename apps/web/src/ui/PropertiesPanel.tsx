@@ -29,6 +29,10 @@ import {
   radToDeg,
   VALVE_TYPES,
   terrainElevationAt,
+  GROUND_SURFACE_LABELS,
+  groundSurfaceOf,
+  hasDesignTerrain,
+  type GroundSurface,
   vec3,
   type FittingPatch,
   type HydroElement,
@@ -294,13 +298,50 @@ function ElevationField({
 /** Cota do terreno sob o equipamento e o atalho para assentá-lo sobre a superfície. */
 function GroundElevation({ element, project }: { element: HydroElement; project: Project }) {
   if (!project.terrain || element.kind === 'pipe') return null;
+  // Com platôs, as duas superfícies: o projetado (terreno acabado) e o natural (levantado).
+  const twoGrounds = hasDesignTerrain(project);
+  const surfaces: GroundSurface[] = twoGrounds ? ['design', 'natural'] : ['design'];
+  return (
+    <>
+      {surfaces.map((surface) => (
+        <GroundRow
+          key={surface}
+          element={element}
+          project={project}
+          surface={surface}
+          named={twoGrounds}
+        />
+      ))}
+    </>
+  );
+}
+
+function GroundRow({
+  element,
+  project,
+  surface,
+  named,
+}: {
+  element: HydroElement;
+  project: Project;
+  surface: GroundSurface;
+  /** Nomeia a superfície (há platôs); sem eles, "terreno" basta. */
+  named: boolean;
+}) {
+  const terrain = groundSurfaceOf(project, surface);
+  if (!terrain || element.kind === 'pipe') return null;
   const { x, y, z } = element.placement.position;
-  const ground = terrainElevationAt(project.terrain, x, y);
+  const ground = terrainElevationAt(terrain, x, y);
+  // Identificadores do projetado = os de antes (sem platôs a superfície é a mesma).
+  const suffix = surface === 'natural' ? '-natural' : '';
+  const label = named
+    ? `${surface === 'natural' ? 'Terreno natural' : 'Terreno projetado'} no ponto`
+    : 'Terreno no ponto';
   if (ground === null) {
     return (
       <ReadOnlyRow
-        label="Terreno no ponto"
-        value={<span data-testid="prop-ground-elevation">fora da superfície</span>}
+        label={label}
+        value={<span data-testid={`prop-ground-elevation${suffix}`}>fora da superfície</span>}
       />
     );
   }
@@ -308,18 +349,20 @@ function GroundElevation({ element, project }: { element: HydroElement; project:
   return (
     <>
       <ReadOnlyRow
-        label="Terreno no ponto"
-        value={<span data-testid="prop-ground-elevation">{formatMeters(rounded)}</span>}
+        label={label}
+        value={<span data-testid={`prop-ground-elevation${suffix}`}>{formatMeters(rounded)}</span>}
       />
       <button
         type="button"
         className="chip"
-        data-testid="prop-seat-on-terrain"
+        data-testid={`prop-seat-on-terrain${suffix}`}
         disabled={Math.abs(rounded - z) < 1e-9}
-        title="Leva a cota de referência do elemento à do terreno sob a sua origem"
+        title={`Leva a cota de referência do elemento à do ${named ? GROUND_SURFACE_LABELS[surface] : 'terreno'} sob a sua origem`}
         onClick={() => actions().changeElevation(element.id, rounded)}
       >
-        Assentar no terreno
+        {named
+          ? `Assentar no ${surface === 'natural' ? 'natural' : 'projetado'}`
+          : 'Assentar no terreno'}
       </button>
     </>
   );

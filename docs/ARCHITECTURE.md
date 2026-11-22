@@ -62,6 +62,7 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Catálogo de famílias arquitetônicas (modelos genéricos) | `packages/catalog/src/architecture.ts` |
 | Informação IFC da arquitetura (registro, modelo, validação) e exportação | `packages/ifc/src/bim/archDefinitions.ts`, `archModel.ts`, `archValidate.ts`; `packages/ifc/src/archExport.ts` |
 | Arquitetura no editor: sessão, ferramentas, painel, catálogo e quantitativo | `apps/web/src/arch/` |
+| Realidade virtual (WebXR): sessão, coordenadas, cena em lotes, navegação e painéis | `apps/web/src/vr/`; ver [WEBXR.md](WEBXR.md) |
 
 ## Fluxo de uma edição
 
@@ -109,6 +110,6 @@ A edição direta do traçado (`slide.ts`: `stretchPipe`, `slideElements`) usa a
 ## Limites conhecidos da arquitetura atual
 
 - Elementos em lista: buscas são lineares. Adequado ao porte do MVP; indexar por id quando houver milhares de elementos.
-- Uma malha por elemento. Para redes grandes será necessário instanciamento e níveis de detalhe.
+- Uma malha por elemento no Modelo 3D. Para redes grandes será necessário instanciamento e níveis de detalhe. A vista de realidade virtual já desenha a rede em lotes (`vr/vrModel.ts`), o que pode ser levado ao viewport de modelagem.
 - A exportação DXF escreve as coordenadas do projeto por extenso; não foi conferida com coordenadas de centenas de quilômetros.
 - O contrato TypeScript ↔ Python é mantido manualmente e protegido por testes; avaliar geração a partir de JSON Schema quando o esquema crescer.

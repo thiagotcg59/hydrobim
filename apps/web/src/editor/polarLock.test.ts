@@ -11,7 +11,7 @@ import {
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useEditorStore } from '../state/editorStore';
 import type { PickResult, Ray } from './picking';
-import { polarLockedPoint, polarLockPoint, shiftPick } from './polarLock';
+import { polarLockedPoint, polarLockPlan, polarLockPoint, shiftPick } from './polarLock';
 
 const state = () => useEditorStore.getState();
 const degreesFrom = (axis: Vec3, origin: Vec3, point: Vec3): number =>
@@ -37,6 +37,21 @@ describe('polarLockPoint', () => {
     // Ponto sobre a origem: devolvido sem alteração.
     const same = vec3(1, 1, 0.3);
     expect(polarLockPoint(origin, null, same)).toBe(same);
+  });
+
+  it('em planta (paredes, contornos, cotas): 45° em 45°, sem resíduo nos eixos', () => {
+    const from = { x: 0.1, y: 0.2 };
+    // Para os lados, para cima e para baixo: a outra coordenada é exatamente a de partida.
+    expect(polarLockPlan(from, { x: 3, y: 0.5 })).toEqual({ x: 3, y: 0.2 });
+    expect(polarLockPlan(from, { x: -3, y: 0.1 })).toEqual({ x: -3, y: 0.2 });
+    expect(polarLockPlan(from, { x: 0.4, y: 5 })).toEqual({ x: 0.1, y: 5 });
+    expect(polarLockPlan(from, { x: -0.2, y: -5 })).toEqual({ x: 0.1, y: -5 });
+    // Diagonais: ΔX e ΔY iguais em módulo.
+    const diagonal = polarLockPlan(from, { x: -2, y: 2.6 });
+    expect(diagonal.x - from.x).toBeCloseTo(-(diagonal.y - from.y));
+    expect(diagonal.x).toBeLessThan(from.x);
+    // Com passo, o comprimento do trecho é arredondado.
+    expect(polarLockPlan(from, { x: 3.04, y: 0.5 }, 0.5).x).toBeCloseTo(3.1);
   });
 
   it('partindo de um tubo: 0°, 45° ou 90° em relação a ele, para qualquer lado', () => {

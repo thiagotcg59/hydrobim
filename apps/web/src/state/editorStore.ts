@@ -109,6 +109,9 @@ import {
   setPipeEnds,
   setPipeLength,
   setTerrain,
+  GROUND_SURFACE_LABELS,
+  groundSurfaceOf,
+  hasDesignTerrain,
   inlineClearancesOf,
   setInlineClearance,
   slideAxesOf,
@@ -136,6 +139,7 @@ import {
   type FittingKind,
   type FittingPatch,
   type Georeference,
+  type GroundSurface,
   type HydraulicSystem,
   type InfraSettingsPatch,
   type Pipe,
@@ -559,6 +563,33 @@ export interface ToolOptions {
    * vale a cota do plano de trabalho.
    */
   readonly terrainPlacement: { readonly enabled: boolean; readonly offset: number };
+  /**
+   * Superfície de onde vêm as cotas de terreno do assentamento (recobrimento dos tubos e
+   * equipamentos sobre o terreno): o terreno projetado (o natural modificado pelos platôs, o
+   * terreno acabado) ou o natural. Sem platôs as duas coincidem.
+   */
+  readonly groundSurface: GroundSurface;
+}
+
+/** Superfície de assentamento escolhida nas opções da ferramenta; `null` sem terreno. */
+export function placementGroundOf(state: {
+  project: Project;
+  toolOptions: ToolOptions;
+}): Terrain | null {
+  return groundSurfaceOf(state.project, state.toolOptions.groundSurface);
+}
+
+/**
+ * Nome da superfície de assentamento nas mensagens ("terreno projetado", "terreno natural");
+ * sem platôs, só "terreno".
+ */
+export function placementGroundLabel(state: {
+  project: Project;
+  toolOptions: ToolOptions;
+}): string {
+  return hasDesignTerrain(state.project)
+    ? GROUND_SURFACE_LABELS[state.toolOptions.groundSurface]
+    : 'terreno';
 }
 
 /** Clique no viewport já resolvido para o domínio. */
@@ -937,7 +968,7 @@ export function equipmentGroundElevation(
 ): number | null {
   if (state.tool !== 'pump' && state.tool !== 'tank') return null;
   const { enabled, offset } = state.toolOptions.terrainPlacement;
-  const { terrain } = state.project;
+  const terrain = placementGroundOf(state);
   if (!enabled || !terrain) return null;
   const ground = terrainElevationAt(terrain, x, y);
   return ground === null ? null : Math.round((ground + offset) * 1000) / 1000;
@@ -1473,6 +1504,8 @@ export const useEditorStore = create<EditorState>()((set, get) => {
       lockElbowAngles: true,
       terrainCover: { enabled: false, cover: 0.8 },
       terrainPlacement: { enabled: true, offset: 0 },
+      // O terreno acabado: depois da terraplenagem é nele que a rede e os equipamentos assentam.
+      groundSurface: 'design',
     },
     workPlaneZ: 0,
     pipeElevation: 0,
@@ -2072,9 +2105,9 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         commit(
           success(result.value.project),
           ground !== null
-            ? `${elementKindLabel(tool)} posicionado(a) sobre o terreno, na cota ${formatMeters(ground, 3)}.`
+            ? `${elementKindLabel(tool)} posicionado(a) sobre o ${placementGroundLabel(state)}, na cota ${formatMeters(ground, 3)}.`
             : seated
-              ? `${elementKindLabel(tool)} posicionado(a) fora da superfície do terreno: usada a cota do plano de trabalho (${formatMeters(point.z, 3)}).`
+              ? `${elementKindLabel(tool)} posicionado(a) fora da superfície do ${placementGroundLabel(state)}: usada a cota do plano de trabalho (${formatMeters(point.z, 3)}).`
               : `${elementKindLabel(tool)} posicionado(a).`,
         );
         set({ selection: [result.value.elementId] });

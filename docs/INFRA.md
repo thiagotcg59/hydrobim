@@ -330,6 +330,21 @@ Alterna a superfície à mostra na planta e no 3D: **Natural**, **Projetado**, *
 - **Os três parâmetros são do projetista** e começam não informados: sem eles, corte e aterro geométricos aparecem e o restante fica pendente ("—"). O editor não traz valores de solo.
 - **Quadro** por platô e total do projeto, com exportação CSV. O volume de cada platô é medido sobre a região dele (platô e taludes) contra o terreno natural; o total é a soma.
 
+### Terreno natural e projetado na modelagem
+
+Com platôs, o projeto tem duas superfícies: o terreno **natural** (TN, como levantado) e o **projetado** (TP, o natural modificado pelos platôs — o terreno acabado). Sem platôs as duas são a mesma, e a interface mostra uma só cota de "terreno".
+
+| Onde | Como as duas entram |
+| --- | --- |
+| Assentamento por recobrimento (Tubulação) e de equipamentos (Bomba, Reservatório) | Opção **Terreno projetado \| Terreno natural** no grupo "Assentamento no terreno" da ferramenta; o projetado é o padrão. A cota vem da superfície escolhida; ao criar um trecho, a mensagem traz também o recobrimento sob a outra |
+| Painel de propriedades do equipamento | Cota do terreno projetado e do natural sob a origem, com "Assentar no projetado" e "Assentar no natural" |
+| Perfil longitudinal da rede (Análise › Perfil) | As duas linhas de terreno e o recobrimento mínimo sob cada uma (`ProfileStation.groundElevation`/`cover` = projetado; `naturalGroundElevation`/`naturalCover` = natural) |
+| Corte do terreno (perfil A–B) | As duas linhas; a sonda mostra TP e TN; o CSV ganha as colunas `cota_projetado_m` e `cota_natural_m` |
+| Rótulos de cotas da Planta Infra e cursor | `TP … · rec. …` e `TN … · rec. …`; o cursor mostra as duas cotas |
+| Modelo 3D, planta e percurso | Seguem a superfície escolhida em Corte/Aterro (natural, projetado, comparação ou original); no 3D, o clique de equipamento atinge a superfície desenhada, mas a cota é a da superfície de assentamento |
+| DXF do modelo 3D | `HB-TERRENO` (natural, como antes), `HB-TERRENO-PROJETADO`, `HB-TERRAPLENAGEM-CORTE` e `HB-TERRAPLENAGEM-ATERRO` |
+| IFC | O natural como `IfcGeographicElement`; o projetado = natural − cortes + aterros (ver `docs/IFC_MAPPING.md`) |
+
 ### Verificação
 
 | Caso (Vitest, `earthworks.test.ts`) | Referência | Tolerância |
@@ -349,7 +364,7 @@ No navegador (`tests/e2e/earthworks.spec.ts`): criação do platô pelo desenho,
 - Reentrâncias estreitas (pátios, formas em U cujos taludes se encontram antes do terreno) são recusadas; divida o platô.
 - Platôs são horizontais; sem bermas, sem taludes variáveis por lado, sem platôs inclinados.
 - O perímetro é alterado redesenhando-o (não há arraste de vértices).
-- O assentamento por recobrimento, o assentamento de equipamentos, o perfil longitudinal, o percurso e o DXF usam o terreno **natural**, não o projetado.
+- O assentamento é feito em uma das duas superfícies por vez (a escolhida na ferramenta); o recobrimento sob a outra é só informado.
 - Os sólidos de corte e de aterro podem ter lascas submilimétricas abertas em relevo irregular (o IFC informa `Closed = .F.`); os volumes do quadro vêm da integração, não do sólido.
 - Não há peso, distância de transporte, distribuição de massas (Brückner) nem camadas de solo.
 - Cada alteração recalcula o terreno projetado de todos os platôs; o resultado é guardado enquanto o terreno e os platôs não mudam. Não foi medido com superfícies de 25.000 vértices e dezenas de platôs.
@@ -388,7 +403,7 @@ O limite de cada teste é cinco vezes a meta: o tempo medido oscila com a máqui
 4. **Assentamento por recobrimento:** já existe nos cliques da Planta Infra (ver Superfície do terreno); faltam a entrada por valores e o 3D, reassentar trechos existentes, pontos intermediários automáticos onde o recobrimento cai e as pendências de recobrimento na validação.
 5. **Perfil como vista:** perfil longitudinal na área de trabalho, sincronizado com a seleção e a posição na planta e no 3D (hoje abre no diálogo de análises, pelo botão Perfil… ou por Análise › Perfil longitudinal).
 6. **Terreno:** importação e exportação LandXML, curvas de nível e corte na documentação (DXF/SVG, anotações), mais de uma superfície por projeto, BigTIFF e rasters maiores lidos por janela.
-7. **Terraplenagem:** reentrâncias estreitas, bermas e platôs inclinados, arraste dos vértices do perímetro, rede e equipamentos assentados sobre o terreno projetado, conjuntos do terreno na aba BIM / IFC e no IDS, DXF do terreno projetado, distribuição de massas.
+7. **Terraplenagem:** reentrâncias estreitas, bermas e platôs inclinados, arraste dos vértices do perímetro, conjuntos do terreno na aba BIM / IFC e no IDS, curvas de nível do terreno projetado na documentação, distribuição de massas.
 8. **Mapa:** ortofoto georreferenciada em arquivo (GeoTIFF) fornecida pelo usuário; imagem na exportação quando a licença da fonte permitir; satélite no modelo 3D.
 9. **Documentação:** prancha com carimbo, legenda, norte e malha de coordenadas; exportação em PDF; fator de escala combinado no projeto.
 10. **Desempenho do 3D:** instanciamento e níveis de detalhe para milhares de elementos.

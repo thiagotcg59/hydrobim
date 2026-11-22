@@ -42,11 +42,13 @@ import {
   drawElevationOf,
   equipmentGroundElevation,
   pipeSnapOf,
+  placementGroundOf,
   useEditorStore,
 } from '../state/editorStore';
 import { getActiveClipPlanes } from '../views/clipContext';
 import { pointGridStepOf } from '../state/alignTool';
 import { useArchStore } from '../arch/archStore';
+import { shownTerrain, useEarthworkStore } from '../terrain/earthworkStore';
 import { useTerrainStore } from '../terrain/terrainStore';
 
 const CLICK_TOLERANCE_PX = 5;
@@ -57,7 +59,11 @@ const CLICK_TOLERANCE_PX = 5;
  * delas), e a cota do ponto é a de assentamento — a do terreno real, nunca a exagerada.
  */
 function groundOf(state: Parameters<typeof equipmentGroundElevation>[0]): PickGround | null {
-  const { terrain } = state.project;
+  // O raio atinge a superfície desenhada no 3D (natural, projetada ou original, conforme a
+  // vista escolhida em Corte/Aterro); a cota de assentamento vem da superfície escolhida nas
+  // opções da ferramenta (`equipmentGroundElevation`).
+  const terrain =
+    shownTerrain(state.project, useEarthworkStore.getState().view) ?? placementGroundOf(state);
   if (!terrain || (state.tool !== 'pump' && state.tool !== 'tank')) return null;
   if (!state.toolOptions.terrainPlacement.enabled) return null;
   const exaggeration = useTerrainStore.getState().display.exaggeration;
