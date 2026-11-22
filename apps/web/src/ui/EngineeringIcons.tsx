@@ -140,6 +140,35 @@ export const MirrorIcon = createLucideIcon('ArchMirror', [
   ['path', { d: 'm15 7 5 10h-5Z', opacity: '0.55', key: 'right' }],
 ]);
 
+/** Aparar/estender para canto: as duas paredes no canto e, tracejado, o que sai. */
+export const TrimCornerIcon = createLucideIcon('ArchTrimCorner', [
+  ['path', { d: 'M7 21V7h14', key: 'corner' }],
+  ['path', { d: 'M7 7V3', strokeDasharray: '2 2', opacity: '0.55', key: 'cut-a' }],
+  ['path', { d: 'M7 7H3', strokeDasharray: '2 2', opacity: '0.55', key: 'cut-b' }],
+]);
+
+/** Aparar/estender até parede: a parede-limite e a que é levada até ela. */
+export const TrimExtendIcon = createLucideIcon('ArchTrimExtend', [
+  ['path', { d: 'M18 3v18', key: 'limit' }],
+  ['path', { d: 'M3 12h8', key: 'wall' }],
+  ['path', { d: 'M11 12h7', strokeDasharray: '2 2', key: 'extension' }],
+  ['path', { d: 'm14 9 3 3-3 3', opacity: '0.55', key: 'arrow' }],
+]);
+
+/** Alinhar: a reta de referência (tracejada) e as arestas levadas até ela. */
+export const AlignEdgeIcon = createLucideIcon('ArchAlignEdge', [
+  ['path', { d: 'M5 3v18', strokeDasharray: '2.5 2.5', key: 'reference' }],
+  ['rect', { x: '5', y: '6', width: '13', height: '4', key: 'first' }],
+  ['rect', { x: '5', y: '14', width: '8', height: '4', opacity: '0.55', key: 'second' }],
+]);
+
+/** Dividir parede: os dois trechos e o ponto do corte. */
+export const SplitWallIcon = createLucideIcon('ArchSplitWall', [
+  ['rect', { x: '2', y: '9', width: '8', height: '6', key: 'head' }],
+  ['rect', { x: '14', y: '9', width: '8', height: '6', key: 'tail' }],
+  ['path', { d: 'M12 4v16', strokeDasharray: '2.5 2.5', key: 'cut' }],
+]);
+
 /** Símbolo de cada categoria arquitetônica (faixa, navegador e painel de propriedades). */
 export const ARCH_ICONS: Readonly<Record<ArchElementKind, LucideIcon>> = {
   wall: WallIcon,

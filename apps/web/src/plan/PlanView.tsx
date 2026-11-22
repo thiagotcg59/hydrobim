@@ -302,7 +302,8 @@ export function PlanView() {
   const archTransform = useArchStore((s) => s.transform !== null);
   /** Contorno em edição: só as alças respondem; o clique no fundo não seleciona nada. */
   const archContour = useArchStore((s) => s.contour !== null);
-  const archPointing = archTool !== null || archTransform;
+  const archModify = useArchStore((s) => s.modify !== null);
+  const archPointing = archTool !== null || archTransform || archModify;
   const archBusy = archPointing || archContour;
   const archCursor = useArchStore((s) => s.cursor);
 
@@ -518,6 +519,13 @@ export function PlanView() {
     if (archTool === 'door' || archTool === 'window') return { point: raw, snap: 'plane' };
     const resolved = useArchStore.getState().resolvePointer(raw, SNAP_PX * view.mpp);
     return {
+    if (archModify) {
+      // Aparar, alinhar e dividir indicam paredes e arestas: a sessão resolve o que está sob o cursor.
+      return {
+        point: useArchStore.getState().pointModify(raw, SNAP_PX * view.mpp),
+        snap: 'plane',
+      };
+    }
       point: resolved.point,
       snap:
         resolved.kind === 'grid'
@@ -1483,7 +1491,9 @@ export function PlanView() {
       data-tool={tool}
       data-terrain-mode={terrainMode ?? ''}
       data-arch-tool={archTool ?? ''}
-      data-arch-mode={archTransform ? 'transform' : archContour ? 'contour' : ''}
+      data-arch-mode={
+        archTransform ? 'transform' : archModify ? 'modify' : archContour ? 'contour' : ''
+      }
       data-view-tool={sectionTool ? 'section' : ''}
       data-theme={theme}
       data-environment={project.discipline}

@@ -83,6 +83,12 @@ import {
 } from 'lucide-react';
 import { contourOf, type ArchTransformKind } from '../arch/archEdit';
 import {
+  ARCH_MODIFY_HINTS,
+  ARCH_MODIFY_LABELS,
+  archModifyBlocker,
+  type ArchModifyKind,
+} from '../arch/archModify';
+import {
   ARCH_TOOL_HINTS,
   ARCH_TOOL_LABELS,
   archMissingTypeCategory,
@@ -119,10 +125,14 @@ import {
   ELEMENT_ICONS,
   FloorOpeningIcon,
   FlooringIcon,
+  AlignEdgeIcon,
   MirrorIcon,
   RoofIcon,
   SlabIcon,
   SpaceIcon,
+  SplitWallIcon,
+  TrimCornerIcon,
+  TrimExtendIcon,
   WallIcon,
   WindowIcon,
 } from '../ui/EngineeringIcons';
@@ -190,6 +200,8 @@ export interface CommandContext {
   /** Mover, copiar, girar ou espelhar por pontos em andamento; contorno em edição. */
   readonly archTransform?: ArchTransformKind | null;
   readonly archContour?: boolean;
+  /** Aparar/estender, alinhar ou dividir parede em andamento. */
+  readonly archModify?: ArchModifyKind | null;
 }
 
 /** Parte do contexto que vem das vistas de projeto. */
@@ -355,6 +367,7 @@ function toolCommand(tool: Exclude<ToolId, 'move' | 'rotate' | 'align'>): Comman
         (context.viewTool !== undefined && context.viewTool !== 'select') ||
         (context.archTool ?? null) !== null ||
         (context.archTransform ?? null) !== null ||
+        (context.archModify ?? null) !== null ||
         context.archContour === true;
       return { enabled: true, active: context.tool === tool && !(tool === 'select' && drawing) };
     },
@@ -362,6 +375,7 @@ function toolCommand(tool: Exclude<ToolId, 'move' | 'rotate' | 'align'>): Comman
       if (tool === 'select') {
         views().setTool('select');
         arch().setTool(null);
+        arch().endModify();
       }
       editor().setTool(tool);
     },
@@ -624,6 +638,28 @@ function archModifyCommand(
   };
 }
 
+/**
+ * Modificação que atua sobre o que é indicado na planta (paredes e arestas), sem depender da
+ * seleção: a ferramenta fica ativa até Esc, e cada operação confirmada é um passo do histórico.
+ */
+function archPickCommand(kind: ArchModifyKind, icon: LucideIcon): Command {
+  const id = `arch.${kind}`;
+  return {
+    id,
+    label: ARCH_MODIFY_LABELS[kind],
+    description: ARCH_MODIFY_HINTS[kind],
+    icon,
+    testId: id.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`).replace('.', '-'),
+    state: (context) => {
+      const blocked = modeling(context);
+      if (blocked) return blocked;
+      const reason = archModifyBlocker(context.project, kind);
+      return reason ? off(reason) : { enabled: true, active: context.archModify === kind };
+    },
+    run: () => (arch().modify?.kind === kind ? arch().endModify() : arch().startModify(kind)),
+  };
+}
+
 const ARCH_COMMANDS: readonly Command[] = [
   ...(Object.keys(ARCH_TOOL_IDS) as ArchTool[]).map(archToolCommand),
   {
@@ -672,6 +708,10 @@ const ARCH_COMMANDS: readonly Command[] = [
     'Espelha a seleção arquitetônica em relação ao eixo indicado por dois pontos.',
     MirrorIcon,
   ),
+  archPickCommand('trimCorner', TrimCornerIcon),
+  archPickCommand('trimExtend', TrimExtendIcon),
+  archPickCommand('align', AlignEdgeIcon),
+  archPickCommand('split', SplitWallIcon),
   {
     id: 'arch.editContour',
     label: 'Editar contorno',
@@ -1686,6 +1726,7 @@ export function commandContext(): CommandContext {
     archSelection: arch().selection,
     archTransform: arch().transform?.kind ?? null,
     archContour: arch().contour !== null,
+    archModify: arch().modify?.kind ?? null,
   };
 }
 

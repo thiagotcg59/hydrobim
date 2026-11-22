@@ -3,6 +3,7 @@ import { ArchCatalogDialog } from './arch/ArchCatalogDialog';
 import { ArchProperties } from './arch/ArchProperties';
 import { ArchQuantitiesDialog } from './arch/ArchQuantitiesDialog';
 import { ARCH_TRANSFORM_LABELS } from './arch/archEdit';
+import { ARCH_MODIFY_LABELS } from './arch/archModify';
 import { ARCH_TOOL_LABELS, useArchStore } from './arch/archStore';
 import { ArchModePanel, ArchToolOptions } from './arch/ArchToolOptions';
 import { BimTree } from './bim/BimTree';
@@ -58,7 +59,13 @@ function RightPanel() {
   const archTool = useArchStore((s) => s.tool);
   // Mover/copiar/girar/espelhar por pontos e a edição de contorno também têm painel próprio.
   const archMode = useArchStore((s) =>
-    s.contour ? 'Editar contorno' : s.transform ? ARCH_TRANSFORM_LABELS[s.transform.kind] : null,
+    s.contour
+      ? 'Editar contorno'
+      : s.transform
+        ? ARCH_TRANSFORM_LABELS[s.transform.kind]
+        : s.modify
+          ? ARCH_MODIFY_LABELS[s.modify.kind]
+          : null,
   );
   const archSelected = useArchStore((s) => s.selection.length);
   const selectionSize = useEditorStore((s) => s.selection.length) + archSelected;

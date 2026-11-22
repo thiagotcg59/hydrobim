@@ -61,6 +61,17 @@ import {
   type ArchTransformKind,
 } from './archEdit';
 import {
+  ARCH_MODIFY_HINTS,
+  ARCH_MODIFY_LABELS,
+  ARCH_MODIFY_STEPS,
+  archModifyBlocker,
+  modifyOutcome,
+  modifyPickAt,
+  type ArchModify,
+  type ArchModifyKind,
+  type ArchPick,
+} from './archModify';
+import {
   activeTypeIdOf,
   archSnapSegments,
   hostedCarriedBy,
@@ -214,6 +225,28 @@ interface ArchState {
   /** Contorno em edição ("Editar contorno") e o vértice sendo arrastado. */
   contour: ArchContour | null;
   contourDrag: number | null;
+  /**
+   * Aparar/estender, alinhar ou dividir em andamento: atuam sobre o que é indicado na planta
+   * (não sobre a seleção). `modifyHover` é o que o cursor indica agora.
+   */
+  modify: ArchModify | null;
+  modifyHover: ArchPick | null;
+  /** Alinhar: escolha entre arestas sobrepostas (Tab) e o ponto do cursor em que foi feita. */
+  modifyCycle: number;
+  modifyCycleAt: Point2 | null;
+
+  /** Tab no alinhar: próxima (ou anterior) aresta sob o cursor. */
+  cycleModify: (step: 1 | -1) => void;
+  /** Aciona aparar/estender para canto, aparar/estender até parede, alinhar ou dividir. */
+  startModify: (kind: ArchModifyKind) => void;
+  /** Encerra a ferramenta de modificação; o modelo fica como está. */
+  endModify: () => void;
+  /**
+   * Cursor das ferramentas de modificação: resolve o que está indicado (parede ou aresta) e
+   * devolve o ponto que o clique confirma. Só o dividir usa as capturas — nas demais conta o
+   * ponto do cursor, que diz qual lado da parede fica.
+   */
+  pointModify: (raw: Point2, tolerance: number) => Point2;
 
   /**
    * Resolve a captura do ponto `raw` do cursor (`tolerance` = raio de captura em metros) com
@@ -297,8 +330,13 @@ const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`;
 
 /** Há uma operação da arquitetura recebendo os cliques da planta? */
-export const archBusy = (state: Pick<ArchState, 'tool' | 'transform' | 'contour'>): boolean =>
-  state.tool !== null || state.transform !== null || state.contour !== null;
+export const archBusy = (
+  state: Pick<ArchState, 'tool' | 'transform' | 'contour' | 'modify'>,
+): boolean =>
+  state.tool !== null ||
+  state.transform !== null ||
+  state.contour !== null ||
+  state.modify !== null;
 
 const NO_TYPE: Record<ArchCategory, string> = {
   wall: 'Nenhum tipo de parede no projeto: abra o Catálogo de arquitetura e adicione um.',
@@ -466,6 +504,9 @@ export const useArchStore = create<ArchState>()((set, get) => {
   /** Último ponto bruto do cursor e o raio de captura (Tab, R e Shift não trazem a posição). */
   let lastRaw: Point2 | null = null;
   let lastTolerance = 0;
+  /** Último ponto do cursor nas ferramentas de modificação (Tab não traz a posição). */
+  let lastModifyRaw: Point2 | null = null;
+  let lastModifyTolerance = 0;
   /** Contorno como estava ao começar o arrasto de um vértice (Esc o devolve). */
   let ringBeforeDrag: ArchContour | null = null;
 
@@ -532,6 +573,14 @@ export const useArchStore = create<ArchState>()((set, get) => {
     return archSnapSegments(state.project.architecture, { levelId, exclude });
   };
 
+  /** Nível em que as ferramentas de modificação procuram paredes e arestas. */
+  const pickLevelId = (): string | null => {
+    const state = editor();
+    return snapPreferences().activeLevelOnly
+      ? workLevelIdOf(state.project, state.workPlaneZ)
+      : null;
+  };
+
   const endTransform = (): void => {
     set({ transform: null, snap: null, cursor: null });
     if (editor().tool === 'select') useUiStore.getState().setPanelTab('properties');
@@ -594,6 +643,79 @@ export const useArchStore = create<ArchState>()((set, get) => {
     grip: null,
     contour: null,
     contourDrag: null,
+    modify: null,
+    modifyHover: null,
+    modifyCycle: 0,
+    modifyCycleAt: null,
+
+    cycleModify: (step) => {
+      if (!get().modify || !lastModifyRaw) return;
+      set((state) => ({ modifyCycle: state.modifyCycle + step, modifyCycleAt: lastModifyRaw }));
+      get().pointModify(lastModifyRaw, lastModifyTolerance);
+    },
+
+    startModify: (kind) => {
+      const blocker = archModifyBlocker(editor().project, kind);
+      if (blocker) {
+        editor().notify('info', `${ARCH_MODIFY_LABELS[kind]}: ${blocker}`);
+        return;
+      }
+      enterPlan();
+      set({
+        tool: null,
+        points: [],
+        cursor: null,
+        openingTarget: null,
+        transform: null,
+        contour: null,
+        contourDrag: null,
+        grip: null,
+        snap: null,
+        // A ferramenta atua sobre o que é indicado: a seleção (e as alças dela) sai de cena.
+        selection: [],
+        modify: { kind, picks: [] },
+        modifyHover: null,
+        modifyCycle: 0,
+        modifyCycleAt: null,
+      });
+      useUiStore.getState().setPanelTab('tool');
+      editor().notify('info', ARCH_MODIFY_HINTS[kind]);
+    },
+
+    endModify: () => {
+      if (!get().modify) return;
+      set({ modify: null, modifyHover: null, snap: null, cursor: null });
+      if (editor().tool === 'select') useUiStore.getState().setPanelTab('properties');
+    },
+
+    pointModify: (raw, tolerance) => {
+      const { modify } = get();
+      if (!modify) return raw;
+      lastModifyRaw = raw;
+      lastModifyTolerance = tolerance;
+      // A escolha por Tab vale enquanto o cursor fica onde ela foi feita.
+      let { modifyCycle, modifyCycleAt } = get();
+      if (
+        modifyCycle !== 0 &&
+        (!modifyCycleAt || Math.hypot(raw.x - modifyCycleAt.x, raw.y - modifyCycleAt.y) > tolerance)
+      ) {
+        modifyCycle = 0;
+        modifyCycleAt = null;
+      }
+      // Dividir: o ponto exato vem das capturas (meio, interseção, extremidade de outra parede).
+      const point = modify.kind === 'split' ? get().resolvePointer(raw, tolerance).point : raw;
+      const modifyHover = modifyPickAt(
+        editor().project,
+        modify,
+        point,
+        tolerance,
+        pickLevelId(),
+        modifyCycle,
+      );
+      if (modify.kind === 'split') set({ modifyHover, modifyCycle, modifyCycleAt });
+      else set({ modifyHover, modifyCycle, modifyCycleAt, cursor: point, snap: null });
+      return point;
+    },
 
     resolvePointer: (raw, tolerance) => {
       lastRaw = raw;
@@ -639,7 +761,7 @@ export const useArchStore = create<ArchState>()((set, get) => {
 
     clearPointer: () => {
       lastRaw = null;
-      set({ snap: null, cursor: null });
+      set({ snap: null, cursor: null, modifyHover: null });
     },
 
     refreshPointer: () => (lastRaw ? get().resolvePointer(lastRaw, lastTolerance) : null),
@@ -681,6 +803,8 @@ export const useArchStore = create<ArchState>()((set, get) => {
         contourDrag: null,
         grip: null,
         snap: null,
+        modify: null,
+        modifyHover: null,
         transform: { kind, points: [], copy },
       });
       useUiStore.getState().setPanelTab('tool');
@@ -770,6 +894,8 @@ export const useArchStore = create<ArchState>()((set, get) => {
         transform: null,
         grip: null,
         snap: null,
+        modify: null,
+        modifyHover: null,
         contour,
         contourDrag: null,
         selection: [element.id],
@@ -885,6 +1011,8 @@ export const useArchStore = create<ArchState>()((set, get) => {
         contour: null,
         contourDrag: null,
         grip: null,
+        modify: null,
+        modifyHover: null,
       });
       useUiStore.getState().setPanelTab('tool');
       editor().notify('info', ARCH_TOOL_HINTS[tool]);
@@ -905,7 +1033,35 @@ export const useArchStore = create<ArchState>()((set, get) => {
     },
 
     clickPoint: (point, tolerance = 0.05) => {
-      const { tool, points, transform, selection } = get();
+      const { tool, points, transform, selection, modify } = get();
+      if (modify) {
+        const pick = modifyPickAt(
+          editor().project,
+          modify,
+          point,
+          tolerance,
+          pickLevelId(),
+          get().modifyCycle,
+        );
+        set({ modifyCycle: 0, modifyCycleAt: null });
+        if (!pick) {
+          const step = ARCH_MODIFY_STEPS[modify.kind][modify.picks.length] ?? '';
+          editor().notify('info', `${ARCH_MODIFY_LABELS[modify.kind]}: ${step}.`);
+          return;
+        }
+        // Enquanto faltam cliques, este é mais um; o último confirma, em um passo do histórico.
+        const outcome = modifyOutcome(editor().project, modify, pick);
+        if (outcome === null) {
+          set({ modify: { ...modify, picks: [...modify.picks, pick] }, modifyHover: null });
+        } else if (!outcome.ok) {
+          editor().notify('error', outcome.error.message);
+        } else {
+          apply(done(outcome.value.project), outcome.value.message);
+          // A ferramenta continua ativa para a próxima operação.
+          set({ modify: { ...modify, picks: [] }, modifyHover: null, snap: null });
+        }
+        return;
+      }
       if (transform) {
         // Enquanto faltam pontos, o clique é mais um ponto de referência; o último confirma.
         const outcome = transformOutcome(editor().project, selection, transform, point);
@@ -1098,9 +1254,16 @@ export const useArchStore = create<ArchState>()((set, get) => {
     },
 
     cancel: () => {
-      const { tool, points, selection, transform, contour, grip, contourDrag } = get();
+      const { tool, points, selection, transform, contour, grip, contourDrag, modify } = get();
       if (grip || contourDrag !== null) {
         get().endDrag(false);
+        return true;
+      }
+      if (modify) {
+        // Cada Esc desfaz o último clique; sem cliques, encerra — o modelo não foi tocado.
+        if (modify.picks.length > 0) {
+          set({ modify: { ...modify, picks: modify.picks.slice(0, -1) }, modifyHover: null });
+        } else get().endModify();
         return true;
       }
       if (contour) {
@@ -1252,8 +1415,15 @@ useEditorStore.subscribe((state, previous) => {
   ) {
     if (arch.tool) arch.setTool(null);
     // Mover/girar por pontos e a edição de contorno também: nada foi gravado.
-    if (arch.transform || arch.contour || arch.grip) {
-      useArchStore.setState({ transform: null, contour: null, contourDrag: null, grip: null });
+    if (arch.transform || arch.contour || arch.grip || arch.modify) {
+      useArchStore.setState({
+        transform: null,
+        contour: null,
+        contourDrag: null,
+        grip: null,
+        modify: null,
+        modifyHover: null,
+      });
     }
   }
   if (state.project === previous.project) return;
@@ -1272,6 +1442,8 @@ useEditorStore.subscribe((state, previous) => {
       grip: null,
       contour: null,
       contourDrag: null,
+      modify: null,
+      modifyHover: null,
     });
     return;
   }
@@ -1291,6 +1463,10 @@ useEditorStore.subscribe((state, previous) => {
     useArchStore.setState({ grip: null });
   }
   if (current.transform && kept.length === 0) useArchStore.setState({ transform: null });
+  // Os cliques já feitos de uma ferramenta de modificação só valem se os elementos existem.
+  if (current.modify?.picks.some((pick) => !getArchElement(architecture, pick.elementId))) {
+    useArchStore.setState({ modify: { ...current.modify, picks: [] }, modifyHover: null });
+  }
 });
 
 // O desenho 2D de uma vista salva (ou a linha de corte) encerra a ferramenta de arquitetura.
@@ -1298,8 +1474,14 @@ useViewStore.subscribe((state, previous) => {
   if (state.tool !== previous.tool && state.tool !== 'select') {
     const arch = useArchStore.getState();
     if (arch.tool) arch.setTool(null);
-    if (arch.transform || arch.contour) {
-      useArchStore.setState({ transform: null, contour: null, contourDrag: null });
+    if (arch.transform || arch.contour || arch.modify) {
+      useArchStore.setState({
+        transform: null,
+        contour: null,
+        contourDrag: null,
+        modify: null,
+        modifyHover: null,
+      });
     }
   }
 });
