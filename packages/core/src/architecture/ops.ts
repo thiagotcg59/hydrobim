@@ -24,7 +24,7 @@ import {
 } from '../schema';
 import { pointInRing, validatePolygon } from '../terrain/polygon';
 import { ARCH_KIND_CATEGORY, ARCH_KIND_LABELS, archTypeUsage, hostWallOf } from './derive';
-import { add2, distance2, sub2 } from './polygon2';
+import { add2, cross2, distance2, dot2, intersectLines, length2, scale2, sub2 } from './polygon2';
 import {
   normalizeRoofBoundary,
   ROOF_IFC_PREDEFINED,
@@ -36,12 +36,17 @@ import {
   getArchElement,
   getArchType,
   hostedOf,
+  hostedPoint,
   hostedTypeOf,
   isHosted,
+  layersThickness,
   MIN_WALL_LENGTH,
   offsetAlongWall,
   openingOf,
   openingProblem,
+  WALL_NODE_TOLERANCE,
+  wallAxes,
+  wallFaceOffsets,
   wallLength,
 } from './walls';
 
@@ -762,6 +767,361 @@ export function moveWallEndpoint(
     }
   }
   return commit(project, putElements(project.architecture, changed));
+}
+
+// ---------------------------------------------------------------------------
+// Aparar, estender, dividir e alinhar
+// ---------------------------------------------------------------------------
+
+/** Parede indicada e o ponto do clique sobre ela: diz qual lado da parede é mantido. */
+export interface WallPick {
+  wallId: string;
+  point: Point2;
+}
+
+/** Reta em planta, dada por dois pontos distintos (aresta de referência ou do elemento). */
+export interface PlanLine {
+  a: Point2;
+  b: Point2;
+}
+
+/** Retas com o seno do ângulo abaixo disto são tratadas como paralelas (≈ 0,006°). */
+const PARALLEL_SINE = 1e-4;
+
+function wallOf(project: Project, id: string): Result<Wall> {
+  const wall = getArchElement(project.architecture, id);
+  return wall?.kind === 'wall' ? ok(wall) : fail('WALL_NOT_FOUND', 'Indique uma parede.');
+}
+
+/**
+ * Parede com novas extremidades NA MESMA DIREÇÃO (aparada, estendida ou deslocada de `delta`).
+ * As portas e janelas hospedadas ficam onde estão em relação ao corpo da parede: a distância
+ * gravada, medida do início, é recalculada para que o vão não ande quando o início muda.
+ */
+function reshapedWall(
+  architecture: Architecture,
+  wall: Wall,
+  start: Point2,
+  end: Point2,
+  delta: Point2 = { x: 0, y: 0 },
+): ArchElement[] {
+  const moved = touched({
+    ...wall,
+    start: { x: start.x, y: start.y },
+    end: { x: end.x, y: end.y },
+  });
+  const changed: ArchElement[] = [moved];
+  for (const hosted of hostedOf(architecture, wall.id)) {
+    const at = add2(hostedPoint(wall, hosted.offset), delta);
+    const offset = offsetAlongWall(moved, at);
+    if (Math.abs(offset - hosted.offset) > 1e-9) changed.push(touched({ ...hosted, offset }));
+  }
+  return changed;
+}
+
+/** A parede continuaria com comprimento e no mesmo sentido entre `start` e `end`? */
+function keepsSense(wall: Wall, start: Point2, end: Point2): boolean {
+  return dot2(sub2(end, start), wallAxes(wall).dir) >= MIN_WALL_LENGTH;
+}
+
+const collapsed = (wall: Wall): Result<never> =>
+  fail(
+    'WALL_TOO_SHORT',
+    `"${wall.name}" ficaria sem comprimento (mínimo de ${MIN_WALL_LENGTH * 100} cm).`,
+  );
+
+/** Ponto de encontro das linhas de referência de duas paredes do mesmo nível. */
+function wallsMeetingPoint(a: Wall, b: Wall): Result<Point2> {
+  if (a.id === b.id) return fail('TRIM_SAME_WALL', 'Indique duas paredes diferentes.');
+  if (a.levelId !== b.levelId) {
+    return fail(
+      'WALLS_DIFFERENT_LEVELS',
+      `"${a.name}" e "${b.name}" estão em níveis diferentes: o encontro só é resolvido entre paredes do mesmo nível.`,
+    );
+  }
+  const da = wallAxes(a).dir;
+  const db = wallAxes(b).dir;
+  const hit =
+    Math.abs(cross2(da, db)) > PARALLEL_SINE ? intersectLines(a.start, da, b.start, db) : null;
+  return hit
+    ? ok(hit)
+    : fail('WALLS_PARALLEL', `"${a.name}" e "${b.name}" são paralelas: não há ponto de encontro.`);
+}
+
+/**
+ * Extremidade que vai ao ponto de encontro `hit`. Encontro fora da parede: a extremidade mais
+ * próxima é estendida. Encontro no corpo: fica o lado do clique (`keep`) e o outro é aparado.
+ */
+function endToMeet(wall: Wall, hit: Point2, keep: Point2): 'start' | 'end' {
+  const t = offsetAlongWall(wall, hit);
+  if (t <= WALL_NODE_TOLERANCE) return 'start';
+  if (t >= wallLength(wall) - WALL_NODE_TOLERANCE) return 'end';
+  return offsetAlongWall(wall, keep) < t ? 'end' : 'start';
+}
+
+function wallMeeting(architecture: Architecture, pick: Wall, hit: Point2, keep: Point2) {
+  const end = endToMeet(pick, hit, keep);
+  const start = end === 'start' ? hit : pick.start;
+  const finish = end === 'end' ? hit : pick.end;
+  return keepsSense(pick, start, finish)
+    ? ok(reshapedWall(architecture, pick, start, finish))
+    : collapsed(pick);
+}
+
+/**
+ * Aparar/estender para canto: leva as duas paredes ao encontro das suas linhas de referência.
+ * De cada parede fica o lado indicado pelo clique; o trecho além do encontro é aparado, e a
+ * parede que não chega até ele é estendida. O canto em bisel é derivado das extremidades
+ * coincidentes. Paralelas, níveis diferentes e vão que ficaria no trecho aparado são recusados.
+ */
+export function trimWallsToCorner(
+  project: Project,
+  first: WallPick,
+  second: WallPick,
+): Result<Project> {
+  const a = wallOf(project, first.wallId);
+  if (!a.ok) return a;
+  const b = wallOf(project, second.wallId);
+  if (!b.ok) return b;
+  const hit = wallsMeetingPoint(a.value, b.value);
+  if (!hit.ok) return hit;
+  const { architecture } = project;
+  const movedA = wallMeeting(architecture, a.value, hit.value, first.point);
+  if (!movedA.ok) return movedA;
+  const movedB = wallMeeting(architecture, b.value, hit.value, second.point);
+  if (!movedB.ok) return movedB;
+  return commit(project, putElements(architecture, [...movedA.value, ...movedB.value]));
+}
+
+/**
+ * Aparar/estender até uma parede: só `target` muda — a extremidade dela vai à linha de
+ * referência de `boundaryId`, que fica como está. O encontro em T é derivado quando a
+ * extremidade cai no corpo da parede-limite.
+ */
+export function trimWallToWall(
+  project: Project,
+  boundaryId: string,
+  target: WallPick,
+): Result<Project> {
+  const boundary = wallOf(project, boundaryId);
+  if (!boundary.ok) return boundary;
+  const wall = wallOf(project, target.wallId);
+  if (!wall.ok) return wall;
+  const hit = wallsMeetingPoint(wall.value, boundary.value);
+  if (!hit.ok) return hit;
+  const moved = wallMeeting(project.architecture, wall.value, hit.value, target.point);
+  if (!moved.ok) return moved;
+  return commit(project, putElements(project.architecture, moved.value));
+}
+
+/**
+ * Divide a parede no pé da perpendicular de `point` sobre a linha de referência. A parede
+ * original mantém o `id` e fica com o trecho do início; o trecho do fim é uma parede nova, com
+ * o mesmo tipo, nível, altura e propriedades. As portas e janelas passam para o trecho em que
+ * estão; dividir dentro de um vão é recusado.
+ */
+export function splitWall(project: Project, wallId: string, point: Point2): Result<ArchCreated> {
+  const found = wallOf(project, wallId);
+  if (!found.ok) return found;
+  const wall = found.value;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    return fail('INVALID_VALUE', 'Ponto inválido.');
+  }
+  const { architecture } = project;
+  const at = offsetAlongWall(wall, point);
+  if (at < MIN_WALL_LENGTH || at > wallLength(wall) - MIN_WALL_LENGTH) {
+    return fail(
+      'SPLIT_OUTSIDE_WALL',
+      `O ponto de divisão precisa ficar no corpo de "${wall.name}", a pelo menos ${MIN_WALL_LENGTH * 100} cm das extremidades.`,
+    );
+  }
+  const cut = hostedPoint(wall, at);
+  const { ifc: _ifc, ...rest } = wall;
+  const tail: Wall = {
+    ...rest,
+    ...(wall.ifc ? { ifc: { ...wall.ifc } } : {}),
+    properties: { ...wall.properties },
+    id: newId(),
+    name: nextArchName(architecture, 'wall'),
+    start: cut,
+    end: wall.end,
+    meta: meta(),
+  };
+  const changed: ArchElement[] = [touched({ ...wall, end: cut }), tail];
+  for (const hosted of hostedOf(architecture, wall.id)) {
+    const type = hostedTypeOf(architecture, hosted);
+    const opening = type ? openingOf(hosted, type) : null;
+    if (opening && opening.from < at - 1e-6 && opening.to > at + 1e-6) {
+      return fail(
+        'SPLIT_THROUGH_OPENING',
+        `O ponto de divisão cai dentro do vão de "${hosted.name}": divida fora das portas e janelas.`,
+      );
+    }
+    if (hosted.offset > at) {
+      changed.push(touched({ ...hosted, hostId: tail.id, offset: hosted.offset - at }));
+    }
+  }
+  const next = commit(project, putElements(architecture, changed));
+  return next.ok ? ok({ project: next.value, elementIds: [tail.id] }) : next;
+}
+
+/** O ponto está sobre o corpo da parede (dentro da espessura, fora das pontas)? */
+function restsOnBody(architecture: Architecture, host: Wall, point: Point2): boolean {
+  const type = getArchType(architecture, host.typeId);
+  const thickness = type?.category === 'wall' ? layersThickness(type) : 0;
+  const { lo, hi } = wallFaceOffsets(host, thickness);
+  const { dir, left } = wallAxes(host);
+  const rel = sub2(point, host.start);
+  const along = dot2(rel, dir);
+  const across = dot2(rel, left);
+  return (
+    along > WALL_NODE_TOLERANCE &&
+    along < wallLength(host) - WALL_NODE_TOLERANCE &&
+    across >= lo - WALL_NODE_TOLERANCE &&
+    across <= hi + WALL_NODE_TOLERANCE
+  );
+}
+
+/**
+ * Desloca a parede de `delta` levando junto os encontros: o canto compartilhado vai ao novo
+ * cruzamento das duas linhas (a vizinha é esticada ou encurtada na própria direção), a
+ * extremidade apoiada em T continua sobre a parede de apoio, e as paredes apoiadas nesta são
+ * levadas até ela. Vizinhas paralelas (no prolongamento) não têm cruzamento e ficam como estão.
+ */
+function shiftWallWithJoins(project: Project, wall: Wall, delta: Point2): Result<Project> {
+  const { architecture } = project;
+  const { dir } = wallAxes(wall);
+  const origin = add2(wall.start, delta);
+  const others = architecture.elements.filter(
+    (element): element is Wall =>
+      element.kind === 'wall' && element.id !== wall.id && element.levelId === wall.levelId,
+  );
+  /** Cruzamento da nova linha desta parede com a linha de outra; `null` se paralelas. */
+  const crossing = (other: Wall): Point2 | null => {
+    const otherDir = wallAxes(other).dir;
+    return Math.abs(cross2(dir, otherDir)) > PARALLEL_SINE
+      ? intersectLines(origin, dir, other.start, otherDir)
+      : null;
+  };
+  const ends = { start: add2(wall.start, delta), end: add2(wall.end, delta) };
+  const carried = new Map<string, { wall: Wall; start: Point2; end: Point2 }>();
+  const carry = (other: Wall, end: 'start' | 'end', point: Point2): void => {
+    const entry = carried.get(other.id) ?? { wall: other, start: other.start, end: other.end };
+    carried.set(other.id, { ...entry, [end]: point });
+  };
+
+  for (const end of ['start', 'end'] as const) {
+    const node = wall[end];
+    const partners = others.flatMap((other) =>
+      (['start', 'end'] as const)
+        .filter((otherEnd) => distance2(other[otherEnd], node) <= WALL_NODE_TOLERANCE)
+        .map((otherEnd) => ({ other, otherEnd })),
+    );
+    if (partners.length > 0) {
+      const corner = partners.map(({ other }) => crossing(other)).find((hit) => hit !== null);
+      if (!corner) continue;
+      ends[end] = corner;
+      for (const { other, otherEnd } of partners) {
+        // Só acompanha a vizinha cuja linha passa pelo novo canto: a direção dela não muda.
+        const off = cross2(sub2(corner, other.start), wallAxes(other).dir);
+        if (Math.abs(off) <= 1e-6) carry(other, otherEnd, corner);
+      }
+      continue;
+    }
+    const support = others.find((other) => restsOnBody(architecture, other, node));
+    const hit = support ? crossing(support) : null;
+    if (hit) ends[end] = hit;
+  }
+  for (const other of others) {
+    for (const otherEnd of ['start', 'end'] as const) {
+      if (!restsOnBody(architecture, wall, other[otherEnd])) continue;
+      const hit = crossing(other);
+      if (hit) carry(other, otherEnd, hit);
+    }
+  }
+
+  if (!keepsSense(wall, ends.start, ends.end)) return collapsed(wall);
+  let next = putElements(
+    architecture,
+    reshapedWall(architecture, wall, ends.start, ends.end, delta),
+  );
+  for (const entry of carried.values()) {
+    if (!keepsSense(entry.wall, entry.start, entry.end)) return collapsed(entry.wall);
+    next = putElements(next, reshapedWall(architecture, entry.wall, entry.start, entry.end));
+  }
+  return commit(project, next);
+}
+
+/**
+ * Alinhar: desloca o elemento na perpendicular à reta de referência até que a aresta indicada
+ * (`edge`, uma aresta dele) fique sobre ela. A aresta tem de ser paralela à referência — a
+ * operação não gira nada.
+ *  - Parede, aresta ao longo dela (face ou eixo): a parede inteira se desloca e leva os
+ *    encontros (ver `shiftWallWithJoins`).
+ *  - Parede, aresta de topo: só a extremidade mais próxima é estendida ou aparada até a
+ *    referência; os vãos ficam no lugar.
+ *  - Laje, piso, ambiente e telhado: o elemento inteiro se desloca.
+ * Portas e janelas acompanham a parede hospedeira e não são alinhadas sozinhas.
+ */
+export function alignArchElement(
+  project: Project,
+  elementId: string,
+  reference: PlanLine,
+  edge: PlanLine,
+): Result<Project> {
+  const element = getArchElement(project.architecture, elementId);
+  if (!element) return fail('ARCH_ELEMENT_NOT_FOUND', 'Elemento inexistente.');
+  if (isHosted(element)) {
+    return fail(
+      'ALIGN_HOSTED',
+      `"${element.name}" acompanha a parede hospedeira: alinhe a parede ou ajuste a posição no painel de propriedades.`,
+    );
+  }
+  const along = sub2(reference.b, reference.a);
+  const side = sub2(edge.b, edge.a);
+  const values = [
+    along.x,
+    along.y,
+    side.x,
+    side.y,
+    reference.a.x,
+    reference.a.y,
+    edge.a.x,
+    edge.a.y,
+  ];
+  if (!values.every(Number.isFinite) || length2(along) < 1e-9 || length2(side) < 1e-9) {
+    return fail(
+      'INVALID_VALUE',
+      'Alinhar: a referência e a aresta precisam de dois pontos distintos.',
+    );
+  }
+  const r = scale2(along, 1 / length2(along));
+  if (Math.abs(cross2(r, side)) / length2(side) > PARALLEL_SINE) {
+    return fail(
+      'ALIGN_NOT_PARALLEL',
+      `A aresta de "${element.name}" não é paralela à referência: gire o elemento antes de alinhar.`,
+    );
+  }
+  const normal = { x: -r.y, y: r.x };
+  const gap = dot2(sub2(reference.a, edge.a), normal);
+  if (Math.abs(gap) < 1e-9) {
+    return fail('ALIGN_NO_CHANGE', `"${element.name}" já está alinhada com a referência.`);
+  }
+  const delta = scale2(normal, gap);
+  if (element.kind !== 'wall') return moveArchElements(project, [element.id], delta);
+  const { dir } = wallAxes(element);
+  if (Math.abs(cross2(dir, r)) <= PARALLEL_SINE) return shiftWallWithJoins(project, element, delta);
+  // Aresta de topo: a extremidade anda ao longo da parede até a aresta chegar à referência.
+  const middle = scale2(add2(edge.a, edge.b), 0.5);
+  const end = offsetAlongWall(element, middle) < wallLength(element) / 2 ? 'start' : 'end';
+  const moved = add2(element[end], scale2(dir, gap / dot2(dir, normal)));
+  const start = end === 'start' ? moved : element.start;
+  const finish = end === 'end' ? moved : element.end;
+  if (!keepsSense(element, start, finish)) return collapsed(element);
+  return commit(
+    project,
+    putElements(project.architecture, reshapedWall(project.architecture, element, start, finish)),
+  );
 }
 
 export const renameArchElement = (project: Project, id: string, name: string): Result<Project> =>
