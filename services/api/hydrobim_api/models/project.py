@@ -19,7 +19,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 
 def _json_number(value: Any) -> int | float:
@@ -692,6 +692,8 @@ ViewCategory = Literal[
     "doors",
     "windows",
     "spaces",
+    # Esquema v18.
+    "roofs",
 ]
 
 
@@ -836,6 +838,16 @@ class FlooringType(LayeredArchType):
     category: Literal["flooring"]
 
 
+class RoofType(LayeredArchType):
+    """Telhado (esquema v18): tipologia e camadas, de cima para baixo.
+
+    A espessura (soma das camadas) é medida perpendicularmente à água.
+    """
+
+    category: Literal["roof"]
+    shape: Literal["shed", "gable"]
+
+
 class JoineryMaterials(CamelModel):
     """Materiais dos componentes da esquadria, quando informados (sem valor = pendente)."""
 
@@ -866,7 +878,8 @@ class WindowType(ArchTypeBase):
 
 
 ArchType = Annotated[
-    WallType | SlabType | FlooringType | DoorType | WindowType, Field(discriminator="category")
+    WallType | SlabType | FlooringType | RoofType | DoorType | WindowType,
+    Field(discriminator="category"),
 ]
 
 
@@ -914,6 +927,23 @@ class Flooring(FloorBase):
     kind: Literal["flooring"]
 
 
+class Roof(ArchElementBase):
+    """Telhado de uma ou duas águas sobre contorno retangular (esquema v18).
+
+    A cota de referência (nível + `offset`) é a da face inferior sobre a linha do beiral do
+    contorno; `eave_edge` é o lado do contorno que é beiral; `overhang` é medido na horizontal.
+    """
+
+    kind: Literal["roof"]
+    type_id: NonEmptyString
+    level_id: NonEmptyString
+    boundary: Annotated[list[Point2], Field(min_length=4, max_length=4)]
+    eave_edge: Annotated[int, Field(ge=0, le=3, strict=False), BeforeValidator(_json_number)]
+    offset: FiniteNumber
+    slope: PositiveNumber
+    overhang: NonNegativeNumber
+
+
 class HostedBase(ArchElementBase):
     type_id: NonEmptyString
     # Parede hospedeira: o vão não existe sem ela.
@@ -943,7 +973,9 @@ class Space(ArchElementBase):
     height: PositiveNumber | None
 
 
-ArchElement = Annotated[Wall | Slab | Flooring | Door | Window | Space, Field(discriminator="kind")]
+ArchElement = Annotated[
+    Wall | Slab | Flooring | Roof | Door | Window | Space, Field(discriminator="kind")
+]
 
 
 class Architecture(CamelModel):
@@ -965,7 +997,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[17], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[18], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -997,12 +1029,16 @@ class Project(CamelModel):
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v17), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v18), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
         version = document.get("schemaVersion", document.get("schema_version"))
-        if isinstance(version, bool) or version not in tuple(range(1, 17)):
+        if isinstance(version, bool) or version not in tuple(range(1, 18)):
             return document
+        if version == 17:
+            # v17 → v18: telhados na arquitetura e a categoria `roofs` nas vistas. Só
+            # acrescenta possibilidades: nada muda além da versão.
+            return {**document, "schemaVersion": 18}
         if version != 16:
             document = cls._migrate_before_v16(document)
         # v16 → v17: superfície do terreno como elemento (identificador fixo nas superfícies
@@ -1012,7 +1048,7 @@ class Project(CamelModel):
         return {
             "earthworks": default_earthworks(),
             **document,
-            "schemaVersion": 17,
+            "schemaVersion": 18,
             "terrain": {"id": "terreno", "tag": "", "original": None, **terrain}
             if isinstance(terrain, dict)
             else terrain,

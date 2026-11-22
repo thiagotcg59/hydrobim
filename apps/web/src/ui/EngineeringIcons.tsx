@@ -89,6 +89,12 @@ export const FlooringIcon = createLucideIcon('ArchFlooring', [
   ['path', { d: 'M5 12h14M10.3 7 9 17M13.7 7 15 17', opacity: '0.55', key: 'joints' }],
 ]);
 
+/** Telhado de duas águas em elevação: as águas, a cumeeira e os beirais além das paredes. */
+export const RoofIcon = createLucideIcon('ArchRoof', [
+  ['path', { d: 'M2 13.5 12 5l10 8.5', key: 'slopes' }],
+  ['path', { d: 'M5.5 12.5V20h13v-7.5', opacity: '0.55', key: 'walls' }],
+]);
+
 /** Porta em planta: a parede interrompida, a folha aberta e o arco de abertura. */
 export const DoorIcon = createLucideIcon('ArchDoor', [
   ['path', { d: 'M2.5 19h4.5M17 19h4.5', key: 'wall' }],
@@ -139,6 +145,7 @@ export const ARCH_ICONS: Readonly<Record<ArchElementKind, LucideIcon>> = {
   wall: WallIcon,
   slab: SlabIcon,
   flooring: FlooringIcon,
+  roof: RoofIcon,
   door: DoorIcon,
   window: WindowIcon,
   space: SpaceIcon,

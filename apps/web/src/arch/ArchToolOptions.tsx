@@ -1,21 +1,30 @@
 import {
   archGroundElevationAt,
   archTypeSizeLabel,
+  degToRad,
   formatMeters,
   getArchElement,
   hasDesignTerrain,
+  MAX_ROOF_SLOPE,
+  MIN_ROOF_SLOPE,
+  percentToSlope,
+  radToDeg,
+  slopeToPercent,
   type Project,
   type WallLocationLine,
 } from '@hydrobim/core';
+import { Check, X } from 'lucide-react';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { NumberField, ReadOnlyRow, Section, SelectField } from '../ui/fields';
+import { ARCH_TRANSFORM_LABELS, ARCH_TRANSFORM_STEPS, contourOutcome } from './archEdit';
 import { activeTypeIdOf, workLevelIdOf } from './archGeometry';
 import {
   ARCH_TOOL_CATEGORY,
   ARCH_TOOL_HINTS,
   ARCH_TOOL_LABELS,
   effectiveSeatOf,
+  isDrawingTool,
   seatGroundLabel,
   useArchStore,
   type ArchSeat,
@@ -98,6 +107,203 @@ export function OptionalNumberField({
         {unit && <span className="field__unit">{unit}</span>}
       </span>
     </label>
+  );
+}
+
+/**
+ * Inclinação do telhado em percentual e em graus: os dois campos mostram o MESMO valor (o
+ * modelo guarda o ângulo, em radianos). Fora da faixa aceita o valor é recusado, com o motivo.
+ */
+export function SlopeFields({
+  slope,
+  testId,
+  onCommit,
+}: {
+  slope: number;
+  testId: string;
+  onCommit: (slope: number) => void;
+}) {
+  const commit = (value: number): void => {
+    if (value >= MIN_ROOF_SLOPE - 1e-12 && value <= MAX_ROOF_SLOPE + 1e-12) onCommit(value);
+    else {
+      useEditorStore
+        .getState()
+        .notify(
+          'error',
+          'Inclinação fora da faixa: de 1 % a 75° (cobertura plana não é modelada como telhado).',
+        );
+    }
+  };
+  return (
+    <div className="arch-fields">
+      <NumberField
+        label="Inclinação"
+        unit="%"
+        value={Math.round(slopeToPercent(slope) * 1000) / 1000}
+        testId={`${testId}-percent`}
+        onCommit={(percent) => commit(percentToSlope(percent))}
+      />
+      <NumberField
+        label="Inclinação"
+        unit="°"
+        value={Math.round(radToDeg(slope) * 1000) / 1000}
+        testId={`${testId}-degrees`}
+        onCommit={(degrees) => commit(degToRad(degrees))}
+      />
+    </div>
+  );
+}
+
+/** Aresta de referência das direções paralela e perpendicular, como está agora. */
+function ReferenceStatus() {
+  const reference = useArchStore((s) => s.reference);
+  return (
+    <ReadOnlyRow
+      label="Aresta de referência"
+      value={
+        <span data-testid="arch-reference" data-pinned={reference?.pinned ?? false}>
+          {reference
+            ? `${reference.segment.sourceName}${reference.pinned ? ' · fixada (R solta)' : ' · última apontada (R fixa)'}`
+            : 'nenhuma — aponte uma aresta'}
+        </span>
+      }
+    />
+  );
+}
+
+/**
+ * Painel da operação em andamento que não cria elemento: mover, copiar, girar e espelhar por
+ * pontos, e a edição de contorno. Mostra os passos, as opções e como concluir ou cancelar.
+ */
+export function ArchModePanel() {
+  const project = useEditorStore((s) => s.project);
+  const transform = useArchStore((s) => s.transform);
+  const contour = useArchStore((s) => s.contour);
+  const count = useArchStore((s) => s.selection.length);
+  const arch = useArchStore.getState();
+  if (contour) {
+    const element = getArchElement(project.architecture, contour.elementId);
+    const outcome = contourOutcome(project, contour);
+    return (
+      <aside className="panel inspector" aria-label="Ferramenta" data-testid="arch-mode-panel">
+        <header className="panel__header">
+          <h2>Editar contorno</h2>
+        </header>
+        <div className="panel__scroll">
+          <p className="panel__empty">
+            {contour.rectangular
+              ? 'Arraste os cantos na planta: o canto oposto fica e o contorno continua retangular.'
+              : 'Arraste os vértices na planta; o ponto no meio de cada lado cria um vértice e Del remove o selecionado.'}{' '}
+            As capturas valem. Nada é gravado até Concluir.
+          </p>
+          <Section title="Contorno em edição" testId="arch-contour-panel">
+            <ReadOnlyRow label="Elemento" value={element?.name ?? '—'} />
+            <ReadOnlyRow
+              label="Vértices"
+              value={<span data-testid="arch-contour-count">{contour.ring.length}</span>}
+            />
+            <ReadOnlyRow
+              label="Situação"
+              value={
+                <span data-testid="arch-contour-status" data-valid={outcome.ok}>
+                  {outcome.ok ? 'contorno válido' : outcome.error.message}
+                </span>
+              }
+            />
+            <ReferenceStatus />
+            <div className="arch-actions">
+              <button
+                type="button"
+                className="btn btn--compact btn--primary"
+                data-testid="arch-contour-finish-panel"
+                onClick={() => arch.finishContour()}
+              >
+                <Check size={14} aria-hidden /> Concluir
+              </button>
+              <button
+                type="button"
+                className="btn btn--compact"
+                data-testid="arch-contour-cancel-panel"
+                onClick={() => arch.cancelContour()}
+              >
+                <X size={14} aria-hidden /> Cancelar
+              </button>
+            </div>
+          </Section>
+        </div>
+      </aside>
+    );
+  }
+  if (!transform) return null;
+  const steps = ARCH_TRANSFORM_STEPS[transform.kind];
+  return (
+    <aside className="panel inspector" aria-label="Ferramenta" data-testid="arch-mode-panel">
+      <header className="panel__header">
+        <h2>{ARCH_TRANSFORM_LABELS[transform.kind]}</h2>
+      </header>
+      <div className="panel__scroll">
+        <p className="panel__empty">
+          Indique os pontos na planta, com as capturas. A prévia (em verde) é o resultado da
+          operação; o último clique confirma, em um passo do histórico. Esc volta um ponto e, sem
+          pontos, encerra sem alterar o modelo.
+        </p>
+        <Section title="Operação" testId="arch-transform-panel">
+          <ReadOnlyRow
+            label="Seleção"
+            value={`${count} ${count === 1 ? 'elemento' : 'elementos'}`}
+          />
+          <ol className="arch-steps" data-testid="arch-transform-steps">
+            {steps.map((step, index) => (
+              <li
+                key={step}
+                data-done={index < transform.points.length}
+                aria-current={index === transform.points.length ? 'step' : undefined}
+              >
+                {step}
+              </li>
+            ))}
+          </ol>
+          {(transform.kind === 'rotate' || transform.kind === 'mirror') && (
+            <label className="check" title="Mantém os originais e transforma uma cópia">
+              <input
+                type="checkbox"
+                data-testid="arch-transform-copy"
+                checked={transform.copy}
+                onChange={(event) => arch.setTransformCopy(event.target.checked)}
+              />
+              Copiar (mantém os originais)
+            </label>
+          )}
+          {transform.kind === 'rotate' && (
+            <span className="muted">
+              Com o centro indicado, digite o ângulo em graus no campo da planta (anti-horário
+              positivo) em vez de clicar os raios.
+            </span>
+          )}
+          {(transform.kind === 'move' || transform.kind === 'copy') && (
+            <span className="muted">
+              Com o ponto-base indicado, digite a distância (na direção do cursor),
+              distância&lt;ângulo ou @ΔX;ΔY no campo da planta.
+            </span>
+          )}
+          <ReferenceStatus />
+          <div className="arch-actions">
+            <button
+              type="button"
+              className="btn btn--compact"
+              data-testid="arch-transform-cancel"
+              onClick={() => {
+                // Encerra de uma vez, qualquer que seja o número de pontos já indicados.
+                useArchStore.setState({ transform: null, snap: null, cursor: null });
+                useUiStore.getState().setPanelTab('properties');
+              }}
+            >
+              <X size={14} aria-hidden /> Cancelar
+            </button>
+          </div>
+        </Section>
+      </div>
+    </aside>
   );
 }
 
@@ -234,6 +440,45 @@ export function ArchToolOptions({ tool }: { tool: ArchTool }) {
               </label>
             </>
           )}
+          {tool === 'roof' && (
+            <>
+              <SlopeFields
+                slope={options.roofSlope}
+                testId="arch-option-roof-slope"
+                onCommit={(roofSlope) => setOptions({ roofSlope })}
+              />
+              <NumberField
+                label="Beiral (na horizontal)"
+                unit="m"
+                value={options.roofOverhang}
+                testId="arch-option-roof-overhang"
+                onCommit={(roofOverhang) => {
+                  if (roofOverhang >= 0) setOptions({ roofOverhang });
+                }}
+              />
+              <NumberField
+                label="Cota de referência (rel. ao nível)"
+                unit="m"
+                value={options.roofOffset}
+                testId="arch-option-roof-offset"
+                onCommit={(roofOffset) => setOptions({ roofOffset })}
+              />
+              <ReadOnlyRow
+                label="Elevação de referência"
+                value={
+                  <span data-testid="arch-option-roof-elevation">
+                    {level ? formatMeters(level.elevation + options.roofOffset, 3) : '—'}
+                  </span>
+                }
+              />
+              <span className="muted" data-testid="arch-option-roof-note">
+                A cota de referência é a da face inferior do telhado sobre a linha do beiral do
+                contorno. O beiral é medido na horizontal, para fora do contorno; a espessura do
+                tipo, perpendicularmente à água. O primeiro lado desenhado é o beiral.
+              </span>
+            </>
+          )}
+          {isDrawingTool(tool) && <ReferenceStatus />}
           {(tool === 'slab' || tool === 'flooring') && (
             <NumberField
               label={

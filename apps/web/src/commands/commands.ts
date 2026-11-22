@@ -81,6 +81,7 @@ import {
   type LucideIcon,
   SlidersHorizontal,
 } from 'lucide-react';
+import { contourOf, type ArchTransformKind } from '../arch/archEdit';
 import {
   ARCH_TOOL_HINTS,
   ARCH_TOOL_LABELS,
@@ -119,6 +120,7 @@ import {
   FloorOpeningIcon,
   FlooringIcon,
   MirrorIcon,
+  RoofIcon,
   SlabIcon,
   SpaceIcon,
   WallIcon,
@@ -185,6 +187,9 @@ export interface CommandContext {
   /** Ferramenta de arquitetura em uso e elementos arquitetônicos selecionados. */
   readonly archTool?: ArchTool | null;
   readonly archSelection?: readonly string[];
+  /** Mover, copiar, girar ou espelhar por pontos em andamento; contorno em edição. */
+  readonly archTransform?: ArchTransformKind | null;
+  readonly archContour?: boolean;
 }
 
 /** Parte do contexto que vem das vistas de projeto. */
@@ -348,7 +353,9 @@ function toolCommand(tool: Exclude<ToolId, 'move' | 'rotate' | 'align'>): Comman
       }
       const drawing =
         (context.viewTool !== undefined && context.viewTool !== 'select') ||
-        (context.archTool ?? null) !== null;
+        (context.archTool ?? null) !== null ||
+        (context.archTransform ?? null) !== null ||
+        context.archContour === true;
       return { enabled: true, active: context.tool === tool && !(tool === 'select' && drawing) };
     },
     run: () => {
@@ -541,6 +548,7 @@ const ARCH_TOOL_ICONS: Record<ArchTool, LucideIcon> = {
   wall: WallIcon,
   slab: SlabIcon,
   flooring: FlooringIcon,
+  roof: RoofIcon,
   door: DoorIcon,
   window: WindowIcon,
   space: SpaceIcon,
@@ -554,6 +562,7 @@ const ARCH_TOOL_IDS: Record<ArchTool, string> = {
   wall: 'arch.wall',
   slab: 'arch.slab',
   flooring: 'arch.flooring',
+  roof: 'arch.roof',
   door: 'arch.door',
   window: 'arch.window',
   space: 'arch.space',
@@ -588,26 +597,30 @@ function archToolCommand(tool: ArchTool): Command {
   };
 }
 
-/** Modificação da seleção arquitetônica: leva ao campo do painel que chama a operação. */
+/**
+ * Modificação da seleção arquitetônica por pontos de referência, na planta de trabalho, com
+ * prévia do resultado: a operação gravada é a mesma do núcleo. Os valores digitados (ΔX, ΔY,
+ * ângulo, eixo) continuam no painel de propriedades.
+ */
 function archModifyCommand(
-  id: string,
+  kind: ArchTransformKind,
   label: string,
   description: string,
   icon: LucideIcon,
-  target: string,
 ): Command {
+  const id = `arch.${kind}`;
   return {
     id,
     label,
-    description: `${description} Os campos ficam no painel de propriedades.`,
+    description: `${description} A prévia mostra o resultado antes do último clique; Esc volta um ponto. Os mesmos valores podem ser digitados no painel de propriedades (seção Modificar).`,
     icon,
     testId: id.replace('.', '-'),
     state: (context) =>
       modeling(context) ??
       ((context.archSelection?.length ?? 0) > 0
-        ? ENABLED
+        ? { enabled: true, active: context.archTransform === kind }
         : off('Selecione um ou mais elementos de arquitetura.')),
-    run: () => ui().revealProperty(target),
+    run: () => arch().startTransform(kind),
   };
 }
 
@@ -636,33 +649,53 @@ const ARCH_COMMANDS: readonly Command[] = [
     run: () => ui().openDialog('archQuantities'),
   },
   archModifyCommand(
-    'arch.move',
+    'move',
     'Mover (arquitetura)',
-    'Desloca a seleção arquitetônica por ΔX, ΔY e ΔZ. A parede leva as portas e janelas; a porta ou janela sozinha desliza ao longo da parede.',
+    'Desloca a seleção arquitetônica do ponto-base ao destino, indicados na planta com as capturas. A parede leva as portas e janelas; a porta ou janela sozinha desliza ao longo da parede.',
     Move,
-    'arch-move-dx',
   ),
   archModifyCommand(
-    'arch.copy',
+    'copy',
     'Copiar (arquitetura)',
-    'Copia a seleção arquitetônica a um deslocamento ΔX, ΔY e ΔZ; as cópias ganham novos identificadores.',
+    'Copia a seleção arquitetônica do ponto-base ao destino; as cópias ganham novos identificadores.',
     Copy,
-    'arch-move-dx',
   ),
   archModifyCommand(
-    'arch.rotate',
+    'rotate',
     'Girar (arquitetura)',
-    'Gira a seleção arquitetônica em planta, por um ângulo em torno de um centro.',
+    'Gira a seleção arquitetônica em planta: centro, raio inicial e raio final (ou o ângulo digitado).',
     RotateCw,
-    'arch-rotate-angle',
   ),
   archModifyCommand(
-    'arch.mirror',
+    'mirror',
     'Espelhar (arquitetura)',
-    'Espelha a seleção arquitetônica em relação a um eixo definido por dois pontos.',
+    'Espelha a seleção arquitetônica em relação ao eixo indicado por dois pontos.',
     MirrorIcon,
-    'arch-mirror-ax',
   ),
+  {
+    id: 'arch.editContour',
+    label: 'Editar contorno',
+    description:
+      'Edita na planta o contorno da laje, do piso, do ambiente ou do telhado selecionado: arrastar vértices, criar e remover (o telhado continua retangular). Concluir grava em um passo do histórico; Cancelar não altera o modelo. Também pelo duplo clique no elemento.',
+    icon: PenLine,
+    testId: 'arch-edit-contour',
+    state: (context) => {
+      const blocked = modeling(context);
+      if (blocked) return blocked;
+      const [id, ...others] = context.archSelection ?? [];
+      const element =
+        id && others.length === 0
+          ? context.project.architecture.elements.find((item) => item.id === id)
+          : undefined;
+      return contourOf(element)
+        ? { enabled: true, active: context.archContour === true }
+        : off('Selecione uma laje, um piso, um ambiente ou um telhado (um só).');
+    },
+    run: () => {
+      if (arch().contour) arch().cancelContour();
+      else arch().beginContour();
+    },
+  },
 ];
 
 export const COMMANDS: readonly Command[] = [
@@ -1651,6 +1684,8 @@ export function commandContext(): CommandContext {
     ...viewContextOf(state.project, views()),
     archTool: arch().tool,
     archSelection: arch().selection,
+    archTransform: arch().transform?.kind ?? null,
+    archContour: arch().contour !== null,
   };
 }
 

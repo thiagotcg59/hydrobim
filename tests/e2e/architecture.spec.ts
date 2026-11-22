@@ -44,7 +44,7 @@ test('arquitetura: demonstração, ambientes, parede e porta pela planta, painel
     'aria-pressed',
     'true',
   );
-  await expect(page.getByTestId('nav-arch-count')).toHaveText('14 de arquitetura');
+  await expect(page.getByTestId('nav-arch-count')).toHaveText('15 de arquitetura');
   await expect(page.getByTestId('nav-summary')).toContainText('3 elementos');
   await expect(page.getByTestId('ribbon-group-arch-create')).toBeVisible();
 
@@ -61,7 +61,8 @@ test('arquitetura: demonstração, ambientes, parede e porta pela planta, painel
   const idsBefore = await page
     .getByTestId('arch-item')
     .evaluateAll((items) => items.map((item) => item.getAttribute('data-arch-id')).sort());
-  expect(idsBefore).toHaveLength(14);
+  // 14 no térreo e o telhado, no nível da cobertura (fora da planta do térreo).
+  expect(idsBefore).toHaveLength(15);
   await page.getByTestId('environment-mep').click();
   await expect(page.getByTestId('ribbon-group-arch-create')).toHaveCount(0);
   await expect(page.getByTestId('tool-pipe')).toBeVisible();
@@ -161,12 +162,12 @@ test('arquitetura: demonstração, ambientes, parede e porta pela planta, painel
   const idsSaved = await page
     .getByTestId('arch-item')
     .evaluateAll((items) => items.map((item) => item.getAttribute('data-arch-id')).sort());
-  expect(idsSaved).toHaveLength(16);
+  expect(idsSaved).toHaveLength(17);
   await page.getByTestId('action-save').click();
   await expect(page.getByTestId('status-message')).toContainText('salvo no navegador');
   await page.reload();
   await expect(page.locator('[data-testid="app"][data-ready="true"]')).toBeVisible();
-  await expect(page.getByTestId('nav-arch-count')).toHaveText('16 de arquitetura');
+  await expect(page.getByTestId('nav-arch-count')).toHaveText('17 de arquitetura');
   await expect(page.getByTestId('environment-architecture')).toHaveAttribute(
     'aria-pressed',
     'true',

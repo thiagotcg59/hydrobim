@@ -2,6 +2,7 @@ import {
   addFloor,
   addFloorOpening,
   addHosted,
+  addRoof,
   addSpace,
   addWalls,
   ARCH_KIND_LABELS,
@@ -16,6 +17,9 @@ import {
   formatMeters,
   mirrorArchElements,
   moveArchElements,
+  moveWallEndpoint,
+  percentToSlope,
+  rectangleFromThreePoints,
   removeFloorOpening,
   rotateArchElements,
   seatArchElement,
@@ -31,16 +35,36 @@ import {
 } from '@hydrobim/core';
 import { setArchIfcValue, type IfcScope, type IfcValue } from '@hydrobim/ifc';
 import { create } from 'zustand';
+import { resolveSnap, segmentNear, type SnapResult, type SnapSegment } from '../editor/planSnaps';
+import { isPolarLockHeld } from '../editor/polarLock';
 import { useEditorStore } from '../state/editorStore';
+import { snapPreferences } from '../state/snapStore';
 import { useUiStore } from '../state/uiStore';
 import { useTerrainStore } from '../terrain/terrainStore';
+import { entryPoint, parseEntry } from '../views/entry';
 import { useViewStore } from '../views/viewStore';
 import {
+  ARCH_TRANSFORM_LABELS,
+  ARCH_TRANSFORM_STEPS,
+  contourDirty,
+  contourOf,
+  contourOutcome,
+  gripOutcome,
+  gripSnapFrame,
+  insertContourVertex,
+  moveContourVertex,
+  removeContourVertex,
+  transformOutcome,
+  type ArchContour,
+  type ArchGrip,
+  type ArchTransform,
+  type ArchTransformKind,
+} from './archEdit';
+import {
   activeTypeIdOf,
+  archSnapSegments,
   hostedCarriedBy,
   hostedPlacementAt,
-  parseLength,
-  pointAtLength,
   workLevelIdOf,
 } from './archGeometry';
 
@@ -55,6 +79,7 @@ export const ARCH_TOOLS = [
   'wall',
   'slab',
   'flooring',
+  'roof',
   'door',
   'window',
   'space',
@@ -66,6 +91,7 @@ export const ARCH_TOOL_LABELS: Record<ArchTool, string> = {
   wall: 'Parede',
   slab: 'Laje',
   flooring: 'Piso',
+  roof: 'Telhado',
   door: 'Porta',
   window: 'Janela',
   space: 'Ambiente',
@@ -73,7 +99,8 @@ export const ARCH_TOOL_LABELS: Record<ArchTool, string> = {
 };
 
 export const ARCH_TOOL_HINTS: Record<ArchTool, string> = {
-  wall: 'Parede: clique os pontos do traçado na planta (extremidades e faces das paredes existentes e a grade são capturadas). Digite um valor para definir o comprimento do trecho na direção do cursor. Shift trava o trecho de 45° em 45°. Enter ou duplo clique conclui; Backspace desfaz o último ponto; Esc cancela.',
+  wall: 'Parede: clique os pontos do traçado na planta. As capturas ligadas na barra de referências valem (extremidade, meio, interseção, perpendicular, paralela, ortogonal, alinhamento); Tab alterna entre capturas sobrepostas e R fixa a aresta de referência. Digite o comprimento do trecho (ou comprimento<ângulo, @ΔX;ΔY, X;Y). Shift trava o trecho de 45° em 45°. Enter ou duplo clique conclui; Backspace desfaz o último ponto; Esc cancela.',
+  roof: 'Telhado: três cliques na planta — os dois primeiros dão o lado do beiral (a água cai para ele; em duas águas, a cumeeira é paralela a ele) e o terceiro, a largura do retângulo, medida na perpendicular. Digite o comprimento ou a largura. Inclinação, beiral e lado do beiral são ajustados nas propriedades. Esc cancela.',
   slab: 'Laje: clique os vértices do contorno na planta. Shift trava o lado de 45° em 45°. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
   flooring:
     'Piso (revestimento): clique os vértices do contorno na planta. Shift trava o lado de 45° em 45°. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
@@ -91,9 +118,14 @@ export const ARCH_TOOL_CATEGORY: Partial<Record<ArchTool, ArchCategory>> = {
   wall: 'wall',
   slab: 'slab',
   flooring: 'flooring',
+  roof: 'roof',
   door: 'door',
   window: 'window',
 };
+
+/** Ferramentas que desenham por pontos (as demais inserem com um clique na parede). */
+export const isDrawingTool = (tool: ArchTool | null): boolean =>
+  tool !== null && tool !== 'door' && tool !== 'window';
 
 /**
  * Onde a base do próximo elemento assenta: no nível do plano de trabalho ou sobre o terreno
@@ -132,6 +164,10 @@ export interface ArchOptions {
   facing: 1 | -1;
   /** Pé-direito dos próximos ambientes; `null` = não informado. */
   spaceHeight: number | null;
+  /** Telhados: inclinação (rad), beiral (m) e cota de referência em relação ao nível (m). */
+  roofSlope: number;
+  roofOverhang: number;
+  roofOffset: number;
 }
 
 const DEFAULT_OPTIONS: ArchOptions = {
@@ -145,6 +181,10 @@ const DEFAULT_OPTIONS: ArchOptions = {
   hand: 'left',
   facing: 1,
   spaceHeight: null,
+  // Valores iniciais de edição (como a altura das paredes): não vêm de catálogo nem de norma.
+  roofSlope: percentToSlope(30),
+  roofOverhang: 0.5,
+  roofOffset: 2.8,
 };
 
 interface ArchState {
@@ -159,6 +199,53 @@ interface ArchState {
   selection: string[];
   /** Laje ou piso que recebe a abertura em desenho. */
   openingTarget: string | null;
+
+  /** Captura resolvida sob o cursor (o que a planta desenha: guias, realce, rótulo). */
+  snap: SnapResult | null;
+  /** Escolha entre capturas sobrepostas (Tab) e o ponto do cursor em que foi feita. */
+  snapCycle: number;
+  snapCycleAt: Point2 | null;
+  /** Aresta de referência das direções paralela e perpendicular; `pinned` = fixada com R. */
+  reference: { segment: SnapSegment; pinned: boolean } | null;
+  /** Mover, copiar, girar ou espelhar a seleção por pontos, em andamento. */
+  transform: ArchTransform | null;
+  /** Alça sendo arrastada e o ponto para onde foi levada. */
+  grip: { grip: ArchGrip; point: Point2 | null } | null;
+  /** Contorno em edição ("Editar contorno") e o vértice sendo arrastado. */
+  contour: ArchContour | null;
+  contourDrag: number | null;
+
+  /**
+   * Resolve a captura do ponto `raw` do cursor (`tolerance` = raio de captura em metros) com
+   * o que estiver em andamento — a mesma função atende a prévia e o clique.
+   */
+  resolvePointer: (raw: Point2, tolerance: number) => SnapResult;
+  clearPointer: () => void;
+  /** Refaz a captura no mesmo ponto do cursor (tecla pressionada com o cursor parado). */
+  refreshPointer: () => SnapResult | null;
+  /** Tab: próxima (ou anterior) captura sob o cursor. */
+  cycleSnap: (step: 1 | -1) => void;
+  /** R: fixa como referência a aresta sob o cursor; fora de arestas, solta a referência. */
+  pinReference: () => void;
+  startTransform: (kind: ArchTransformKind, copy?: boolean) => void;
+  setTransformCopy: (copy: boolean) => void;
+  /** Girar: aplica o ângulo digitado (graus, anti-horário) em torno do centro já indicado. */
+  submitAngle: (degrees: number) => boolean;
+  beginGrip: (grip: ArchGrip) => void;
+  /** Leva a alça (ou o vértice do contorno em edição) ao ponto. */
+  dragTo: (point: Point2) => void;
+  /** Encerra o arrasto; `apply` falso descarta. */
+  endDrag: (apply: boolean) => void;
+  /** Leva uma extremidade da parede ao ponto, preservando as portas e janelas no lugar. */
+  moveWallEnd: (id: string, end: 'start' | 'end', point: Point2) => boolean;
+  /** "Editar contorno" do elemento selecionado (ou do indicado). */
+  beginContour: (id?: string) => boolean;
+  beginContourDrag: (index: number) => void;
+  insertContourVertex: (edge: number) => void;
+  removeContourVertex: (index?: number) => void;
+  /** Concluir: grava o contorno em um passo do histórico (recusa o inválido, sem gravar). */
+  finishContour: () => boolean;
+  cancelContour: () => void;
 
   setTool: (tool: ArchTool | null) => void;
   /** Categoria em que o catálogo de arquitetura abre (`null` = todas). */
@@ -175,8 +262,12 @@ interface ArchState {
   /** Conclui o traçado de paredes ou fecha o contorno em andamento. */
   finish: (closed?: boolean) => boolean;
   removeLastPoint: () => void;
-  /** Comprimento digitado do trecho, na direção do cursor. */
-  submitLength: (text: string) => boolean;
+  /**
+   * Entrada numérica exata do próximo ponto: um valor (comprimento na direção do cursor, já
+   * com a captura de direção), `comprimento<ângulo`, `@ΔX;ΔY` ou `X;Y`. No girar, o valor é o
+   * ângulo em graus. O número digitado nunca é arredondado pela grade nem pelas capturas.
+   */
+  submitEntry: (text: string) => boolean;
   /** Esc: desfaz o que estiver em andamento; devolve `false` quando não havia nada. */
   cancel: () => boolean;
   select: (id: string | null, additive?: boolean) => void;
@@ -199,14 +290,22 @@ const apply = (result: Result<Project>, message?: string): boolean =>
   editor().applyOperation(result, message);
 const done = (project: Project): Result<Project> => ({ ok: true, value: project });
 const same = (a: Point2, b: Point2): boolean => Math.hypot(a.x - b.x, a.y - b.y) < 1e-6;
+/** Comprimento pedido por uma entrada de valor único ou polar. */
+const lengthOf = (entry: { kind: string; value?: number; distance?: number }): number =>
+  entry.kind === 'polar' ? (entry.distance ?? 0) : (entry.value ?? 0);
 const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`;
+
+/** Há uma operação da arquitetura recebendo os cliques da planta? */
+export const archBusy = (state: Pick<ArchState, 'tool' | 'transform' | 'contour'>): boolean =>
+  state.tool !== null || state.transform !== null || state.contour !== null;
 
 const NO_TYPE: Record<ArchCategory, string> = {
   wall: 'Nenhum tipo de parede no projeto: abra o Catálogo de arquitetura e adicione um.',
   slab: 'Nenhum tipo de laje no projeto: abra o Catálogo de arquitetura e adicione um.',
   flooring:
     'Nenhum tipo de revestimento de piso no projeto: abra o Catálogo de arquitetura e adicione um.',
+  roof: 'Nenhum tipo de telhado no projeto: abra o Catálogo de arquitetura e adicione um.',
   door: 'Nenhum tipo de porta no projeto: abra o Catálogo de arquitetura e adicione um.',
   window: 'Nenhum tipo de janela no projeto: abra o Catálogo de arquitetura e adicione um.',
 };
@@ -354,6 +453,121 @@ export const useArchStore = create<ArchState>()((set, get) => {
     );
   };
 
+  /** As operações da arquitetura atuam na planta de trabalho, com Selecionar na rede. */
+  const enterPlan = (): void => {
+    const views = useViewStore.getState();
+    if (views.open2d) views.closeView('2d');
+    if (views.tool !== 'select') views.setTool('select');
+    if (useTerrainStore.getState().mode) useTerrainStore.getState().setMode(null);
+    if (editor().tool !== 'select') editor().setTool('select');
+    if (editor().viewMode !== 'plan') editor().setViewMode('plan');
+  };
+
+  /** Último ponto bruto do cursor e o raio de captura (Tab, R e Shift não trazem a posição). */
+  let lastRaw: Point2 | null = null;
+  let lastTolerance = 0;
+  /** Contorno como estava ao começar o arrasto de um vértice (Esc o devolve). */
+  let ringBeforeDrag: ArchContour | null = null;
+
+  /**
+   * De onde sai o trecho em andamento, para as capturas de direção: último ponto, ponto
+   * anterior, vértices já indicados e o elemento que não deve capturar a si mesmo.
+   */
+  const snapScene = (): {
+    anchor: Point2 | null;
+    previous: Point2 | null;
+    points: Point2[];
+    exclude: string[];
+  } => {
+    const { tool, points, transform, grip, contour, contourDrag } = get();
+    const none = { anchor: null, previous: null, points: [], exclude: [] };
+    if (grip) {
+      const frame = gripSnapFrame(editor().project, grip.grip);
+      return {
+        anchor: frame?.anchor ?? null,
+        previous: frame?.previous ?? null,
+        points: [],
+        exclude: [grip.grip.elementId],
+      };
+    }
+    if (contour && contourDrag !== null) {
+      const n = contour.ring.length;
+      // Retangular: o canto oposto é o que fica. Livre: o lado que chega do vértice anterior.
+      const anchor = contour.rectangular
+        ? contour.ring[(contourDrag + 2) % n]
+        : contour.ring[(contourDrag - 1 + n) % n];
+      const previous = contour.rectangular ? null : contour.ring[(contourDrag - 2 + n) % n];
+      return {
+        anchor: anchor ?? null,
+        previous: previous ?? null,
+        points: contour.ring.filter((_, index) => index !== contourDrag),
+        exclude: [contour.elementId],
+      };
+    }
+    if (transform) {
+      // Girar: os raios saem do centro. Demais: do último ponto indicado.
+      const from =
+        transform.kind === 'rotate'
+          ? transform.points[0]
+          : transform.points[transform.points.length - 1];
+      return { ...none, anchor: from ?? null };
+    }
+    if (isDrawingTool(tool)) {
+      return {
+        anchor: points[points.length - 1] ?? null,
+        previous: points[points.length - 2] ?? null,
+        points: points.slice(0, -1),
+        exclude: [],
+      };
+    }
+    return none;
+  };
+
+  /** Arestas capturáveis agora: as do nível do plano de trabalho, salvo com o filtro desligado. */
+  const snapSegments = (exclude: readonly string[]): SnapSegment[] => {
+    const state = editor();
+    const levelId = snapPreferences().activeLevelOnly
+      ? workLevelIdOf(state.project, state.workPlaneZ)
+      : null;
+    return archSnapSegments(state.project.architecture, { levelId, exclude });
+  };
+
+  const endTransform = (): void => {
+    set({ transform: null, snap: null, cursor: null });
+    if (editor().tool === 'select') useUiStore.getState().setPanelTab('properties');
+  };
+
+  /** Aplica o resultado de mover, copiar, girar ou espelhar: um passo no histórico. */
+  const applyTransform = (
+    outcome: ReturnType<typeof transformOutcome>,
+    transform: ArchTransform,
+  ): boolean => {
+    if (!outcome) return false;
+    if (!outcome.ok) {
+      editor().notify('error', outcome.error.message);
+      return false;
+    }
+    const count = outcome.value.elementIds.length;
+    const copied = transform.kind === 'copy' || transform.copy;
+    const message =
+      transform.kind === 'move'
+        ? 'Seleção movida.'
+        : transform.kind === 'copy'
+          ? `${plural(count, 'elemento copiado', 'elementos copiados')}.`
+          : transform.kind === 'rotate'
+            ? copied
+              ? 'Cópia girada criada.'
+              : 'Seleção girada.'
+            : copied
+              ? 'Cópia espelhada criada.'
+              : 'Seleção espelhada.';
+    apply(done(outcome.value.project), message);
+    endTransform();
+    // As cópias ficam selecionadas; mover, girar e espelhar mantêm a seleção.
+    if (copied) get().selectMany(outcome.value.elementIds);
+    return true;
+  };
+
   /** Operação sobre a seleção que devolve só o projeto. */
   const onSelection = (
     run: (project: Project, ids: string[]) => Result<Project>,
@@ -372,6 +586,261 @@ export const useArchStore = create<ArchState>()((set, get) => {
     options: DEFAULT_OPTIONS,
     selection: [],
     openingTarget: null,
+    snap: null,
+    snapCycle: 0,
+    snapCycleAt: null,
+    reference: null,
+    transform: null,
+    grip: null,
+    contour: null,
+    contourDrag: null,
+
+    resolvePointer: (raw, tolerance) => {
+      lastRaw = raw;
+      lastTolerance = tolerance;
+      const state = editor();
+      const preferences = snapPreferences();
+      const scene = snapScene();
+      const segments = snapSegments(scene.exclude);
+      let { reference, snapCycle, snapCycleAt } = get();
+      // A escolha por Tab vale enquanto o cursor fica onde ela foi feita.
+      if (
+        snapCycle !== 0 &&
+        (!snapCycleAt || Math.hypot(raw.x - snapCycleAt.x, raw.y - snapCycleAt.y) > tolerance)
+      ) {
+        snapCycle = 0;
+        snapCycleAt = null;
+      }
+      const referenceId = reference?.segment.sourceId;
+      if (referenceId && !segments.some((segment) => segment.sourceId === referenceId)) {
+        reference = null;
+      }
+      // Sem referência fixada, a última aresta apontada é a referência.
+      if (!reference?.pinned && preferences.snaps.direction) {
+        const hovered = segmentNear(raw, segments, tolerance);
+        if (hovered) reference = { segment: hovered, pinned: false };
+      }
+      const snap = resolveSnap({
+        raw,
+        tolerance,
+        segments,
+        points: scene.points,
+        anchor: scene.anchor,
+        previous: scene.previous,
+        reference: reference?.segment ?? null,
+        settings: preferences.snaps,
+        gridStep: state.snapToGrid ? state.gridStep : 0,
+        polar: isPolarLockHeld(),
+        cycle: snapCycle,
+      });
+      set({ snap, cursor: snap.point, reference, snapCycle, snapCycleAt });
+      return snap;
+    },
+
+    clearPointer: () => {
+      lastRaw = null;
+      set({ snap: null, cursor: null });
+    },
+
+    refreshPointer: () => (lastRaw ? get().resolvePointer(lastRaw, lastTolerance) : null),
+
+    cycleSnap: (step) => {
+      set((state) => ({ snapCycle: state.snapCycle + step, snapCycleAt: lastRaw }));
+      get().refreshPointer();
+    },
+
+    pinReference: () => {
+      const hovered = lastRaw
+        ? segmentNear(lastRaw, snapSegments(snapScene().exclude), lastTolerance)
+        : null;
+      set({ reference: hovered ? { segment: hovered, pinned: true } : null });
+      editor().notify(
+        'info',
+        hovered
+          ? `Aresta de referência fixada: ${hovered.sourceName}. As direções paralela e perpendicular seguem essa aresta; R fora de uma aresta solta.`
+          : 'Aresta de referência solta: volta a valer a última aresta apontada.',
+      );
+      get().refreshPointer();
+    },
+
+    startTransform: (kind, copy = false) => {
+      if (get().selection.length === 0) {
+        editor().notify(
+          'info',
+          `${ARCH_TRANSFORM_LABELS[kind]}: selecione um ou mais elementos de arquitetura.`,
+        );
+        return;
+      }
+      enterPlan();
+      set({
+        tool: null,
+        points: [],
+        cursor: null,
+        openingTarget: null,
+        contour: null,
+        contourDrag: null,
+        grip: null,
+        snap: null,
+        transform: { kind, points: [], copy },
+      });
+      useUiStore.getState().setPanelTab('tool');
+      editor().notify(
+        'info',
+        `${ARCH_TRANSFORM_LABELS[kind]}: ${ARCH_TRANSFORM_STEPS[kind].join('; ')}. As capturas valem; Esc volta um ponto e, sem pontos, encerra.`,
+      );
+    },
+
+    setTransformCopy: (copy) =>
+      set((state) => (state.transform ? { transform: { ...state.transform, copy } } : {})),
+
+    submitAngle: (degrees) => {
+      const { transform, selection } = get();
+      if (transform?.kind !== 'rotate' || transform.points.length === 0) {
+        editor().notify('info', 'Girar: indique o centro do giro antes de digitar o ângulo.');
+        return false;
+      }
+      if (!Number.isFinite(degrees)) return false;
+      return applyTransform(
+        transformOutcome(editor().project, selection, transform, null, (degrees * Math.PI) / 180),
+        transform,
+      );
+    },
+
+    beginGrip: (grip) => set({ grip: { grip, point: null }, snapCycle: 0 }),
+
+    dragTo: (point) => {
+      const { grip, contour, contourDrag } = get();
+      if (grip) set({ grip: { ...grip, point } });
+      else if (contour && contourDrag !== null) {
+        set({ contour: moveContourVertex(contour, contourDrag, point) });
+      }
+    },
+
+    endDrag: (apply) => {
+      const { grip, contourDrag } = get();
+      if (grip) {
+        set({ grip: null, snap: null, cursor: null });
+        if (!apply || !grip.point) return;
+        const { project } = editor();
+        const outcome = gripOutcome(project, grip.grip, grip.point);
+        if (!outcome.ok) editor().notify('error', outcome.error.message);
+        else {
+          const element = getArchElement(project.architecture, grip.grip.elementId);
+          editor().applyOperation(
+            outcome,
+            grip.grip.kind === 'wallEnd'
+              ? `Extremidade de "${element?.name ?? ''}" movida; portas e janelas hospedadas ficaram no lugar.`
+              : `Contorno de "${element?.name ?? ''}" atualizado.`,
+          );
+        }
+        return;
+      }
+      if (contourDrag !== null) {
+        set({
+          contourDrag: null,
+          snap: null,
+          cursor: null,
+          ...(apply || !ringBeforeDrag ? {} : { contour: ringBeforeDrag }),
+        });
+        ringBeforeDrag = null;
+      }
+    },
+
+    moveWallEnd: (id, end, point) => apply(moveWallEndpoint(editor().project, id, end, point)),
+
+    beginContour: (id) => {
+      const { selection } = get();
+      const targetId = id ?? (selection.length === 1 ? selection[0] : undefined);
+      const { project } = editor();
+      const element = targetId ? getArchElement(project.architecture, targetId) : undefined;
+      const contour = contourOf(element);
+      if (!element || !contour) {
+        editor().notify(
+          'info',
+          'Editar contorno: selecione uma laje, um piso, um ambiente ou um telhado (um só).',
+        );
+        return false;
+      }
+      enterPlan();
+      set({
+        tool: null,
+        points: [],
+        cursor: null,
+        openingTarget: null,
+        transform: null,
+        grip: null,
+        snap: null,
+        contour,
+        contourDrag: null,
+        selection: [element.id],
+      });
+      useUiStore.getState().setPanelTab('tool');
+      editor().notify(
+        'info',
+        contour.rectangular
+          ? `Editar contorno de "${element.name}": arraste os cantos (o contorno continua retangular). Concluir grava; Cancelar ou Esc descarta.`
+          : `Editar contorno de "${element.name}": arraste os vértices, clique o ponto no meio de um lado para criar um vértice e Del para remover o selecionado. Concluir grava; Cancelar ou Esc descarta.`,
+      );
+      return true;
+    },
+
+    beginContourDrag: (index) => {
+      const { contour } = get();
+      if (!contour || !contour.ring[index]) return;
+      ringBeforeDrag = contour;
+      set({ contourDrag: index, contour: { ...contour, active: index }, snapCycle: 0 });
+    },
+
+    insertContourVertex: (edge) =>
+      set((state) => (state.contour ? { contour: insertContourVertex(state.contour, edge) } : {})),
+
+    removeContourVertex: (index) => {
+      const { contour } = get();
+      const target = index ?? contour?.active ?? null;
+      if (!contour || target === null) return;
+      const next = removeContourVertex(contour, target);
+      if (next === contour) {
+        editor().notify(
+          'info',
+          contour.rectangular
+            ? 'O contorno do telhado é retangular: não perde cantos.'
+            : 'O contorno precisa de ao menos três vértices.',
+        );
+        return;
+      }
+      set({ contour: next });
+    },
+
+    finishContour: () => {
+      const { contour } = get();
+      if (!contour) return false;
+      const { project } = editor();
+      const element = getArchElement(project.architecture, contour.elementId);
+      if (!contourDirty(project, contour)) {
+        set({ contour: null, contourDrag: null, snap: null });
+        useUiStore.getState().setPanelTab('properties');
+        editor().notify('info', 'Contorno sem alterações.');
+        return true;
+      }
+      const outcome = contourOutcome(project, contour);
+      if (!outcome.ok) {
+        // O contorno inválido não é gravado: a edição continua, com o motivo à vista.
+        editor().notify('error', outcome.error.message);
+        return false;
+      }
+      apply(outcome, `Contorno de "${element?.name ?? ''}" atualizado.`);
+      set({ contour: null, contourDrag: null, snap: null });
+      useUiStore.getState().setPanelTab('properties');
+      return true;
+    },
+
+    cancelContour: () => {
+      if (!get().contour) return;
+      ringBeforeDrag = null;
+      set({ contour: null, contourDrag: null, snap: null, cursor: null });
+      useUiStore.getState().setPanelTab('properties');
+      editor().notify('info', 'Edição do contorno cancelada: nada foi alterado.');
+    },
 
     catalogCategory: null,
     openCatalog: (category = null) => {
@@ -381,7 +850,7 @@ export const useArchStore = create<ArchState>()((set, get) => {
     setTool: (tool) => {
       if (tool === null) {
         if (get().tool === null) return;
-        set({ tool: null, points: [], cursor: null, openingTarget: null });
+        set({ tool: null, points: [], cursor: null, openingTarget: null, snap: null });
         if (editor().tool === 'select') useUiStore.getState().setPanelTab('properties');
         return;
       }
@@ -405,14 +874,18 @@ export const useArchStore = create<ArchState>()((set, get) => {
       }
       const openingTarget =
         tool === 'floorOpening' ? floorTargetOf(state.project, get().selection) : null;
-      // As ferramentas de arquitetura atuam na planta de trabalho, com Selecionar na rede.
-      const views = useViewStore.getState();
-      if (views.open2d) views.closeView('2d');
-      if (views.tool !== 'select') views.setTool('select');
-      if (useTerrainStore.getState().mode) useTerrainStore.getState().setMode(null);
-      if (state.tool !== 'select') state.setTool('select');
-      if (editor().viewMode !== 'plan') editor().setViewMode('plan');
-      set({ tool, points: [], cursor: null, openingTarget });
+      enterPlan();
+      set({
+        tool,
+        points: [],
+        cursor: null,
+        openingTarget,
+        snap: null,
+        transform: null,
+        contour: null,
+        contourDrag: null,
+        grip: null,
+      });
       useUiStore.getState().setPanelTab('tool');
       editor().notify('info', ARCH_TOOL_HINTS[tool]);
     },
@@ -432,7 +905,15 @@ export const useArchStore = create<ArchState>()((set, get) => {
     },
 
     clickPoint: (point, tolerance = 0.05) => {
-      const { tool, points } = get();
+      const { tool, points, transform, selection } = get();
+      if (transform) {
+        // Enquanto faltam pontos, o clique é mais um ponto de referência; o último confirma.
+        const outcome = transformOutcome(editor().project, selection, transform, point);
+        if (outcome === null) {
+          set({ transform: { ...transform, points: [...transform.points, point] }, snapCycle: 0 });
+        } else applyTransform(outcome, transform);
+        return;
+      }
       if (!tool) return;
       if (tool === 'door' || tool === 'window') {
         placeHosted(tool, point, tolerance);
@@ -441,12 +922,18 @@ export const useArchStore = create<ArchState>()((set, get) => {
       const last = points[points.length - 1];
       // O segundo clique de um duplo clique cai no mesmo ponto: não vira vértice.
       if (last && same(last, point)) return;
+      if (tool === 'roof') {
+        // Três pontos: lado do beiral (dois) e largura; o terceiro cria o telhado.
+        set({ points: [...points, point], snapCycle: 0 });
+        if (points.length >= 2) get().finish();
+        return;
+      }
       const first = points[0];
       if (first && points.length >= 3 && same(first, point)) {
         get().finish(true);
         return;
       }
-      set({ points: [...points, point] });
+      set({ points: [...points, point], snapCycle: 0 });
     },
 
     finish: (closed) => {
@@ -479,6 +966,43 @@ export const useArchStore = create<ArchState>()((set, get) => {
         );
         if (ok) set({ points: [] });
         return ok;
+      }
+      if (tool === 'roof') {
+        const [a, b, c] = points;
+        if (!a || !b || !c) {
+          editor().notify(
+            'info',
+            'Telhado: indique o lado do beiral (dois pontos) e a largura (terceiro ponto).',
+          );
+          return false;
+        }
+        const boundary = rectangleFromThreePoints(a, b, c);
+        const ready = boundary ? context('roof') : null;
+        if (!boundary) {
+          editor().notify(
+            'error',
+            'Telhado: o terceiro ponto precisa ficar fora da reta do lado do beiral, para dar a largura.',
+          );
+        }
+        const made =
+          boundary && ready
+            ? created(
+                addRoof(ready.project, {
+                  typeId: ready.typeId,
+                  levelId: ready.levelId,
+                  boundary,
+                  eaveEdge: 0,
+                  offset: options.roofOffset,
+                  slope: options.roofSlope,
+                  overhang: options.roofOverhang,
+                }),
+                () =>
+                  'Telhado criado. Inclinação, beiral e lado do beiral são ajustados no painel de propriedades.',
+              )
+            : false;
+        // Recusado: o lado do beiral continua indicado, para escolher outra largura.
+        set({ points: made ? [] : points.slice(0, 2) });
+        return made;
       }
       if (points.length < 3) {
         editor().notify('info', `${ARCH_TOOL_LABELS[tool]}: o contorno precisa de três pontos.`);
@@ -528,16 +1052,40 @@ export const useArchStore = create<ArchState>()((set, get) => {
 
     removeLastPoint: () => set((state) => ({ points: state.points.slice(0, -1) })),
 
-    submitLength: (text) => {
-      const { tool, points, cursor } = get();
-      const last = points[points.length - 1];
-      const length = parseLength(text);
-      if (!tool || tool === 'door' || tool === 'window') return false;
-      if (length === null) {
+    submitEntry: (text) => {
+      const { tool, points, cursor, transform } = get();
+      if (!transform && !isDrawingTool(tool)) return false;
+      const entry = parseEntry(text);
+      if (!entry) {
+        editor().notify(
+          'error',
+          'Entrada inválida: digite um comprimento em metros, comprimento<ângulo, @ΔX;ΔY ou X;Y.',
+        );
+        return false;
+      }
+      if (transform?.kind === 'rotate' && transform.points.length > 0 && entry.kind === 'value') {
+        return get().submitAngle(entry.value);
+      }
+      if ((entry.kind === 'value' || entry.kind === 'polar') && !(lengthOf(entry) > 0)) {
         editor().notify('error', 'Comprimento inválido: digite um valor positivo, em metros.');
         return false;
       }
-      const next = last && cursor ? pointAtLength(last, cursor, length) : null;
+      const indicated = transform ? transform.points : points;
+      const last = indicated[indicated.length - 1] ?? null;
+      let next: Point2 | null;
+      const [a, b] = points;
+      if (tool === 'roof' && a && b && entry.kind === 'value') {
+        // Largura do telhado: na perpendicular ao lado do beiral, para o lado do cursor.
+        const size = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        const normal = { x: -(b.y - a.y) / size, y: (b.x - a.x) / size };
+        const side =
+          cursor && (cursor.x - b.x) * normal.x + (cursor.y - b.y) * normal.y < 0 ? -1 : 1;
+        next = { x: b.x + normal.x * side * entry.value, y: b.y + normal.y * side * entry.value };
+      } else {
+        // Um valor só segue a direção do cursor JÁ capturada (perpendicular, paralela…): o
+        // comprimento é exatamente o digitado.
+        next = entryPoint(entry, last, cursor);
+      }
       if (!next) {
         editor().notify(
           'info',
@@ -545,12 +1093,27 @@ export const useArchStore = create<ArchState>()((set, get) => {
         );
         return false;
       }
-      set({ points: [...points, next] });
+      get().clickPoint(next);
       return true;
     },
 
     cancel: () => {
-      const { tool, points, selection } = get();
+      const { tool, points, selection, transform, contour, grip, contourDrag } = get();
+      if (grip || contourDrag !== null) {
+        get().endDrag(false);
+        return true;
+      }
+      if (contour) {
+        get().cancelContour();
+        return true;
+      }
+      if (transform) {
+        // Cada Esc desfaz o último ponto; sem pontos, encerra — o modelo não foi tocado.
+        if (transform.points.length > 0) {
+          set({ transform: { ...transform, points: transform.points.slice(0, -1) } });
+        } else endTransform();
+        return true;
+      }
       if (points.length > 0) {
         set({ points: [] });
         return true;
@@ -684,11 +1247,14 @@ useEditorStore.subscribe((state, previous) => {
   }
   // Uma ferramenta da rede, a consulta BIM ou a saída da planta encerram a de arquitetura.
   if (
-    arch.tool &&
-    ((state.tool !== previous.tool && state.tool !== 'select') ||
-      (state.viewMode !== previous.viewMode && state.viewMode === 'bim'))
+    (state.tool !== previous.tool && state.tool !== 'select') ||
+    (state.viewMode !== previous.viewMode && state.viewMode === 'bim')
   ) {
-    arch.setTool(null);
+    if (arch.tool) arch.setTool(null);
+    // Mover/girar por pontos e a edição de contorno também: nada foi gravado.
+    if (arch.transform || arch.contour || arch.grip) {
+      useArchStore.setState({ transform: null, contour: null, contourDrag: null, grip: null });
+    }
   }
   if (state.project === previous.project) return;
   if (state.project.id !== previous.project.id) {
@@ -700,6 +1266,12 @@ useEditorStore.subscribe((state, previous) => {
       selection: [],
       activeTypes: {},
       openingTarget: null,
+      snap: null,
+      reference: null,
+      transform: null,
+      grip: null,
+      contour: null,
+      contourDrag: null,
     });
     return;
   }
@@ -711,11 +1283,23 @@ useEditorStore.subscribe((state, previous) => {
   if (current.openingTarget && !getArchElement(architecture, current.openingTarget)) {
     current.setTool(null);
   }
+  // Desfazer ou refazer no meio de uma operação: ela só continua se o alvo ainda existe.
+  if (current.contour && !getArchElement(architecture, current.contour.elementId)) {
+    useArchStore.setState({ contour: null, contourDrag: null });
+  }
+  if (current.grip && !getArchElement(architecture, current.grip.grip.elementId)) {
+    useArchStore.setState({ grip: null });
+  }
+  if (current.transform && kept.length === 0) useArchStore.setState({ transform: null });
 });
 
 // O desenho 2D de uma vista salva (ou a linha de corte) encerra a ferramenta de arquitetura.
 useViewStore.subscribe((state, previous) => {
-  if (state.tool !== previous.tool && state.tool !== 'select' && useArchStore.getState().tool) {
-    useArchStore.getState().setTool(null);
+  if (state.tool !== previous.tool && state.tool !== 'select') {
+    const arch = useArchStore.getState();
+    if (arch.tool) arch.setTool(null);
+    if (arch.transform || arch.contour) {
+      useArchStore.setState({ transform: null, contour: null, contourDrag: null });
+    }
   }
 });

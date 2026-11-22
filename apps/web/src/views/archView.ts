@@ -5,6 +5,9 @@ import {
   hostedTypeOf,
   hostWallOf,
   layersThickness,
+  roofFrame,
+  roofRidgeLine,
+  roofTypeOf,
   planArchCutOf,
   planRangeOf,
   ringCentroid,
@@ -60,7 +63,8 @@ type Project3 = Pick<Project, 'levels' | 'architecture'>;
  * Camadas do desenho. `Parede_Externa`, `Parede_Interna`, `Esquadrias`, `Projeção_2`,
  * `Hachura`, `Vidro` e `Texto` são os sistemas do caderno de referência (Apêndice I,
  * disciplina Arquitetura). `Parede` (sem sufixo: parede cuja posição não foi informada),
- * `Piso` e `Ambientes` são nomes do HydroBIM para o que o trecho consultado não nomeia.
+ * `Piso`, `Telhado` e `Ambientes` são nomes do HydroBIM para o que o trecho consultado não
+ * nomeia.
  */
 export const ARCH_LAYERS = {
   externalWall: 'Parede_Externa',
@@ -68,6 +72,7 @@ export const ARCH_LAYERS = {
   wall: 'Parede',
   joinery: 'Esquadrias',
   floor: 'Piso',
+  roof: 'Telhado',
   spaces: 'Ambientes',
   above: 'Projeção_2',
   hatch: 'Hachura',
@@ -96,6 +101,8 @@ export function archLayerOf(element: ArchElement): string {
     case 'slab':
     case 'flooring':
       return ARCH_LAYERS.floor;
+    case 'roof':
+      return ARCH_LAYERS.roof;
     case 'space':
       return ARCH_LAYERS.spaces;
   }
@@ -493,6 +500,16 @@ export function archNotablePoints(architecture: Architecture, element: ArchEleme
       return [...element.boundary, ...element.openings.flatMap((opening) => opening.boundary)];
     case 'space':
       return element.boundary;
+    case 'roof': {
+      // Cantos do contorno de referência, da projeção com os beirais e as pontas da cumeeira.
+      const type = roofTypeOf(architecture, element);
+      const frame = type ? roofFrame(element, type) : null;
+      return [
+        ...element.boundary,
+        ...archPlanPoints(architecture, element),
+        ...((frame && roofRidgeLine(frame)) ?? []),
+      ];
+    }
     case 'door':
     case 'window': {
       // Cantos do vão: as duas ombreiras, nas duas faces da parede.

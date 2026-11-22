@@ -14,7 +14,13 @@ import {
 } from './operations';
 import { getPorts, pipeLength } from './ports';
 import { computeQuantities } from './quantities';
-import type { EndTreatment, FittingFamily, Pipe, Project } from './schema';
+import {
+  SCHEMA_VERSION,
+  type EndTreatment,
+  type FittingFamily,
+  type Pipe,
+  type Project,
+} from './schema';
 import { parseProject, serializeProject } from './serialization';
 import { applySpec } from './sizing';
 import { testSpec } from './testSupport';
@@ -251,12 +257,12 @@ describe('extremidades de tubos (tubos com flanges)', () => {
     if (!flanged.ok) throw new Error(flanged.error.message);
     const reopened = parseProject(serializeProject(flanged.value));
     if (!reopened.ok) throw new Error(reopened.error.message);
-    expect(reopened.value.schemaVersion).toBe(17);
+    expect(reopened.value.schemaVersion).toBe(SCHEMA_VERSION);
     expect(pipeOf(reopened.value, id).ends).toEqual({ start: flange });
 
     const v6 = parseProject(JSON.stringify({ ...project, schemaVersion: 6 }));
     if (!v6.ok) throw new Error(v6.error.message);
-    expect(v6.value.schemaVersion).toBe(17);
+    expect(v6.value.schemaVersion).toBe(SCHEMA_VERSION);
     expect(pipeOf(v6.value, id).ends).toBeUndefined();
 
     // Extremidade incoerente gravada à mão é apontada pela validação.

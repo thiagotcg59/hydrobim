@@ -38,6 +38,7 @@ OCCURRENCES = [
     "IfcDoor",
     "IfcWindow",
     "IfcSpace",
+    "IfcRoof",
 ]
 OTHERS = [
     "IfcDistributionPort",
@@ -60,7 +61,7 @@ PROPERTY_SETS = re.compile(
     r"^(Pset|Qto)_(PipeSegment|PipeFitting|PipeConnection|Valve|Pump|Filter|Tank|ElementSize"
     r"|Manufacturer|DistributionPort|DistributionSystem"
     r"|WallCommon|WallBaseQuantities|SlabCommon|SlabBaseQuantities|Covering|Door|Window"
-    r"|SpaceCommon|SpaceBaseQuantities|OpeningElement|InstallationOccurrence"
+    r"|SpaceCommon|SpaceBaseQuantities|RoofCommon|RoofBaseQuantities|OpeningElement|InstallationOccurrence"
     r"|EarthworksCut|EarthworksFill|GeographicElement)"
 )
 

@@ -17,7 +17,7 @@ import { getArchElement, getArchType, layersThickness } from './walls';
  * de novo). Portas e janelas acompanham a parede hospedeira.
  */
 
-export type SeatableArchKind = Exclude<ArchElementKind, 'door' | 'window'>;
+export type SeatableArchKind = Exclude<ArchElementKind, 'door' | 'window' | 'roof'>;
 
 const roundMm = (value: number): number => Math.round(value * 1000) / 1000;
 
@@ -100,6 +100,12 @@ export function seatArchElement(
     return fail(
       'ARCH_NOT_SEATABLE',
       `${ARCH_KIND_LABELS[element.kind]}: a cota acompanha a parede hospedeira; assente a parede.`,
+    );
+  }
+  if (element.kind === 'roof') {
+    return fail(
+      'ARCH_NOT_SEATABLE',
+      'Telhado: a cota de referência é a do nível mais o deslocamento; não assenta no terreno.',
     );
   }
   if (!groundSurfaceOf(project, surface)) {

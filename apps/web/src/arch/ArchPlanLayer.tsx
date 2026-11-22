@@ -4,7 +4,14 @@ import {
   hostedTypeOf,
   hostWallOf,
   layersThickness,
+  rectangleFromThreePoints,
   ringCentroid,
+  roofFootprint,
+  roofFrame,
+  roofPlanPoint,
+  roofRidgeLine,
+  roofTypeOf,
+  slopeToPercent,
   spaceQuantities,
   wallAxes,
   wallFaceOffsets,
@@ -17,8 +24,9 @@ import {
 import { doorSwings, type DoorSwing } from '@hydrobim/geometry';
 import { memo, useMemo } from 'react';
 import { useEditorStore } from '../state/editorStore';
+import { useSnapStore } from '../state/snapStore';
 import { formatDecimal } from '../ui/fields';
-import { activeTypeIdOf, hostedPlacementAt } from './archGeometry';
+import { activeTypeIdOf, archOnLevel, hostedPlacementAt, workLevelIdOf } from './archGeometry';
 import { useArchStore } from './archStore';
 
 /**
@@ -37,6 +45,7 @@ const COLORS = {
     wall: '#d9d4c7',
     slab: '#f1f0ec',
     flooring: '#efe6d6',
+    roof: '#b5654a',
     space: '#2f7d4f',
     glass: '#9cc9df',
   },
@@ -44,12 +53,23 @@ const COLORS = {
     wall: '#e4e4e4',
     slab: '#f6f6f6',
     flooring: '#fbfbfb',
+    roof: '#555555',
     space: '#333333',
     glass: '#ffffff',
   },
 } as const;
 
-interface Shape {
+/** Símbolo do telhado em planta: referência, cumeeira e o sentido de queda de cada água. */
+export interface RoofSymbol {
+  /** Contorno de referência (a projeção com os beirais é o anel principal). */
+  readonly reference: readonly Point2[];
+  readonly ridge: readonly [Point2, Point2] | null;
+  /** Setas de queda, do ponto alto para o baixo. */
+  readonly falls: readonly (readonly [Point2, Point2])[];
+  readonly label: { readonly at: Point2; readonly text: string };
+}
+
+export interface Shape {
   readonly element: ArchElement;
   /** Cota da base: ordem de desenho (os mais baixos primeiro). */
   readonly base: number;
@@ -60,6 +80,7 @@ interface Shape {
   readonly lines?: readonly (readonly [Point2, Point2])[];
   readonly swings?: readonly DoorSwing[];
   readonly label?: { readonly at: Point2; readonly lines: readonly string[] };
+  readonly roof?: RoofSymbol;
 }
 
 const ORDER: Record<ArchElement['kind'], number> = {
@@ -69,9 +90,15 @@ const ORDER: Record<ArchElement['kind'], number> = {
   wall: 3,
   window: 4,
   door: 5,
+  // Por cima de tudo, só em traço: o telhado não esconde o que cobre.
+  roof: 6,
 };
 
-function shapeOf(project: Pick<Project, 'levels' | 'architecture'>, element: ArchElement): Shape {
+/** Forma de um elemento na planta de trabalho (também desenha as prévias, como fantasma). */
+export function shapeOf(
+  project: Pick<Project, 'levels' | 'architecture'>,
+  element: ArchElement,
+): Shape {
   const { architecture } = project;
   const base = archVerticalRange(project, element)?.base ?? 0;
   switch (element.kind) {
@@ -88,6 +115,49 @@ function shapeOf(project: Pick<Project, 'levels' | 'architecture'>, element: Arc
         base,
         rings: [element.boundary, ...element.openings.map((opening) => opening.boundary)],
       };
+    case 'roof': {
+      const type = roofTypeOf(architecture, element);
+      const frame = type ? roofFrame(element, type) : null;
+      if (!frame) return { element, base, rings: [element.boundary] };
+      const middle = frame.length / 2;
+      // A queda vai do ponto alto ao beiral: uma seta por água, no meio do comprimento.
+      const falls: [Point2, Point2][] =
+        frame.ridge === null
+          ? [
+              [
+                roofPlanPoint(frame, middle, frame.span * 0.8),
+                roofPlanPoint(frame, middle, frame.span * 0.2),
+              ],
+            ]
+          : [
+              [
+                roofPlanPoint(frame, middle, frame.ridge * 0.85),
+                roofPlanPoint(frame, middle, frame.ridge * 0.25),
+              ],
+              [
+                roofPlanPoint(frame, middle, frame.span - frame.ridge * 0.85),
+                roofPlanPoint(frame, middle, frame.span - frame.ridge * 0.25),
+              ],
+            ];
+      return {
+        element,
+        base,
+        rings: [roofFootprint(frame)],
+        roof: {
+          reference: element.boundary,
+          ridge: roofRidgeLine(frame),
+          falls,
+          label: {
+            at: roofPlanPoint(
+              frame,
+              frame.length * 0.25,
+              frame.span * (frame.ridge === null ? 0.5 : 0.25),
+            ),
+            text: `i = ${formatDecimal(slopeToPercent(element.slope), 1)} %`,
+          },
+        },
+      };
+    }
     case 'space': {
       const area = spaceQuantities(element).area;
       return {
@@ -156,13 +226,18 @@ export const ArchPlanLayer = memo(function ArchPlanLayer({
 }: LayerProps) {
   const levels = useEditorStore((s) => s.project.levels);
   const architecture = useEditorStore((s) => s.project.architecture);
+  const workPlaneZ = useEditorStore((s) => s.workPlaneZ);
+  const activeLevelOnly = useSnapStore((s) => s.activeLevelOnly);
   const selection = useArchStore((s) => s.selection);
+  // Só o nível do plano de trabalho, salvo com o filtro desligado (todos sobrepostos).
+  const levelId = activeLevelOnly ? workLevelIdOf({ levels }, workPlaneZ) : null;
   const shapes = useMemo(
     () =>
       architecture.elements
+        .filter((element) => archOnLevel(architecture, element, levelId))
         .map((element) => shapeOf({ levels, architecture }, element))
         .sort((a, b) => ORDER[a.element.kind] - ORDER[b.element.kind] || a.base - b.base),
-    [levels, architecture],
+    [levels, architecture, levelId],
   );
   if (shapes.length === 0) return null;
   const palette = monochrome ? COLORS.mono : COLORS.color;
@@ -175,8 +250,12 @@ export const ArchPlanLayer = memo(function ArchPlanLayer({
   const thin = 1.2 * mpp;
 
   return (
-    <g data-layer="architecture" pointerEvents={interactive ? undefined : 'none'}>
-      {shapes.map(({ element, rings, quad, lines, swings, label }) => {
+    <g
+      data-layer="architecture"
+      data-level={levelId ?? 'all'}
+      pointerEvents={interactive ? undefined : 'none'}
+    >
+      {shapes.map(({ element, rings, quad, lines, swings, label, roof }) => {
         const selected = selection.includes(element.id);
         const stroke = selected ? HIGHLIGHT : INK;
         const width = selected ? 2.4 * mpp : thin;
@@ -231,6 +310,87 @@ export const ArchPlanLayer = memo(function ArchPlanLayer({
                 ) : null;
               })}
               <path d={path(rings)} fill="none" stroke="transparent" strokeWidth={8 * mpp} />
+            </g>
+          );
+        }
+        if (element.kind === 'roof') {
+          const color = selected ? HIGHLIGHT : palette.roof;
+          const size = 2.2 * unit;
+          const head = 7 * mpp;
+          return (
+            <g key={element.id} {...common}>
+              <title>{element.name}</title>
+              {/* Projeção com os beirais: só o traço seleciona; o interior deixa ver o que cobre. */}
+              <polygon
+                points={points(rings[0] ?? [])}
+                fill={color}
+                fillOpacity={selected ? 0.1 : 0.04}
+                stroke={color}
+                strokeWidth={width}
+                strokeDasharray={`${10 * mpp} ${3 * mpp} ${2 * mpp} ${3 * mpp}`}
+                pointerEvents="none"
+              />
+              {roof && (
+                <g pointerEvents="none" stroke={color} fill="none">
+                  <polygon
+                    data-testid="arch-roof-reference"
+                    points={points(roof.reference)}
+                    strokeWidth={thin * 0.8}
+                    strokeDasharray={`${3 * mpp} ${3 * mpp}`}
+                  />
+                  {roof.ridge && (
+                    <line
+                      data-testid="arch-roof-ridge"
+                      x1={X(roof.ridge[0].x)}
+                      y1={Y(roof.ridge[0].y)}
+                      x2={X(roof.ridge[1].x)}
+                      y2={Y(roof.ridge[1].y)}
+                      strokeWidth={width}
+                    />
+                  )}
+                  {roof.falls.map(([from, to], index) => {
+                    const dx = to.x - from.x;
+                    const dy = to.y - from.y;
+                    const span = Math.hypot(dx, dy) || 1;
+                    const ux = dx / span;
+                    const uy = dy / span;
+                    // Ponta da seta: dois traços a 25° da direção de queda.
+                    const wing = (sign: 1 | -1): string => {
+                      const cos = Math.cos(0.44);
+                      const sin = Math.sin(0.44) * sign;
+                      const wx = -(ux * cos - uy * sin);
+                      const wy = -(ux * sin + uy * cos);
+                      return `M${X(to.x)} ${Y(to.y)}L${X(to.x + wx * head)} ${Y(to.y + wy * head)}`;
+                    };
+                    return (
+                      <path
+                        key={index}
+                        data-testid="arch-roof-fall"
+                        d={`M${X(from.x)} ${Y(from.y)}L${X(to.x)} ${Y(to.y)}${wing(1)}${wing(-1)}`}
+                        strokeWidth={thin}
+                      />
+                    );
+                  })}
+                  <text
+                    data-testid="arch-roof-label"
+                    x={X(roof.label.at.x)}
+                    y={Y(roof.label.at.y)}
+                    fontSize={size}
+                    fontFamily="Arial, Helvetica, sans-serif"
+                    textAnchor="middle"
+                    fill={color}
+                    stroke="none"
+                  >
+                    {roof.label.text}
+                  </text>
+                </g>
+              )}
+              <polygon
+                points={points(rings[0] ?? [])}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={8 * mpp}
+              />
             </g>
           );
         }
@@ -402,6 +562,68 @@ export function ArchDraftLayer({ origin, mpp, tolerance }: DraftProps) {
     );
   }
 
+  if (tool === 'roof') {
+    // Lado do beiral (dois pontos) e largura: o retângulo é o mesmo que o clique cria.
+    const [a, b] = draft;
+    const end = b ?? cursor;
+    const rectangle = a && b && cursor ? rectangleFromThreePoints(a, b, cursor) : null;
+    if (!a) return null;
+    const side = end ? Math.hypot(end.x - a.x, end.y - a.y) : 0;
+    const far = rectangle?.[2];
+    const width = b && far ? Math.hypot(far.x - b.x, far.y - b.y) : 0;
+    return (
+      <g data-testid="arch-draft" data-points={draft.length} data-arch-draft="roof">
+        {rectangle && (
+          <polygon
+            data-testid="arch-roof-draft"
+            points={rectangle.map((p) => `${X(p.x)},${Y(p.y)}`).join(' ')}
+            fill={HIGHLIGHT}
+            fillOpacity={0.12}
+            stroke={HIGHLIGHT}
+            strokeWidth={1.5 * mpp}
+            strokeDasharray={dash}
+          />
+        )}
+        {end && (
+          // O primeiro lado é o beiral: traço cheio, para distingui-lo dos demais.
+          <line
+            x1={X(a.x)}
+            y1={Y(a.y)}
+            x2={X(end.x)}
+            y2={Y(end.y)}
+            stroke={HIGHLIGHT}
+            strokeWidth={2.5 * mpp}
+          />
+        )}
+        {draft.map((p, index) => (
+          <circle key={index} cx={X(p.x)} cy={Y(p.y)} r={3.5 * mpp} fill={HIGHLIGHT} />
+        ))}
+        {end && side > 1e-6 && (
+          <text
+            data-testid="arch-draft-length"
+            x={X((a.x + end.x) / 2) + 8 * mpp}
+            y={Y((a.y + end.y) / 2) - 8 * mpp}
+            fill={HIGHLIGHT}
+            {...label}
+          >
+            beiral · {formatDecimal(side, 3)} m
+          </text>
+        )}
+        {b && far && width > 1e-6 && (
+          <text
+            data-testid="arch-draft-width"
+            x={X((b.x + far.x) / 2) + 8 * mpp}
+            y={Y((b.y + far.y) / 2) - 8 * mpp}
+            fill={HIGHLIGHT}
+            {...label}
+          >
+            largura · {formatDecimal(width, 3)} m
+          </text>
+        )}
+      </g>
+    );
+  }
+
   const chain = cursor ? [...draft, cursor] : draft;
   if (chain.length === 0) return null;
   const last = draft[draft.length - 1];
@@ -421,6 +643,18 @@ export function ArchDraftLayer({ origin, mpp, tolerance }: DraftProps) {
     if (a && b) segments.push([a, b]);
   }
   const length = last && cursor ? Math.hypot(cursor.x - last.x, cursor.y - last.y) : 0;
+  // Cota angular temporária: em relação ao trecho anterior ou, no primeiro trecho, ao eixo X.
+  const before = draft[draft.length - 2];
+  const turned = (() => {
+    if (!last || !cursor || length < 1e-6) return null;
+    const dir = { x: cursor.x - last.x, y: cursor.y - last.y };
+    const from = before ? { x: last.x - before.x, y: last.y - before.y } : { x: 1, y: 0 };
+    const angle = Math.atan2(from.x * dir.y - from.y * dir.x, from.x * dir.x + from.y * dir.y);
+    return {
+      degrees: Math.abs((angle * 180) / Math.PI),
+      reference: before ? 'do trecho anterior' : 'do eixo X',
+    };
+  })();
   return (
     <g data-testid="arch-draft" data-points={draft.length}>
       {faces &&
@@ -476,6 +710,18 @@ export function ArchDraftLayer({ origin, mpp, tolerance }: DraftProps) {
           {...label}
         >
           {formatDecimal(length, 3)} m
+        </text>
+      )}
+      {last && cursor && turned && (
+        <text
+          data-testid="arch-draft-angle"
+          data-degrees={turned.degrees}
+          x={X((last.x + cursor.x) / 2) + 8 * mpp}
+          y={Y((last.y + cursor.y) / 2) + 8 * mpp}
+          fill={HIGHLIGHT}
+          {...label}
+        >
+          {formatDecimal(turned.degrees, 1)}° {turned.reference}
         </text>
       )}
     </g>

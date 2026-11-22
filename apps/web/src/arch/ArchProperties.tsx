@@ -10,6 +10,9 @@ import {
   formatMeters,
   getArchElement,
   hasDesignTerrain,
+  roofQuantities,
+  ROOF_SHAPE_LABELS,
+  roofTypeOf,
   type GroundSurface,
   type ArchElement,
   type ArchElementPatch,
@@ -24,7 +27,7 @@ import {
   type ArchPropertyGroup,
   type IfcPropertyInfo,
 } from '@hydrobim/ifc';
-import { ArrowLeft, Layers2, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Layers2, PenLine, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
@@ -39,6 +42,7 @@ import {
   TextField,
 } from '../ui/fields';
 import { displayOf, editTextOf, formatIfcValue, parseIfcInput } from '../ui/ifcFormat';
+import { ARCH_TRANSFORM_LABELS, ARCH_TRANSFORMS, contourOf } from './archEdit';
 import { planCenterOf } from './archGeometry';
 import {
   ARCH_NATURE_HINTS,
@@ -53,6 +57,7 @@ import {
   HAND_OPTIONS,
   LOCATION_LINE_OPTIONS,
   OptionalNumberField,
+  SlopeFields,
 } from './ArchToolOptions';
 
 const arch = () => useArchStore.getState();
@@ -308,7 +313,9 @@ function ElevationRows({ element, project }: { element: ArchElement; project: Pr
               ? 'Elevação do peitoril'
               : element.kind === 'space'
                 ? 'Elevação do piso'
-                : 'Elevação da base'
+                : element.kind === 'roof'
+                  ? 'Elevação da borda do beiral (ponto mais baixo)'
+                  : 'Elevação da base'
         }
         value={
           <span data-testid="arch-prop-base-elevation">
@@ -438,7 +445,10 @@ function InstanceFields({ element, project }: { element: ArchElement; project: P
                   unit="m"
                   value={element[end][axis]}
                   testId={`arch-prop-${end}-${axis}`}
-                  onCommit={(value) => update({ [end]: { ...element[end], [axis]: value } })}
+                  onCommit={(value) =>
+                    // Pela mesma operação da alça: os vãos hospedados ficam no lugar.
+                    arch().moveWallEnd(element.id, end, { ...element[end], [axis]: value })
+                  }
                 />
               ))}
             </div>
@@ -483,6 +493,18 @@ function InstanceFields({ element, project }: { element: ArchElement; project: P
             ))}
           </div>
         </>
+      )}
+      {element.kind === 'roof' && <RoofFields element={element} project={project} />}
+      {contourOf(element) && (
+        <button
+          type="button"
+          className="btn btn--compact"
+          data-testid="arch-prop-edit-contour"
+          title="Edita o contorno na planta (também pelo duplo clique no elemento). Concluir grava em um passo; Cancelar não altera o modelo."
+          onClick={() => arch().beginContour(element.id)}
+        >
+          <PenLine size={13} aria-hidden /> Editar contorno…
+        </button>
       )}
       {(element.kind === 'door' || element.kind === 'window') && (
         <>
@@ -545,6 +567,121 @@ function InstanceFields({ element, project }: { element: ArchElement; project: P
           />
         </>
       )}
+    </>
+  );
+}
+
+/**
+ * Parâmetros do telhado: cota de referência, inclinação (em % e em graus, o mesmo valor),
+ * beiral e o lado do contorno que é beiral — a direção da queda (uma água) ou da cumeeira
+ * (duas águas) sai dele, sem campo redundante.
+ */
+function RoofFields({
+  element,
+  project,
+}: {
+  element: Extract<ArchElement, { kind: 'roof' }>;
+  project: Project;
+}) {
+  const update = (patch: ArchElementPatch): void => {
+    arch().update(element.id, patch);
+  };
+  const type = roofTypeOf(project.architecture, element);
+  const quantities = roofQuantities(project.architecture, element);
+  const level = project.levels.find((item) => item.id === element.levelId);
+  const gable = type?.shape === 'gable';
+  const sides = element.boundary.map((a, index) => {
+    const b = element.boundary[(index + 1) % element.boundary.length] ?? a;
+    return {
+      value: String(index),
+      label: `Lado ${index + 1} · ${formatDecimal(Math.hypot(b.x - a.x, b.y - a.y), 2)} m`,
+    };
+  });
+  return (
+    <>
+      <ReadOnlyRow
+        label="Tipologia (do tipo)"
+        value={
+          <span data-testid="arch-prop-roof-shape">
+            {type ? ROOF_SHAPE_LABELS[type.shape] : '—'}
+          </span>
+        }
+      />
+      <NumberField
+        label="Cota de referência (rel. ao nível)"
+        unit="m"
+        value={element.offset}
+        testId="arch-prop-offset"
+        onCommit={(offset) => update({ offset })}
+      />
+      <ReadOnlyRow
+        label="Elevação de referência (face inferior no beiral do contorno)"
+        value={
+          <span data-testid="arch-prop-roof-reference">
+            {level ? formatMeters(level.elevation + element.offset, 3) : '—'}
+          </span>
+        }
+      />
+      <SlopeFields
+        slope={element.slope}
+        testId="arch-prop-roof-slope"
+        onCommit={(slope) => update({ slope })}
+      />
+      <NumberField
+        label="Beiral (na horizontal, para fora do contorno)"
+        unit="m"
+        value={element.overhang}
+        testId="arch-prop-roof-overhang"
+        onCommit={(overhang) => update({ overhang })}
+      />
+      <SelectField
+        label={
+          gable
+            ? 'Lado do beiral (a cumeeira é paralela a ele)'
+            : 'Lado do beiral (a água cai para ele)'
+        }
+        value={String(element.eaveEdge)}
+        testId="arch-prop-roof-eave"
+        options={sides}
+        onChange={(value) => update({ eaveEdge: Number(value) })}
+      />
+      <button
+        type="button"
+        className="chip"
+        data-testid="arch-prop-roof-turn"
+        title={
+          gable
+            ? 'Gira a cumeeira 90°: o beiral passa ao lado seguinte do contorno'
+            : 'Gira a queda 90°: o beiral passa ao lado seguinte do contorno'
+        }
+        onClick={() => update({ eaveEdge: (element.eaveEdge + 1) % 4 })}
+      >
+        {gable ? 'Girar a cumeeira 90°' : 'Girar a queda 90°'}
+      </button>
+      <ReadOnlyRow
+        label="Área inclinada (face superior)"
+        value={
+          <span data-testid="arch-prop-roof-slope-area">
+            {quantities ? `${formatDecimal(quantities.slopeArea, 2)} m²` : '—'}
+          </span>
+        }
+      />
+      <ReadOnlyRow
+        label="Projeção horizontal (com os beirais)"
+        value={
+          <span data-testid="arch-prop-roof-projected-area">
+            {quantities ? `${formatDecimal(quantities.projectedArea, 2)} m²` : '—'}
+          </span>
+        }
+      />
+      <ReadOnlyRow
+        label="Volume (área inclinada × espessura)"
+        value={
+          <span data-testid="arch-prop-roof-volume">
+            {quantities ? `${formatDecimal(quantities.volume, 3)} m³` : '—'}
+          </span>
+        }
+      />
     </>
   );
 }
@@ -628,6 +765,22 @@ function ModifySection({ ids, project }: { ids: readonly string[]; project: Proj
   };
   return (
     <Section title="Modificar" testId="arch-section-modify">
+      <span className="row__label">Na planta, por pontos de referência (com prévia)</span>
+      <div className="arch-actions">
+        {ARCH_TRANSFORMS.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            className="btn btn--compact"
+            data-testid={`arch-${kind}-pick`}
+            title="Indique os pontos na planta; a prévia mostra o resultado antes de confirmar"
+            onClick={() => arch().startTransform(kind)}
+          >
+            {ARCH_TRANSFORM_LABELS[kind]}…
+          </button>
+        ))}
+      </div>
+      <span className="row__label">Por valores</span>
       <div className="arch-fields">
         <DraftNumber
           label="ΔX"

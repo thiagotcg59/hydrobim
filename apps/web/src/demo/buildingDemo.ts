@@ -6,11 +6,13 @@ import {
   addHosted,
   addLevel,
   addPipe,
+  addRoof,
   addSpace,
   addView,
   addWalls,
   createProject,
   drawPipe,
+  percentToSlope,
   vec3,
   type Point2,
   type Project,
@@ -29,8 +31,8 @@ const p = (x: number, y: number): Point2 => ({ x, y });
 /**
  * Edificação simples de demonstração, construída com as operações disponíveis ao usuário:
  * quatro paredes externas e uma divisória (encontros em L e em T), portas e janelas
- * hospedadas, laje e revestimento de piso com a abertura de um shaft, dois ambientes e uma
- * prumada de água fria que sobe pelo shaft e alimenta um ramal — arquitetura e instalação no
+ * hospedadas, laje e revestimento de piso com a abertura de um shaft, dois ambientes, um
+ * telhado de duas águas e uma prumada de água fria que sobe pelo shaft e alimenta um ramal — arquitetura e instalação no
  * mesmo projeto, nos mesmos níveis e coordenadas.
  *
  * Os tipos vêm das famílias genéricas do catálogo arquitetônico, com os valores iniciais
@@ -60,6 +62,7 @@ export function createBuildingDemoProject(): Project {
   const slidingDoor = typeOf('arq-porta-correr', 'Porta de correr 90 × 210');
   const windowType = typeOf('arq-janela-correr', 'Janela de correr 120 × 100');
   const bathWindow = typeOf('arq-janela-maxim-ar', 'Maxim-ar 80 × 60', { sillHeight: 1.6 });
+  const roofType = typeOf('arq-telhado-duas-aguas', 'Telhado de duas águas 12 cm');
 
   // Envoltória de 6 × 4 m (eixos) e uma divisória em T a 4 m, formando sala e banheiro.
   const shell = must(
@@ -127,6 +130,20 @@ export function createBuildingDemoProject(): Project {
       name: 'Banheiro',
       number: '02',
       boundary: [p(4.0475, 0.09), p(5.91, 0.09), p(5.91, 3.91), p(4.0475, 3.91)],
+    }),
+  ).project;
+
+  // Telhado de duas águas sobre a face externa das paredes, no nível da cobertura: a face
+  // inferior passa pelo topo das paredes (2,80 m) na linha do beiral; cumeeira ao longo de X.
+  // Inclinação e beiral são valores de demonstração, não de produto.
+  project = must(
+    addRoof(project, {
+      typeId: roofType,
+      levelId: project.levels[1]?.id ?? levelId,
+      boundary: [p(-0.09, -0.09), p(6.09, -0.09), p(6.09, 4.09), p(-0.09, 4.09)],
+      eaveEdge: 0,
+      slope: percentToSlope(30),
+      overhang: 0.5,
     }),
   ).project;
 

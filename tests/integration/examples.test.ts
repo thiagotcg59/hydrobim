@@ -31,7 +31,9 @@ describe('projetos de exemplo', () => {
       const size = specification?.sizes.find((s) => s.dn === element.spec.dn);
       expect(size, `${element.name}: especificação fora do catálogo`).toBeDefined();
       expect(element.spec.outerDiameter).toBeCloseTo((size?.outerDiameterMm ?? 0) / 1000, 9);
-      expect(getPorts(element).length).toBeGreaterThanOrEqual(2);
+      // A ventosa é a única peça de uma porta só: fica na derivação de um tê.
+      const terminal = element.kind === 'valve' && element.valveType === 'airRelease';
+      expect(getPorts(element).length).toBeGreaterThanOrEqual(terminal ? 1 : 2);
       const geometry = buildElementGeometry(element);
       expect(geometry.parts.length).toBeGreaterThan(0);
       for (const part of geometry.parts) {

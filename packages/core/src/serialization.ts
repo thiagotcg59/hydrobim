@@ -137,6 +137,10 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
         ? { id: 'terreno', tag: '', original: null, ...doc.terrain }
         : doc.terrain,
   }),
+  // v17 → v18: telhados (`roof`) na arquitetura — categoria de tipo, ocorrência e a categoria
+  // `roofs` na visibilidade das vistas. Só acrescenta possibilidades: um documento v17 não tem
+  // telhados e nada nele muda além da versão.
+  17: (doc) => ({ ...doc, schemaVersion: 18 }),
 };
 
 export function serializeProject(project: Project): string {

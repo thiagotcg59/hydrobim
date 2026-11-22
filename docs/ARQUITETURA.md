@@ -1,6 +1,6 @@
 # Arquitetura (seção arquitetônica do HydroBIM)
 
-Paredes, lajes, revestimentos de piso, portas, janelas e ambientes, no **mesmo projeto**, níveis, coordenadas e vistas da rede hidráulica (MEP e Infra). Este documento registra o que foi adotado, de onde veio e o que **não** está coberto. Modelo de dados: [DOMAIN_MODEL.md](DOMAIN_MODEL.md); mapeamento IFC: [IFC_MAPPING.md](IFC_MAPPING.md); interface: [INTERFACE.md](INTERFACE.md).
+Paredes, lajes, revestimentos de piso, telhados, portas, janelas e ambientes, no **mesmo projeto**, níveis, coordenadas e vistas da rede hidráulica (MEP e Infra). Este documento registra o que foi adotado, de onde veio e o que **não** está coberto. Modelo de dados: [DOMAIN_MODEL.md](DOMAIN_MODEL.md); mapeamento IFC: [IFC_MAPPING.md](IFC_MAPPING.md); interface: [INTERFACE.md](INTERFACE.md).
 
 > **Não é declaração de conformidade.** O HydroBIM adota os requisitos listados abaixo do caderno de referência; não atende ao caderno inteiro (pranchas, carimbo, PEB, CDE, orçamento, 4D e nomenclatura de arquivos estão fora) e não substitui a verificação do projeto pelo responsável técnico.
 
@@ -57,7 +57,8 @@ O quadro lista os campos de informação por elemento. **As colunas de etapa (EP
 | Acessibilidade PNE; saída de emergência | `HandicapAccessible`, `FireExit` (`Pset_DoorCommon`, `Pset_WindowCommon`, `Pset_SpaceCommon`) | Ocorrência, pendente |
 | Fabricante; descrição | `Pset_ManufacturerTypeInformation`; nome e descrição do elemento | Tipo |
 | Ambientes: descrição, pé-direito, perímetro, área de piso, volume | Nome e número do ambiente; `Qto_SpaceBaseQuantities` (`Height`, `GrossPerimeter`, `GrossFloorArea`, `GrossVolume`) | Calculada (pé-direito informado) |
-| Telhado, escada, rampa, pilares, vigas, fundações, mobiliário | — | **Não implementado** (categorias fora deste escopo) |
+| Telhado: inclinação, área, beiral | Ocorrência (`slope`, `overhang`); `Qto_RoofBaseQuantities` (área inclinada e projeção) e `HydroBIM_Telhado` (inclinação, beiral, cumeeira, volume) | Calculada / ocorrência |
+| Escada, rampa, pilares, vigas, fundações, mobiliário | — | **Não implementado** (categorias fora deste escopo) |
 | Ambiente de inserção (do elemento) | — | **Não implementado**: o vínculo elemento ↔ ambiente exigiria detectar o contorno; não é presumido |
 | Massa; quantidade de calor; carregamento; resistência característica; taxa de armadura | — | **Não implementado**: sem dado de origem (peso próprio exige densidade com fonte) |
 | Acabamento de parede, piso e teto do ambiente; áreas e número de portas e janelas do ambiente; densidade populacional | — | **Não implementado** |
@@ -110,6 +111,27 @@ Detalhes dos campos em [DOMAIN_MODEL.md](DOMAIN_MODEL.md). Em resumo:
 - **Portas e janelas**: hospedadas em uma parede, posicionadas pela distância ao início dela — mover, girar, espelhar ou alongar a parede as leva junto. O vão é **real** (malha, IFC e quantidades); tem de caber no trecho de seção completa da parede, dentro da altura e sem sobrepor outro vão.
 - **Lajes e revestimentos de piso** são elementos distintos (`slab`: estrutural, `offset` = cota do topo; `flooring`: acabamento, `offset` = cota da base), com contorno fechado e aberturas.
 - **Ambientes**: contorno, nível, número e pé-direito (`null` = não informado). A área é a do contorno desenhado.
+- **Telhados**: uma ou duas águas sobre contorno retangular — ver "Telhados", abaixo.
+
+### Telhados
+
+Telhados de **uma água** (`shed`) e de **duas águas** (`gable`) sobre contorno **retangular** (em qualquer orientação). A tipologia é do tipo (vem da família); inclinação, beiral, contorno e cota são da ocorrência. Regras e matemática em `packages/core/src/architecture/roofs.ts`; malha em `packages/geometry/src/architecture.ts`.
+
+| Parâmetro | Onde fica | Definição |
+| --- | --- | --- |
+| Tipologia | Tipo (`shape`) | Uma água ou duas águas iguais. Define o tipo predefinido IFC (`SHED_ROOF` / `GABLE_ROOF`): os dois nunca se contradizem (`ROOF_TYPE_MISMATCH`) |
+| Composição | Tipo (`layers`) | Camadas de cima (telha) para baixo; a espessura é a soma delas |
+| Contorno | Ocorrência (`boundary`) | Os quatro cantos do retângulo de **referência**, em planta — em geral a face externa ou o eixo das paredes que recebem o telhado |
+| Lado do beiral | Ocorrência (`eaveEdge`) | Um dos quatro lados do contorno. Uma água: a água **cai para** esse lado. Duas águas: a **cumeeira é paralela** a ele, no meio do vão. Como a direção é um lado do contorno, não existe ângulo de direção separado que possa contradizê-lo |
+| Nível e deslocamento | Ocorrência (`levelId`, `offset`) | A **cota de referência** (cota do nível + deslocamento) é a da **face inferior** do telhado **sobre a linha do beiral do contorno** (a linha de apoio) |
+| Inclinação | Ocorrência (`slope`, rad) | Ângulo das águas com o plano horizontal. O painel mostra o mesmo valor em **percentual** (100 × tangente) e em **graus**; aceita de 1 % a 75° |
+| Beiral | Ocorrência (`overhang`, m) | Medido na **horizontal**, para fora do contorno, nos **quatro lados** (nos beirais baixos e nas empenas). A água continua com a mesma inclinação: a borda do beiral fica `beiral × tangente` abaixo da cota de referência |
+| Espessura | Tipo | Medida **perpendicularmente à água**. As bordas são cortadas **a prumo**, de modo que a espessura na vertical é `espessura ÷ cos(inclinação)` |
+
+- **Geometria derivada**: corpo fechado com face superior, face inferior, bordas dos beirais e empenas a prumo; em duas águas, as duas faixas se encontram no plano vertical da cumeeira. As cotas inferior (borda do beiral) e superior (topo da cumeeira ou da água) são derivadas (`archVerticalRange`).
+- **Recusas**: contorno que não seja retângulo, lado menor que 10 cm (`ROOF_BOUNDARY_INVALID`), inclinação abaixo de 1 % ou acima de 75° (`ROOF_SLOPE_INVALID`), beiral negativo, tipo de outra categoria, nível inexistente. Cobertura plana é laje, não telhado.
+- **Não assenta no terreno** (`ARCH_NOT_SEATABLE`): a cota vem do nível.
+- **Não há vínculo com as paredes**: o telhado não estende nem recorta paredes (as empenas ficam abertas entre o topo da parede e a água) e não acompanha a edição delas — o contorno é ajustado pelo usuário.
 
 ### Elevação e assentamento sobre o terreno
 
@@ -122,14 +144,17 @@ Detalhes dos campos em [DOMAIN_MODEL.md](DOMAIN_MODEL.md). Em resumo:
 
 ### Operações impossíveis
 
-Toda operação termina conferindo a arquitetura inteira (`archIntegrityProblem`); se algo ficar inconsistente, nada é alterado e o motivo é devolvido: vão que não cabe (`OPENING_DOES_NOT_FIT`), parede sem comprimento (`WALL_TOO_SHORT`), contorno que se cruza (`POLYGON_SELF_INTERSECTION`), abertura fora do piso (`OPENING_OUTSIDE`), tipo de outra categoria (`ARCH_TYPE_MISMATCH`), tipo em uso (`ARCH_TYPE_IN_USE`), produto sem fonte (`ARCH_SOURCE_REQUIRED`), nível com elementos (`LEVEL_IN_USE`). Excluir uma parede exclui as portas e janelas hospedadas — é o único efeito em cascata, e é informado.
+Toda operação termina conferindo a arquitetura inteira (`archIntegrityProblem`); se algo ficar inconsistente, nada é alterado e o motivo é devolvido: vão que não cabe (`OPENING_DOES_NOT_FIT`), parede sem comprimento (`WALL_TOO_SHORT`), contorno que se cruza (`POLYGON_SELF_INTERSECTION`), contorno de telhado não retangular (`ROOF_BOUNDARY_INVALID`), inclinação fora da faixa (`ROOF_SLOPE_INVALID`), abertura fora do piso (`OPENING_OUTSIDE`), tipo de outra categoria (`ARCH_TYPE_MISMATCH`), tipo em uso (`ARCH_TYPE_IN_USE`), produto sem fonte (`ARCH_SOURCE_REQUIRED`), nível com elementos (`LEVEL_IN_USE`). Excluir uma parede exclui as portas e janelas hospedadas — é o único efeito em cascata, e é informado.
+
+**Extremidade de parede** (`moveWallEndpoint`, usada pela alça na planta e pelos campos Início/Fim do painel): a outra extremidade fica e as portas e janelas hospedadas permanecem **onde estão** — ao mover o início, a distância gravada (medida do início) é corrigida para que o vão não ande junto. Se algum vão deixar de caber, a operação é recusada por inteiro.
 
 ## Catálogo
 
-Dezesseis famílias embutidas, todas **modelos genéricos parametrizáveis** (`generic: true`, sem fonte): paredes de alvenaria cerâmica, de blocos de concreto e de drywall; laje de concreto; pisos cerâmico/porcelanato, vinílico e laminado; portas de giro de uma e duas folhas, de correr e pivotante; janelas fixa, de correr, de abrir, basculante e maxim-ar.
+Dezoito famílias embutidas, todas **modelos genéricos parametrizáveis** (`generic: true`, sem fonte): paredes de alvenaria cerâmica, de blocos de concreto e de drywall; laje de concreto; pisos cerâmico/porcelanato, vinílico e laminado; telhados de uma água e de duas águas; portas de giro de uma e duas folhas, de correr e pivotante; janelas fixa, de correr, de abrir, basculante e maxim-ar.
 
 - As dimensões e camadas das famílias são **valores iniciais de edição**, não medidas de catálogo nem de norma; o usuário as define ao criar o tipo.
 - Nenhuma família traz resistência ao fogo, desempenho acústico, transmitância térmica, classificação ou peso: são campos pendentes.
+- Telhados: a família dá a tipologia e duas camadas iniciais (cobertura e estrutura de apoio), só para reservar a espessura. A estrutura (tesouras, terças, caibros, ripas) não é modelada peça a peça, e a inclinação mínima de cada telha é dado do produto adotado — nada disso é presumido.
 - Produto comercial: `generic: false` exige `source` (catálogo vigente do fabricante, edição, página e URL); o núcleo recusa sem ela. Não há produto comercial embutido.
 
 ## Quantitativos
@@ -140,11 +165,13 @@ Critérios dos conjuntos `Qto_*BaseQuantities` do IFC 4.3 (descrições lidas no
 | --- | --- | --- |
 | Parede | Área lateral = comprimento no plano médio × altura; volume = área do contorno × altura. O comprimento no plano médio (área do contorno ÷ espessura) já considera os encontros em bisel e em T | Descontados os vãos de portas e janelas. A área de apoio líquida desconta só os vãos que chegam à base |
 | Laje, revestimento | Área do contorno; volume = área × espessura | Descontadas as aberturas |
+| Telhado | Área **inclinada** da face superior = projeção horizontal ÷ cos(inclinação); volume = área inclinada × espessura do tipo | Igual ao bruto (não há aberturas em telhados) |
 | Porta, janela | Largura, altura, perímetro e área do vão nominal | — |
 | Ambiente | Área e perímetro do contorno; volume com o pé-direito | **Não emitido** (ver limites) |
 
 - Na laje, `Width` é a espessura; `Length` e `Depth` só valem para lajes retangulares e não são emitidos.
-- **Sem dupla contagem**: cada elemento entra uma vez, na sua categoria. O ambiente não soma paredes, lajes nem revestimentos; o revestimento não soma a laje.
+- **Telhado: área inclinada × projeção horizontal.** São quantidades distintas e ficam em colunas separadas do quantitativo e do CSV ("Área bruta/líquida" = inclinada; "Projeção horizontal") e em propriedades separadas no IFC (`Qto_RoofBaseQuantities.GrossArea`/`NetArea` e `ProjectedArea`). A projeção inclui os beirais dos quatro lados. A fórmula é exata para águas planas com bordas a prumo, e o volume da malha (conferido por teste e pelo IfcOpenShell) é o mesmo: `projeção × espessura ÷ cos(inclinação)`. O `Qto_RoofBaseQuantities` não tem volume; ele vai em `HydroBIM_Telhado.Volume`.
+- **Sem dupla contagem**: cada elemento entra uma vez, na sua categoria. O ambiente não soma paredes, lajes nem revestimentos; o revestimento não soma a laje; o telhado não soma lajes, forros nem estrutura.
 - Pesos (`GrossWeight`, `NetWeight`) não são emitidos: exigiriam densidade com fonte.
 
 ## Limites conhecidos
@@ -155,6 +182,7 @@ Critérios dos conjuntos `Qto_*BaseQuantities` do IFC 4.3 (descrições lidas no
 - Ambientes: o contorno é desenhado pelo usuário (não é detectado a partir das paredes); não há áreas líquidas, limites de espaço (`IfcRelSpaceBoundary`), zonas (`IfcZone`) nem tipo de ambiente (`IfcSpaceType`).
 - Portas e janelas: retangulares; folha representada fechada no 3D; sem bandeiras, peitoris ou soleiras como peças.
 - Uma propriedade `Pset_*Common` é do tipo **ou** da ocorrência (ver [IFC_MAPPING.md](IFC_MAPPING.md)); não há sobreposição do valor do tipo por ocorrência.
-- Sem telhado, escada, rampa, forro, estrutura (pilares, vigas, fundações) e mobiliário.
+- Telhados: só uma e duas águas iguais, sobre contorno retangular, com a mesma inclinação e o mesmo beiral nos quatro lados. **Não há** quatro águas, águas desiguais, cumeeira deslocada, contornos em L, mansardas, águas-furtadas, rincões e espigões, calhas, rufos, aberturas (claraboias) nem a estrutura peça a peça. O telhado não estende nem recorta as paredes e não fica vinculado a elas.
+- Sem escada, rampa, forro, estrutura (pilares, vigas, fundações) e mobiliário.
 - Sem importação IFC; o DXF ainda não leva a arquitetura.
-- Editor: mover, copiar, girar e espelhar só por valores; contornos não editáveis depois de criados; materiais de esquadria (marco, folha, vidro) não editáveis no formulário do tipo; demais limites da interface em [INTERFACE.md](INTERFACE.md), "Ambiente Arquitetura".
+- Editor: as alças diretas existem para extremidades de parede e cantos de telhado; lajes, pisos e ambientes são editados pelo modo "Editar contorno"; aberturas de piso não têm edição de contorno (remove-se e desenha-se de novo); mover uma extremidade de parede não leva as paredes vizinhas do encontro; materiais de esquadria (marco, folha, vidro) não editáveis no formulário do tipo; demais limites da interface em [INTERFACE.md](INTERFACE.md), "Ambiente Arquitetura".

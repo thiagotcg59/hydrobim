@@ -107,6 +107,7 @@ const CATEGORY_LABELS: Record<ViewCategory, string> = {
   doors: 'Portas',
   windows: 'Janelas',
   spaces: 'Ambientes',
+  roofs: 'Telhados',
 };
 
 /** Altura da câmera da prévia no monitor (m): uma pessoa em pé. */
@@ -301,6 +302,7 @@ function VrScene() {
     for (const element of project.architecture.elements) {
       if (element.kind === 'wall') present.add('walls');
       else if (element.kind === 'slab' || element.kind === 'flooring') present.add('floors');
+      else if (element.kind === 'roof') present.add('roofs');
       else if (element.kind === 'door') present.add('doors');
       else if (element.kind === 'window') present.add('windows');
     }

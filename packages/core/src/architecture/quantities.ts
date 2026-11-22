@@ -8,6 +8,7 @@ import {
   spaceQuantities,
   wallQuantities,
 } from './derive';
+import { roofQuantities } from './roofs';
 import { getArchType } from './walls';
 
 /**
@@ -27,9 +28,14 @@ export interface ArchQuantityRow {
   count: number;
   /** Paredes: comprimento no plano médio (m). */
   length: number | null;
-  /** Bruta: sem descontar vãos e aberturas. Líquida: descontados. */
+  /**
+   * Bruta: sem descontar vãos e aberturas. Líquida: descontados. Em telhados é a área
+   * INCLINADA da face superior (bruta = líquida: não há aberturas).
+   */
   grossArea: number | null;
   netArea: number | null;
+  /** Telhados: projeção horizontal, com os beirais (m²). */
+  projectedArea: number | null;
   grossVolume: number | null;
   netVolume: number | null;
 }
@@ -43,7 +49,7 @@ function classification(type: ArchType, system: 'nbr15965' | 'sinapi'): string {
   return codes.length > 0 ? codes.join('; ') : NOT_CLASSIFIED;
 }
 
-const CATEGORY_ORDER: ArchCategory[] = ['wall', 'slab', 'flooring', 'door', 'window'];
+const CATEGORY_ORDER: ArchCategory[] = ['wall', 'slab', 'flooring', 'roof', 'door', 'window'];
 
 export function computeArchQuantities(
   project: Pick<Project, 'levels' | 'architecture'>,
@@ -73,6 +79,7 @@ export function computeArchQuantities(
         length: null,
         grossArea: null,
         netArea: null,
+        projectedArea: null,
         grossVolume: null,
         netVolume: null,
         order: CATEGORY_ORDER.indexOf(type.category),
@@ -94,6 +101,15 @@ export function computeArchQuantities(
       row.netArea = sum(row.netArea, q?.netArea);
       row.grossVolume = sum(row.grossVolume, q?.grossVolume);
       row.netVolume = sum(row.netVolume, q?.netVolume);
+    } else if (element.kind === 'roof') {
+      // Área inclinada e projeção horizontal em colunas separadas; volume = área inclinada ×
+      // espessura do tipo (medida perpendicularmente à água).
+      const q = roofQuantities(architecture, element);
+      row.grossArea = sum(row.grossArea, q?.slopeArea);
+      row.netArea = sum(row.netArea, q?.slopeArea);
+      row.projectedArea = sum(row.projectedArea, q?.projectedArea);
+      row.grossVolume = sum(row.grossVolume, q?.volume);
+      row.netVolume = sum(row.netVolume, q?.volume);
     } else {
       const q = hostedQuantities(architecture, element);
       row.grossArea = sum(row.grossArea, q?.area);
@@ -175,6 +191,7 @@ export function archQuantitiesToCsv(
       'Comprimento (m)',
       'Área bruta (m²)',
       'Área líquida (m²)',
+      'Projeção horizontal (m²)',
       'Volume bruto (m³)',
       'Volume líquido (m³)',
     ]
@@ -192,6 +209,7 @@ export function archQuantitiesToCsv(
         num(row.length),
         num(row.grossArea),
         num(row.netArea),
+        num(row.projectedArea),
         num(row.grossVolume, 3),
         num(row.netVolume, 3),
       ].join(';'),

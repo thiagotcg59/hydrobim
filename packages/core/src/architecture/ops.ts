@@ -16,6 +16,7 @@ import {
   type Point2,
   type Project,
   type PropertyValue,
+  type Roof,
   type Slab,
   type Space,
   type Wall,
@@ -24,6 +25,13 @@ import {
 import { pointInRing, validatePolygon } from '../terrain/polygon';
 import { ARCH_KIND_CATEGORY, ARCH_KIND_LABELS, archTypeUsage, hostWallOf } from './derive';
 import { add2, distance2, sub2 } from './polygon2';
+import {
+  normalizeRoofBoundary,
+  ROOF_IFC_PREDEFINED,
+  ROOF_SHAPE_LABELS,
+  roofBoundaryProblem,
+  roofSlopeProblem,
+} from './roofs';
 import {
   getArchElement,
   getArchType,
@@ -97,6 +105,13 @@ export function archIntegrityProblem(
         message: `"${type.name}" é produto de fabricante: informe a fonte (catálogo, edição, página e URL) ou marque o tipo como genérico.`,
       };
     }
+    // A tipologia do telhado e o tipo predefinido IFC dizem a mesma coisa: não se contradizem.
+    if (type.category === 'roof' && type.ifcPredefinedType !== ROOF_IFC_PREDEFINED[type.shape]) {
+      return {
+        code: 'ROOF_TYPE_MISMATCH',
+        message: `"${type.name}": telhado de ${ROOF_SHAPE_LABELS[type.shape].toLowerCase()} tem o tipo predefinido IFC ${ROOF_IFC_PREDEFINED[type.shape]}.`,
+      };
+    }
   }
   const ids = new Set<string>();
   for (const element of architecture.elements) {
@@ -137,6 +152,17 @@ export function archIntegrityProblem(
         return {
           code: polygon.error.code,
           message: `"${element.name}": ${polygon.error.message.replaceAll('furo', 'abertura').replaceAll('O abertura', 'A abertura')}`,
+        };
+      }
+    }
+    if (element.kind === 'roof') {
+      const problem = roofBoundaryProblem(element.boundary) ?? roofSlopeProblem(element.slope);
+      if (problem) {
+        return {
+          code: roofBoundaryProblem(element.boundary)
+            ? 'ROOF_BOUNDARY_INVALID'
+            : 'ROOF_SLOPE_INVALID',
+          message: `"${element.name}": ${problem}.`,
         };
       }
     }
@@ -529,6 +555,63 @@ export function addSpace(project: Project, input: SpaceInput): Result<ArchCreate
 }
 
 // ---------------------------------------------------------------------------
+// Telhados
+// ---------------------------------------------------------------------------
+
+export interface RoofInput {
+  typeId: string;
+  levelId: string;
+  /** Os quatro cantos do retângulo de referência, em qualquer sentido. */
+  boundary: readonly Point2[];
+  /** Lado do contorno que é beiral (0 = do 1º ao 2º canto); ausente = o primeiro lado. */
+  eaveEdge?: number;
+  /** Deslocamento da cota de referência em relação ao nível (m). */
+  offset?: number;
+  /** Inclinação das águas (rad). */
+  slope: number;
+  /** Beiral, na horizontal, para fora do contorno (m). */
+  overhang?: number;
+}
+
+/**
+ * Cria um telhado de uma ou de duas águas (a tipologia é a do tipo) sobre um contorno
+ * retangular. Contorno não retangular, lado curto demais e inclinação fora da faixa são
+ * recusados com o motivo.
+ */
+export function addRoof(project: Project, input: RoofInput): Result<ArchCreated> {
+  const boundaryProblem = roofBoundaryProblem(input.boundary);
+  if (boundaryProblem) return fail('ROOF_BOUNDARY_INVALID', `Telhado: ${boundaryProblem}.`);
+  const slopeProblem = roofSlopeProblem(input.slope);
+  if (slopeProblem) return fail('ROOF_SLOPE_INVALID', `Telhado: ${slopeProblem}.`);
+  const edge = input.eaveEdge ?? 0;
+  if (!Number.isInteger(edge) || edge < 0 || edge > 3) {
+    return fail('INVALID_VALUE', 'Telhado: o lado do beiral é um dos quatro lados do contorno.');
+  }
+  const type = getArchType(project.architecture, input.typeId);
+  if (!type || type.category !== 'roof') {
+    return fail('ARCH_TYPE_NOT_FOUND', 'Escolha um tipo de telhado do catálogo.');
+  }
+  const normalized = normalizeRoofBoundary(input.boundary, edge);
+  const roof = parseElement<Roof>({
+    id: newId(),
+    kind: 'roof',
+    name: nextArchName(project.architecture, 'roof'),
+    typeId: input.typeId,
+    levelId: input.levelId,
+    boundary: normalized.boundary,
+    eaveEdge: normalized.eaveEdge,
+    offset: input.offset ?? 0,
+    slope: input.slope,
+    overhang: input.overhang ?? 0,
+    properties: {},
+    meta: meta(),
+  });
+  if (!roof.ok) return roof;
+  const next = commit(project, putElements(project.architecture, [roof.value]));
+  return next.ok ? ok({ project: next.value, elementIds: [roof.value.id] }) : next;
+}
+
+// ---------------------------------------------------------------------------
 // Portas e janelas (hospedadas em parede)
 // ---------------------------------------------------------------------------
 
@@ -596,6 +679,10 @@ export interface ArchElementPatch {
   hand?: 'left' | 'right';
   facing?: 1 | -1;
   number?: string | null;
+  /** Telhado: lado do beiral, inclinação (rad) e beiral (m). */
+  eaveEdge?: number;
+  slope?: number;
+  overhang?: number;
 }
 
 /**
@@ -627,7 +714,15 @@ export function updateArchElement(
   if (current.kind !== 'space' && merged.height === null) {
     return fail('INVALID_VALUE', 'Informe a altura.');
   }
-  if ('boundary' in merged && patch.boundary) {
+  if (current.kind === 'roof') {
+    // O contorno continua retangular e anti-horário; o lado do beiral acompanha a inversão.
+    const roof = merged as unknown as Roof;
+    const problem = roofBoundaryProblem(roof.boundary);
+    if (problem) return fail('ROOF_BOUNDARY_INVALID', `"${current.name}": ${problem}.`);
+    const slopeProblem = roofSlopeProblem(roof.slope);
+    if (slopeProblem) return fail('ROOF_SLOPE_INVALID', `"${current.name}": ${slopeProblem}.`);
+    Object.assign(merged, normalizeRoofBoundary(roof.boundary, roof.eaveEdge));
+  } else if ('boundary' in merged && patch.boundary) {
     const openings =
       current.kind === 'slab' || current.kind === 'flooring'
         ? current.openings.map((opening) => opening.boundary)
@@ -639,6 +734,34 @@ export function updateArchElement(
   const parsed = parseElement(merged as ArchElement);
   if (!parsed.ok) return parsed;
   return commit(project, putElements(project.architecture, [touched(parsed.value)]));
+}
+
+/**
+ * Leva uma extremidade da parede a `point` (a outra fica). As portas e janelas hospedadas
+ * permanecem ONDE ESTÃO em relação à extremidade fixa: mover o início muda a distância gravada
+ * (medida do início) para que o vão não ande junto. Se algum vão deixar de caber — parede
+ * encurtada além dele, por exemplo —, nada é alterado e o motivo é devolvido.
+ */
+export function moveWallEndpoint(
+  project: Project,
+  wallId: string,
+  end: 'start' | 'end',
+  point: Point2,
+): Result<Project> {
+  const wall = getArchElement(project.architecture, wallId);
+  if (!wall || wall.kind !== 'wall') return fail('WALL_NOT_FOUND', 'Selecione uma parede.');
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    return fail('INVALID_VALUE', 'Ponto inválido.');
+  }
+  const moved = touched({ ...wall, [end]: { x: point.x, y: point.y } });
+  const changed: ArchElement[] = [moved];
+  if (end === 'start') {
+    const shift = wallLength(moved) - wallLength(wall);
+    for (const hosted of hostedOf(project.architecture, wall.id)) {
+      changed.push(touched({ ...hosted, offset: hosted.offset + shift }));
+    }
+  }
+  return commit(project, putElements(project.architecture, changed));
 }
 
 export const renameArchElement = (project: Project, id: string, name: string): Result<Project> =>
@@ -745,6 +868,16 @@ function transformElement(
       return {
         ...element,
         boundary: t.mirrored ? moved.reverse() : moved,
+        offset: element.offset + t.dz,
+      };
+    }
+    case 'roof': {
+      // No espelho o anel é invertido para continuar anti-horário; o lado do beiral é o mesmo
+      // lado físico, com o índice do anel invertido.
+      const moved = element.boundary.map(t.point);
+      return {
+        ...element,
+        ...(t.mirrored ? normalizeRoofBoundary(moved, element.eaveEdge) : { boundary: moved }),
         offset: element.offset + t.dz,
       };
     }
