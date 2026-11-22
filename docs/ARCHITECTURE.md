@@ -63,7 +63,7 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Informação IFC da arquitetura (registro, modelo, validação) e exportação | `packages/ifc/src/bim/archDefinitions.ts`, `archModel.ts`, `archValidate.ts`; `packages/ifc/src/archExport.ts` |
 | Arquitetura no editor: sessão, ferramentas, painel, catálogo e quantitativo | `apps/web/src/arch/` |
 | Capturas de desenho em planta (ponto e direção, com prioridade e alternância) — função pura | `apps/web/src/editor/planSnaps.ts`; preferências em `state/snapStore.ts` |
-| Edição interativa da arquitetura (operações por pontos, alças, contorno) — funções puras e camadas de prévia | `apps/web/src/arch/archEdit.ts`, `ArchEditLayer.tsx` |
+| Edição interativa da arquitetura (operações por pontos, alças, contorno) — funções puras e camadas de prévia | `apps/web/src/arch/archEdit.ts`, `archModify.ts` (aparar, estender, alinhar e dividir por indicação), `ArchEditLayer.tsx` |
 | Realidade virtual (WebXR): sessão, coordenadas, cena em lotes, navegação e painéis | `apps/web/src/vr/`; ver [WEBXR.md](WEBXR.md) |
 
 ## Fluxo de uma edição

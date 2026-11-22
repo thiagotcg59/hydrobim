@@ -546,3 +546,25 @@ Verificação: `apps/web/src/vr/*.test.ts` e `tests/e2e/vr.spec.ts`, este com um
 **Consequências e limites.** Só uma e duas águas iguais sobre retângulo; sem vínculo com as paredes. As capturas e a edição interativa valem na planta de trabalho, não nas vistas salvas nem no 3D. A planta de trabalho deixou de mostrar todos os níveis sobrepostos por padrão. Lista completa em `docs/ROADMAP.md` (Arquitetura) e `docs/ARQUITETURA.md` (Limites conhecidos).
 
 Verificação: `apps/web/src/editor/planSnaps.test.ts`, `apps/web/src/arch/archEdit.test.ts`, `packages/core/src/architecture/roofs.test.ts`, `packages/geometry/src/roof.test.ts` (malha fechada, volume e área contra o quantitativo), `services/api/tests/test_project.py` e `test_ifc_architecture.py` (IfcOpenShell) e `tests/e2e/architectureEdit.spec.ts`.
+
+## ADR-048 — Aparar, estender, dividir e alinhar paredes: operações sobre as linhas de referência, por indicação na planta
+
+**Data:** 2026-11-22 · **Estado:** aceita (complementa a ADR-047)
+
+**Contexto.** Fechar um canto entre duas paredes afastadas exigia arrastar duas alças até o mesmo ponto; não havia como aparar uma parede em outra, dividi-la nem levá-la a uma referência. A referência de fluxo é o das ferramentas de autoria BIM (aparar/estender para canto, aparar/estender um elemento, alinhar, dividir) — sem pretensão de equivalência.
+
+**Decisões.**
+
+- **As regras ficam no núcleo** (`trimWallsToCorner`, `trimWallToWall`, `splitWall`, `alignArchElement`): qual extremidade anda, o que acompanha e o que é recusado. A interface só traduz os cliques (`apps/web/src/arch/archModify.ts`).
+- **Tudo pela linha de referência.** O ponto de encontro é o cruzamento das linhas de referência; os encontros em L e em T continuam derivados das extremidades (coincidentes ou apoiadas), como na ADR-044. Nenhum dado novo é gravado: **o esquema não muda**.
+- **O clique diz o lado que fica.** Cruzamento fora da parede: estende a extremidade mais próxima. Cruzamento no corpo: fica o lado clicado. É a mesma regra nas duas ferramentas de aparar.
+- **Vãos ficam no lugar.** A distância dos vãos é medida do início; ao mudar o início ela é recalculada pela posição do vão em planta. Dividir passa cada vão para o trecho em que está e recusa cortar dentro de um vão.
+- **Dividir mantém o `id` no trecho do início** (regra 7 do `AGENTS.md`); o trecho do fim é uma parede nova, com cópia das propriedades.
+- **Alinhar não gira e não cria vínculo.** A aresta tem de ser paralela à referência; o deslocamento é a distância perpendicular. Girar junto mudaria a geometria além do que o usuário indicou, e um vínculo persistente exigiria restrições paramétricas que o modelo não tem (ADR-047: captura não é vínculo).
+- **A parede alinhada leva os encontros.** Sem isso, alinhar uma parede de um cômodo fechado abriria os cantos. O canto vai ao novo cruzamento das duas linhas, de modo que a vizinha muda de comprimento e nunca de direção; vizinhas paralelas ficam como estão. Mover pela alça ou por Mover continua sem levar as vizinhas.
+- **Ferramentas por indicação, não por seleção**, em um estado próprio da sessão (`modify`), ao lado de `transform`: ficam ativas até Esc e usam o ponto do cursor sem captura (ele só indica a parede e o lado); só o dividir usa as capturas. No alinhar, arestas sobrepostas são ordenadas pela distância, com a da parede antes da de contorno, e Tab alterna.
+- **Sem dependências novas.**
+
+**Consequências e limites.** Só entre paredes do mesmo nível; sem junção em X, offset, concordância ou chanfro; alinhar não gira. Lista em `docs/ARQUITETURA.md` (Limites conhecidos) e `docs/ROADMAP.md`.
+
+Verificação: `packages/core/src/architecture/wallModify.test.ts`, `apps/web/src/arch/archModify.test.ts` e `tests/e2e/architectureEdit.spec.ts` ("aparar para canto, alinhar levando o canto e dividir").
