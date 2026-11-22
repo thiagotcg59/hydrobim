@@ -5,7 +5,8 @@ import {
   type Project,
   type Vec3,
 } from '@hydrobim/core';
-import { derivedGuid, persistentGuid } from './guid';
+import { buildTerrainIfcInfo } from './bim/terrainModel';
+import { derivedGuid } from './guid';
 import { list, real, stepString as str, type StepWriter } from './step';
 
 /**
@@ -162,41 +163,43 @@ export function writeTerrain(context: TerrainExportContext): void {
       ),
     );
 
-  // ---- Superfície topográfica natural.
+  // ---- Superfície topográfica natural: classificação, atributos e conjuntos vêm do modelo
+  // de informação (`buildTerrainIfcInfo`), o mesmo que o painel de propriedades mostra.
+  const info = buildTerrainIfcInfo(project);
+  if (!info) return;
   const terrainRef = root(
-    'IfcGeographicElement',
-    persistentGuid(terrain.id),
-    terrain.name,
-    'Superfície topográfica natural (TIN)',
-    str('TERRENO_NATURAL'),
+    info.entity,
+    info.globalId,
+    info.name,
+    info.description,
+    str(info.objectType),
     localPlacement,
     shape(terrain.points, terrain.triangles, false, style('Terreno', TERRAIN_COLOR, 1)),
-    terrain.tag ? str(terrain.tag) : '$',
-    '.TERRAIN.',
+    info.tag ? str(info.tag) : '$',
+    `.${info.predefinedType}.`,
   );
-  const { source } = terrain;
-  // Valor que a fonte não declara fica sem valor (pendente), nunca preenchido.
-  propertySet(terrain.id, terrainRef, 'HydroBIM_Terreno', [
-    single('SourceKind', 'IfcLabel', source.kind === 'survey' ? 'Levantamento' : 'DEM'),
-    single('SourceProvider', 'IfcLabel', source.provider),
-    single('SourceDataset', 'IfcLabel', source.dataset),
-    single('SourceHorizontalCRS', 'IfcLabel', source.horizontalCrs),
-    single(
-      'VerticalDatum',
-      'IfcLabel',
-      project.georeference?.verticalDatum ?? source.verticalDatum,
-    ),
-    single('SourceResolution', 'IfcPositiveLengthMeasure', source.resolution),
-    single('VerticalAccuracy', 'IfcPositiveLengthMeasure', source.verticalAccuracy),
-    single('AcquiredAt', 'IfcLabel', source.acquiredAt),
-    single('MinElevation', 'IfcLengthMeasure', stats.minZ),
-    single('MaxElevation', 'IfcLengthMeasure', stats.maxZ),
-    single('Edited', 'IfcBoolean', terrain.original !== null),
-  ]);
-  quantitySet(terrain.id, terrainRef, 'HydroBIM_TerrenoQuantidades', [
-    quantity('IfcQuantityArea', 'ProjectedArea', stats.planArea),
-    quantity('IfcQuantityArea', 'SurfaceArea', stats.surfaceArea),
-  ]);
+  for (const set of info.psets) {
+    if (set.kind === 'qto') {
+      quantitySet(
+        terrain.id,
+        terrainRef,
+        set.name,
+        set.properties.flatMap((property) =>
+          typeof property.value === 'number'
+            ? [quantity(property.ifcType, property.name, property.value)]
+            : [],
+        ),
+      );
+    } else {
+      // Valor que a fonte não declara fica sem valor (pendente), nunca preenchido.
+      propertySet(
+        terrain.id,
+        terrainRef,
+        set.name,
+        set.properties.map((property) => single(property.name, property.ifcType, property.value)),
+      );
+    }
+  }
   const contained = [terrainRef];
 
   // ---- Terraplenagem: um corte e um aterro por platô (quando existem).

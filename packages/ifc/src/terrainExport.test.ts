@@ -5,13 +5,16 @@ import {
   projectEarthworks,
   setEarthworkSettings,
   setTerrain,
+  setTerrainProperties,
   surveySource,
   type Project,
   type Result,
+  type Terrain,
   type Vec3,
 } from '@hydrobim/core';
 import { describe, expect, it } from 'vitest';
 import { IFC_ENTITIES, IFC_PROPERTY_SETS } from './bim/schemaData';
+import { buildTerrainIfcInfo } from './bim/terrainModel';
 import { exportIfc } from './export';
 
 function unwrap<T>(result: Result<T>): T {
@@ -133,6 +136,56 @@ describe('terreno e terraplenagem no IFC', () => {
     expect(linesOf(onlyTerrain, 'IFCEARTHWORKSCUT')).toHaveLength(0);
     const empty = exportIfc(createProject('Vazio', 'infra'), options);
     expect(linesOf(empty, 'IFCGEOGRAPHICELEMENT')).toHaveLength(0);
+  });
+
+  it('o modelo de informação do terreno é o que vai para o arquivo', () => {
+    const project = earthworkProject();
+    const info = buildTerrainIfcInfo(project);
+    expect(info).not.toBeNull();
+    if (!info) return;
+    expect(info.entity).toBe('IfcGeographicElement');
+    expect(info.predefinedType).toBe('TERRAIN');
+    expect(info.tag).toBe('TN-01');
+    expect(info.psets.map((set) => `${set.kind}:${set.name}`)).toEqual([
+      'pset:HydroBIM_Terreno',
+      'qto:HydroBIM_TerrenoQuantidades',
+    ]);
+    // Conjuntos próprios levam o prefixo; nenhum se passa por padronizado.
+    expect(info.psets.every((set) => !set.standard && set.name.startsWith('HydroBIM_'))).toBe(true);
+    const property = (key: string) =>
+      info.psets.flatMap((set) => set.properties).find((entry) => entry.key === key);
+    // O que o levantamento não declara fica pendente, sem valor.
+    expect(property('HydroBIM_Terreno.VerticalAccuracy')).toMatchObject({
+      value: null,
+      origin: 'pending',
+      binding: 'terrain.source.verticalAccuracy',
+    });
+    expect(property('HydroBIM_Terreno.MinElevation')).toMatchObject({
+      value: 10,
+      origin: 'geometry',
+      unit: 'length',
+    });
+    expect(property('HydroBIM_TerrenoQuantidades.ProjectedArea')?.value).toBeCloseTo(10_000, 6);
+
+    const ifc = exportIfc(project, options);
+    expect(ifc).toContain(`IFCGEOGRAPHICELEMENT('${info.globalId}'`);
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('VerticalAccuracy',$,$,$)");
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('Edited',$,IFCBOOLEAN(.F.),$)");
+    for (const set of info.psets) expect(ifc).toContain(`'${set.name}'`);
+
+    // A exatidão informada pelo usuário passa a valer no painel e no arquivo.
+    const declared = setTerrain(
+      project,
+      unwrap(setTerrainProperties(project.terrain as Terrain, { verticalAccuracy: 0.05 })),
+    );
+    const accuracy = buildTerrainIfcInfo(declared)
+      ?.psets.flatMap((set) => set.properties)
+      .find((entry) => entry.name === 'VerticalAccuracy');
+    expect(accuracy).toMatchObject({ value: 0.05, origin: 'model' });
+    expect(exportIfc(declared, options)).toMatch(
+      /IFCPROPERTYSINGLEVALUE\('VerticalAccuracy',\$,IFCPOSITIVELENGTHMEASURE\(0\.05\),\$\)/,
+    );
+    expect(buildTerrainIfcInfo(createProject('Vazio', 'infra'))).toBeNull();
   });
 
   it('a exportação é determinística (mesmo projeto, mesmo arquivo)', () => {

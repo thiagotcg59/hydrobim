@@ -181,6 +181,29 @@ describe('edição da superfície do terreno', () => {
     expect(codeOf(setTerrainProperties(terrain, { name: '  ' }))).toBe('TERRAIN_NAME');
   });
 
+  it('exatidão altimétrica declarada: informada, limpa e recusada quando não é positiva', () => {
+    const terrain = plane();
+    expect(terrain.source.verticalAccuracy).toBeNull();
+    const declared = unwrap(setTerrainProperties(terrain, { verticalAccuracy: 0.05 }));
+    expect(declared.source.verticalAccuracy).toBe(0.05);
+    // Só a procedência muda: nome, malha e a superfície recebida ficam como estavam.
+    expect(declared.name).toBe(terrain.name);
+    expect(declared.points).toBe(terrain.points);
+    expect(terrain.source.verticalAccuracy).toBeNull();
+    // Renomear não mexe na exatidão; `null` volta a deixá-la sem valor.
+    expect(unwrap(setTerrainProperties(declared, { name: 'TN' })).source.verticalAccuracy).toBe(
+      0.05,
+    );
+    expect(
+      unwrap(setTerrainProperties(declared, { verticalAccuracy: null })).source.verticalAccuracy,
+    ).toBeNull();
+    for (const invalid of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(codeOf(setTerrainProperties(terrain, { verticalAccuracy: invalid }))).toBe(
+        'TERRAIN_ACCURACY',
+      );
+    }
+  });
+
   it('lacunas do DEM continuam abertas depois de uma edição', () => {
     // Malha com um quadrado central sem dado (triângulos removidos na construção).
     const points: Vec3[] = [];
