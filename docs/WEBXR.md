@@ -19,12 +19,15 @@ Em navegador sem WebXR, sem headset ou fora de HTTPS, a vista informa o motivo, 
 
 | Controle | Ação |
 | --- | --- |
-| Direcional para a frente (qualquer mão) | Mira o teletransporte: arco e marcador verdes (destino aceito) ou vermelhos (recusado). Soltar confirma; puxar para trás desiste. |
-| Direcional para os lados | Giro de 30° por toque. Não há locomoção contínua. |
+| Andar com o headset | O modelo fica parado no espaço: caminhar pela sala é caminhar pelo projeto, e os pés acompanham o piso sob o usuário. |
+| Direcional **esquerdo** | Caminhada contínua a 2 m/s (proporcional à inclinação), na direção do olhar: para a frente, para trás e para os lados. Acompanha o terreno e os pisos, com degrau de até 0,6 m. Pode ser desligada no menu ("Andar pelo direcional esquerdo"); desligada, o direcional esquerdo passa a agir como o direito. |
+| Direcional **direito** para a frente | Mira o teletransporte: arco e marcador verdes (destino aceito) ou vermelhos (recusado). Soltar confirma; puxar para trás desiste. |
+| Direcional **direito** para os lados | Giro de 30° por toque. |
+| Apontar o controle para um elemento | Rótulo junto da peça com o nome, a categoria e o diâmetro, antes do clique. |
 | Gatilho | Seleciona o elemento apontado pelo raio (abre o painel de propriedades) ou aciona um botão de painel. Apontando para o vazio, limpa a seleção. |
 | A / B (direita), X / Y (esquerda) ou aperto lateral | Abre e fecha o menu, diante do usuário. |
 
-**Menu**: Ponto inicial · Recentrar (vira o modelo para a frente do olhar, sem sair do lugar) · mostrar/ocultar por categoria (só as que existem no projeto) · Terreno (quando há superfície) · Piso virtual por nível (quando o projeto não tem terreno nem pisos) · Informações do projeto (com triângulos, chamadas de desenho e quadros por segundo) · Sair do VR.
+**Menu**: Ponto inicial · Recentrar (vira o modelo para a frente do olhar, sem sair do lugar) · mostrar/ocultar por categoria (só as que existem no projeto) · Terreno (quando há superfície) · Piso virtual por nível (quando o projeto não tem terreno nem pisos) · Andar pelo direcional esquerdo (liga/desliga) · Informações do projeto (com triângulos, chamadas de desenho e quadros por segundo) · Sair do VR.
 
 **Painel de propriedades**: categoria, identificação, diâmetro (DN e designação), material, norma, classe, comprimento (tubos), cota, sistema e fabricante — lidos do elemento do projeto no momento da consulta, só os campos que ele tem. O elemento consultado fica selecionado também no editor.
 
@@ -87,10 +90,10 @@ Teste local no headset (antes de publicar): a WebXR exige contexto seguro, e `ht
 
 Automatizados (rodam sem headset):
 
-- `apps/web/src/vr/vrCoordinates.test.ts` — conversão de eixos e inversa, escala, ausência de espelhamento, coincidência com a cadeia de grupos da cena, ida e volta em coordenadas UTM, teletransporte, giro, ponto inicial.
+- `apps/web/src/vr/vrCoordinates.test.ts` — conversão de eixos e inversa, escala, ausência de espelhamento, coincidência com a cadeia de grupos da cena, ida e volta em coordenadas UTM, teletransporte, giro, caminhada pelo direcional, ponto inicial.
 - `apps/web/src/vr/vrSession.test.ts` — detecção (sem WebXR, sem VR, sem HTTPS, consulta recusada), pedido e ligação da sessão com objetos simulados, alternativa sem piso rastreado, entrada, saída, sessão pendente, recusa, falha ao ligar e limpeza.
 - `apps/web/src/vr/vrScene.test.ts` — cena de todos os projetos de demonstração, lotes, identidade de cada elemento pelo raio, escala e posições, origem local, visibilidade por categoria, destaque, liberação de recursos; propriedades; superfícies e teletransporte; controles; painéis; qualidade.
-- `tests/e2e/vr.spec.ts` (Chromium) — navegador sem dispositivo e sem WebXR (mensagem, editor intacto); sessão com o dispositivo simulado de `tests/e2e/fakeXr.ts`: entrar, laço de quadros, teletransporte, giro, seleção, menu, saída pelo dispositivo e pelo botão, reentrada, piso estimado, sem erros de console.
+- `tests/e2e/vr.spec.ts` (Chromium) — navegador sem dispositivo e sem WebXR (mensagem, editor intacto); sessão com o dispositivo simulado de `tests/e2e/fakeXr.ts`: entrar, laço de quadros, teletransporte, giro, rótulo ao mirar, seleção, caminhada contínua, menu, saída pelo dispositivo e pelo botão, reentrada, piso estimado, sem erros de console.
 
 O dispositivo simulado implementa a parte da WebXR que o Three.js usa e desenha os dois olhos lado a lado no canvas. Ele prova que o código da sessão executa; **não** prova nada sobre o headset. A extensão Immersive Web Emulator (Meta) pode ser usada no Chrome do computador para um ensaio manual das interações.
 
@@ -102,8 +105,10 @@ Registre data, versão do sistema e do navegador do headset, projeto usado e o r
 2. Visualizar › Entrar em VR: o navegador oferece a sessão e ela começa (a barra mostraria "piso estimado" se o piso não fosse rastreado — não é o esperado no Quest).
 3. Escala: comparar um tubo de diâmetro conhecido e uma altura conhecida (um nível, um reservatório) com o corpo; o piso do modelo coincide com o piso físico.
 4. Orientação: tubos verticais na vertical; o que está ao norte na planta fica à frente ao entrar; nada espelhado (conferir uma derivação à direita na planta).
-5. Teletransporte com cada mão: arco, marcador, destino aceito e recusado (apontar para o céu; em projeto com terreno, para um talude íngreme; para trás de uma peça).
-6. Giro de 30° para os dois lados; andar fisicamente um passo e teletransportar (o destino fica sob os pés, não sob o centro da sala).
+5. Caminhada: andar fisicamente dois passos e conferir que o modelo fica parado; direcional esquerdo para a frente, para trás e para os lados, olhando em outra direção (anda para onde se olha); em projeto com terreno, subir e descer um talude. Anotar qualquer desconforto.
+5a. Rótulo: apontar para um tubo próximo e para um distante; o nome é legível nos dois casos.
+5b. Teletransporte com a mão direita: arco, marcador, destino aceito e recusado (apontar para o céu; em projeto com terreno, para um talude íngreme; para trás de uma peça).
+6. Giro de 30° para os dois lados (direcional direito); andar fisicamente um passo e teletransportar (o destino fica sob os pés, não sob o centro da sala).
 7. Seleção: apontar para tubo, conexão, válvula, bomba e reservatório; o painel mostra os dados do elemento certo e é legível sem esforço.
 8. Menu: abrir e fechar; ponto inicial; recentrar; ocultar e mostrar cada categoria; terreno (projeto Infra); informações do projeto.
 9. Desempenho: anotar os quadros por segundo do menu (meta: 72) no barrilete, na edificação e em um projeto Infra com terreno; observar engasgos ao olhar em volta.
@@ -116,7 +121,7 @@ Registre data, versão do sistema e do navegador do headset, projeto usado e o r
 - Só leitura: não edita, não mede, não corta. As anotações, cotas e vistas salvas não aparecem.
 - O botão da faixa mostra só o símbolo (a aba Visualizar tem de caber em uma linha a 1920 px); o nome está na dica e na busca de comandos.
 - Geometria sem níveis de detalhe: redes com muitas peças flangeadas (furação desenhada) podem passar do orçamento do Quest 2. O terreno é desenhado inteiro, com a malha do projeto, e o mapa sobre ele continua sendo baixado se estiver ligado.
-- Sem colisão: o usuário pode atravessar peças andando fisicamente. O obstáculo só é verificado no arco do teletransporte, não no ponto de chegada.
+- Sem colisão: o usuário atravessa peças andando fisicamente ou pelo direcional. A caminhada contínua pode causar enjoo em pessoas sensíveis (não há redução do campo de visão ao andar); o teletransporte continua disponível e ela pode ser desligada no menu. O obstáculo só é verificado no arco do teletransporte, não no ponto de chegada.
 - O giro "Recentrar" aponta para o centro do modelo; não há pontos de visita salvos.
 - Com exagero vertical do terreno ligado, o usuário anda sobre a superfície como desenhada, e a rede deixa de coincidir com ela (como no Modelo 3D).
 - Controles: formas simples, sem o modelo do fabricante; rastreamento de mãos não é usado.

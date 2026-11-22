@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { planConnection } from './alignConnect';
+import { deflectedElbowClosure } from './closure';
 import { routeConnection } from './connectionRoute';
 import { connectedComponent, findConnection, resolvePort } from './connectivity';
 import { GENERIC_CATALOG, type FittingCatalog } from './families';
 import { add, distance, vec3, type Vec3 } from './math';
 import { addPipe, attachFitting, createProject } from './operations';
-import type { PortRef, Project } from './schema';
+import type { PipeSpec, PortRef, Project } from './schema';
 import { testSpec } from './testSupport';
+import { degToRad } from './units';
 import { validateProject } from './validation';
 
 // Dimensões fictícias, declaradas apenas para exercitar o solucionador sem depender do catálogo.
@@ -88,6 +90,82 @@ describe('percurso espacial entre extremidades', () => {
     expect(route.project.elements.filter((element) => element.kind === 'elbow')).toHaveLength(3);
     assertConnected(input.project, route.project, input.a, input.b);
     expect(input.project).toEqual(before);
+  });
+
+  describe('alternativa simples: um joelho com deflexão na junta', () => {
+    // Junta elástica fictícia (5°), só para exercitar a deflexão admitida.
+    const elastic: PipeSpec = { ...testSpec(100), jointDeflection: degToRad(5) };
+    // Partida ao longo de +X; referência chegando a `angle` do eixo de partida, `lift` acima.
+    function meeting(angle: number, lift: number, spec = elastic) {
+      const first = addPipe(createProject('Encontro'), {
+        start: vec3(-3, 0, 665),
+        end: vec3(0, 0, 665),
+        spec,
+      });
+      if (!first.ok) throw new Error(first.error.message);
+      const along = vec3(Math.cos(angle), Math.sin(angle), 0);
+      const corner = vec3(4, 0, 665 + lift);
+      const second = addPipe(first.value.project, {
+        start: add(corner, vec3(along.x * 5, along.y * 5, 0)),
+        end: add(corner, vec3(along.x * 2, along.y * 2, 0)),
+        spec,
+      });
+      if (!second.ok) throw new Error(second.error.message);
+      return {
+        project: second.value.project,
+        from: { elementId: first.value.elementId, portId: 'end' },
+        to: { elementId: second.value.elementId, portId: 'end' },
+        catalog,
+        elbowAngles: [Math.PI / 4, Math.PI / 2],
+      };
+    }
+
+    it.each([
+      ['eixos na mesma cota que se encontram a 88,9°', degToRad(91.1), 0],
+      ['eixos reversos por 13 mm', degToRad(90), 0.013],
+    ])('%s: oferece um joelho de 90° antes do percurso de três', (_title, angle, lift) => {
+      const input = meeting(angle, lift);
+      const before = structuredClone(input.project);
+      const planned = planConnection(input.project, input);
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) return;
+      const keys = planned.value.candidates.map((candidate) => candidate.key);
+      expect(keys.slice(0, 2)).toEqual(['elbowDeflected:90', 'route:orthogonal']);
+      const simple = planned.value.candidates[0]!;
+      expect(simple.movedIds).toEqual([]);
+      expect(simple.createdIds).toHaveLength(2);
+      expect(simple.summary).toContain('deflexão de');
+      const elbows = simple.project.elements.filter((element) => element.kind === 'elbow');
+      expect(elbows).toHaveLength(1);
+      expect(elbows[0]?.kind === 'elbow' && elbows[0].angle).toBeCloseTo(Math.PI / 2, 9);
+      // A referência não é alterada; a ligação fica registrada e o projeto valida.
+      const target = input.project.elements.find((element) => element.id === input.to.elementId);
+      expect(simple.project.elements.find((element) => element.id === input.to.elementId)).toBe(
+        target,
+      );
+      expect(connectedComponent(simple.project, input.from.elementId)).toContain(
+        input.to.elementId,
+      );
+      expect(findConnection(simple.project, input.to)).toBeDefined();
+      expect(validateProject(simple.project)).toEqual([]);
+      expect(input.project).toEqual(before);
+    });
+
+    it('não oferece o joelho único quando a junta não admite a deflexão', () => {
+      const input = meeting(degToRad(91.1), 0, testSpec(100));
+      const planned = planConnection(input.project, input);
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) return;
+      const keys = planned.value.candidates.map((candidate) => candidate.key);
+      expect(keys.some((key) => key.includes('elbowDeflected'))).toBe(false);
+      expect(keys).toContain('route:orthogonal');
+      const refused = deflectedElbowClosure(input.project, {
+        ...input,
+        a: input.from,
+        b: input.to,
+      });
+      expect(!refused.ok && refused.error.code).toBe('DEFLECTION_EXCEEDED');
+    });
   });
 
   it('vence o desnível de 153 mm com os mesmos três joelhos reais', () => {

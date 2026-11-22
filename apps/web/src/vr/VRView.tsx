@@ -1,6 +1,6 @@
 import { VIEW_CATEGORIES, viewCategoryOf, type Vec3, type ViewCategory } from '@hydrobim/core';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { ArrowLeft, LogOut, RectangleGoggles } from 'lucide-react';
+import { ArrowLeft, CircleHelp, LogOut, RectangleGoggles, X } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BoxGeometry,
@@ -40,11 +40,21 @@ import {
   projectToXr,
   snapTurn,
   teleportPlacement,
+  walkPlacement,
   xrToProject,
   type VrHead,
 } from './vrCoordinates';
 import { vrArchInfo, vrElementInfo, vrProjectInfo } from './vrInfo';
-import { IDLE_HAND, readPad, SNAP_TURN_ANGLE, stepHand, type HandState } from './vrInput';
+import { follow } from '../walk/walkMotion';
+import {
+  IDLE_HAND,
+  moveVector,
+  readPad,
+  SNAP_TURN_ANGLE,
+  stepHand,
+  VR_WALK_SPEED,
+  type HandState,
+} from './vrInput';
 import { buildVrModel } from './vrModel';
 import {
   drawPanel,
@@ -69,6 +79,7 @@ import {
 } from './vrStore';
 import {
   findTeleportTarget,
+  supportAt,
   teleportArc,
   vrStartOf,
   walkSurfacesOf,
@@ -231,6 +242,8 @@ function VrScene() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [projectInfo, setProjectInfo] = useState(false);
+  /** Caminhada contínua pelo direcional esquerdo (o teletransporte continua na mão direita). */
+  const [smoothMove, setSmoothMove] = useState(true);
   const [selection, setSelection] = useState<VrSelection | null>(null);
   /** Nível escolhido para o piso virtual; `null` = a cota de apoio do ponto de partida. */
   const [levelIndex, setLevelIndex] = useState<number | null>(null);
@@ -320,6 +333,12 @@ function VrScene() {
         wide: true,
       });
     }
+    buttons.push({
+      id: 'walk',
+      label: 'Andar pelo direcional esquerdo',
+      active: smoothMove,
+      wide: true,
+    });
     buttons.push({ id: 'info', label: 'Informações do projeto', active: projectInfo, wide: true });
     buttons.push({ id: 'exit', label: 'Sair do VR', wide: true, danger: true });
     return {
@@ -327,12 +346,13 @@ function VrScene() {
       rows,
       note: info
         ? undefined
-        : 'Direcional para a frente: teletransporte. Para os lados: giro de 30°. Gatilho: selecionar.',
+        : 'Esquerdo: andar. Direito: para a frente teletransporta, para os lados gira 30°. Gatilho: selecionar.',
       buttons,
     };
   }, [
     menuOpen,
     projectInfo,
+    smoothMove,
     project,
     model,
     fps,
@@ -357,11 +377,19 @@ function VrScene() {
     };
   }, [project, selection]);
 
-  const panels = useMemo(() => ({ menu: createPanel(), info: createPanel() }), []);
+  const panels = useMemo(() => {
+    const hover = createPanel();
+    // O rótulo do elemento apontado fica sempre à vista e não é alvo do raio.
+    hover.mesh.material.depthTest = false;
+    hover.mesh.renderOrder = 12;
+    hover.mesh.raycast = () => undefined;
+    return { menu: createPanel(), info: createPanel(), hover };
+  }, []);
   useEffect(
     () => () => {
       panels.menu.dispose();
       panels.info.dispose();
+      panels.hover.dispose();
     },
     [panels],
   );
@@ -506,10 +534,29 @@ function VrScene() {
     teleport: null as { hand: number; target: TeleportTarget; blocked: boolean } | null,
     meter: new FrameMeter(),
     readout: 1,
+    hoverKey: null as string | null,
   });
   // Valores lidos dentro do laço de quadros, sempre os da renderização mais recente.
-  const live = useRef({ start, surfaces, model, origin, selection, virtualElevation });
-  live.current = { start, surfaces, model, origin, selection, virtualElevation };
+  const live = useRef({
+    start,
+    surfaces,
+    model,
+    origin,
+    selection,
+    virtualElevation,
+    project,
+    smoothMove,
+  });
+  live.current = {
+    start,
+    surfaces,
+    model,
+    origin,
+    selection,
+    virtualElevation,
+    project,
+    smoothMove,
+  };
 
   // Piso virtual trocado de nível: o usuário vai para a nova cota, no mesmo ponto em planta.
   useEffect(() => {
@@ -559,6 +606,7 @@ function VrScene() {
       forward: new Vector3(),
       quaternion: new Quaternion(),
       segment: new Vector3(),
+      hoverPoint: new Vector3(),
     }),
     [],
   );
@@ -596,6 +644,8 @@ function VrScene() {
       setLevelIndex((current) =>
         current === null ? 0 : current + 1 >= count ? null : current + 1,
       );
+    } else if (id === 'walk') {
+      setSmoothMove((on) => !on);
     } else if (id === 'info') {
       setProjectInfo((shown) => !shown);
     } else if (id === 'close-info') {
@@ -625,6 +675,8 @@ function VrScene() {
           hand.state = IDLE_HAND;
         }
         setMenuOpen(false);
+        panels.hover.setSpec(null);
+        run.hoverKey = null;
       }
     }
 
@@ -661,11 +713,12 @@ function VrScene() {
       let menuHover: string | null = null;
       let infoHover: string | null = null;
       let aimingHand: number | null = null;
+      let hovering = null as { pick: VrSelection; distance: number } | null;
 
       hands.forEach((hand, index) => {
         const { controller } = hand;
         const source = controller.userData.source as
-          { gamepad?: Parameters<typeof readPad>[0] } | null | undefined;
+          { gamepad?: Parameters<typeof readPad>[0]; handedness?: string } | null | undefined;
         if (!source || !controller.visible) {
           hand.arc.visible = false;
           hand.dot.visible = false;
@@ -674,8 +727,22 @@ function VrScene() {
           return;
         }
         const pad = readPad(source.gamepad);
-        const step = pad ? stepHand(hand.state, pad) : { state: hand.state, actions: [] };
+        // Mão esquerda anda; a direita teletransporta e gira (como nos jogos do Quest).
+        const mode = live.current.smoothMove && source.handedness === 'left' ? 'move' : 'steer';
+        const step = pad ? stepHand(hand.state, pad, mode) : { state: hand.state, actions: [] };
         hand.state = step.state;
+        if (pad && mode === 'move') {
+          const move = moveVector(pad);
+          if (move.ahead !== 0 || move.right !== 0) {
+            const pace = VR_WALK_SPEED * Math.min(delta, 0.1);
+            run.placement = walkPlacement(
+              run.placement,
+              head,
+              move.ahead * pace,
+              move.right * pace,
+            );
+          }
+        }
         const actions = [...step.actions];
         // O aperto lateral também abre o menu (controles sem botões de face).
         if (hand.squeezes > 0) actions.push('menu');
@@ -789,6 +856,10 @@ function VrScene() {
           reach = hit.distance;
           hand.dot.position.copy(hit.point);
         }
+        if (picked && hit && !hovering) {
+          hovering = { pick: picked, distance: hit.distance };
+          tools.hoverPoint.copy(hit.point);
+        }
         hand.dot.visible = hit !== undefined;
         hand.laser.scale.z = reach;
 
@@ -819,6 +890,59 @@ function VrScene() {
       if (aim !== useVrStore.getState().aim) useVrStore.setState({ aim });
       panels.menu.setHovered(menuHover);
       panels.info.setHovered(infoHover);
+
+      // Rótulo do elemento sob o raio: nome e categoria, antes do clique. O que já está com o
+      // painel de propriedades aberto não repete o rótulo.
+      const shown = live.current.selection;
+      const label =
+        hovering && !(shown?.kind === hovering.pick.kind && shown.id === hovering.pick.id)
+          ? hovering
+          : null;
+      const labelKey = label ? `${label.pick.kind}:${label.pick.id}` : null;
+      if (labelKey !== run.hoverKey) {
+        run.hoverKey = labelKey;
+        const info = !label
+          ? null
+          : label.pick.kind === 'element'
+            ? vrElementInfo(live.current.project, label.pick.id)
+            : vrArchInfo(live.current.project, label.pick.id);
+        panels.hover.setSpec(
+          info
+            ? {
+                title: info.title,
+                rows: info.rows.filter(([name]) => name === 'Categoria' || name === 'Diâmetro'),
+                note: 'Gatilho: ver as propriedades',
+              }
+            : null,
+        );
+        useVrStore.setState({ hovered: label?.pick.id ?? null });
+      }
+      if (label && panels.hover.layout) {
+        // O rótulo cresce com a distância: ocupa sempre cerca de 25° do campo de visão, com o
+        // nome a mais de 1° de altura — legível junto de peças próximas ou afastadas.
+        const size = Math.min(10, Math.max(0.5, label.distance / 1.4));
+        const height = panelHeightM(panels.hover.layout) * size;
+        panels.hover.mesh.scale.set(PANEL_WIDTH_M * size, height, 1);
+        panels.hover.mesh.position.copy(tools.hoverPoint);
+        panels.hover.mesh.position.y += height / 2 + 0.08 * size;
+        panels.hover.mesh.lookAt(run.headPosition);
+        panels.hover.mesh.visible = true;
+      }
+
+      // Apoio: andando pelo direcional ou fisicamente, os pés acompanham o piso sob o usuário
+      // (com um degrau de até 0,6 m). Fora de qualquer piso vale a última cota.
+      const feet = feetOf(run.placement, head);
+      const support = supportAt(walkable, feet.x, feet.y, feet.z + 0.3);
+      if (support !== null && Math.abs(support - feet.z) > 1e-4) {
+        const { anchor } = run.placement;
+        run.placement = {
+          ...run.placement,
+          anchor: { ...anchor, z: follow(anchor.z, support, Math.min(delta, 0.1)) },
+        };
+      }
+      // Caminhando para longe da origem local, a cena é refeita em torno do usuário.
+      const rebased = nextRenderOrigin(live.current.origin, run.placement.anchor);
+      if (rebased !== live.current.origin) setOrigin(rebased);
 
       const measured = run.meter.tick(delta);
       if (measured !== null) useVrStore.setState({ fps: measured });
@@ -873,14 +997,18 @@ function VrScene() {
       </group>
       <primitive object={panels.menu.mesh} />
       <primitive object={panels.info.mesh} />
+      <primitive object={panels.hover.mesh} />
       <primitive object={marker} />
     </>
   );
 }
 
 const CONTROLS: readonly (readonly [string, string])[] = [
-  ['Direcional para a frente', 'mira o teletransporte; soltar confirma'],
-  ['Direcional para os lados', 'gira 30°'],
+  ['Andar com o headset', 'o modelo fica parado: caminhe pela sala'],
+  ['Direcional esquerdo', 'anda na direção do olhar (pode ser desligado no menu)'],
+  ['Direcional direito para a frente', 'mira o teletransporte; soltar confirma'],
+  ['Direcional direito para os lados', 'gira 30°'],
+  ['Apontar para um elemento', 'mostra o nome e a categoria'],
   ['Gatilho', 'seleciona o elemento apontado ou aciona um botão'],
   ['A / B / X / Y ou aperto lateral', 'abre e fecha o menu'],
 ];
@@ -896,8 +1024,11 @@ export function VRView() {
   const lastFps = useVrStore((s) => s.lastFps);
   const position = useVrStore((s) => s.position);
   const selected = useVrStore((s) => s.selected);
+  const hovered = useVrStore((s) => s.hovered);
   const menuOpen = useVrStore((s) => s.menuOpen);
   const aim = useVrStore((s) => s.aim);
+  /** Quadro de ajuda sobre a prévia: só existe no monitor (o headset mostra apenas a cena). */
+  const [helpOpen, setHelpOpen] = useState(true);
 
   useEffect(() => {
     void checkVrSupport();
@@ -926,6 +1057,7 @@ export function VRView() {
       data-y={position?.y.toFixed(3)}
       data-z={position?.z.toFixed(3)}
       data-selected={selected ?? ''}
+      data-hovered={hovered ?? ''}
       data-menu={menuOpen ? 'open' : 'closed'}
       data-aim={aim ?? ''}
     >
@@ -961,6 +1093,16 @@ export function VRView() {
             <RectangleGoggles size={15} aria-hidden /> Entrar em VR
           </button>
         )}
+        <button
+          type="button"
+          className={helpOpen ? 'vr__button is-active' : 'vr__button'}
+          data-testid="vr-help-toggle"
+          aria-pressed={helpOpen}
+          title="Mostra ou oculta o quadro com os controles e os números da cena"
+          onClick={() => setHelpOpen((open) => !open)}
+        >
+          <CircleHelp size={15} aria-hidden /> Ajuda
+        </button>
         <button
           type="button"
           className="vr__button"
@@ -1006,32 +1148,45 @@ export function VRView() {
             {notice}
           </div>
         )}
-        <aside className="vr__help" data-testid="vr-help">
-          <strong>{presenting ? 'Espelho da sessão' : 'Prévia do ponto de partida'}</strong>
-          <span>
-            {presenting ? '' : 'Arraste para olhar em volta. '}Escala real: 1 m do modelo = 1 m.
-          </span>
-          {CONTROLS.map(([control, action]) => (
-            <span key={control}>
-              <b>{control}</b>: {action}
-            </span>
-          ))}
-          {stats && (
-            <span
-              data-testid="vr-stats"
-              data-elements={stats.elements}
-              data-batches={stats.batches}
+        {helpOpen ? (
+          <aside className="vr__help" data-testid="vr-help">
+            <button
+              type="button"
+              className="vr__help-close"
+              data-testid="vr-help-close"
+              aria-label="Ocultar a ajuda"
+              title="Ocultar a ajuda (o botão Ajuda, na barra, mostra de novo)"
+              onClick={() => setHelpOpen(false)}
             >
-              {stats.elements} elementos · {stats.triangles.toLocaleString('pt-BR')} triângulos ·{' '}
-              {stats.batches} chamadas de desenho
+              <X size={14} aria-hidden />
+            </button>
+            <strong>{presenting ? 'Espelho da sessão' : 'Prévia do ponto de partida'}</strong>
+            <span>
+              {presenting ? '' : 'Arraste para olhar em volta. '}Escala real: 1 m do modelo = 1 m.
             </span>
-          )}
-          {(fps ?? lastFps) !== null && (
-            <span data-testid="vr-fps">
-              {presenting ? 'Agora' : 'Última sessão'}: {Math.round(fps ?? lastFps ?? 0)} quadros/s
-            </span>
-          )}
-        </aside>
+            {CONTROLS.map(([control, action]) => (
+              <span key={control}>
+                <b>{control}</b>: {action}
+              </span>
+            ))}
+            {stats && (
+              <span
+                data-testid="vr-stats"
+                data-elements={stats.elements}
+                data-batches={stats.batches}
+              >
+                {stats.elements} elementos · {stats.triangles.toLocaleString('pt-BR')} triângulos ·{' '}
+                {stats.batches} chamadas de desenho
+              </span>
+            )}
+            {(fps ?? lastFps) !== null && (
+              <span data-testid="vr-fps">
+                {presenting ? 'Agora' : 'Última sessão'}: {Math.round(fps ?? lastFps ?? 0)}{' '}
+                quadros/s
+              </span>
+            )}
+          </aside>
+        ) : null}
       </div>
     </div>
   );
