@@ -19,6 +19,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { visibleElementsOf } from '../editor/visibility';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
+import { shownTerrain, useEarthworkStore } from '../terrain/earthworkStore';
 import { useTerrainStore } from '../terrain/terrainStore';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { Elements } from '../viewport/SceneContent';
@@ -80,7 +81,8 @@ interface WalkRuntime {
 function startWalk(): WalkRuntime {
   const { project, selection, workPlaneZ } = useEditorStore.getState();
   const { show3d, exaggeration } = useTerrainStore.getState().display;
-  const surface = show3d ? project.terrain : null;
+  // Caminha sobre a superfície desenhada: natural, projetada ou original (aba Corte/Aterro).
+  const surface = show3d ? shownTerrain(project, useEarthworkStore.getState().view) : null;
   const visible = visibleElementsOf(project);
   const chosen = visible.filter((element) => selection.includes(element.id));
   const bounds = computeBounds(chosen.length > 0 ? chosen : visible);
@@ -257,7 +259,9 @@ function WalkLighting({
 function WalkScene() {
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
-  const terrain = useEditorStore((s) => s.project.terrain);
+  const project = useEditorStore((s) => s.project);
+  const surfaceView = useEarthworkStore((s) => s.view);
+  const terrain = useMemo(() => shownTerrain(project, surfaceView), [project, surfaceView]);
   const terrainShown = useTerrainStore((s) => s.display.show3d);
   const exaggeration = useTerrainStore((s) => s.display.exaggeration);
   const surface = terrainShown ? terrain : null;

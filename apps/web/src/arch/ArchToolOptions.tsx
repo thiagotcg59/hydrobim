@@ -1,4 +1,12 @@
-import { archTypeSizeLabel, getArchElement, type WallLocationLine } from '@hydrobim/core';
+import {
+  archGroundElevationAt,
+  archTypeSizeLabel,
+  formatMeters,
+  getArchElement,
+  hasDesignTerrain,
+  type Project,
+  type WallLocationLine,
+} from '@hydrobim/core';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { NumberField, ReadOnlyRow, Section, SelectField } from '../ui/fields';
@@ -7,9 +15,25 @@ import {
   ARCH_TOOL_CATEGORY,
   ARCH_TOOL_HINTS,
   ARCH_TOOL_LABELS,
+  effectiveSeatOf,
+  seatGroundLabel,
   useArchStore,
+  type ArchSeat,
   type ArchTool,
 } from './archStore';
+
+/** Itens de "Assentar sobre": sem platôs, natural e projetado são a mesma superfície. */
+export function seatOptionsOf(project: Project): { value: ArchSeat; label: string }[] {
+  const level = { value: 'level' as const, label: 'Nível (plano de trabalho)' };
+  if (!project.terrain) return [level];
+  return hasDesignTerrain(project)
+    ? [
+        level,
+        { value: 'design', label: 'Terreno projetado' },
+        { value: 'natural', label: 'Terreno natural' },
+      ]
+    : [level, { value: 'design', label: 'Terreno' }];
+}
 
 export const LOCATION_LINE_OPTIONS: readonly { value: WallLocationLine; label: string }[] = [
   { value: 'center', label: 'Eixo da parede' },
@@ -93,6 +117,19 @@ export function ArchToolOptions({ tool }: { tool: ArchTool }) {
   const levelId = workLevelIdOf(project, workPlaneZ);
   const level = project.levels.find((item) => item.id === levelId);
   const target = openingTarget ? getArchElement(project.architecture, openingTarget) : undefined;
+  const firstPoint = useArchStore((s) => s.points[0]);
+  const seatable = tool === 'wall' || tool === 'slab' || tool === 'flooring' || tool === 'space';
+  const seatChoices = seatOptionsOf(project);
+  const seat = effectiveSeatOf(project, options.seat);
+  // Sem platôs só há "Terreno": a escolha "natural" guardada é a mesma superfície.
+  const seatValue = seatChoices.some((item) => item.value === seat) ? seat : 'design';
+  const onGround = seat !== 'level';
+  const clearance =
+    tool === 'wall' ? options.wallBaseOffset : tool === 'space' ? 0 : options.floorOffset;
+  // Cota de referência do próximo elemento: a do nível ou a do terreno no primeiro ponto.
+  const ground = onGround && firstPoint ? archGroundElevationAt(project, seat, firstPoint) : null;
+  const reference = onGround ? ground : (level?.elevation ?? null);
+  const referenceLabel = !onGround && tool === 'slab' ? 'Elevação do topo' : 'Elevação da base';
 
   return (
     <aside className="panel inspector" aria-label="Ferramenta" data-testid="arch-tool-options">
@@ -130,6 +167,37 @@ export function ArchToolOptions({ tool }: { tool: ArchTool }) {
               value={<span data-testid="arch-option-level">{level?.name ?? '—'}</span>}
             />
           )}
+          {seatable && (
+            <>
+              <SelectField
+                label="Assentar sobre"
+                value={seatValue}
+                testId="arch-option-seat"
+                disabled={project.terrain === null}
+                options={seatChoices}
+                onChange={(value) => setOptions({ seat: value })}
+              />
+              <ReadOnlyRow
+                label={referenceLabel}
+                value={
+                  <span data-testid="arch-option-elevation">
+                    {reference !== null
+                      ? formatMeters(reference + clearance, 3)
+                      : firstPoint
+                        ? 'fora da superfície: vale o nível'
+                        : 'terreno no primeiro ponto'}
+                  </span>
+                }
+              />
+              <span className="muted" data-testid="arch-option-seat-note">
+                {project.terrain === null
+                  ? 'O projeto não tem superfície de terreno (Modelagem › Terreno): a base fica no nível do plano de trabalho.'
+                  : onGround
+                    ? `A base fica na cota do ${seatGroundLabel(project, seat)} no primeiro ponto ${tool === 'wall' ? 'do traçado' : 'do contorno'}${tool === 'space' ? '' : ', mais a folga abaixo'}. A base é horizontal: em terreno inclinado o restante fica acima ou abaixo da superfície.`
+                    : 'A base fica no nível do plano de trabalho, mais o deslocamento abaixo.'}
+              </span>
+            </>
+          )}
           {tool === 'wall' && (
             <>
               <NumberField
@@ -142,7 +210,7 @@ export function ArchToolOptions({ tool }: { tool: ArchTool }) {
                 }}
               />
               <NumberField
-                label="Deslocamento da base"
+                label={onGround ? 'Base acima do terreno' : 'Deslocamento da base'}
                 unit="m"
                 value={options.wallBaseOffset}
                 testId="arch-option-base-offset"
@@ -169,7 +237,11 @@ export function ArchToolOptions({ tool }: { tool: ArchTool }) {
           {(tool === 'slab' || tool === 'flooring') && (
             <NumberField
               label={
-                tool === 'slab' ? 'Cota do topo (rel. ao nível)' : 'Cota da base (rel. ao nível)'
+                onGround
+                  ? 'Base acima do terreno'
+                  : tool === 'slab'
+                    ? 'Cota do topo (rel. ao nível)'
+                    : 'Cota da base (rel. ao nível)'
               }
               unit="m"
               value={options.floorOffset}

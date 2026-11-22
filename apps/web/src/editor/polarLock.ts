@@ -8,6 +8,7 @@ import {
   resolvePort,
   sub,
   vec3,
+  type Point2,
   type PortRef,
   type Project,
   type Vec3,
@@ -17,7 +18,10 @@ import { lengthStepOf } from './precision';
 import { precision } from '../state/precisionStore';
 
 /**
- * Trava de ângulo com Shift, no traçado de tubos: o trecho fica a 0°, 45° ou 90°.
+ * Trava de ângulo com Shift. Em planta, vale para tudo o que é traçado por pontos (paredes,
+ * contornos de laje, piso, ambiente e terreno, medição, cotas, linha de corte): de 45° em 45°
+ * em relação aos eixos do projeto (`polarLockPlan`). No traçado de tubos o trecho fica a 0°,
+ * 45° ou 90°:
  *  - partindo da extremidade de um tubo, os ângulos são medidos em relação a esse tubo
  *    (prolongamento reto, joelho de 45° ou joelho de 90°);
  *  - no primeiro trecho, ou partindo de um ponto livre, em relação aos eixos X e Y do
@@ -48,13 +52,46 @@ export function polarLockPoint(
   const dx = target.x - origin.x;
   const dy = target.y - origin.y;
   if (Math.hypot(dx, dy) < 1e-9) return target;
-  const angle = Math.round(Math.atan2(dy, dx) / POLAR_STEP) * POLAR_STEP;
-  const direction = vec3(Math.cos(angle), Math.sin(angle), 0);
+  const direction = polarDirection(Math.round(Math.atan2(dy, dx) / POLAR_STEP));
   const projected = dx * direction.x + dy * direction.y;
   const rounded = snapLength(projected, lengthStep);
   const distance = rounded > 1e-9 ? rounded : projected;
   // A cota do ponto pedido é mantida (elevação do traçado, recobrimento sobre o terreno).
   return vec3(origin.x + direction.x * distance, origin.y + direction.y * distance, target.z);
+}
+
+/**
+ * Direção do passo `index` (múltiplo de 45°), com componentes exatas: um trecho travado na
+ * horizontal ou na vertical mantém a coordenada do ponto de partida sem resíduo de seno/cosseno.
+ */
+function polarDirection(index: number): Vec3 {
+  const diagonal = Math.SQRT1_2;
+  const table: readonly (readonly [number, number])[] = [
+    [1, 0],
+    [diagonal, diagonal],
+    [0, 1],
+    [-diagonal, diagonal],
+    [-1, 0],
+    [-diagonal, -diagonal],
+    [0, -1],
+    [diagonal, -diagonal],
+  ];
+  const [x, y] = table[((index % 8) + 8) % 8] ?? [1, 0];
+  return vec3(x, y, 0);
+}
+
+/**
+ * Trava em planta para o que não é tubo (paredes, contornos, cotas, linha de corte): o trecho a
+ * partir de `origin` fica de 45° em 45° em relação aos eixos X e Y do projeto.
+ */
+export function polarLockPlan(origin: Point2, target: Point2, lengthStep = 0): Point2 {
+  const locked = polarLockPoint(
+    vec3(origin.x, origin.y, 0),
+    null,
+    vec3(target.x, target.y, 0),
+    lengthStep,
+  );
+  return { x: locked.x, y: locked.y };
 }
 
 interface PolarState {

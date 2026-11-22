@@ -5,18 +5,25 @@ import {
   addSpace,
   addWalls,
   ARCH_KIND_LABELS,
+  archSeatOffset,
   archTypeUsage,
   copyArchElements,
   deleteArchElements,
   getArchElement,
   getArchType,
+  GROUND_SURFACE_LABELS,
+  hasDesignTerrain,
+  formatMeters,
   mirrorArchElements,
   moveArchElements,
   removeFloorOpening,
   rotateArchElements,
+  seatArchElement,
   updateArchElement,
   type ArchCategory,
   type ArchElementPatch,
+  type GroundSurface,
+  type SeatableArchKind,
   type Point2,
   type Project,
   type Result,
@@ -66,10 +73,10 @@ export const ARCH_TOOL_LABELS: Record<ArchTool, string> = {
 };
 
 export const ARCH_TOOL_HINTS: Record<ArchTool, string> = {
-  wall: 'Parede: clique os pontos do traçado na planta (extremidades e faces das paredes existentes e a grade são capturadas). Digite um valor para definir o comprimento do trecho na direção do cursor. Enter ou duplo clique conclui; Backspace desfaz o último ponto; Esc cancela.',
-  slab: 'Laje: clique os vértices do contorno na planta. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
+  wall: 'Parede: clique os pontos do traçado na planta (extremidades e faces das paredes existentes e a grade são capturadas). Digite um valor para definir o comprimento do trecho na direção do cursor. Shift trava o trecho de 45° em 45°. Enter ou duplo clique conclui; Backspace desfaz o último ponto; Esc cancela.',
+  slab: 'Laje: clique os vértices do contorno na planta. Shift trava o lado de 45° em 45°. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
   flooring:
-    'Piso (revestimento): clique os vértices do contorno na planta. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
+    'Piso (revestimento): clique os vértices do contorno na planta. Shift trava o lado de 45° em 45°. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
   door: 'Porta: clique sobre uma parede na planta. A prévia mostra o vão (em vermelho, quando não cabe). A posição, a mão e a face são refinadas no painel de propriedades. Esc encerra.',
   window:
     'Janela: clique sobre uma parede na planta. A prévia mostra o vão (em vermelho, quando não cabe). A posição e o peitoril são refinados no painel de propriedades. Esc encerra.',
@@ -88,8 +95,28 @@ export const ARCH_TOOL_CATEGORY: Partial<Record<ArchTool, ArchCategory>> = {
   window: 'window',
 };
 
+/**
+ * Onde a base do próximo elemento assenta: no nível do plano de trabalho ou sobre o terreno
+ * (natural ou projetado), na cota do primeiro ponto do traçado ou do contorno.
+ */
+export type ArchSeat = 'level' | GroundSurface;
+
+/** Assentamento que vale agora: sem superfície de terreno, sempre o nível. */
+export const effectiveSeatOf = (project: Pick<Project, 'terrain'>, seat: ArchSeat): ArchSeat =>
+  project.terrain ? seat : 'level';
+
+/** Nome da superfície nas mensagens; sem platôs natural e projetado coincidem: "terreno". */
+export const seatGroundLabel = (project: Project, surface: GroundSurface): string =>
+  hasDesignTerrain(project) ? GROUND_SURFACE_LABELS[surface] : 'terreno';
+
 /** Opções do próximo elemento (parâmetros de desenho, não dados cadastrais). */
 export interface ArchOptions {
+  /**
+   * Referência vertical de paredes, lajes, pisos e ambientes. Sobre o terreno, os
+   * deslocamentos abaixo (`wallBaseOffset`, `floorOffset`) passam a ser a folga da BASE acima
+   * do terreno.
+   */
+  seat: ArchSeat;
   /** Altura das próximas paredes (m). */
   wallHeight: number;
   /** Deslocamento da base das próximas paredes em relação ao nível (m). */
@@ -108,6 +135,7 @@ export interface ArchOptions {
 }
 
 const DEFAULT_OPTIONS: ArchOptions = {
+  seat: 'level',
   wallHeight: 2.8,
   wallBaseOffset: 0,
   locationLine: 'center',
@@ -155,6 +183,8 @@ interface ArchState {
   selectMany: (ids: readonly string[]) => void;
   deleteSelected: () => boolean;
   update: (id: string, patch: ArchElementPatch) => boolean;
+  /** Leva a base do elemento à cota do terreno no seu ponto de referência. */
+  seat: (id: string, surface: GroundSurface) => boolean;
   /** Informa (ou limpa, com `null`) um valor IFC do tipo ou da ocorrência do elemento. */
   setIfcValue: (elementId: string, scope: IfcScope, key: string, value: IfcValue | null) => boolean;
   removeOpening: (floorId: string, openingId: string) => boolean;
@@ -264,6 +294,33 @@ export const useArchStore = create<ArchState>()((set, get) => {
       return null;
     }
     return { project: state.project, levelId, typeId };
+  };
+
+  /**
+   * Deslocamento (rel. ao nível) do próximo elemento e o complemento da mensagem: no nível, a
+   * própria folga; sobre o terreno, a regra do núcleo (`archSeatOffset`) no primeiro ponto.
+   * Fora da superfície vale o nível, e a mensagem diz.
+   */
+  const seated = (
+    project: Project,
+    target: { kind: SeatableArchKind; levelId: string; typeId?: string },
+    point: Point2 | undefined,
+    clearance: number,
+  ): { offset: number; note: string } => {
+    const seat = effectiveSeatOf(project, get().options.seat);
+    if (seat === 'level' || !point) return { offset: clearance, note: '' };
+    const label = seatGroundLabel(project, seat);
+    const result = archSeatOffset(project, seat, target, point, clearance);
+    if (!result) {
+      return {
+        offset: clearance,
+        note: ` O primeiro ponto está fora da superfície do ${label}: usado o nível do plano de trabalho.`,
+      };
+    }
+    return {
+      offset: result.offset,
+      note: ` Base assentada sobre o ${label}, na cota ${formatMeters(result.base, 3)}.`,
+    };
   };
 
   const placeHosted = (kind: 'door' | 'window', point: Point2, tolerance: number): void => {
@@ -402,17 +459,23 @@ export const useArchStore = create<ArchState>()((set, get) => {
         }
         const ready = context('wall');
         if (!ready) return false;
+        const base = seated(
+          ready.project,
+          { kind: 'wall', levelId: ready.levelId, typeId: ready.typeId },
+          points[0],
+          options.wallBaseOffset,
+        );
         const ok = created(
           addWalls(ready.project, {
             typeId: ready.typeId,
             levelId: ready.levelId,
             points,
             height: options.wallHeight,
-            baseOffset: options.wallBaseOffset,
+            baseOffset: base.offset,
             locationLine: options.locationLine,
             closed: closed ?? options.closed,
           }),
-          (ids) => `${plural(ids.length, 'parede criada', 'paredes criadas')}.`,
+          (ids) => `${plural(ids.length, 'parede criada', 'paredes criadas')}.${base.note}`,
         );
         if (ok) set({ points: [] });
         return ok;
@@ -425,26 +488,34 @@ export const useArchStore = create<ArchState>()((set, get) => {
       if (tool === 'slab' || tool === 'flooring') {
         const ready = context(tool);
         if (!ready) return false;
+        const base = seated(
+          ready.project,
+          { kind: tool, levelId: ready.levelId, typeId: ready.typeId },
+          points[0],
+          options.floorOffset,
+        );
         ok = created(
           addFloor(ready.project, {
             kind: tool,
             typeId: ready.typeId,
             levelId: ready.levelId,
             boundary: points,
-            offset: options.floorOffset,
+            offset: base.offset,
           }),
-          () => `${ARCH_KIND_LABELS[tool]} criad${tool === 'slab' ? 'a' : 'o'}.`,
+          () => `${ARCH_KIND_LABELS[tool]} criad${tool === 'slab' ? 'a' : 'o'}.${base.note}`,
         );
       } else if (tool === 'space') {
         const ready = context(null);
         if (!ready) return false;
+        const base = seated(ready.project, { kind: 'space', levelId: ready.levelId }, points[0], 0);
         ok = created(
           addSpace(ready.project, {
             levelId: ready.levelId,
             boundary: points,
             height: options.spaceHeight,
+            offset: base.offset,
           }),
-          () => 'Ambiente criado. Informe o nome e o número no painel de propriedades.',
+          () => `Ambiente criado. Informe o nome e o número no painel de propriedades.${base.note}`,
         );
       } else {
         const result = addFloorOpening(editor().project, openingTarget ?? '', points);
@@ -542,6 +613,14 @@ export const useArchStore = create<ArchState>()((set, get) => {
     },
 
     update: (id, patch) => apply(updateArchElement(editor().project, id, patch)),
+
+    seat: (id, surface) => {
+      const { project } = editor();
+      return apply(
+        seatArchElement(project, id, surface),
+        `Base assentada sobre o ${seatGroundLabel(project, surface)}.`,
+      );
+    },
 
     setIfcValue: (elementId, scope, key, value) => {
       const { project } = editor();

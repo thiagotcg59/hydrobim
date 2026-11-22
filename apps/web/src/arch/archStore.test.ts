@@ -1,9 +1,14 @@
 import { archTypeFromFamily, getArchFamily } from '@hydrobim/catalog';
 import {
   addArchType,
+  addPlatform,
+  archVerticalRange,
+  buildTerrainSurface,
   createProject,
   parseProject,
   serializeProject,
+  setTerrain,
+  surveySource,
   validateProject,
   vec3,
   type ArchCategory,
@@ -56,6 +61,13 @@ beforeEach(() => {
   useViewStore.setState({ open2d: null, open3d: null, tool: 'select', draft: [] });
   useUiStore.getState().setTask('model');
   useArchStore.setState({ tool: null, points: [], cursor: null, selection: [], activeTypes: {} });
+  arch().setOptions({
+    seat: 'level',
+    wallBaseOffset: 0,
+    floorOffset: 0,
+    wallHeight: 2.8,
+    closed: false,
+  });
 });
 
 describe('ferramentas de criação', () => {
@@ -368,5 +380,132 @@ describe('seleção e edição', () => {
     editor().commitPoint(vec3(0, 0, 0));
     editor().commitPoint(vec3(2, 0, 0));
     expect(editor().project.elements).toHaveLength(1);
+  });
+});
+
+describe('assentamento sobre o terreno', () => {
+  /** Plano inclinado de 100 m × 100 m: z = 700 + 0,02 x + 0,01 y, com platô na cota 705. */
+  const ground = (x: number, y: number): number => 700 + 0.02 * x + 0.01 * y;
+  const rangeOf = (element: ArchElement | undefined) =>
+    element ? archVerticalRange(editor().project, element) : null;
+
+  function withTerrain(): void {
+    emptyWithTypes();
+    const points = [];
+    for (let x = 0; x <= 100; x += 10) {
+      for (let y = 0; y <= 100; y += 10) points.push(vec3(x, y, ground(x, y)));
+    }
+    const built = buildTerrainSurface({
+      name: 'Plano',
+      points,
+      boundary: null,
+      breaklines: [],
+      source: surveySource('teste.xyz', '2026-11-22T00:00:00.000Z'),
+    });
+    if (!built.ok) throw new Error(built.error.message);
+    const graded = addPlatform(setTerrain(editor().project, built.value.terrain), {
+      outline: [
+        { x: 30, y: 30 },
+        { x: 60, y: 30 },
+        { x: 60, y: 60 },
+        { x: 30, y: 60 },
+      ],
+      elevation: 705,
+      cutSlope: 1,
+      fillSlope: 1.5,
+    });
+    if (!graded.ok) throw new Error(graded.error.message);
+    editor().loadProject(graded.value.project);
+  }
+
+  it('parede no nível por padrão; no projetado ou no natural conforme a opção, com folga', () => {
+    withTerrain();
+    arch().setTool('wall');
+    arch().clickPoint({ x: 40, y: 40 });
+    arch().clickPoint({ x: 50, y: 40 });
+    expect(arch().finish()).toBe(true);
+    expect(rangeOf(walls().at(-1))?.base).toBe(0);
+
+    arch().setOptions({ seat: 'design' });
+    arch().clickPoint({ x: 40, y: 45 });
+    arch().clickPoint({ x: 50, y: 45 });
+    expect(arch().finish()).toBe(true);
+    expect(rangeOf(walls().at(-1))).toEqual({ base: 705, top: 707.8 });
+    expect(editor().message?.text).toContain(
+      'Base assentada sobre o terreno projetado, na cota 705,000 m',
+    );
+
+    arch().setOptions({ seat: 'natural', wallBaseOffset: 0.3 });
+    arch().clickPoint({ x: 40, y: 50 });
+    arch().clickPoint({ x: 50, y: 50 });
+    expect(arch().finish()).toBe(true);
+    expect(rangeOf(walls().at(-1))?.base).toBeCloseTo(ground(40, 50) + 0.3, 3);
+    expect(editor().message?.text).toContain('sobre o terreno natural');
+    expect(validateProject(editor().project).filter((i) => i.severity === 'error')).toEqual([]);
+  });
+
+  it('laje com a base no terreno, ambiente no terreno e ponto fora da superfície no nível', () => {
+    withTerrain();
+    arch().setOptions({ seat: 'design' });
+    arch().setTool('slab');
+    for (const [x, y] of [
+      [40, 40],
+      [50, 40],
+      [50, 50],
+      [40, 50],
+    ] as const) {
+      arch().clickPoint({ x, y });
+    }
+    expect(arch().finish()).toBe(true);
+    const slab = elements().find((e) => e.kind === 'slab');
+    expect(rangeOf(slab)?.base).toBeCloseTo(705, 6);
+
+    arch().setTool('space');
+    for (const [x, y] of [
+      [70, 70],
+      [80, 70],
+      [80, 80],
+    ] as const) {
+      arch().clickPoint({ x, y });
+    }
+    expect(arch().finish()).toBe(true);
+    expect(rangeOf(elements().find((e) => e.kind === 'space'))?.base).toBeCloseTo(
+      ground(70, 70),
+      3,
+    );
+
+    arch().setTool('wall');
+    arch().clickPoint({ x: 300, y: 300 });
+    arch().clickPoint({ x: 310, y: 300 });
+    expect(arch().finish()).toBe(true);
+    expect(rangeOf(walls().at(-1))?.base).toBe(0);
+    expect(editor().message?.text).toContain('fora da superfície');
+  });
+
+  it('assentar um elemento existente é um passo do histórico; sem terreno vale o nível', () => {
+    withTerrain();
+    arch().setTool('wall');
+    arch().clickPoint({ x: 40, y: 40 });
+    arch().clickPoint({ x: 50, y: 40 });
+    arch().finish();
+    const id = walls()[0]?.id ?? '';
+    const before = editor().past.length;
+    expect(arch().seat(id, 'natural')).toBe(true);
+    expect(rangeOf(walls()[0])?.base).toBeCloseTo(ground(40, 40), 3);
+    expect(arch().seat(id, 'design')).toBe(true);
+    expect(rangeOf(walls()[0])?.base).toBe(705);
+    expect(editor().past.length).toBe(before + 2);
+    editor().undo();
+    expect(rangeOf(walls()[0])?.base).toBeCloseTo(ground(40, 40), 3);
+
+    // Sem superfície a opção guardada não vale: a parede fica no nível.
+    editor().loadProject(setTerrain(editor().project, null));
+    arch().setOptions({ seat: 'design' });
+    arch().setTool('wall');
+    arch().clickPoint({ x: 0, y: 10 });
+    arch().clickPoint({ x: 5, y: 10 });
+    expect(arch().finish()).toBe(true);
+    expect(rangeOf(walls().at(-1))?.base).toBe(0);
+    expect(arch().seat(id, 'design')).toBe(false);
   });
 });

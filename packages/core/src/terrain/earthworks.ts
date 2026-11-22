@@ -214,3 +214,36 @@ export function designTerrainOf(project: Project): Terrain | null {
     ? designSurfaceFor(project.terrain, project.earthworks.platforms).terrain
     : null;
 }
+
+/**
+ * Superfície de referência das cotas de terreno: o terreno NATURAL (como levantado) ou o
+ * PROJETADO (o natural modificado pelos platôs — o terreno acabado). Sem platôs gerados as
+ * duas são a mesma superfície.
+ */
+export type GroundSurface = 'natural' | 'design';
+
+export const GROUND_SURFACES: readonly GroundSurface[] = ['design', 'natural'];
+
+export const GROUND_SURFACE_LABELS: Record<GroundSurface, string> = {
+  natural: 'terreno natural',
+  design: 'terreno projetado',
+};
+
+/** Abreviaturas usadas em rótulos, perfis e camadas: TN (natural) e TP (projetado). */
+export const GROUND_SURFACE_SHORT: Record<GroundSurface, string> = {
+  natural: 'TN',
+  design: 'TP',
+};
+
+export function groundSurfaceOf(project: Project, which: GroundSurface): Terrain | null {
+  return which === 'natural' ? project.terrain : designTerrainOf(project);
+}
+
+/**
+ * O terreno projetado difere do natural (há ao menos um platô gerado)? Sem isso não há o que
+ * distinguir, e a interface mostra uma só cota de terreno.
+ */
+export function hasDesignTerrain(project: Project): boolean {
+  if (!project.terrain || project.earthworks.platforms.length === 0) return false;
+  return designSurfaceFor(project.terrain, project.earthworks.platforms).footprints.length > 0;
+}

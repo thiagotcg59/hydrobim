@@ -107,6 +107,20 @@ describe('altimetria', () => {
     // Recobrimento até a geratriz superior externa, não até o eixo.
     expect(info.cover).toBeCloseTo(1.9, 9);
     expect(formatElevationInfo(info)).toContain('rec. 1,90 m');
+    // Com o terreno natural informado (há platôs): TP e TN, cada um com o seu recobrimento.
+    const lower = createTerrain('Natural', [
+      vec3(0, -10, 101),
+      vec3(100, -10, 101),
+      vec3(0, 10, 101),
+      vec3(100, 10, 101),
+    ]);
+    if (!lower.ok) throw new Error(lower.error.message);
+    const both = elevationInfoAt(terrain.value, vec3(50, 0, 100), 0.2, lower.value);
+    expect(both.natural?.ground).toBeCloseTo(101, 9);
+    expect(both.natural?.cover).toBeCloseTo(0.9, 9);
+    const text = formatElevationInfo(both);
+    expect(text).toContain('TP 102,00 m · rec. 1,90 m');
+    expect(text).toContain('TN 101,00 m · rec. 0,90 m');
   });
 
   it('sem terreno, ou fora da cobertura do levantamento, a cota fica desconhecida', () => {

@@ -84,6 +84,16 @@ test('arquitetura: demonstração, ambientes, parede e porta pela planta, painel
   await page.mouse.move(...(await planPoint(page, 2.4, 2)));
   await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');
   await expect(page.getByTestId('arch-draft-length')).toHaveText('1,4 m');
+  // Shift trava o trecho nos eixos (45° em 45°): cursor 0,3 m acima, a parede segue horizontal.
+  // A prévia acompanha a tecla mesmo com o cursor parado.
+  await page.mouse.move(...(await planPoint(page, 2.4, 2.3)));
+  await expect(page.getByTestId('arch-draft-length')).not.toHaveText('1,4 m');
+  await page.keyboard.down('Shift');
+  await expect(page.getByTestId('arch-draft-length')).toHaveText('1,4 m');
+  await page.keyboard.up('Shift');
+  await expect(page.getByTestId('arch-draft-length')).not.toHaveText('1,4 m');
+  await page.mouse.move(...(await planPoint(page, 2.4, 2)));
+  await expect(page.getByTestId('arch-draft-length')).toHaveText('1,4 m');
   await page.keyboard.type('2');
   await expect(page.getByTestId('arch-length-entry')).toBeFocused();
   await expect(page.getByTestId('arch-length-entry')).toHaveValue('2');

@@ -498,7 +498,7 @@ Verificação: `packages/core/src/architecture/architecture.test.ts`, `packages/
 
 **Esquema.** v17: `terrain.id`, `terrain.tag`, `terrain.original` e `project.earthworks`. A migração dá o identificador fixo `terreno` às superfícies antigas (não há outro dado estável de que derivá-lo), identificação vazia, `original: null`, nenhum platô e parâmetros de volume nulos.
 
-**Consequências e limites.** Reentrâncias estreitas do perímetro são recusadas (o encontro de taludes de lados opostos exigiria o eixo medial do polígono). O leque dos cantos é uma aproximação poligonal do cone. Rede e equipamentos continuam assentados sobre o terreno natural. Os conjuntos IFC do terreno são escritos direto pela exportação, fora do registro central de propriedades, e ainda não aparecem na aba BIM / IFC.
+**Consequências e limites.** Reentrâncias estreitas do perímetro são recusadas (o encontro de taludes de lados opostos exigiria o eixo medial do polígono). O leque dos cantos é uma aproximação poligonal do cone. O assentamento de rede e equipamentos, os perfis, os rótulos e o DXF trabalham com as duas superfícies: o projetado é o padrão (o terreno acabado), o natural é escolha do usuário ou aparece ao lado, como referência. Os conjuntos IFC do terreno são escritos direto pela exportação, fora do registro central de propriedades, e ainda não aparecem na aba BIM / IFC.
 
 Verificação: `packages/core/src/terrain/edit.test.ts` e `earthworks.test.ts` (volumes contra fórmulas e contra uma integração independente), `packages/ifc/src/terrainExport.test.ts`, `services/api/tests/test_ifc_terrain.py` (IfcOpenShell) e `tests/e2e/earthworks.spec.ts`.
 

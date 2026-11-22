@@ -87,35 +87,51 @@ export interface ElevationInfo {
   readonly ground: number | null;
   /** Recobrimento até a geratriz superior externa (m); `null` sem cota de terreno. */
   readonly cover: number | null;
+  /**
+   * Com platôs: cota do terreno natural e recobrimento sob ele. Aí `ground` e `cover` são os
+   * do terreno projetado. `undefined` = só uma superfície (sem platôs).
+   */
+  readonly natural?: { readonly ground: number | null; readonly cover: number | null };
 }
 
 /**
  * Cotas no ponto (x, y) de um elemento cujo eixo está em `z`. A cota do terreno só existe
- * dentro do TIN importado — fora dele fica desconhecida, nunca extrapolada.
+ * dentro do TIN importado — fora dele fica desconhecida, nunca extrapolada. `terrain` é o
+ * terreno projetado (o natural, sem platôs); `natural`, quando informado, é o natural.
  */
 export function elevationInfoAt(
   terrain: Terrain | null,
   point: { x: number; y: number; z: number },
   outerDiameter: number,
+  natural: Terrain | null = null,
 ): ElevationInfo {
   const crown = point.z + outerDiameter / 2;
-  const ground = terrain ? terrainElevationAt(terrain, point.x, point.y) : null;
+  const at = (surface: Terrain | null): { ground: number | null; cover: number | null } => {
+    const ground = surface ? terrainElevationAt(surface, point.x, point.y) : null;
+    return { ground, cover: ground === null ? null : ground - crown };
+  };
   return {
     axis: point.z,
     crown,
     invert: point.z - outerDiameter / 2,
-    ground,
-    cover: ground === null ? null : ground - crown,
+    ...at(terrain),
+    ...(natural ? { natural: at(natural) } : {}),
   };
 }
 
 export function formatElevationInfo(info: ElevationInfo): string {
   const parts = [`eixo ${formatMeters(info.axis, 2)}`, `GS ${formatMeters(info.crown, 2)}`];
-  parts.push(
-    info.ground === null || info.cover === null
-      ? 'terreno: sem dado'
-      : `terreno ${formatMeters(info.ground, 2)} · rec. ${formatMeters(info.cover, 2)}`,
-  );
+  const ground = (name: string, g: number | null, cover: number | null): string =>
+    g === null || cover === null
+      ? `${name}: sem dado`
+      : `${name} ${formatMeters(g, 2)} · rec. ${formatMeters(cover, 2)}`;
+  if (info.natural) {
+    // TP = terreno projetado; TN = terreno natural.
+    parts.push(ground('TP', info.ground, info.cover));
+    parts.push(ground('TN', info.natural.ground, info.natural.cover));
+  } else {
+    parts.push(ground('terreno', info.ground, info.cover));
+  }
   return parts.join(' · ');
 }
 
@@ -133,11 +149,15 @@ export interface PlanLabel {
   readonly priority: number;
 }
 
-/** Rótulo do elemento conforme as opções da Planta Infra; `null` = nada a mostrar. */
+/**
+ * Rótulo do elemento conforme as opções da Planta Infra; `null` = nada a mostrar. `terrain` é
+ * o terreno projetado (o natural, sem platôs); com `natural`, as cotas das duas superfícies.
+ */
 export function labelOf(
   element: HydroElement,
   labels: InfraSettings['labels'],
   terrain: Terrain | null,
+  natural: Terrain | null = null,
 ): PlanLabel | null {
   const parts: string[] = [];
   if (labels.names) parts.push(element.name);
@@ -148,7 +168,9 @@ export function labelOf(
     }
   } else if (labels.elevations) {
     const p = element.placement.position;
-    parts.push(formatElevationInfo(elevationInfoAt(terrain, p, element.spec.outerDiameter)));
+    parts.push(
+      formatElevationInfo(elevationInfoAt(terrain, p, element.spec.outerDiameter, natural)),
+    );
   }
   if (parts.length === 0) return null;
   const anchor = planAnchorOf(element);

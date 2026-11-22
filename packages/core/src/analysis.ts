@@ -11,6 +11,7 @@ import {
   type TerrainSource,
 } from './schema';
 import { constrainedDelaunay } from './terrain/delaunay';
+import { designTerrainOf } from './terrain/earthworks';
 import { buildTerrainSurface, MAX_TERRAIN_VERTICES, terrainElevationAt } from './terrain/surface';
 
 /** Análises derivadas do modelo: interferências, terreno e perfil longitudinal. */
@@ -191,10 +192,17 @@ export interface ProfileStation {
   readonly axisElevation: number;
   /** Cota da geratriz superior externa (m). */
   readonly crownElevation: number;
-  /** Cota do terreno (m); `null` sem terreno ou fora dele. */
+  /**
+   * Cota do terreno PROJETADO (m) — o natural modificado pelos platôs, o terreno acabado; sem
+   * platôs, é o natural. `null` sem terreno ou fora dele.
+   */
   readonly groundElevation: number | null;
-  /** Recobrimento: terreno − geratriz superior (m). */
+  /** Recobrimento sob o terreno projetado: terreno − geratriz superior (m). */
   readonly cover: number | null;
+  /** Cota do terreno NATURAL (m), como levantado; `null` sem terreno ou fora dele. */
+  readonly naturalGroundElevation: number | null;
+  /** Recobrimento sob o terreno natural (m). */
+  readonly naturalCover: number | null;
   readonly elementId: string;
   readonly elementName: string;
 }
@@ -279,13 +287,14 @@ export function buildProfile(
   const stations: ProfileStation[] = [];
   let chainage = 0;
   let previous: Vec3 | null = null;
+  const natural = project.terrain;
+  const design = designTerrainOf(project);
   const push = (element: HydroElement, position: Vec3): void => {
     if (previous) chainage += Math.hypot(position.x - previous.x, position.y - previous.y);
     previous = position;
     const crown = position.z + element.spec.outerDiameter / 2;
-    const ground = project.terrain
-      ? terrainElevationAt(project.terrain, position.x, position.y)
-      : null;
+    const ground = design ? terrainElevationAt(design, position.x, position.y) : null;
+    const naturalGround = natural ? terrainElevationAt(natural, position.x, position.y) : null;
     stations.push({
       chainage,
       position,
@@ -293,6 +302,8 @@ export function buildProfile(
       crownElevation: crown,
       groundElevation: ground,
       cover: ground === null ? null : ground - crown,
+      naturalGroundElevation: naturalGround,
+      naturalCover: naturalGround === null ? null : naturalGround - crown,
       elementId: element.id,
       elementName: element.name,
     });

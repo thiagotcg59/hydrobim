@@ -1,13 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import type { Vec3 } from '../math';
-import { createProject } from '../operations';
+import { buildProfile } from '../analysis';
+import { vec3, type Vec3 } from '../math';
+import { addPipe, createProject } from '../operations';
 import { setTerrain } from '../projectOps';
 import type { Result } from '../result';
-import { surveySource, type Platform, type Point2, type Project, type Terrain } from '../schema';
+import {
+  surveySource,
+  type PipeSpec,
+  type Platform,
+  type Point2,
+  type Project,
+  type Terrain,
+} from '../schema';
 import { parseProject, serializeProject } from '../serialization';
 import { validateProject } from '../validation';
 import {
   addPlatform,
+  groundSurfaceOf,
+  hasDesignTerrain,
   projectEarthworks,
   removePlatform,
   setEarthworkSettings,
@@ -395,6 +405,51 @@ describe('platôs no projeto', () => {
       'PLATFORM_UNKNOWN',
     );
     expect(codeOf(removePlatform(withTerrain(), 'nada'))).toBe('PLATFORM_UNKNOWN');
+  });
+
+  it('superfície de referência e perfil da rede com o terreno natural e o projetado', () => {
+    const natural = gridTerrain(100, 10, () => 10);
+    let project = setTerrain(createProject('Perfil', 'infra'), natural);
+    expect(hasDesignTerrain(project)).toBe(false);
+    expect(groundSurfaceOf(project, 'design')).toBe(project.terrain);
+    project = unwrap(
+      addPlatform(project, {
+        outline: square(40, 40, 20),
+        elevation: 12,
+        cutSlope: 1,
+        fillSlope: 1.5,
+      }),
+    ).project;
+    expect(hasDesignTerrain(project)).toBe(true);
+    const design = groundSurfaceOf(project, 'design') as Terrain;
+    expect(groundSurfaceOf(project, 'natural')).toBe(project.terrain);
+    expect(terrainElevationAt(design, 50, 50)).toBeCloseTo(12, 6);
+
+    // Tubo a 1 m sob o terreno natural, atravessando o platô de aterro de 2 m.
+    const spec: PipeSpec = {
+      specificationId: 'teste',
+      material: 'pvc',
+      standard: 'Norma de teste',
+      jointType: 'solventWeld',
+      pressureClass: null,
+      dn: 50,
+      sizeLabel: 'DE 60',
+      outerDiameter: 0.06,
+      innerDiameter: 0.054,
+      wallThickness: 0.003,
+    };
+    const created = unwrap(
+      addPipe(project, { start: vec3(20, 50, 8.97), end: vec3(80, 50, 8.97), spec }),
+    );
+    const profile = unwrap(buildProfile(created.project, created.elementId));
+    const middle = profile.stations.find((s) => Math.abs(s.position.x - 50) < 1e-6);
+    expect(middle?.naturalGroundElevation).toBeCloseTo(10, 6);
+    expect(middle?.naturalCover).toBeCloseTo(1, 6);
+    expect(middle?.groundElevation).toBeCloseTo(12, 6);
+    expect(middle?.cover).toBeCloseTo(3, 6);
+    // Fora do platô e dos taludes as duas superfícies coincidem.
+    const edge = profile.stations[0];
+    expect(edge?.groundElevation).toBeCloseTo(edge?.naturalGroundElevation as number, 9);
   });
 
   it('platô que deixa de caber no terreno vira pendência de validação', () => {

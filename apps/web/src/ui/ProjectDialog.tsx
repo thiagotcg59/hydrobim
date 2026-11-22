@@ -1,6 +1,7 @@
 import { FLANGED_PIPE_FAMILIES } from '@hydrobim/catalog';
 import {
   buildProfile,
+  hasDesignTerrain,
   MAX_TERRAIN_POINTS,
   computeQuantities,
   degToRad,
@@ -15,6 +16,7 @@ import {
   SYSTEM_KINDS,
   type Georeference,
   type Profile,
+  type ProfileStation,
   type SystemKind,
 } from '@hydrobim/core';
 import { FileUp, Plus, Trash2, X } from 'lucide-react';
@@ -525,7 +527,7 @@ function TerrainTab() {
 }
 
 /** Desenho do perfil longitudinal (SVG): terreno, geratriz superior e eixo. */
-function ProfileChart({ profile }: { profile: Profile }) {
+function ProfileChart({ profile, twoGrounds }: { profile: Profile; twoGrounds: boolean }) {
   const width = 760;
   const height = 300;
   const margin = { left: 56, right: 16, top: 16, bottom: 34 };
@@ -534,7 +536,12 @@ function ProfileChart({ profile }: { profile: Profile }) {
   let max = -Infinity;
   for (const s of stations) {
     min = Math.min(min, s.axisElevation - (s.crownElevation - s.axisElevation));
-    max = Math.max(max, s.crownElevation, s.groundElevation ?? -Infinity);
+    max = Math.max(
+      max,
+      s.crownElevation,
+      s.groundElevation ?? -Infinity,
+      twoGrounds ? (s.naturalGroundElevation ?? -Infinity) : -Infinity,
+    );
   }
   const pad = Math.max((max - min) * 0.15, 0.5);
   min -= pad;
@@ -598,7 +605,18 @@ function ProfileChart({ profile }: { profile: Profile }) {
           </text>
         );
       })}
-      <path d={path((s) => s.groundElevation)} className="profile__ground" />
+      {twoGrounds && (
+        <path
+          d={path((s) => s.naturalGroundElevation)}
+          className="profile__ground profile__ground--natural"
+          data-testid="profile-ground-natural"
+        />
+      )}
+      <path
+        d={path((s) => s.groundElevation)}
+        className="profile__ground"
+        data-testid="profile-ground"
+      />
       <path d={path((s) => s.crownElevation)} className="profile__crown" />
       <path d={path((s) => s.axisElevation)} className="profile__axis" />
     </svg>
@@ -631,13 +649,29 @@ function ProfileTab() {
     );
   }
   const profile = result.value;
-  const covers = profile.stations.map((s) => s.cover).filter((c): c is number => c !== null);
-  const minCover = covers.length ? Math.min(...covers) : null;
+  const minimum = (pick: (s: ProfileStation) => number | null): number | null => {
+    const values = profile.stations.map(pick).filter((c): c is number => c !== null);
+    return values.length ? Math.min(...values) : null;
+  };
+  const minCover = minimum((s) => s.cover);
+  const minNaturalCover = minimum((s) => s.naturalCover);
+  // Com platôs, o terreno projetado e o natural diferem: o perfil mostra os dois.
+  const twoGrounds = hasDesignTerrain(project);
+  const coverValue = (value: number | null, testId: string) => (
+    <span data-testid={testId} className={value !== null && value < 0 ? 'warn' : undefined}>
+      {value === null ? 'Sem terreno sob o traçado' : formatMeters(value, 2)}
+    </span>
+  );
   return (
     <Section title={`Perfil longitudinal — a partir de "${element.name}"`} testId="tab-profile">
-      <ProfileChart profile={profile} />
+      <ProfileChart profile={profile} twoGrounds={twoGrounds} />
       <div className="legend">
-        <span className="legend__item legend__item--ground">Terreno</span>
+        {twoGrounds && (
+          <span className="legend__item legend__item--ground-natural">Terreno natural</span>
+        )}
+        <span className="legend__item legend__item--ground">
+          {twoGrounds ? 'Terreno projetado' : 'Terreno'}
+        </span>
         <span className="legend__item legend__item--crown">Geratriz superior</span>
         <span className="legend__item legend__item--axis">Eixo</span>
       </div>
@@ -647,16 +681,15 @@ function ProfileTab() {
       />
       <ReadOnlyRow label="Elementos no caminho" value={profile.elementIds.length} />
       <ReadOnlyRow
-        label="Recobrimento mínimo"
-        value={
-          <span
-            data-testid="profile-cover"
-            className={minCover !== null && minCover < 0 ? 'warn' : undefined}
-          >
-            {minCover === null ? 'Sem terreno sob o traçado' : formatMeters(minCover, 2)}
-          </span>
-        }
+        label={twoGrounds ? 'Recobrimento mínimo (terreno projetado)' : 'Recobrimento mínimo'}
+        value={coverValue(minCover, 'profile-cover')}
       />
+      {twoGrounds && (
+        <ReadOnlyRow
+          label="Recobrimento mínimo (terreno natural)"
+          value={coverValue(minNaturalCover, 'profile-cover-natural')}
+        />
+      )}
       <div className="chips">
         <button
           type="button"
