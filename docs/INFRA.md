@@ -207,15 +207,31 @@ Nas ferramentas Bomba e Reservatório, o grupo **Assentamento no terreno** (aba 
 
 ### Transparência da superfície
 
-Visualizar › Terreno › **Transparência (3D)**, de 0 a 90 % (40 % por padrão). A superfície translúcida não grava profundidade, para que a rede enterrada apareça através dela; com 0 % ela volta a encobrir o que está abaixo. É opção de visualização da sessão.
+Visualizar › Terreno › **Transparência**, de 0 a 90 % (40 % por padrão), vale para a planta e para o modelo 3D. No 3D a superfície translúcida não grava profundidade, para que a rede enterrada apareça através dela; com 0 % ela volta a encobrir o que está abaixo. Na planta, a mesma transparência deixa ver o que está sob o preenchimento (o mapa de fundo da Planta Infra, por exemplo). É opção de visualização da sessão.
 
 ### Visibilidade da superfície
 
-O grupo Visualizar › **Terreno (planta e 3D)** aparece nos dois ambientes. **No 3D** mostra ou oculta a superfície no modelo 3D (ligado por padrão, MEP e Infra); oculta, ela nem é montada (sem malha, curvas nem download do mapa). **Na planta** existe só no MEP (desligado por padrão) e desenha na planta o limite, as curvas de nível e a triangulação; no Infra a planta segue a camada Terreno do ambiente. São opções de visualização da sessão: não entram no projeto, no histórico nem nas exportações.
+O grupo Visualizar › **Terreno (planta e 3D)** aparece nos dois ambientes. **No 3D** mostra ou oculta a superfície no modelo 3D (ligado por padrão, MEP e Infra); oculta, ela nem é montada (sem malha, curvas nem download do mapa). **Na planta** existe no MEP e na Arquitetura (ligado por padrão) e vale para a planta de trabalho e para as plantas por nível (vistas de projeto, inclusive giradas); no Infra a planta segue a camada Terreno do ambiente. São opções de visualização da sessão: não entram no projeto, no histórico nem nas exportações.
+
+### Superfície preenchida na planta
+
+Com **Preenchida na planta** (ligado por padrão), a planta mostra a superfície como o modelo 3D visto de cima, além do limite, das curvas de nível e da triangulação:
+
+- **Cor**: altitude, declividade ou lisa — a mesma opção **Superfície** do 3D e a mesma escala de cores. Por altitude, a cor de cada ponto é a da cota interpolada no plano do triângulo, como no 3D. A imagem é gerada da própria triangulação (`terrain/terrainRaster.ts`, lado maior de 1.536 px) e recortada pelo contorno exato da área triangulada; furos e lacunas ficam vazados.
+- **Mapa**: escolhida uma fonte de mapa em **Superfície**, a planta desenha os ladrilhos sobre a superfície, recortados pelo contorno dela, na resolução pedida pela ampliação da vista (só a região visível, até 64 ladrilhos), com a atribuição da fonte sobre a planta. Exige o projeto georreferenciado; sem isso a superfície segue com a cor escolhida e a planta diz o motivo. Na Planta Infra, quando o mapa de fundo já é a mesma fonte, os ladrilhos não são pedidos de novo.
+- **Superfície à mostra**: a mesma do 3D (projetada, natural, comparação ou original).
+- **Exportação**: o preenchimento é da tela e não vai para o SVG exportado — o desenho técnico leva o limite e as curvas, e as imagens de mapa têm licença própria.
+
+### Superfície como elemento selecionável
+
+Com a ferramenta Selecionar, o clique sobre a superfície — em um ponto sem outro elemento — a seleciona, na planta de trabalho, nas plantas por nível e no modelo 3D (onde a rede enterrada continua clicável através dela). Na Planta Infra o clique dentro de um platô seleciona o platô. Clicar fora da superfície limpa a seleção. Selecionada, a superfície é realçada pelo contorno da área triangulada e o painel de propriedades mostra:
+
+- **Parâmetros**: nome e identificação (editáveis), situação, medidas (áreas, cotas, vértices e triângulos, declividade média), origem dos dados e referenciais. A **exatidão altimétrica** pode ser informada pelo usuário (a do relatório do levantamento); vazia, continua não informada — nunca é presumida.
+- **IFC**: entidade (`IfcGeographicElement`), tipo predefinido (`TERRAIN`), `ObjectType`, `GlobalId`, `Name`, `Tag`, `Description`, a contenção no `IfcSite` e os conjuntos `HydroBIM_Terreno` e `HydroBIM_TerrenoQuantidades`, propriedade por propriedade, com o que falta marcado como "não informado". Os dados vêm de `buildTerrainIfcInfo` (`packages/ifc/src/bim/terrainModel.ts`), a mesma estrutura que o exportador grava: o que o painel mostra é o que vai para o arquivo.
 
 ### Mapa sobre o terreno (modelo 3D)
 
-Visualizar › Terreno › **Superfície (3D)** oferece, além de altitude, declividade e lisa, as fontes de mapa do ambiente Infra (ruas, satélite e a fonte própria): a imagem é estendida sobre a superfície e acompanha o relevo.
+Visualizar › Terreno › **Superfície** oferece, além de altitude, declividade e lisa, as fontes de mapa do ambiente Infra (ruas, satélite e a fonte própria): a imagem é estendida sobre a superfície e acompanha o relevo.
 
 - **Posição**: cada vértice da malha recebe a sua posição na imagem pela mesma cadeia de referenciais que posiciona o mapa na planta (local → geográfico → ladrilho). Exige o projeto georreferenciado; sem isso a opção informa o motivo e a superfície segue com a cor escolhida.
 - **Ladrilhos**: um mosaico só da área da superfície, com cerca de 2.048 px de lado e no máximo 36 ladrilhos; nada é pré-carregado nem guardado.
