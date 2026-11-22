@@ -70,6 +70,11 @@ test('sem dispositivo de VR: informa a incompatibilidade e o editor continua nor
   // A cena é preparada mesmo assim: a prévia do ponto de partida aparece no monitor.
   await expect(page.getByTestId('vr-canvas')).toBeVisible();
   await expect(page.getByTestId('vr-stats')).toHaveAttribute('data-elements', /^[1-9]\d*$/);
+  // O quadro de ajuda sobre a prévia pode ser ocultado e mostrado de novo.
+  await page.getByTestId('vr-help-close').click();
+  await expect(page.getByTestId('vr-help')).toHaveCount(0);
+  await page.getByTestId('vr-help-toggle').click();
+  await expect(page.getByTestId('vr-help')).toBeVisible();
   // Um só renderizador: o Modelo 3D convencional fica desmontado enquanto a vista está aberta.
   await expect(page.getByTestId('viewport-canvas')).toHaveCount(0);
 

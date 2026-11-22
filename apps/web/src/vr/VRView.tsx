@@ -1,6 +1,6 @@
 import { VIEW_CATEGORIES, viewCategoryOf, type Vec3, type ViewCategory } from '@hydrobim/core';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { ArrowLeft, LogOut, RectangleGoggles } from 'lucide-react';
+import { ArrowLeft, CircleHelp, LogOut, RectangleGoggles, X } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BoxGeometry,
@@ -1027,6 +1027,8 @@ export function VRView() {
   const hovered = useVrStore((s) => s.hovered);
   const menuOpen = useVrStore((s) => s.menuOpen);
   const aim = useVrStore((s) => s.aim);
+  /** Quadro de ajuda sobre a prévia: só existe no monitor (o headset mostra apenas a cena). */
+  const [helpOpen, setHelpOpen] = useState(true);
 
   useEffect(() => {
     void checkVrSupport();
@@ -1093,6 +1095,16 @@ export function VRView() {
         )}
         <button
           type="button"
+          className={helpOpen ? 'vr__button is-active' : 'vr__button'}
+          data-testid="vr-help-toggle"
+          aria-pressed={helpOpen}
+          title="Mostra ou oculta o quadro com os controles e os números da cena"
+          onClick={() => setHelpOpen((open) => !open)}
+        >
+          <CircleHelp size={15} aria-hidden /> Ajuda
+        </button>
+        <button
+          type="button"
           className="vr__button"
           data-testid="vr-close"
           title="Encerra a sessão, se houver, e volta à área de desenho"
@@ -1136,32 +1148,45 @@ export function VRView() {
             {notice}
           </div>
         )}
-        <aside className="vr__help" data-testid="vr-help">
-          <strong>{presenting ? 'Espelho da sessão' : 'Prévia do ponto de partida'}</strong>
-          <span>
-            {presenting ? '' : 'Arraste para olhar em volta. '}Escala real: 1 m do modelo = 1 m.
-          </span>
-          {CONTROLS.map(([control, action]) => (
-            <span key={control}>
-              <b>{control}</b>: {action}
-            </span>
-          ))}
-          {stats && (
-            <span
-              data-testid="vr-stats"
-              data-elements={stats.elements}
-              data-batches={stats.batches}
+        {helpOpen ? (
+          <aside className="vr__help" data-testid="vr-help">
+            <button
+              type="button"
+              className="vr__help-close"
+              data-testid="vr-help-close"
+              aria-label="Ocultar a ajuda"
+              title="Ocultar a ajuda (o botão Ajuda, na barra, mostra de novo)"
+              onClick={() => setHelpOpen(false)}
             >
-              {stats.elements} elementos · {stats.triangles.toLocaleString('pt-BR')} triângulos ·{' '}
-              {stats.batches} chamadas de desenho
+              <X size={14} aria-hidden />
+            </button>
+            <strong>{presenting ? 'Espelho da sessão' : 'Prévia do ponto de partida'}</strong>
+            <span>
+              {presenting ? '' : 'Arraste para olhar em volta. '}Escala real: 1 m do modelo = 1 m.
             </span>
-          )}
-          {(fps ?? lastFps) !== null && (
-            <span data-testid="vr-fps">
-              {presenting ? 'Agora' : 'Última sessão'}: {Math.round(fps ?? lastFps ?? 0)} quadros/s
-            </span>
-          )}
-        </aside>
+            {CONTROLS.map(([control, action]) => (
+              <span key={control}>
+                <b>{control}</b>: {action}
+              </span>
+            ))}
+            {stats && (
+              <span
+                data-testid="vr-stats"
+                data-elements={stats.elements}
+                data-batches={stats.batches}
+              >
+                {stats.elements} elementos · {stats.triangles.toLocaleString('pt-BR')} triângulos ·{' '}
+                {stats.batches} chamadas de desenho
+              </span>
+            )}
+            {(fps ?? lastFps) !== null && (
+              <span data-testid="vr-fps">
+                {presenting ? 'Agora' : 'Última sessão'}: {Math.round(fps ?? lastFps ?? 0)}{' '}
+                quadros/s
+              </span>
+            )}
+          </aside>
+        ) : null}
       </div>
     </div>
   );
