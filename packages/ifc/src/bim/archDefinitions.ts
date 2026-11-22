@@ -1,12 +1,14 @@
 import {
   ARCH_KIND_LABELS,
   DOOR_OPERATION_LABELS,
+  ROOF_SHAPE_LABELS,
   WINDOW_OPERATION_LABELS,
   archVerticalRange,
   floorQuantities,
   hostWallOf,
   hostedQuantities,
   layersThickness,
+  roofQuantities,
   spaceQuantities,
   wallQuantities,
   type ArchElement,
@@ -41,6 +43,7 @@ export const ARCH_IFC_ENTITIES: Record<ArchIfcClass, string> = {
   wall: 'IfcWall',
   slab: 'IfcSlab',
   flooring: 'IfcCovering',
+  roof: 'IfcRoof',
   door: 'IfcDoor',
   window: 'IfcWindow',
   space: 'IfcSpace',
@@ -99,7 +102,7 @@ const value = (
 ): IfcResolvedValue | null =>
   v === null || v === undefined || v === '' ? null : { value: v, origin };
 
-const PHYSICAL: readonly ArchIfcClass[] = ['wall', 'slab', 'flooring', 'door', 'window'];
+const PHYSICAL: readonly ArchIfcClass[] = ['wall', 'slab', 'flooring', 'roof', 'door', 'window'];
 const ALL: readonly ArchIfcClass[] = [...PHYSICAL, 'space'];
 
 /** Rótulos em português das propriedades padronizadas (o identificador oficial fica à vista). */
@@ -316,6 +319,8 @@ const hostedQ = ({ project, element }: ArchDefinitionContext) =>
   element?.kind === 'door' || element?.kind === 'window'
     ? hostedQuantities(project.architecture, element)
     : null;
+const roofQ = ({ project, element }: ArchDefinitionContext) =>
+  element?.kind === 'roof' ? roofQuantities(project.architecture, element) : null;
 const spaceQ = ({ element }: ArchDefinitionContext) =>
   element?.kind === 'space' ? spaceQuantities(element) : null;
 const range = ({ project, element }: ArchDefinitionContext) =>
@@ -334,6 +339,8 @@ const CQ = 'Qto_CoveringBaseQuantities';
 const DQ = 'Qto_DoorBaseQuantities';
 const NQ = 'Qto_WindowBaseQuantities';
 const PQ = 'Qto_SpaceBaseQuantities';
+const RQ = 'Qto_RoofBaseQuantities';
+const RT = 'HydroBIM_Telhado';
 
 export const ARCH_PROPERTY_DEFINITIONS: readonly ArchPropertyDefinition[] = [
   // ----- Conjuntos comuns de cada categoria (propriedades lidas do esquema) -----------------
@@ -344,6 +351,7 @@ export const ARCH_PROPERTY_DEFINITIONS: readonly ArchPropertyDefinition[] = [
     derived: reference,
   }),
   ...standardSet('Pset_CoveringFlooring', ['flooring'], { group: 'performance' }),
+  ...standardSet('Pset_RoofCommon', ['roof'], { group: 'performance', derived: reference }),
   ...standardSet('Pset_DoorCommon', ['door'], { group: 'performance', derived: reference }),
   ...standardSet('Pset_WindowCommon', ['window'], { group: 'performance', derived: reference }),
   ...standardSet('Pset_DoorWindowGlazingType', ['door', 'window'], {
@@ -451,7 +459,7 @@ export const ARCH_PROPERTY_DEFINITIONS: readonly ArchPropertyDefinition[] = [
     'Espessura total',
     'type',
     'materials',
-    ['wall', 'slab', 'flooring'],
+    ['wall', 'slab', 'flooring', 'roof'],
     'IfcPositiveLengthMeasure',
     ({ type }) => value(type && 'layers' in type ? layersThickness(type) : null, 'model'),
     'Tipo: soma das camadas',
@@ -462,10 +470,100 @@ export const ARCH_PROPERTY_DEFINITIONS: readonly ArchPropertyDefinition[] = [
     'Número de camadas',
     'type',
     'materials',
-    ['wall', 'slab', 'flooring'],
+    ['wall', 'slab', 'flooring', 'roof'],
     'IfcInteger',
     ({ type }) => value(type && 'layers' in type ? type.layers.length : null, 'model'),
     'Tipo: camadas',
+  ),
+  // Telhado: parâmetros do modelo. O IFC 4.3 não tem conjunto padronizado para inclinação,
+  // beiral nem volume de `IfcRoof` (o `Qto_RoofBaseQuantities` só traz áreas).
+  own(
+    RT,
+    'Shape',
+    'Tipologia',
+    'type',
+    'dimensions',
+    ['roof'],
+    'IfcLabel',
+    ({ type }) => value(type?.category === 'roof' ? ROOF_SHAPE_LABELS[type.shape] : null, 'model'),
+    'Tipo: tipologia',
+  ),
+  own(
+    RT,
+    'Slope',
+    'Inclinação',
+    'occurrence',
+    'dimensions',
+    ['roof'],
+    'IfcPlaneAngleMeasure',
+    ({ element }) => value(element?.kind === 'roof' ? element.slope : null, 'geometry'),
+    'Telhado: inclinação',
+  ),
+  own(
+    RT,
+    'Overhang',
+    'Beiral (na horizontal)',
+    'occurrence',
+    'dimensions',
+    ['roof'],
+    'IfcNonNegativeLengthMeasure',
+    ({ element }) => value(element?.kind === 'roof' ? element.overhang : null, 'geometry'),
+    'Telhado: beiral',
+  ),
+  own(
+    RT,
+    'ReferenceOffset',
+    'Deslocamento da referência em relação ao nível',
+    'occurrence',
+    'dimensions',
+    ['roof'],
+    'IfcLengthMeasure',
+    ({ element }) => value(element?.kind === 'roof' ? element.offset : null, 'geometry'),
+    'Telhado: deslocamento vertical',
+  ),
+  own(
+    RT,
+    'Rise',
+    'Altura do ponto mais alto acima da referência',
+    'occurrence',
+    'dimensions',
+    ['roof'],
+    'IfcPositiveLengthMeasure',
+    (c) => value(roofQ(c)?.rise, 'geometry'),
+    'Geometria do modelo',
+  ),
+  own(
+    RT,
+    'RidgeLength',
+    'Comprimento da cumeeira',
+    'occurrence',
+    'quantities',
+    ['roof'],
+    'IfcPositiveLengthMeasure',
+    (c) => value(roofQ(c)?.ridgeLength, 'geometry'),
+    'Geometria do modelo',
+  ),
+  own(
+    RT,
+    'EaveLength',
+    'Comprimento de beiral baixo',
+    'occurrence',
+    'quantities',
+    ['roof'],
+    'IfcPositiveLengthMeasure',
+    (c) => value(roofQ(c)?.eaveLength, 'geometry'),
+    'Geometria do modelo',
+  ),
+  own(
+    RT,
+    'Volume',
+    'Volume (área inclinada × espessura)',
+    'occurrence',
+    'quantities',
+    ['roof'],
+    'IfcVolumeMeasure',
+    (c) => value(roofQ(c)?.volume, 'geometry'),
+    'Geometria do modelo',
   ),
   own(
     'HydroBIM_Esquadria',
@@ -666,6 +764,12 @@ export const ARCH_PROPERTY_DEFINITIONS: readonly ArchPropertyDefinition[] = [
   quantity(CQ, 'Width', 'Espessura', ['flooring'], (c) => floorQ(c)?.depth),
   quantity(CQ, 'GrossArea', 'Área bruta', ['flooring'], (c) => floorQ(c)?.grossArea),
   quantity(CQ, 'NetArea', 'Área líquida (sem aberturas)', ['flooring'], (c) => floorQ(c)?.netArea),
+
+  // Telhado: `GrossArea` é a área INCLINADA das águas (face superior); `ProjectedArea`, a
+  // projeção horizontal. Sem aberturas modeladas, a líquida é igual à bruta.
+  quantity(RQ, 'GrossArea', 'Área inclinada bruta', ['roof'], (c) => roofQ(c)?.slopeArea),
+  quantity(RQ, 'NetArea', 'Área inclinada líquida', ['roof'], (c) => roofQ(c)?.slopeArea),
+  quantity(RQ, 'ProjectedArea', 'Projeção horizontal', ['roof'], (c) => roofQ(c)?.projectedArea),
 
   quantity(DQ, 'Width', 'Largura', ['door'], (c) => hostedQ(c)?.width),
   quantity(DQ, 'Height', 'Altura', ['door'], (c) => hostedQ(c)?.height),

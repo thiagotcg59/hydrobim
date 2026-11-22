@@ -1576,6 +1576,83 @@ textarea {
 .arch-entry__unit {
   color: var(--text-dim);
 }
+/* Barra de "Editar contorno": Concluir e Cancelar, sobre a planta. */
+.arch-entry--bar {
+  gap: 8px;
+  max-width: calc(100% - 24px);
+}
+.arch-entry--bar > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Passos da operação por pontos: o feito fica esmaecido; o atual, em negrito. */
+.arch-steps {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+  font-size: 12px;
+}
+.arch-steps li[data-done='true'] {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+.arch-steps li[aria-current='step'] {
+  font-weight: 600;
+}
+/* Capturas da arquitetura na barra de referências: botão compacto e lista que abre para cima. */
+.snapmenu {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 340px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18);
+  font-size: 12.5px;
+  white-space: normal;
+}
+.snapmenu__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.snapmenu__item:hover {
+  background: var(--bg-2, #f1f5f9);
+}
+.snapmenu__item span {
+  display: flex;
+  flex-direction: column;
+}
+.snapmenu__item small,
+.snapmenu__note {
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+.snapmenu__note {
+  margin: 4px 6px 2px;
+}
+.refbar__snaps {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+}
+.refbar__snaps .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
 .arch-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));

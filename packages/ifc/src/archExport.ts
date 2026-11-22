@@ -34,6 +34,9 @@ import { enumeration as en, list, real, stepString as str, type StepWriter } fro
  *    janela que o preenche) — o visualizador subtrai o vão, e bruto/líquido ficam coerentes
  *    com os conjuntos de quantidades;
  *  - porta e janela: malha das partes, com `OverallWidth`/`OverallHeight` e o modo de abertura;
+ *  - telhado: `IfcRoof` com corpo próprio (malha fechada das águas, a mesma do editor); as
+ *    camadas vão no `IfcRoofType`, sem `IfcMaterialLayerSetUsage` — o uso por eixo descreve
+ *    camadas perpendiculares a X, Y ou Z, o que não é o caso de uma água inclinada;
  *  - ambiente: `IfcSpace`, elemento ESPACIAL agregado ao pavimento (não contido nele);
  *  - materiais: `IfcMaterialLayerSet` no tipo e `IfcMaterialLayerSetUsage` na ocorrência;
  *  - classificações externas: `IfcClassificationReference`, sem substituir a entidade IFC.
@@ -135,6 +138,30 @@ export function writeArchitecture(context: ArchExportContext): void {
     relation('IfcRelVoidsElement', `${seed}:voids`, hostRef, ref);
     return ref;
   };
+
+  /** Malha das partes do elemento como `IfcTriangulatedFaceSet`, uma por parte. */
+  const tessellated = (
+    parts: NonNullable<ReturnType<typeof buildArchGeometry>>['parts'],
+  ): string[] =>
+    parts.map((part) => {
+      const mesh = weldMesh(part.mesh);
+      const points = writer.entity(
+        'IfcCartesianPointList3D',
+        list(mesh.points.map(context.vector)),
+        '$',
+      );
+      return styled(
+        writer.entity(
+          'IfcTriangulatedFaceSet',
+          points,
+          '$',
+          mesh.closed ? '.T.' : '.F.',
+          list(mesh.triangles.map((face) => list(face.map(String)))),
+          '$',
+        ),
+        finishOf(part.role),
+      );
+    });
 
   const refs = new Map<string, string>();
   const placements = new Map<string, string>();
@@ -262,30 +289,27 @@ export function writeArchitecture(context: ArchExportContext): void {
           ref,
         );
       });
+    } else if (element.kind === 'roof') {
+      const geometry = buildArchGeometry(project, element);
+      if (!geometry) throw new Error(`Telhado sem tipo na exportação IFC: ${element.name}.`);
+      const frame = geometry.transform;
+      ref = root(
+        info.entity,
+        info.globalId,
+        info.name,
+        info.description,
+        str(info.objectType),
+        local(frame.position, rotate(frame.rotation, AXIS_Z), rotate(frame.rotation, AXIS_X)),
+        product(shape('Body', 'Tessellation', tessellated(geometry.parts))),
+        str(info.elementId),
+        en(info.predefinedType),
+      );
     } else if (element.kind === 'door' || element.kind === 'window') {
       const geometry = buildArchGeometry(project, element);
       const host = hostWallOf(architecture, element);
       if (!geometry || !host)
         throw new Error(`Esquadria sem parede ou tipo na exportação IFC: ${element.name}.`);
-      const items = geometry.parts.map((part) => {
-        const mesh = weldMesh(part.mesh);
-        const points = writer.entity(
-          'IfcCartesianPointList3D',
-          list(mesh.points.map(context.vector)),
-          '$',
-        );
-        return styled(
-          writer.entity(
-            'IfcTriangulatedFaceSet',
-            points,
-            '$',
-            mesh.closed ? '.T.' : '.F.',
-            list(mesh.triangles.map((face) => list(face.map(String)))),
-            '$',
-          ),
-          finishOf(part.role),
-        );
-      });
+      const items = tessellated(geometry.parts);
       const frame = geometry.transform;
       ref = root(
         info.entity,
@@ -448,7 +472,8 @@ export function writeArchitecture(context: ArchExportContext): void {
       for (const id of type.memberIds) {
         const element = sources.get(id);
         const member = refs.get(id);
-        if (!element || !member) continue;
+        // Telhado: as camadas acompanham a água inclinada; não há uso por eixo (ver o topo).
+        if (!element || !member || element.kind === 'roof') continue;
         const total = type.layers.reduce((sum, layer) => sum + layer.thickness, 0);
         // Parede: da face esquerda (y = hi) para a direita. Laje: do topo (z = 0) para baixo.
         // Revestimento: do topo (z = espessura) para baixo.

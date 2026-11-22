@@ -59,6 +59,8 @@ export function useCommandContext(): CommandContext {
   );
   const archTool = useArchStore((s) => s.tool);
   const archSelection = useArchStore((s) => s.selection);
+  const archTransform = useArchStore((s) => s.transform?.kind ?? null);
+  const archContour = useArchStore((s) => s.contour !== null);
   const vrOpen = useVrStore((s) => s.open);
   return useMemo(
     () => ({
@@ -71,6 +73,8 @@ export function useCommandContext(): CommandContext {
       ...viewContextOf(editor.project, views),
       archTool,
       archSelection,
+      archTransform,
+      archContour,
     }),
     [
       editor,
@@ -82,6 +86,8 @@ export function useCommandContext(): CommandContext {
       views,
       archTool,
       archSelection,
+      archTransform,
+      archContour,
     ],
   );
 }

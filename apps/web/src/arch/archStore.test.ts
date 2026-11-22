@@ -36,6 +36,7 @@ const FAMILIES: Record<ArchCategory, string> = {
   wall: 'arq-parede-alvenaria-ceramica',
   slab: 'arq-laje-concreto',
   flooring: 'arq-piso-ceramica-porcelanato',
+  roof: 'arq-telhado-duas-aguas',
   door: 'arq-porta-giro-1',
   window: 'arq-janela-correr',
 };
@@ -60,7 +61,19 @@ beforeEach(() => {
   editor().loadProject(createProject('Vazio', 'architecture'));
   useViewStore.setState({ open2d: null, open3d: null, tool: 'select', draft: [] });
   useUiStore.getState().setTask('model');
-  useArchStore.setState({ tool: null, points: [], cursor: null, selection: [], activeTypes: {} });
+  useArchStore.setState({
+    tool: null,
+    points: [],
+    cursor: null,
+    selection: [],
+    activeTypes: {},
+    transform: null,
+    contour: null,
+    contourDrag: null,
+    grip: null,
+    snap: null,
+    reference: null,
+  });
   arch().setOptions({
     seat: 'level',
     wallBaseOffset: 0,
@@ -129,11 +142,11 @@ describe('ferramentas de criação', () => {
   it('comprimento digitado define o trecho na direção do cursor; traçado fechado liga as pontas', () => {
     emptyWithTypes();
     arch().setTool('wall');
-    expect(arch().submitLength('3')).toBe(false);
+    expect(arch().submitEntry('3')).toBe(false);
     arch().clickPoint({ x: 0, y: 0 });
     arch().setCursor({ x: 1, y: 0 });
-    expect(arch().submitLength('abc')).toBe(false);
-    expect(arch().submitLength('3,5')).toBe(true);
+    expect(arch().submitEntry('abc')).toBe(false);
+    expect(arch().submitEntry('3,5')).toBe(true);
     expect(arch().points[1]).toEqual({ x: 3.5, y: 0 });
     arch().clickPoint({ x: 3.5, y: 2 });
     arch().setOptions({ closed: true, wallHeight: 3 });
@@ -355,7 +368,8 @@ describe('seleção e edição', () => {
   it('árvore do navegador: pavimento › categoria, com as esquadrias no pavimento da hospedeira', () => {
     const tree = archTreeOf(editor().project);
     expect(archTreeCount(tree)).toBe(elements().length);
-    expect(tree).toHaveLength(1);
+    // Térreo e cobertura (o telhado fica no nível da cobertura).
+    expect(tree).toHaveLength(2);
     expect(tree[0]?.categories.map((c) => c.label)).toEqual([
       'Paredes',
       'Lajes',
@@ -364,6 +378,7 @@ describe('seleção e edição', () => {
       'Janelas',
       'Ambientes',
     ]);
+    expect(tree[1]?.categories.map((c) => c.label)).toEqual(['Telhados']);
     const found = archTreeOf(editor().project, 'banheiro');
     expect(archTreeCount(found)).toBe(1);
     expect(archTreeCount(archTreeOf(editor().project, 'inexistente'))).toBe(0);

@@ -2,6 +2,7 @@ import {
   add,
   angleBetween,
   computeArchBounds,
+  getArchElement,
   computeBounds,
   AXIS_X,
   AXIS_Y,
@@ -45,7 +46,8 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { snapArchPoint } from '../arch/archGeometry';
+import { contourOf, parseGripKey } from '../arch/archEdit';
+import { ArchEditLayer, ArchGripLayer } from '../arch/ArchEditLayer';
 import { ArchDraftLayer, ArchPlanLayer } from '../arch/ArchPlanLayer';
 import { ArchLengthEntry } from '../arch/ArchPlanTools';
 import { useArchStore } from '../arch/archStore';
@@ -138,7 +140,7 @@ interface Drag {
   readonly x: number;
   readonly y: number;
   readonly button: number;
-  readonly mode: 'pan' | 'annotation' | 'click' | 'grip' | 'window';
+  readonly mode: 'pan' | 'annotation' | 'click' | 'grip' | 'archGrip' | 'window';
   readonly annotationId: string | null;
   readonly elementId: string | null;
   readonly archId: string | null;
@@ -296,6 +298,13 @@ export function PlanView() {
   /** Ferramenta de modelagem ativa (tubo, conexões, equipamentos, medição). */
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
   const archTool = useArchStore((s) => s.tool);
+  /** Mover, copiar, girar ou espelhar a arquitetura por pontos: também recebe os cliques. */
+  const archTransform = useArchStore((s) => s.transform !== null);
+  /** Contorno em edição: só as alças respondem; o clique no fundo não seleciona nada. */
+  const archContour = useArchStore((s) => s.contour !== null);
+  const archPointing = archTool !== null || archTransform;
+  const archBusy = archPointing || archContour;
+  const archCursor = useArchStore((s) => s.cursor);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -500,18 +509,25 @@ export function PlanView() {
     return { point: polarLockPlan(origin, raw, snapToGrid ? gridStep : 0), snap: 'angle' };
   };
 
+  /**
+   * Ponto das operações de arquitetura. A captura (extremidade, perpendicular, paralela,
+   * ortogonal, alinhamento, trava com Shift…) é resolvida pela sessão da arquitetura com o raio
+   * em metros desta ampliação — a mesma chamada na prévia e no clique.
+   */
   const archPoint = (raw: Point2): { point: Point2; snap: SnapKind } => {
-    const state = useEditorStore.getState();
     if (archTool === 'door' || archTool === 'window') return { point: raw, snap: 'plane' };
-    const snapped = snapArchPoint(state.project.architecture, raw, {
-      tolerance: SNAP_PX * view.mpp,
-      gridStep: snapToGrid ? gridStep : 0,
-    });
-    const { points } = useArchStore.getState();
-    return angleLocked(points[points.length - 1], raw, {
-      point: snapped.point,
-      snap: snapped.kind === 'grid' ? 'grid' : snapped.kind === 'free' ? 'plane' : 'port',
-    });
+    const resolved = useArchStore.getState().resolvePointer(raw, SNAP_PX * view.mpp);
+    return {
+      point: resolved.point,
+      snap:
+        resolved.kind === 'grid'
+          ? 'grid'
+          : resolved.kind === 'free'
+            ? 'plane'
+            : resolved.direction
+              ? 'angle'
+              : 'port',
+    };
   };
 
   /** Vértice do contorno ou do corte do terreno: o ponto do cursor, sem grade nem portas. */
@@ -718,10 +734,12 @@ export function PlanView() {
       useTerrainStore.getState().click(terrainPoint(raw).point, SNAP_PX * view.mpp);
       return;
     }
-    if (archTool) {
+    if (archPointing) {
       useArchStore.getState().clickPoint(archPoint(raw).point, SNAP_PX * view.mpp);
       return;
     }
+    // Contorno em edição: o clique fora das alças não seleciona nem altera nada.
+    if (archContour) return;
     if (modeling) {
       modelClick(d, raw, additive);
       return;
@@ -877,6 +895,7 @@ export function PlanView() {
     cancelLongPress();
     if (!d) return;
     if (d.mode === 'grip') useEditorStore.getState().endStretch(false);
+    if (d.mode === 'archGrip') useArchStore.getState().endDrag(false);
     if (d.mode === 'window') setSelectionWindow(null);
     if (d.mode === 'annotation') setPreview(null);
   };
@@ -904,22 +923,41 @@ export function PlanView() {
     }
     const annotationId = idOf(event.target, 'data-annotation-id');
     const grip = idOf(event.target, 'data-grip');
+    // Alças da arquitetura: extremidade de parede, canto de telhado, vértice do contorno em
+    // edição e o ponto do meio de um lado (cria o vértice e já o arrasta).
+    const archGrip = idOf(event.target, 'data-arch-grip');
+    const archInsert = idOf(event.target, 'data-arch-insert');
     const mode =
       event.button !== 0
         ? 'pan'
-        : terrainMode || archTool
-          ? 'click'
-          : gripPipe && (grip === 'start' || grip === 'end')
-            ? 'grip'
-            : tool === 'select' && annotationId
-              ? 'annotation'
-              : // Em Selecionar, o arrasto com o botão esquerdo abre a janela de seleção (como no
-                // 3D); a vista se desloca com o botão direito ou o do meio.
-                tool === 'select' && !sectionTool && event.pointerType !== 'touch'
-                ? 'window'
-                : 'click';
+        : archGrip !== null || archInsert !== null
+          ? 'archGrip'
+          : terrainMode || archBusy
+            ? 'click'
+            : gripPipe && (grip === 'start' || grip === 'end')
+              ? 'grip'
+              : tool === 'select' && annotationId
+                ? 'annotation'
+                : // Em Selecionar, o arrasto com o botão esquerdo abre a janela de seleção (como no
+                  // 3D); a vista se desloca com o botão direito ou o do meio.
+                  tool === 'select' && !sectionTool && event.pointerType !== 'touch'
+                  ? 'window'
+                  : 'click';
     if (mode === 'grip' && gripPipe && (grip === 'start' || grip === 'end')) {
       useEditorStore.getState().beginStretch(gripPipe.id, grip);
+    }
+    if (mode === 'archGrip') {
+      const arch = useArchStore.getState();
+      if (archInsert !== null) {
+        const edge = Number(archInsert);
+        arch.insertContourVertex(edge);
+        arch.beginContourDrag(edge + 1);
+      } else if (archGrip?.startsWith('contour:')) {
+        arch.beginContourDrag(Number(archGrip.slice('contour:'.length)));
+      } else {
+        const target = parseGripKey(archGrip);
+        if (target) arch.beginGrip(target);
+      }
     }
     drag.current = {
       x: event.clientX,
@@ -1022,7 +1060,7 @@ export function PlanView() {
   const lastMove = useRef<{ raw: Point2; elementId: string | null } | null>(null);
   const hoverAt = (raw: Point2, elementId: string | null): void => {
     lastMove.current = { raw, elementId };
-    if (archTool) {
+    if (archPointing) {
       const snapped = archPoint(raw);
       setPointer(snapped);
       useArchStore.getState().setCursor(snapped.point);
@@ -1052,14 +1090,24 @@ export function PlanView() {
   // Apertar ou soltar o Shift com o cursor parado atualiza a prévia (trava de ângulo).
   useEffect(() => {
     const onShift = (event: KeyboardEvent): void => {
-      if (event.key !== 'Shift' || event.repeat || drag.current || !lastMove.current) return;
+      if (event.key !== 'Shift' || event.repeat) return;
+      if (drag.current?.mode === 'archGrip') {
+        // Alça da arquitetura em arrasto: a trava de ângulo entra (ou sai) sem mover o cursor.
+        const arch = useArchStore.getState();
+        const snap = arch.refreshPointer();
+        if (snap) arch.dragTo(snap.point);
+        return;
+      }
+      if (drag.current || !lastMove.current) return;
       hoverAtRef.current(lastMove.current.raw, lastMove.current.elementId);
     };
-    window.addEventListener('keydown', onShift);
-    window.addEventListener('keyup', onShift);
+    // Na fase de captura: os campos de entrada interrompem a propagação das teclas, e a trava
+    // tem de responder também com o foco no campo do comprimento.
+    window.addEventListener('keydown', onShift, true);
+    window.addEventListener('keyup', onShift, true);
     return () => {
-      window.removeEventListener('keydown', onShift);
-      window.removeEventListener('keyup', onShift);
+      window.removeEventListener('keydown', onShift, true);
+      window.removeEventListener('keyup', onShift, true);
     };
   }, []);
 
@@ -1099,6 +1147,11 @@ export function PlanView() {
             (axis.x * axis.x + axis.y * axis.y);
           if (Number.isFinite(t)) store.stretchTo(add(base.start, scale(axis, t)));
         }
+        return;
+      }
+      if (d.mode === 'archGrip') {
+        const arch = useArchStore.getState();
+        arch.dragTo(arch.resolvePointer(raw, SNAP_PX * view.mpp).point);
         return;
       }
       if (d.mode === 'window') {
@@ -1147,6 +1200,11 @@ export function PlanView() {
       useEditorStore.getState().endStretch(true);
       return;
     }
+    if (d.mode === 'archGrip') {
+      // Sem arrasto nada foi levado a lugar nenhum: o clique só marca o vértice.
+      useArchStore.getState().endDrag(true);
+      return;
+    }
     if (d.button === 2 && !d.moved) {
       openContextMenu(event, raw, d.elementId);
       return;
@@ -1192,7 +1250,7 @@ export function PlanView() {
     lastMove.current = null;
     setPointer(null);
     useEditorStore.getState().setCursor(null);
-    if (archTool) useArchStore.getState().setCursor(null);
+    if (archPointing) useArchStore.getState().clearPointer();
   };
 
   const exportSvg = (): void => {
@@ -1425,6 +1483,7 @@ export function PlanView() {
       data-tool={tool}
       data-terrain-mode={terrainMode ?? ''}
       data-arch-tool={archTool ?? ''}
+      data-arch-mode={archTransform ? 'transform' : archContour ? 'contour' : ''}
       data-view-tool={sectionTool ? 'section' : ''}
       data-theme={theme}
       data-environment={project.discipline}
@@ -1439,7 +1498,7 @@ export function PlanView() {
         height={size.height}
         viewBox={`${X(view.cx) - (size.width / 2) * view.mpp} ${Y(view.cy) - (size.height / 2) * view.mpp} ${Math.max(size.width, 1) * view.mpp} ${Math.max(size.height, 1) * view.mpp}`}
         style={{
-          cursor: drafting || terrainMode || sectionTool || archTool ? 'crosshair' : 'default',
+          cursor: drafting || terrainMode || sectionTool || archPointing ? 'crosshair' : 'default',
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -1447,8 +1506,15 @@ export function PlanView() {
         onPointerCancel={onPointerCancel}
         onPointerLeave={onPointerLeave}
         onContextMenu={(event) => event.preventDefault()}
-        onDoubleClick={() => {
-          if (archTool) useArchStore.getState().finish();
+        onDoubleClick={(event) => {
+          const arch = useArchStore.getState();
+          if (archTool) arch.finish();
+          else if (tool === 'select' && !archBusy && !sectionTool && !terrainMode) {
+            // Duplo clique em laje, piso, ambiente ou telhado: editar o contorno.
+            const id = idOf(event.target, 'data-arch-id');
+            const element = id ? getArchElement(project.architecture, id) : undefined;
+            if (element && contourOf(element)) arch.beginContour(element.id);
+          }
         }}
       >
         {/* Fundo: imagem de satélite georreferenciada (só com o georreferenciamento pronto). */}
@@ -1482,7 +1548,7 @@ export function PlanView() {
           mpp={view.mpp}
           unit={unit}
           monochrome={theme === 'mono'}
-          interactive={tool === 'select' && !archTool && !sectionTool && !terrainMode}
+          interactive={tool === 'select' && !archBusy && !sectionTool && !terrainMode}
         />
         <g data-layer-infra="network">
           {drawn
@@ -1572,6 +1638,11 @@ export function PlanView() {
             )}
           </g>
         )}
+        <ArchGripLayer
+          origin={origin}
+          mpp={view.mpp}
+          enabled={tool === 'select' && !archBusy && !sectionTool && !terrainMode}
+        />
         {selectionWindow && (
           <rect
             data-ui="window"
@@ -1588,6 +1659,7 @@ export function PlanView() {
         )}
         <g data-ui="draft" pointerEvents="none">
           <ArchDraftLayer origin={origin} mpp={view.mpp} tolerance={SNAP_PX * view.mpp} />
+          <ArchEditLayer origin={origin} mpp={view.mpp} />
           {sectionTool && (
             <>
               <SectionDraft
@@ -1724,10 +1796,10 @@ export function PlanView() {
               {pointer.info}
             </text>
           )}
-          {(drafting || archTool) && pointer && (
+          {(drafting || archPointing) && pointer && (
             <circle
-              cx={X(pointer.point.x)}
-              cy={Y(pointer.point.y)}
+              cx={X((archPointing ? archCursor : null)?.x ?? pointer.point.x)}
+              cy={Y((archPointing ? archCursor : null)?.y ?? pointer.point.y)}
               r={marker}
               fill={pointer.snap === 'port' ? HIGHLIGHT : 'none'}
               fillOpacity={0.35}

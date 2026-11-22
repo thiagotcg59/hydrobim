@@ -14,6 +14,7 @@ import { createBuildingDemoProject } from '../demo/buildingDemo';
 import { createDemoProject } from '../demo/demoProject';
 import { createEarthworkDemoProject } from '../demo/earthworkDemo';
 import { createJunctionDemoProject } from '../demo/junctionDemo';
+import { createReservationDemoProject } from '../demo/reservationDemo';
 import { createTankDemoProject } from '../demo/tankDemo';
 import { visibleElementsOf } from '../editor/visibility';
 import { projectToXr, xrToProject, type VrPlacement } from './vrCoordinates';
@@ -47,6 +48,7 @@ const DEMOS: readonly (readonly [string, () => Project])[] = [
   ['terraplenagem', createEarthworkDemoProject],
   ['ligações e derivações', createJunctionDemoProject],
   ['reservatórios', createTankDemoProject],
+  ['centro de reservação', createReservationDemoProject],
 ];
 
 describe('cena da rede para a realidade virtual', () => {

@@ -17,6 +17,7 @@ import type {
 } from '../schema';
 import { polygonArea, ringArea } from '../terrain/polygon';
 import { ringPerimeter } from './polygon2';
+import { roofFootprint, roofFrame, roofTypeOf, roofVerticalRange } from './roofs';
 import {
   footprintArea,
   getArchElement,
@@ -39,6 +40,7 @@ export const ARCH_KIND_LABELS: Record<ArchElementKind, string> = {
   wall: 'Parede',
   slab: 'Laje',
   flooring: 'Piso',
+  roof: 'Telhado',
   door: 'Porta',
   window: 'Janela',
   space: 'Ambiente',
@@ -48,6 +50,7 @@ export const ARCH_CATEGORY_LABELS: Record<ArchCategory, string> = {
   wall: 'Paredes',
   slab: 'Lajes de piso',
   flooring: 'Revestimentos de piso',
+  roof: 'Telhados',
   door: 'Portas',
   window: 'Janelas',
 };
@@ -71,6 +74,7 @@ const VIEW_CATEGORY: Record<ArchElementKind, ViewCategory> = {
   wall: 'walls',
   slab: 'floors',
   flooring: 'floors',
+  roof: 'roofs',
   door: 'doors',
   window: 'windows',
   space: 'spaces',
@@ -84,6 +88,7 @@ export const ARCH_KIND_CATEGORY: Record<Exclude<ArchElementKind, 'space'>, ArchC
   wall: 'wall',
   slab: 'slab',
   flooring: 'flooring',
+  roof: 'roof',
   door: 'door',
   window: 'window',
 };
@@ -131,6 +136,12 @@ export function archVerticalRange(
       const base = levelElevation(levels, element.levelId) + element.offset;
       return { base, top: base + layersThickness(type) };
     }
+    case 'roof': {
+      // Da borda mais baixa do beiral ao ponto mais alto da face superior.
+      const type = roofTypeOf(architecture, element);
+      const range = type ? roofVerticalRange(levels, element, type) : null;
+      return range ? { base: range.base, top: range.top } : null;
+    }
     case 'door':
     case 'window': {
       const host = hostWallOf(architecture, element);
@@ -156,6 +167,12 @@ export function archPlanPoints(architecture: Architecture, element: ArchElement)
     case 'flooring':
     case 'space':
       return element.boundary;
+    case 'roof': {
+      // A projeção com os beirais; sem tipo válido, o contorno de referência.
+      const type = roofTypeOf(architecture, element);
+      const frame = type ? roofFrame(element, type) : null;
+      return frame ? roofFootprint(frame) : element.boundary;
+    }
     case 'door':
     case 'window': {
       const host = hostWallOf(architecture, element);

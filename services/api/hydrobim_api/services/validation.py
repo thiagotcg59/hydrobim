@@ -1,7 +1,7 @@
 """Validação estrutural/referencial; não verifica acoplamento geométrico de portas."""
 
 from collections.abc import Callable
-from math import dist
+from math import atan, dist, hypot, isfinite, radians
 from typing import Literal
 
 from hydrobim_api.models.project import CamelModel, HydroElement, PipeSpec, Project
@@ -14,10 +14,18 @@ ARCH_KIND_LABELS = {
     "wall": "parede",
     "slab": "laje",
     "flooring": "piso",
+    "roof": "telhado",
     "door": "porta",
     "window": "janela",
 }
 SPEC_TOLERANCE = 1e-6
+# Telhados: mesmos limites de core/architecture/roofs.ts.
+MIN_ROOF_SIDE = 0.1
+MIN_ROOF_SLOPE = atan(0.01)
+MAX_ROOF_SLOPE = radians(75)
+ROOF_SQUARE_TOLERANCE = 1e-6
+ROOF_IFC_PREDEFINED = {"shed": "SHED_ROOF", "gable": "GABLE_ROOF"}
+ROOF_SHAPE_LABELS = {"shed": "uma água", "gable": "duas águas"}
 VALID_PORTS = {
     "pipe": frozenset({"start", "end"}),
     "elbow": frozenset({"a", "b"}),
@@ -52,6 +60,43 @@ def _spec_problem(spec: PipeSpec) -> str | None:
     expected = spec.outer_diameter - 2 * spec.wall_thickness
     if abs(expected - spec.inner_diameter) > SPEC_TOLERANCE:
         return "diâmetro interno incoerente com o diâmetro externo e a espessura de parede"
+    return None
+
+
+def _roof_boundary_problem(boundary: list) -> str | None:
+    """Como `roofBoundaryProblem` (core): quatro cantos, lados mínimos e ângulos retos."""
+    if len(boundary) != 4:
+        return "o contorno do telhado precisa de quatro cantos (retângulo)"
+    if any(not (isfinite(p.x) and isfinite(p.y)) for p in boundary):
+        return "o contorno do telhado tem coordenadas inválidas"
+    for i in range(4):
+        a, b, c = boundary[i], boundary[(i + 1) % 4], boundary[(i + 2) % 4]
+        side = (b.x - a.x, b.y - a.y)
+        following = (c.x - b.x, c.y - b.y)
+        if hypot(*side) < MIN_ROOF_SIDE:
+            return (
+                f"o lado {i + 1} do contorno é curto demais (mínimo de {MIN_ROOF_SIDE * 100:g} cm)"
+            )
+        if hypot(*following) < MIN_ROOF_SIDE:
+            continue
+        cosine = (side[0] * following[0] + side[1] * following[1]) / (
+            hypot(*side) * hypot(*following)
+        )
+        if abs(cosine) > ROOF_SQUARE_TOLERANCE:
+            return (
+                "o contorno do telhado precisa ser retangular (só telhados de uma e de duas "
+                "águas sobre retângulo são modelados)"
+            )
+    return None
+
+
+def _roof_slope_problem(slope: float) -> str | None:
+    if slope < MIN_ROOF_SLOPE - 1e-12:
+        return (
+            "a inclinação mínima do telhado é de 1 % (cobertura plana não é modelada como telhado)"
+        )
+    if slope > MAX_ROOF_SLOPE + 1e-12:
+        return "a inclinação máxima do telhado é de 75°"
     return None
 
 
@@ -205,6 +250,17 @@ def _validate_architecture(
                 "edição, página e URL) ou marque o tipo como genérico.",
                 [],
             )
+        # A tipologia do telhado e o tipo predefinido IFC não se contradizem.
+        if (
+            arch_type.category == "roof"
+            and arch_type.ifc_predefined_type != ROOF_IFC_PREDEFINED[arch_type.shape]
+        ):
+            add(
+                "ROOF_TYPE_MISMATCH",
+                f'"{arch_type.name}": telhado de {ROOF_SHAPE_LABELS[arch_type.shape]} tem o '
+                f"tipo predefinido IFC {ROOF_IFC_PREDEFINED[arch_type.shape]}.",
+                [],
+            )
 
     walls: set[str] = set()
     seen: set[str] = set()
@@ -245,6 +301,11 @@ def _validate_architecture(
                     f"(mínimo de {MIN_WALL_LENGTH * 100:g} cm).",
                     [element.id],
                 )
+        if element.kind == "roof":
+            if problem := _roof_boundary_problem(element.boundary):
+                add("ROOF_BOUNDARY_INVALID", f'"{element.name}": {problem}.', [element.id])
+            elif problem := _roof_slope_problem(element.slope):
+                add("ROOF_SLOPE_INVALID", f'"{element.name}": {problem}.', [element.id])
 
     for element in architecture.elements:
         if element.kind in ("door", "window") and element.host_id not in walls:

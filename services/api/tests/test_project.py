@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 17
+    assert project.schema_version == 18
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 18),
+        (("schemaVersion",), 19),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 17.0
+    project_document["schemaVersion"] = 18.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -239,7 +239,7 @@ def test_migrates_v11_terrain_as_survey_without_presumed_data(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump()
     assert legacy == before
-    assert migrated["schemaVersion"] == 17
+    assert migrated["schemaVersion"] == 18
     terrain = migrated["terrain"]
     assert terrain["points"] == TERRAIN_V11["points"]
     assert terrain["boundary"] is None
@@ -694,7 +694,7 @@ def test_migrates_v12_adding_empty_pump_families(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated == {**project_document, "schemaVersion": 17}
+    assert migrated == {**project_document, "schemaVersion": 18}
 
 
 def _custom_pump_family():
@@ -979,7 +979,7 @@ def test_migrates_v15_adding_empty_architecture_and_arch_cut_height(project_docu
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated["schemaVersion"] == 17
+    assert migrated["schemaVersion"] == 18
     assert migrated["architecture"] == {"types": [], "elements": []}
     plans = [view for view in migrated["views"] if view["kind"] == "plan"]
     assert [view["archCutHeight"] for view in plans] == [1.2, 0.8, 0.1, 0.1]
@@ -999,7 +999,7 @@ def test_migration_keeps_existing_arch_cut_height_and_older_versions_reach_v16(p
     legacy["schemaVersion"] = 14
     del legacy["views"][0]["archCutHeight"]
     migrated = Project.model_validate(legacy)
-    assert migrated.schema_version == 17
+    assert migrated.schema_version == 18
     assert migrated.views[0].arch_cut_height == 1.2
     assert migrated.architecture.types == []
 
@@ -1028,11 +1028,11 @@ def test_disciplines(project_document, discipline):
 
 def test_views_hide_architecture_categories(project_document):
     project_document["views"] = _views_v15()
-    categories = ["walls", "floors", "doors", "windows", "spaces", "pipes"]
+    categories = ["walls", "floors", "roofs", "doors", "windows", "spaces", "pipes"]
     project_document["views"][0]["visibility"]["hiddenCategories"] = categories
     project = Project.model_validate(project_document)
     assert project.views[0].visibility.hidden_categories == categories
-    project_document["views"][0]["visibility"]["hiddenCategories"] = ["roofs"]
+    project_document["views"][0]["visibility"]["hiddenCategories"] = ["stairs"]
     with pytest.raises(ValidationError):
         Project.model_validate(project_document)
 
@@ -1070,7 +1070,7 @@ def test_architecture_round_trips(arch_document):
         (("types", 0, "layers", 0, "material"), ""),
         (("types", 0, "layers", 0, "function"), "core"),
         (("types", 0, "layers", 0, "hatch"), "brick"),
-        (("types", 0, "category"), "roof"),
+        (("types", 0, "category"), "stair"),
         (("types", 0, "name"), ""),
         (("types", 0, "familyId"), ""),
         (("types", 0, "source"), ""),
@@ -1091,7 +1091,7 @@ def test_architecture_round_trips(arch_document):
         (("elements", 0, "typeId"), ""),
         (("elements", 0, "levelId"), ""),
         (("elements", 0, "ifc"), None),
-        (("elements", 0, "kind"), "roof"),
+        (("elements", 0, "kind"), "stair"),
         (("elements", 1, "facing"), 0),
         (("elements", 1, "facing"), True),
         (("elements", 1, "hand"), "center"),
@@ -1136,6 +1136,144 @@ def test_architecture_required_fields(arch_document, path, key):
 
 
 # ---------------------------------------------------------------------------
+# Esquema v18: telhados
+# ---------------------------------------------------------------------------
+
+ROOF_BOUNDARY = [{"x": 0, "y": 0}, {"x": 8, "y": 0}, {"x": 8, "y": 6}, {"x": 0, "y": 6}]
+
+
+def _with_roof(arch_document, shape="gable", predefined="GABLE_ROOF", **fields):
+    architecture = arch_document["architecture"]
+    architecture["types"].append(
+        {
+            **deepcopy(architecture["types"][1]),
+            "id": "type-roof",
+            "name": "Telhado 10 cm",
+            "category": "roof",
+            "shape": shape,
+            "ifcPredefinedType": predefined,
+        }
+    )
+    architecture["elements"].append(
+        {
+            "id": "roof-1",
+            "name": "Telhado 1",
+            "properties": {},
+            "meta": deepcopy(architecture["elements"][0]["meta"]),
+            "kind": "roof",
+            "typeId": "type-roof",
+            "levelId": "nivel-0",
+            "boundary": deepcopy(ROOF_BOUNDARY),
+            "eaveEdge": 0,
+            "offset": 2.8,
+            "slope": 0.2914567944778671,
+            "overhang": 0.5,
+            **fields,
+        }
+    )
+    return arch_document
+
+
+@pytest.mark.parametrize(("shape", "predefined"), [("shed", "SHED_ROOF"), ("gable", "GABLE_ROOF")])
+def test_roof_round_trips_and_validates(arch_document, shape, predefined):
+    document = _with_roof(arch_document, shape, predefined)
+    project = Project.model_validate(document)
+    roof = project.architecture.elements[-1]
+    assert (roof.kind, roof.eave_edge, roof.overhang) == ("roof", 0, 0.5)
+    assert project.architecture.types[-1].shape == shape
+    assert project.model_dump(by_alias=True) == document
+    assert json.loads(project.model_dump_json(by_alias=True)) == document
+    assert validate_project(project) == []
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("boundary", ROOF_BOUNDARY[:3]),
+        ("boundary", [*ROOF_BOUNDARY, {"x": 0, "y": 3}]),
+        ("eaveEdge", 4),
+        ("eaveEdge", -1),
+        ("eaveEdge", 1.5),
+        ("slope", 0),
+        ("slope", -0.1),
+        ("overhang", -0.1),
+        ("offset", None),
+        ("typeId", ""),
+        ("levelId", ""),
+    ],
+)
+def test_roof_schema_constraints(arch_document, key, value):
+    document = _with_roof(arch_document, **{key: value})
+    with pytest.raises(ValidationError):
+        Project.model_validate(document)
+
+
+def test_roof_type_requires_known_shape(arch_document):
+    document = _with_roof(arch_document)
+    document["architecture"]["types"][-1]["shape"] = "hip"
+    with pytest.raises(ValidationError):
+        Project.model_validate(document)
+    del document["architecture"]["types"][-1]["shape"]
+    with pytest.raises(ValidationError):
+        Project.model_validate(document)
+
+
+@pytest.mark.parametrize(
+    ("fields", "code"),
+    [
+        # Trapézio: não é retângulo.
+        (
+            {
+                "boundary": [
+                    {"x": 0, "y": 0},
+                    {"x": 8, "y": 0},
+                    {"x": 7, "y": 6},
+                    {"x": 0, "y": 6},
+                ]
+            },
+            "ROOF_BOUNDARY_INVALID",
+        ),
+        # Lado menor que o mínimo.
+        (
+            {
+                "boundary": [
+                    {"x": 0, "y": 0},
+                    {"x": 8, "y": 0},
+                    {"x": 8, "y": 0.01},
+                    {"x": 0, "y": 0.01},
+                ]
+            },
+            "ROOF_BOUNDARY_INVALID",
+        ),
+        ({"slope": 0.001}, "ROOF_SLOPE_INVALID"),
+        ({"slope": 1.5}, "ROOF_SLOPE_INVALID"),
+        ({"levelId": "inexistente"}, "LEVEL_NOT_FOUND"),
+        ({"typeId": "type-wall"}, "ARCH_TYPE_MISMATCH"),
+    ],
+)
+def test_roof_validation_rules(arch_document, fields, code):
+    project = Project.model_validate(_with_roof(arch_document, **fields))
+    assert [issue.code for issue in validate_project(project)] == [code]
+
+
+def test_roof_shape_and_ifc_predefined_type_must_agree(arch_document):
+    project = Project.model_validate(_with_roof(arch_document, "shed", "GABLE_ROOF"))
+    issues = validate_project(project)
+    assert [issue.code for issue in issues] == ["ROOF_TYPE_MISMATCH"]
+    assert "SHED_ROOF" in issues[0].message
+
+
+def test_migrates_v17_without_changes(arch_document):
+    """Um documento v17 não tem telhados: só a versão muda, e o original não é mutado."""
+    legacy = deepcopy(arch_document)
+    legacy["schemaVersion"] = 17
+    before = deepcopy(legacy)
+    migrated = Project.model_validate(legacy).model_dump(by_alias=True)
+    assert legacy == before
+    assert migrated == {**arch_document, "schemaVersion": 18}
+
+
+# ---------------------------------------------------------------------------
 # Esquema v17: superfície do terreno como elemento e terraplenagem
 # ---------------------------------------------------------------------------
 
@@ -1174,7 +1312,7 @@ def test_migrates_v16_terrain_and_earthworks_without_presumed_data(project_docum
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated["schemaVersion"] == 17
+    assert migrated["schemaVersion"] == 18
     assert migrated["terrain"]["id"] == "terreno"
     assert migrated["terrain"]["tag"] == ""
     assert migrated["terrain"]["original"] is None

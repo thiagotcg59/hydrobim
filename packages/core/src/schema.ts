@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 17 as const;
+export const SCHEMA_VERSION = 18 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -1037,6 +1037,7 @@ export const VIEW_CATEGORIES = [
   'doors',
   'windows',
   'spaces',
+  'roofs',
 ] as const;
 export const ViewCategorySchema = z.enum(VIEW_CATEGORIES);
 export type ViewCategory = z.infer<typeof ViewCategorySchema>;
@@ -1177,7 +1178,7 @@ export type ProjectViewKind = ProjectView['kind'];
  *  - TIPO (`ArchType`): a família com dimensões e composição definidas, guardado no projeto;
  *  - OCORRÊNCIA (`ArchElement`): cada elemento posicionado, que aponta o seu tipo.
  */
-export const ARCH_CATEGORIES = ['wall', 'slab', 'flooring', 'door', 'window'] as const;
+export const ARCH_CATEGORIES = ['wall', 'slab', 'flooring', 'roof', 'door', 'window'] as const;
 export const ArchCategorySchema = z.enum(ARCH_CATEGORIES);
 export type ArchCategory = z.infer<typeof ArchCategorySchema>;
 
@@ -1268,6 +1269,26 @@ export type SlabType = z.infer<typeof SlabTypeSchema>;
 export const FlooringTypeSchema = z.object({ ...layeredType, category: z.literal('flooring') });
 export type FlooringType = z.infer<typeof FlooringTypeSchema>;
 
+/**
+ * Tipologias de telhado modeladas. `shed` = uma água (um plano inclinado); `gable` = duas
+ * águas iguais, com a cumeeira no meio do vão. Quatro águas e coberturas compostas ainda não
+ * existem (ver `docs/ROADMAP.md`).
+ */
+export const ROOF_SHAPES = ['shed', 'gable'] as const;
+export const RoofShapeSchema = z.enum(ROOF_SHAPES);
+export type RoofShape = z.infer<typeof RoofShapeSchema>;
+
+/**
+ * Tipo de telhado: a tipologia e a composição. Camadas de cima (telha) para baixo; a espessura
+ * do tipo é a soma delas, medida PERPENDICULARMENTE à água.
+ */
+export const RoofTypeSchema = z.object({
+  ...layeredType,
+  category: z.literal('roof'),
+  shape: RoofShapeSchema,
+});
+export type RoofType = z.infer<typeof RoofTypeSchema>;
+
 export const DOOR_OPERATIONS = ['singleSwing', 'doubleSwing', 'sliding', 'pivot'] as const;
 export const DoorOperationSchema = z.enum(DOOR_OPERATIONS);
 export type DoorOperation = z.infer<typeof DoorOperationSchema>;
@@ -1327,11 +1348,12 @@ export const ArchTypeSchema = z.discriminatedUnion('category', [
   WallTypeSchema,
   SlabTypeSchema,
   FlooringTypeSchema,
+  RoofTypeSchema,
   DoorTypeSchema,
   WindowTypeSchema,
 ]);
 export type ArchType = z.infer<typeof ArchTypeSchema>;
-export type LayeredArchType = WallType | SlabType | FlooringType;
+export type LayeredArchType = WallType | SlabType | FlooringType | RoofType;
 
 const archElementBase = {
   /** Identificador persistente (UUID): base do GlobalId IFC. Nunca muda. */
@@ -1398,6 +1420,34 @@ export const FlooringSchema = z.object({
 });
 export type Flooring = z.infer<typeof FlooringSchema>;
 
+/**
+ * Telhado de uma ou duas águas sobre contorno RETANGULAR (a tipologia é do tipo).
+ *
+ * - `boundary`: os quatro cantos do retângulo de referência, em planta (anti-horário) — em
+ *   geral a face externa ou o eixo das paredes que recebem o telhado.
+ * - `eaveEdge`: lado do contorno (0 = do 1º ao 2º canto) que é BEIRAL. Uma água: a água cai
+ *   para esse lado. Duas águas: a cumeeira é paralela a ele, no meio do vão. A direção nunca
+ *   contradiz o contorno, pois é um lado dele.
+ * - Cota de referência (`cota do nível + offset`): a da face INFERIOR do telhado sobre a linha
+ *   do beiral do contorno (a linha de apoio).
+ * - `slope`: inclinação das águas em relação ao plano horizontal (rad).
+ * - `overhang`: beiral, medido na HORIZONTAL para fora do contorno, nos quatro lados; a água
+ *   continua com a mesma inclinação, de modo que a borda do beiral fica abaixo da referência.
+ */
+export const RoofSchema = z.object({
+  ...archElementBase,
+  kind: z.literal('roof'),
+  typeId: z.string().min(1),
+  levelId: z.string().min(1),
+  boundary: z.array(Point2Schema).length(4),
+  eaveEdge: z.number().int().min(0).max(3),
+  /** Deslocamento vertical da cota de referência em relação ao nível (m). */
+  offset: finite,
+  slope: positive,
+  overhang: nonNegative,
+});
+export type Roof = z.infer<typeof RoofSchema>;
+
 const hostedBase = {
   ...archElementBase,
   typeId: z.string().min(1),
@@ -1440,6 +1490,7 @@ export const ArchElementSchema = z.discriminatedUnion('kind', [
   WallSchema,
   SlabSchema,
   FlooringSchema,
+  RoofSchema,
   DoorSchema,
   WindowSchema,
   SpaceSchema,
@@ -1501,7 +1552,8 @@ export const ProjectSchema = z.object({
    */
   views: z.array(ProjectViewSchema),
   /**
-   * Modelo arquitetônico (tipos, paredes, lajes, revestimentos, portas, janelas e ambientes),
+   * Modelo arquitetônico (tipos, paredes, lajes, revestimentos, telhados, portas, janelas e
+   * ambientes),
    * no mesmo projeto, níveis e coordenadas da rede hidráulica.
    */
   architecture: ArchitectureSchema,

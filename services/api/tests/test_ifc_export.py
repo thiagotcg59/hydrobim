@@ -72,6 +72,9 @@ def test_ifc_schema_and_model(example):
         # O filtro Y é um tipo interno de válvula, mas no IFC é IfcFilter/STRAINER.
         ("IfcFilter", "STRAINER")
         if e.get("valveType") == "strainer"
+        # O macromedidor também é um tipo interno de válvula: no IFC, IfcFlowMeter/WATERMETER.
+        else ("IfcFlowMeter", "WATERMETER")
+        if e.get("valveType") == "flowMeter"
         else ("IfcValve", VALVES[e["valveType"]])
         if e["kind"] == "valve"
         # Bomba anfíbia de catálogo: motobomba submersa (SUBMERSIBLEPUMP), em linha.

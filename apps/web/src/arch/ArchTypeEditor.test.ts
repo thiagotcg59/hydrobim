@@ -143,6 +143,7 @@ describe('lista do catálogo', () => {
       'wall',
       'slab',
       'flooring',
+      'roof',
       'door',
       'window',
     ]);

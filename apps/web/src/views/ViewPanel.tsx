@@ -42,6 +42,7 @@ const CATEGORY_LABELS: Record<ViewCategory, string> = {
   doors: 'Portas',
   windows: 'Janelas',
   spaces: 'Ambientes',
+  roofs: 'Telhados',
 };
 
 function Check({

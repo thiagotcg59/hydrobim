@@ -85,7 +85,7 @@ export interface ArchIfcTypeInfo {
   /** Atributos próprios do tipo (`OperationType`, `PartitioningType`…). */
   readonly attributes: Readonly<Record<string, IfcValue>>;
   readonly psets: readonly IfcPropertySetInfo[];
-  /** Camadas de material (parede, laje, revestimento), na ordem do tipo. */
+  /** Camadas de material (parede, laje, revestimento, telhado), na ordem do tipo. */
   readonly layers: readonly ArchIfcLayer[];
   /** Materiais dos componentes da esquadria, só os informados. */
   readonly constituents: readonly ArchIfcConstituent[];
@@ -319,6 +319,7 @@ const KIND_OF_CATEGORY: Record<ArchType['category'], ArchElementKind> = {
   wall: 'wall',
   slab: 'slab',
   flooring: 'flooring',
+  roof: 'roof',
   door: 'door',
   window: 'window',
 };

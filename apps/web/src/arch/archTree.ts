@@ -16,6 +16,7 @@ export const ARCH_TREE_KINDS: readonly { kind: ArchElementKind; label: string }[
   { kind: 'wall', label: 'Paredes' },
   { kind: 'slab', label: 'Lajes' },
   { kind: 'flooring', label: 'Pisos' },
+  { kind: 'roof', label: 'Telhados' },
   { kind: 'door', label: 'Portas' },
   { kind: 'window', label: 'Janelas' },
   { kind: 'space', label: 'Ambientes' },

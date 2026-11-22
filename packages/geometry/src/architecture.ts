@@ -6,6 +6,10 @@ import {
   QUAT_IDENTITY,
   quatFromAxisAngle,
   ringArea,
+  roofFrame,
+  roofTypeOf,
+  roofUndersideAt,
+  roofVerticalRange,
   triangulatePolygon,
   vec3,
   wallAxes,
@@ -22,6 +26,7 @@ import {
   type HostedElement,
   type Point2,
   type Project,
+  type Roof,
   type Wall,
   type WindowType,
 } from '@hydrobim/core';
@@ -37,6 +42,10 @@ import { mergeMeshes } from './tank';
  *    fechada em torno deles (ombreiras, verga e peitoril);
  *  - laje e revestimento: origem no primeiro vértice do contorno, na cota do topo (laje) ou
  *    da base (revestimento); as aberturas atravessam o elemento;
+ *  - telhado: origem no início do lado do beiral, na cota de referência (face inferior sobre a
+ *    linha do beiral do contorno); X ao longo do beiral, Y para dentro do contorno (subindo a
+ *    água), Z para cima. Corpo fechado: águas planas com a espessura do tipo medida
+ *    perpendicularmente e bordas cortadas a prumo;
  *  - porta e janela: referencial da parede hospedeira, com a origem no centro do vão, na
  *    soleira ou no peitoril.
  *
@@ -376,6 +385,86 @@ function floorGeometry(project: Project3, element: FloorElement): ElementGeometr
 }
 
 // ---------------------------------------------------------------------------
+// Telhado
+// ---------------------------------------------------------------------------
+
+/**
+ * Corpo do telhado. A seção transversal (perpendicular ao beiral) é uma faixa de espessura
+ * vertical constante sobre a face inferior — um paralelogramo por água —, estendida ao longo
+ * do beiral. Em duas águas as duas faixas se encontram no plano vertical da cumeeira.
+ */
+function roofGeometry(project: Project3, roof: Roof): ElementGeometry | null {
+  const type = roofTypeOf(project.architecture, roof);
+  const frame = type ? roofFrame(roof, type) : null;
+  const range = type ? roofVerticalRange(project.levels, roof, type) : null;
+  if (!type || !frame || !range) return null;
+  const o = frame.overhang;
+  const u0 = -o;
+  const u1 = frame.length + o;
+  // Posições ao longo do vão onde a face inferior muda de plano: beirais e cumeeira.
+  const stations = frame.ridge === null ? [-o, frame.span + o] : [-o, frame.ridge, frame.span + o];
+  const t = frame.verticalThickness;
+  const builder = new Builder();
+  for (let i = 0; i + 1 < stations.length; i += 1) {
+    const va = stations[i] as number;
+    const vb = stations[i + 1] as number;
+    const za = roofUndersideAt(frame, va);
+    const zb = roofUndersideAt(frame, vb);
+    // Face superior (a das telhas) e face inferior da água.
+    builder.face([
+      [u0, va, za + t],
+      [u1, va, za + t],
+      [u1, vb, zb + t],
+      [u0, vb, zb + t],
+    ]);
+    builder.face([
+      [u0, vb, zb],
+      [u1, vb, zb],
+      [u1, va, za],
+      [u0, va, za],
+    ]);
+    // Empenas (bordas laterais), a prumo.
+    builder.face([
+      [u0, va, za],
+      [u0, va, za + t],
+      [u0, vb, zb + t],
+      [u0, vb, zb],
+    ]);
+    builder.face([
+      [u1, vb, zb],
+      [u1, vb, zb + t],
+      [u1, va, za + t],
+      [u1, va, za],
+    ]);
+  }
+  // Bordas dos beirais (a primeira e a última estação), a prumo.
+  const first = stations[0] as number;
+  const last = stations[stations.length - 1] as number;
+  const zFirst = roofUndersideAt(frame, first);
+  const zLast = roofUndersideAt(frame, last);
+  builder.face([
+    [u0, first, zFirst],
+    [u1, first, zFirst],
+    [u1, first, zFirst + t],
+    [u0, first, zFirst + t],
+  ]);
+  builder.face([
+    [u1, last, zLast],
+    [u0, last, zLast],
+    [u0, last, zLast + t],
+    [u1, last, zLast + t],
+  ]);
+  if (builder.empty) return null;
+  return {
+    transform: {
+      position: vec3(frame.origin.x, frame.origin.y, range.reference),
+      rotation: quatFromAxisAngle(AXIS_Z, Math.atan2(frame.along.y, frame.along.x)),
+    },
+    parts: [part('roof', builder.mesh())],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Porta e janela
 // ---------------------------------------------------------------------------
 
@@ -466,6 +555,8 @@ export function buildArchGeometry(project: Project3, element: ArchElement): Elem
     case 'slab':
     case 'flooring':
       return floorGeometry(project, element);
+    case 'roof':
+      return roofGeometry(project, element);
     case 'door':
     case 'window':
       return hostedGeometry(project, element);

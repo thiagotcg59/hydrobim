@@ -204,6 +204,7 @@ Esquema adotado: **IFC 4.3.2.0 (`IFC4X3_ADD2`)**, o mesmo da rede. Entidades, or
 | `wall` | `IfcWall` / `IfcWallType` | Da família: `SOLIDWALL` (alvenaria, blocos), `ELEMENTEDWALL` (drywall) | `Pset_WallCommon`, `Qto_WallBaseQuantities` |
 | `slab` | `IfcSlab` / `IfcSlabType` | `FLOOR` | `Pset_SlabCommon`, `Qto_SlabBaseQuantities` |
 | `flooring` | `IfcCovering` / `IfcCoveringType` | `FLOORING` | `Pset_CoveringCommon`, `Pset_CoveringFlooring`, `Qto_CoveringBaseQuantities` |
+| `roof` | `IfcRoof` / `IfcRoofType` | Da tipologia do tipo: uma água `SHED_ROOF`; duas águas `GABLE_ROOF` | `Pset_RoofCommon`, `Qto_RoofBaseQuantities`, `HydroBIM_Telhado` |
 | `door` | `IfcDoor` / `IfcDoorType` | `DOOR` | `Pset_DoorCommon`, `Pset_DoorWindowGlazingType`, `Qto_DoorBaseQuantities` |
 | `window` | `IfcWindow` / `IfcWindowType` | `WINDOW` | `Pset_WindowCommon`, `Pset_DoorWindowGlazingType`, `Qto_WindowBaseQuantities` |
 | `space` | `IfcSpace` (sem `IfcSpaceType`) | `SPACE`; `INTERNAL`/`EXTERNAL` só com `Pset_SpaceCommon.IsExternal` informado | `Pset_SpaceCommon`, `Qto_SpaceBaseQuantities` |
@@ -211,6 +212,7 @@ Esquema adotado: **IFC 4.3.2.0 (`IFC4X3_ADD2`)**, o mesmo da rede. Entidades, or
 
 - **Tipo predefinido**: nasce da família do catálogo e fica no tipo (`ifcPredefinedType`); o usuário pode trocá-lo por outro valor da enumeração oficial. `STANDARD` (parede) consta no esquema como obsoleto e não é usado pelas famílias.
 - **Não confundir**: a categoria interna (`flooring`), a entidade (`IfcCovering`) e o tipo predefinido (`FLOORING`) são três níveis; o revestimento de piso **não** é um `IfcSlab`. Classificações externas (NBR 15965, SINAPI) vão em `IfcClassificationReference` e nunca substituem a entidade.
+- **Telhado**: `IfcRoof`, `IfcRoofType` e a enumeração `IfcRoofTypeEnum` foram conferidos no esquema (`schemaData.ts`, regenerado com `IfcRoof`); `SHED_ROOF` e `GABLE_ROOF` existem nela, assim como `HIP_ROOF` e as demais, que **não** são oferecidas porque a tipologia não é modelada. A tipologia (`shape`) é a classe interna e o tipo predefinido é o do IFC: o editor não deixa os dois divergirem. `Pset_RoofCommon` traz `Reference`, `Status`, `AcousticRating`, `FireRating`, `IsExternal`, `ThermalTransmittance` e `LoadBearing` — todas pendentes, salvo `Reference`. `Qto_RoofBaseQuantities` só tem `GrossArea`, `NetArea` e `ProjectedArea`: inclinação, beiral, cumeeira e volume vão no conjunto próprio `HydroBIM_Telhado` (`Shape`, `Slope`, `Overhang`, `ReferenceOffset`, `Rise`, `RidgeLength`, `EaveLength`, `Volume`).
 - **Atributos** (não são propriedades): `OverallWidth` e `OverallHeight` na porta e na janela; `OperationType` na porta e no `IfcDoorType`; `PartitioningType` na janela e no `IfcWindowType`; `LongName` (nome) e `Name` (número, quando há) no ambiente, com `ElevationWithFlooring`.
 
 | Abertura do tipo | No IFC |
@@ -228,6 +230,7 @@ Como o IFC põe a mão da porta no tipo, um tipo do projeto usado com as duas m�
 
 - Parede, laje e revestimento: `IfcExtrudedAreaSolid` do contorno **bruto** (`IfcArbitraryClosedProfileDef`). Cada vão é um `IfcOpeningElement` com sólido próprio, ligado por `IfcRelVoidsElement`; o da porta ou janela é ligado a ela por `IfcRelFillsElement`. As aberturas de laje e de revestimento são `IfcOpeningElement` sem preenchimento. O sólido do vão passa 5 mm além das faces, para a subtração não ter faces coincidentes.
 - Porta e janela: `IfcTriangulatedFaceSet` por parte (marco, folha, vidro), com o estilo de superfície de cada parte; o vidro leva transparência.
+- Telhado: `IfcRoof` com **corpo próprio** — um `IfcTriangulatedFaceSet` fechado, a mesma malha do editor (águas com a espessura perpendicular e bordas a prumo), no referencial do telhado (origem no início do lado do beiral, na cota de referência). Não é decomposto em `IfcSlab`/`ROOF` por água.
 - Ambiente: representação `FootPrint` (contorno) sempre; `Body` (sólido extrudado) só com o pé-direito informado. É elemento **espacial**: decompõe o pavimento (`IfcRelAggregates`) e não entra em `IfcRelContainedInSpatialStructure`.
 - Pavimentos: os elementos ficam no `IfcBuildingStorey` do seu nível (portas e janelas, no da parede). A estrutura edifício › pavimentos vale para os ambientes Arquitetura e MEP; no Infra tudo fica no terreno.
 - `GlobalId` da ocorrência: derivado do `id` persistente do elemento; o do tipo, do `id` do tipo (e da mão, quando há) — reexportar preserva as identidades.
@@ -235,6 +238,7 @@ Como o IFC põe a mão da porta no tipo, um tipo do projeto usado com as duas m�
 ### Materiais
 
 - Parede, laje e revestimento: `IfcMaterialLayerSet` no tipo (uma `IfcMaterialLayer` por camada, com o material, a espessura e a função em `Category`) e `IfcMaterialLayerSetUsage` em cada ocorrência — parede: `AXIS2`, sentido `NEGATIVE`, a partir da face esquerda; laje e revestimento: `AXIS3`, de cima para baixo.
+- Telhado: `IfcMaterialLayerSet` no `IfcRoofType`, de cima para baixo. **Sem** `IfcMaterialLayerSetUsage` na ocorrência: o uso por eixo (`AXIS2`/`AXIS3`) descreve camadas perpendiculares a um eixo do elemento, o que não vale para uma água inclinada.
 - Porta e janela: `IfcMaterialConstituentSet` (`Frame`, `Panel`, `Glazing`) **só** com os materiais informados; sem informação não há associação de material.
 
 ### Propriedades
@@ -254,7 +258,7 @@ Como o IFC põe a mão da porta no tipo, um tipo do projeto usado com as duas m�
 
 ### Verificação
 
-`services/api/tests/test_ifc_architecture.py` reabre `examples/edificacao-simples.ifc` com o IfcOpenShell: `ifcopenshell.validate` sem ocorrências; contagem e tipos predefinidos; `GlobalId` de cada elemento; tipos compartilhados; atributos e modo de abertura; vãos e preenchimentos; ambientes agregados ao pavimento; camadas de material e uso; propriedades pendentes sem valor; unidades; quantidades brutas e líquidas; e o volume do sólido tesselado (com os vãos subtraídos pelo próprio IfcOpenShell) contra o volume líquido gravado.
+`services/api/tests/test_ifc_architecture.py` reabre `examples/edificacao-simples.ifc` com o IfcOpenShell: `ifcopenshell.validate` sem ocorrências; contagem e tipos predefinidos; `GlobalId` de cada elemento; tipos compartilhados; atributos e modo de abertura; vãos e preenchimentos; ambientes agregados ao pavimento; camadas de material e uso; propriedades pendentes sem valor; unidades; quantidades brutas e líquidas; o volume do sólido tesselado (com os vãos subtraídos pelo próprio IfcOpenShell) contra o volume líquido gravado; e o telhado de duas águas — entidade, tipo, pavimento, área inclinada × projeção horizontal, cotas mínima e máxima do sólido e o volume dele contra `HydroBIM_Telhado.Volume`.
 
 ## Portas e conectividade
 

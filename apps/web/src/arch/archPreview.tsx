@@ -53,6 +53,11 @@ export const PREVIEW_SIZES = {
   /** Parede livre de cada lado do vão e acima dele. */
   hostMargin: 0.6,
   hostHeadroom: 0.4,
+  /** Telhado: contorno, inclinação (30 %) e beiral da prévia. */
+  roofLength: 4,
+  roofSpan: 3,
+  roofSlope: Math.atan(0.3),
+  roofOverhang: 0.3,
 } as const;
 
 const hostType: WallType = {
@@ -133,6 +138,36 @@ export function buildArchPreviewModel(type: ArchType): ArchPreviewModel | null {
     return {
       project: { levels: [LEVEL], architecture: { types: [type], elements: [floor] } },
       element: floor,
+      host: null,
+    };
+  }
+  if (type.category === 'roof') {
+    if (type.layers.length === 0 || !type.layers.every((layer) => positive(layer.thickness))) {
+      return null;
+    }
+    const { roofLength, roofSpan } = PREVIEW_SIZES;
+    const roof: ArchElement = {
+      id: 'previa-telhado',
+      kind: 'roof',
+      name: 'Telhado da prévia',
+      typeId: type.id,
+      levelId: LEVEL.id,
+      boundary: [
+        { x: 0, y: 0 },
+        { x: roofLength, y: 0 },
+        { x: roofLength, y: roofSpan },
+        { x: 0, y: roofSpan },
+      ],
+      eaveEdge: 0,
+      offset: 0,
+      slope: PREVIEW_SIZES.roofSlope,
+      overhang: PREVIEW_SIZES.roofOverhang,
+      properties: {},
+      meta: META,
+    };
+    return {
+      project: { levels: [LEVEL], architecture: { types: [type], elements: [roof] } },
+      element: roof,
       host: null,
     };
   }
@@ -392,6 +427,7 @@ const FUNCTION_NOTE: Record<ArchType['category'], string> = {
   slab: 'Seção da laje em escala: camadas de cima para baixo, com a hachura de cada uma. A extensão desenhada é ilustrativa.',
   flooring:
     'Seção do revestimento em escala: camadas de cima para baixo, com a hachura de cada uma. A extensão desenhada é ilustrativa.',
+  roof: 'Seção das camadas em escala, de cima (telha) para baixo; a espessura é medida perpendicularmente à água. No modelo 3D, o contorno, a inclinação (30 %) e o beiral são ilustrativos — pertencem a cada ocorrência.',
   door: 'Porta em planta: folha aberta e arco de abertura. A parede hospedeira e a representação são ilustrativas.',
   window:
     'Janela em elevação: marco, folhas e vidro. A parede hospedeira e a representação são ilustrativas.',
