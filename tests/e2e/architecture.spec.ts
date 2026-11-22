@@ -81,6 +81,9 @@ test('arquitetura: demonstração, ambientes, parede e porta pela planta, painel
   await page.getByTestId('arch-wall').click();
   await expect(page.getByTestId('plan-view')).toHaveAttribute('data-arch-tool', 'wall');
   await expect(page.getByTestId('arch-tool-options')).toBeVisible();
+  // Por padrão a parede sai com dois cliques; aqui o traçado é contínuo, concluído com Enter.
+  await expect(page.getByTestId('arch-option-chain')).not.toBeChecked();
+  await page.getByTestId('arch-option-chain').check();
   await page.mouse.click(...(await planPoint(page, 1, 2)));
   await page.mouse.move(...(await planPoint(page, 2.4, 2)));
   await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');

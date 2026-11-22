@@ -110,7 +110,7 @@ export const ARCH_TOOL_LABELS: Record<ArchTool, string> = {
 };
 
 export const ARCH_TOOL_HINTS: Record<ArchTool, string> = {
-  wall: 'Parede: clique os pontos do traçado na planta. As capturas ligadas na barra de referências valem (extremidade, meio, interseção, perpendicular, paralela, ortogonal, alinhamento); Tab alterna entre capturas sobrepostas e R fixa a aresta de referência. Digite o comprimento do trecho (ou comprimento<ângulo, @ΔX;ΔY, X;Y). Shift trava o trecho de 45° em 45°. Enter ou duplo clique conclui; Backspace desfaz o último ponto; Esc cancela.',
+  wall: 'Parede: dois cliques na planta criam a parede e encerram o trecho — a ferramenta continua pronta para a próxima. Com "Traçado contínuo" (opções da ferramenta), cada clique emenda um novo trecho e Enter ou duplo clique conclui. As capturas ligadas na barra de referências valem (extremidade, meio, interseção, perpendicular, paralela, ortogonal, alinhamento); Tab alterna entre capturas sobrepostas e R fixa a aresta de referência. Digite o comprimento do trecho (ou comprimento<ângulo, @ΔX;ΔY, X;Y). Shift trava o trecho de 45° em 45°. Backspace desfaz o último ponto; Esc cancela.',
   roof: 'Telhado: três cliques na planta — os dois primeiros dão o lado do beiral (a água cai para ele; em duas águas, a cumeeira é paralela a ele) e o terceiro, a largura do retângulo, medida na perpendicular. Digite o comprimento ou a largura. Inclinação, beiral e lado do beiral são ajustados nas propriedades. Esc cancela.',
   slab: 'Laje: clique os vértices do contorno na planta. Shift trava o lado de 45° em 45°. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
   flooring:
@@ -165,7 +165,12 @@ export interface ArchOptions {
   /** Deslocamento da base das próximas paredes em relação ao nível (m). */
   wallBaseOffset: number;
   locationLine: WallLocationLine;
-  /** Traçado fechado: o último ponto é ligado ao primeiro ao concluir. */
+  /**
+   * Paredes em traçado contínuo: cada clique emenda um trecho e o traçado só é gravado ao
+   * concluir (Enter ou duplo clique). Desligado, o segundo clique cria a parede e encerra.
+   */
+  chain: boolean;
+  /** Traçado contínuo fechado: o último ponto é ligado ao primeiro ao concluir. */
   closed: boolean;
   /** Laje: cota do topo; piso: cota da base — em relação ao nível (m). */
   floorOffset: number;
@@ -186,6 +191,7 @@ const DEFAULT_OPTIONS: ArchOptions = {
   wallHeight: 2.8,
   wallBaseOffset: 0,
   locationLine: 'center',
+  chain: false,
   closed: false,
   floorOffset: 0,
   sillHeight: null,
@@ -1076,8 +1082,18 @@ export const useArchStore = create<ArchState>()((set, get) => {
         return;
       }
       const last = points[points.length - 1];
-      // O segundo clique de um duplo clique cai no mesmo ponto: não vira vértice.
-      if (last && same(last, point)) return;
+      // O segundo clique de um duplo clique cai no mesmo lugar (a captura pode devolver um ponto
+      // a poucos pixels do primeiro): não vira vértice.
+      if (last && Math.hypot(last.x - point.x, last.y - point.y) <= Math.max(tolerance, 1e-6)) {
+        return;
+      }
+      if (tool === 'wall' && !get().options.chain) {
+        // Parede por dois pontos: o segundo clique cria a parede e encerra o trecho. Recusada
+        // (curta demais, por exemplo), o primeiro ponto continua indicado.
+        set({ points: [...points, point], snapCycle: 0 });
+        if (points.length >= 1 && !get().finish(false)) set({ points: points.slice(0, 1) });
+        return;
+      }
       if (tool === 'roof') {
         // Três pontos: lado do beiral (dois) e largura; o terceiro cria o telhado.
         set({ points: [...points, point], snapCycle: 0 });
@@ -1097,7 +1113,10 @@ export const useArchStore = create<ArchState>()((set, get) => {
       if (!tool || tool === 'door' || tool === 'window') return false;
       if (tool === 'wall') {
         if (points.length < 2) {
-          editor().notify('info', 'Parede: indique ao menos dois pontos.');
+          // Sem traçado contínuo não há o que concluir: o duplo clique no fim de uma parede só
+          // descarta o início que ele deixaria indicado.
+          if (options.chain) editor().notify('info', 'Parede: indique ao menos dois pontos.');
+          else set({ points: [] });
           return false;
         }
         const ready = context('wall');
@@ -1249,7 +1268,8 @@ export const useArchStore = create<ArchState>()((set, get) => {
         );
         return false;
       }
-      get().clickPoint(next);
+      // O valor digitado é exato: não passa pelo filtro de pontos repetidos do clique.
+      get().clickPoint(next, 0);
       return true;
     },
 

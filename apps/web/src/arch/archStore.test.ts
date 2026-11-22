@@ -61,6 +61,8 @@ beforeEach(() => {
   editor().loadProject(createProject('Vazio', 'architecture'));
   useViewStore.setState({ open2d: null, open3d: null, tool: 'select', draft: [] });
   useUiStore.getState().setTask('model');
+  // Os testes desenham em traçado contínuo; a parede por dois cliques tem teste próprio.
+  useArchStore.getState().setOptions({ chain: true, closed: false });
   useArchStore.setState({
     tool: null,
     points: [],
@@ -137,6 +139,66 @@ describe('ferramentas de criação', () => {
     expect(arch().selection).toEqual([]);
     editor().redo();
     expect(walls().map((wall) => wall.id)).toEqual(ids);
+  });
+
+  it('parede por dois cliques (padrão): o segundo clique cria a parede e encerra o trecho', () => {
+    emptyWithTypes();
+    arch().setOptions({ chain: false });
+    arch().setTool('wall');
+    const before = editor().past.length;
+    arch().clickPoint({ x: 0, y: 0 });
+    expect(arch().points).toHaveLength(1);
+    expect(walls()).toHaveLength(0);
+    arch().clickPoint({ x: 4, y: 0 });
+    // Nada fica pendente: a parede existe, o rascunho está vazio e a ferramenta continua.
+    expect(walls()).toHaveLength(1);
+    expect(arch().points).toEqual([]);
+    expect(arch().tool).toBe('wall');
+    expect(editor().past.length).toBe(before + 1);
+    expect(editor().message?.text).toContain('1 parede criada');
+
+    // O duplo clique no fim (um clique a mais, quase no mesmo ponto) não deixa início pendente.
+    arch().clickPoint({ x: 4.004, y: 0.003 }, 0.1);
+    expect(arch().finish()).toBe(false);
+    expect(arch().points).toEqual([]);
+    expect(walls()).toHaveLength(1);
+
+    // A parede seguinte é independente: mais dois cliques, mais um passo.
+    arch().clickPoint({ x: 4, y: 0 });
+    arch().clickPoint({ x: 4, y: 3 });
+    expect(walls()).toHaveLength(2);
+    expect(editor().past.length).toBe(before + 2);
+
+    // Comprimento digitado depois do primeiro ponto também cria e encerra.
+    arch().clickPoint({ x: 0, y: 5 });
+    arch().setCursor({ x: 1, y: 5 });
+    expect(arch().submitEntry('2,5')).toBe(true);
+    expect(walls()).toHaveLength(3);
+    expect(walls()[2]?.end).toEqual({ x: 2.5, y: 5 });
+    expect(arch().points).toEqual([]);
+
+    // Recusada (trecho curto demais): o primeiro ponto continua indicado.
+    arch().clickPoint({ x: 10, y: 0 });
+    expect(arch().submitEntry('0,01')).toBe(true);
+    expect(walls()).toHaveLength(3);
+    expect(arch().points).toEqual([{ x: 10, y: 0 }]);
+    expect(editor().message?.level).toBe('error');
+    // Esc descarta o início e, depois, a ferramenta.
+    expect(arch().cancel()).toBe(true);
+    expect(arch().points).toEqual([]);
+    expect(arch().tool).toBe('wall');
+  });
+
+  it('traçado contínuo: o segundo clique de um duplo clique, a poucos pixels, não vira vértice', () => {
+    emptyWithTypes();
+    arch().setTool('wall');
+    arch().clickPoint({ x: 0, y: 0 }, 0.1);
+    arch().clickPoint({ x: 4, y: 0 }, 0.1);
+    // A captura devolveu um ponto um pouco diferente no segundo clique do duplo clique.
+    arch().clickPoint({ x: 4.03, y: 0.02 }, 0.1);
+    expect(arch().points).toHaveLength(2);
+    expect(arch().finish()).toBe(true);
+    expect(walls()).toHaveLength(1);
   });
 
   it('comprimento digitado define o trecho na direção do cursor; traçado fechado liga as pontas', () => {

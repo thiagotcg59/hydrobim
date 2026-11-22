@@ -472,15 +472,33 @@ export function ArchToolOptions({ tool }: { tool: ArchTool }) {
                 options={LOCATION_LINE_OPTIONS}
                 onChange={(locationLine) => setOptions({ locationLine })}
               />
-              <label className="check" title="Liga o último ponto ao primeiro ao concluir">
+              <label
+                className="check"
+                title="Desligado: dois cliques criam a parede e encerram o trecho. Ligado: cada clique emenda um novo trecho, e Enter ou duplo clique conclui o traçado"
+              >
                 <input
                   type="checkbox"
-                  data-testid="arch-option-closed"
-                  checked={options.closed}
-                  onChange={(event) => setOptions({ closed: event.target.checked })}
+                  data-testid="arch-option-chain"
+                  checked={options.chain}
+                  onChange={(event) => {
+                    setOptions({ chain: event.target.checked });
+                    // Um traçado começado na outra forma de desenhar não continua.
+                    useArchStore.setState({ points: [] });
+                  }}
                 />
-                Fechar o traçado ao concluir
+                Traçado contínuo (vários trechos)
               </label>
+              {options.chain && (
+                <label className="check" title="Liga o último ponto ao primeiro ao concluir">
+                  <input
+                    type="checkbox"
+                    data-testid="arch-option-closed"
+                    checked={options.closed}
+                    onChange={(event) => setOptions({ closed: event.target.checked })}
+                  />
+                  Fechar o traçado ao concluir
+                </label>
+              )}
             </>
           )}
           {tool === 'roof' && (

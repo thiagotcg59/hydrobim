@@ -83,6 +83,8 @@ beforeEach(() => {
   useViewStore.setState({ open2d: null, open3d: null, tool: 'select', draft: [] });
   useUiStore.getState().setTask('model');
   useSnapStore.setState({ snaps: ALL_SNAPS_ON, activeLevelOnly: true });
+  // Os testes desenham em traçado contínuo; a parede por dois cliques tem teste próprio.
+  useArchStore.getState().setOptions({ chain: true, closed: false });
   useArchStore.setState({
     tool: null,
     points: [],
