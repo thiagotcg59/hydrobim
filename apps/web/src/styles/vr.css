@@ -119,6 +119,30 @@
   font-weight: 600;
 }
 
+.vr__help-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  padding: 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #f2f5f8;
+  cursor: pointer;
+  /* O quadro deixa o arrasto passar para a cena; só o botão recebe o clique. */
+  pointer-events: auto;
+}
+
+.vr__help-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.vr__button.is-active {
+  border-color: #0f4c81;
+  background: #e3eefa;
+}
+
 @media (pointer: coarse) {
   /* No navegador do headset os botões são acionados com o raio do controle. */
   .vr__button {

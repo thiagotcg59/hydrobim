@@ -116,6 +116,32 @@ export function placeAt(feet: Vec3, heading: number, head: VrHead, floorY: numbe
   );
 }
 
+/**
+ * Caminhada pelo direcional: desloca o usuário `ahead` metros para onde a cabeça está voltada e
+ * `right` metros para a direita dela, sempre na horizontal (olhar para o chão não afunda). A
+ * cota não muda aqui: quem a ajusta é o apoio sobre o piso.
+ */
+export function walkPlacement(
+  placement: VrPlacement,
+  head: VrHead,
+  ahead: number,
+  right: number,
+): VrPlacement {
+  const heading = headingOf(placement, head);
+  const cos = Math.cos(heading);
+  const sin = Math.sin(heading);
+  // À frente: (cos, sin). À direita, com Z para cima: (sin, −cos).
+  const { anchor } = placement;
+  return {
+    ...placement,
+    anchor: {
+      x: anchor.x + ahead * cos + right * sin,
+      y: anchor.y + ahead * sin - right * cos,
+      z: anchor.z,
+    },
+  };
+}
+
 /** Rumo em planta (projeto) para o qual a cabeça está voltada. */
 export function headingOf(placement: VrPlacement, head: VrHead): number {
   const fx = head.forward?.x ?? 0;
