@@ -1,4 +1,5 @@
 import {
+  archLevelIdOf,
   archPlanPoints,
   getArchElement,
   getArchType,
@@ -6,96 +7,136 @@ import {
   openingOf,
   openingProblem,
   pointInRing,
+  roofFootprint,
+  roofFrame,
+  roofRidgeLine,
+  roofTypeOf,
   wallFootprint,
   type ArchCategory,
+  type ArchElement,
   type Architecture,
   type Point2,
   type Project,
   type Wall,
 } from '@hydrobim/core';
+import { closestOnSegment, type SnapSegment } from '../editor/planSnaps';
+
+export { closestOnSegment };
 
 /**
- * Funções puras de apoio às ferramentas de arquitetura na planta: captura de pontos em paredes
- * existentes, parede sob o cursor, posição de portas e janelas, entrada numérica do comprimento
- * e escolha do nível e do tipo ativos. Não criam nem alteram elementos — isso é das operações
+ * Funções puras de apoio às ferramentas de arquitetura na planta: arestas de referência para as
+ * capturas (resolvidas por `editor/planSnaps.ts`), parede sob o cursor, posição de portas e janelas e escolha do nível e do tipo
+ * ativos. Não criam nem alteram elementos — isso é das operações
  * de `@hydrobim/core`.
  */
-
-export type ArchSnapKind = 'endpoint' | 'face' | 'grid' | 'free';
-
-export interface ArchSnap {
-  readonly point: Point2;
-  readonly kind: ArchSnapKind;
-}
 
 const walls = (architecture: Architecture): Wall[] =>
   architecture.elements.filter((element): element is Wall => element.kind === 'wall');
 
-/** Ponto do segmento `a`–`b` mais próximo de `p`. */
-export function closestOnSegment(p: Point2, a: Point2, b: Point2): Point2 {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const size2 = dx * dx + dy * dy;
-  if (size2 < 1e-18) return a;
-  const t = Math.min(1, Math.max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / size2));
-  return { x: a.x + dx * t, y: a.y + dy * t };
-}
-
 const gap = (a: Point2, b: Point2): number => Math.hypot(a.x - b.x, a.y - b.y);
 
 /**
- * Captura de um ponto da planta para as ferramentas de arquitetura, nesta ordem: extremidades
- * (da linha de referência e do contorno) das paredes existentes, faces e eixo delas, a grade
- * (se `gridStep` > 0) e, por fim, o ponto livre.
+ * O elemento aparece na planta de trabalho? Com `levelId`, só os do nível do plano de trabalho
+ * (portas e janelas seguem a parede hospedeira); `null` = todos os níveis sobrepostos.
  */
-export function snapArchPoint(
+export function archOnLevel(
   architecture: Architecture,
-  raw: Point2,
-  options: { tolerance: number; gridStep: number },
-): ArchSnap {
-  let best: Point2 | null = null;
-  let bestDistance = options.tolerance;
-  const footprints: { wall: Wall; polygon: readonly Point2[] }[] = [];
-  for (const wall of walls(architecture)) {
-    const polygon = wallFootprint(architecture, wall)?.polygon ?? [];
-    footprints.push({ wall, polygon });
-    for (const candidate of [wall.start, wall.end, ...polygon]) {
-      const d = gap(candidate, raw);
-      if (d <= bestDistance) {
-        best = candidate;
-        bestDistance = d;
+  element: ArchElement,
+  levelId: string | null,
+): boolean {
+  return levelId === null || archLevelIdOf(architecture, element) === levelId;
+}
+
+const ring = (
+  points: readonly Point2[],
+  element: ArchElement,
+  role: SnapSegment['role'],
+): SnapSegment[] => {
+  const segments: SnapSegment[] = [];
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    if (a && b && gap(a, b) > 1e-9) {
+      segments.push({ a, b, sourceId: element.id, sourceName: element.name, role });
+    }
+  }
+  return segments;
+};
+
+const segmentCache = new WeakMap<Architecture, Map<string, SnapSegment[]>>();
+
+/**
+ * Arestas de referência da arquitetura para as capturas da planta: eixo (linha de referência)
+ * e faces das paredes, com os encontros resolvidos; lados dos contornos de lajes, pisos e
+ * ambientes (e das aberturas); contorno, beirais e cumeeira dos telhados. Só entram os
+ * elementos do nível pedido (`null` = todos) e fora de `exclude` — o elemento em edição não
+ * captura a si mesmo. O resultado fica guardado enquanto a arquitetura (imutável) não muda.
+ */
+export function archSnapSegments(
+  architecture: Architecture,
+  options: { levelId: string | null; exclude?: readonly string[] } = { levelId: null },
+): SnapSegment[] {
+  const key = `${options.levelId ?? '*'}|${[...(options.exclude ?? [])].sort().join(',')}`;
+  let cache = segmentCache.get(architecture);
+  if (!cache) {
+    cache = new Map();
+    segmentCache.set(architecture, cache);
+  }
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const excluded = new Set(options.exclude ?? []);
+  const segments: SnapSegment[] = [];
+  for (const element of architecture.elements) {
+    if (excluded.has(element.id) || !archOnLevel(architecture, element, options.levelId)) continue;
+    switch (element.kind) {
+      case 'wall':
+        segments.push({
+          a: element.start,
+          b: element.end,
+          sourceId: element.id,
+          sourceName: element.name,
+          role: 'axis',
+        });
+        segments.push(
+          ...ring(wallFootprint(architecture, element)?.polygon ?? [], element, 'face'),
+        );
+        break;
+      case 'slab':
+      case 'flooring':
+        segments.push(...ring(element.boundary, element, 'edge'));
+        for (const opening of element.openings) {
+          segments.push(...ring(opening.boundary, element, 'edge'));
+        }
+        break;
+      case 'space':
+        segments.push(...ring(element.boundary, element, 'edge'));
+        break;
+      case 'roof': {
+        segments.push(...ring(element.boundary, element, 'edge'));
+        const type = roofTypeOf(architecture, element);
+        const frame = type ? roofFrame(element, type) : null;
+        if (frame) {
+          if (frame.overhang > 1e-9) segments.push(...ring(roofFootprint(frame), element, 'edge'));
+          const ridge = roofRidgeLine(frame);
+          if (ridge) {
+            segments.push({
+              a: ridge[0],
+              b: ridge[1],
+              sourceId: element.id,
+              sourceName: element.name,
+              role: 'ridge',
+            });
+          }
+        }
+        break;
       }
+      default:
+        // Portas e janelas: a parede hospedeira já dá as arestas.
+        break;
     }
   }
-  if (best) return { point: best, kind: 'endpoint' };
-  bestDistance = options.tolerance;
-  for (const { wall, polygon } of footprints) {
-    const edges: [Point2, Point2][] = [[wall.start, wall.end]];
-    for (let i = 0; i < polygon.length; i += 1) {
-      const a = polygon[i];
-      const b = polygon[(i + 1) % polygon.length];
-      if (a && b) edges.push([a, b]);
-    }
-    for (const [a, b] of edges) {
-      const candidate = closestOnSegment(raw, a, b);
-      const d = gap(candidate, raw);
-      if (d <= bestDistance) {
-        best = candidate;
-        bestDistance = d;
-      }
-    }
-  }
-  if (best) return { point: best, kind: 'face' };
-  if (options.gridStep > 0) {
-    return {
-      point: {
-        x: Math.round(raw.x / options.gridStep) * options.gridStep,
-        y: Math.round(raw.y / options.gridStep) * options.gridStep,
-      },
-      kind: 'grid',
-    };
-  }
-  return { point: raw, kind: 'free' };
+  cache.set(key, segments);
+  return segments;
 }
 
 /** Parede sob o ponto (dentro do contorno) ou a mais próxima dele dentro da tolerância. */
@@ -155,23 +196,6 @@ export function hostedPlacementAt(
     openingOf({ id: '', kind, offset, sillHeight }, type),
   );
   return { wall, offset, width: type.width, problem };
-}
-
-/** Ponto a `length` metros de `from`, na direção de `toward`; `null` sem direção definida. */
-export function pointAtLength(from: Point2, toward: Point2, length: number): Point2 | null {
-  const dx = toward.x - from.x;
-  const dy = toward.y - from.y;
-  const size = Math.hypot(dx, dy);
-  if (size < 1e-9 || !Number.isFinite(length) || length <= 0) return null;
-  return { x: from.x + (dx / size) * length, y: from.y + (dy / size) * length };
-}
-
-/** Comprimento digitado (vírgula ou ponto decimal), em metros; `null` se não for positivo. */
-export function parseLength(text: string): number | null {
-  const normalized = text.trim().replace(/\s/g, '').replace(',', '.');
-  if (!/^\d*\.?\d+$|^\d+\.$/.test(normalized)) return null;
-  const value = Number(normalized);
-  return Number.isFinite(value) && value > 0 ? value : null;
 }
 
 /** Nível do plano de trabalho: o de mesma cota ou, sem coincidência, o mais próximo abaixo. */

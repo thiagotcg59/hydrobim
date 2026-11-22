@@ -9,7 +9,7 @@ import {
 import type { CommandContext } from '../commands/commands';
 import { useCommandContext } from '../commands/useCommands';
 import { isIsoQuadrant, nextIsoQuadrant } from '../editor/viewPresets';
-import { useArchStore } from '../arch/archStore';
+import { archBusy, useArchStore } from '../arch/archStore';
 import { PlanView } from '../plan/PlanView';
 import { isAnnotationTool, useEditorStore } from '../state/editorStore';
 import { useUiStore, type WorkspaceView } from '../state/uiStore';
@@ -249,7 +249,7 @@ export function Workspace({ ready }: { ready: boolean }) {
       }
       // O desenho 2D e a linha de corte também: o cursor pode passar pelo modelo sem encerrá-los.
       if (useViewStore.getState().tool !== 'select') return;
-      if (useArchStore.getState().tool) return;
+      if (archBusy(useArchStore.getState())) return;
     }
     useUiStore.getState().activateWorkspaceView(pane);
   };

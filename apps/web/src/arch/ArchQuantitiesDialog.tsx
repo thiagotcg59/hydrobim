@@ -119,6 +119,12 @@ export function ArchQuantitiesDialog({ onClose }: Props) {
                   <th className="num">Comprimento (m)</th>
                   <th className="num">Área bruta (m²)</th>
                   <th className="num">Área líquida (m²)</th>
+                  <th
+                    className="num"
+                    title="Telhados: projeção horizontal, com os beirais. As áreas bruta e líquida do telhado são a área inclinada das águas."
+                  >
+                    Projeção horizontal (m²)
+                  </th>
                   <th className="num">Volume bruto (m³)</th>
                   <th className="num">Volume líquido (m³)</th>
                 </tr>
@@ -136,6 +142,9 @@ export function ArchQuantitiesDialog({ onClose }: Props) {
                     <td className="num">{fmt(row.length)}</td>
                     <td className="num">{fmt(row.grossArea)}</td>
                     <td className="num">{fmt(row.netArea)}</td>
+                    <td className="num" data-testid="arch-quantities-projected">
+                      {fmt(row.projectedArea)}
+                    </td>
                     <td className="num">{fmt(row.grossVolume, 3)}</td>
                     <td className="num">{fmt(row.netVolume, 3)}</td>
                   </tr>

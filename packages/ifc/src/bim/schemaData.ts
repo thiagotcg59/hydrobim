@@ -976,6 +976,61 @@ export const IFC_ENTITIES: Readonly<Record<string, IfcEntityDefinition>> = {
       'NOTDEFINED',
     ],
   },
+  IfcRoof: {
+    ancestors: [
+      'IfcBuiltElement',
+      'IfcElement',
+      'IfcProduct',
+      'IfcObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'BARREL_ROOF',
+      'BUTTERFLY_ROOF',
+      'DOME_ROOF',
+      'FLAT_ROOF',
+      'FREEFORM',
+      'GABLE_ROOF',
+      'GAMBREL_ROOF',
+      'HIPPED_GABLE_ROOF',
+      'HIP_ROOF',
+      'MANSARD_ROOF',
+      'PAVILION_ROOF',
+      'RAINBOW_ROOF',
+      'SHED_ROOF',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+    typeEntity: 'IfcRoofType',
+  },
+  IfcRoofType: {
+    ancestors: [
+      'IfcBuiltElementType',
+      'IfcElementType',
+      'IfcTypeProduct',
+      'IfcTypeObject',
+      'IfcObjectDefinition',
+      'IfcRoot',
+    ],
+    predefinedTypes: [
+      'BARREL_ROOF',
+      'BUTTERFLY_ROOF',
+      'DOME_ROOF',
+      'FLAT_ROOF',
+      'FREEFORM',
+      'GABLE_ROOF',
+      'GAMBREL_ROOF',
+      'HIPPED_GABLE_ROOF',
+      'HIP_ROOF',
+      'MANSARD_ROOF',
+      'PAVILION_ROOF',
+      'RAINBOW_ROOF',
+      'SHED_ROOF',
+      'USERDEFINED',
+      'NOTDEFINED',
+    ],
+  },
   IfcDistributionPort: {
     ancestors: ['IfcPort', 'IfcProduct', 'IfcObject', 'IfcObjectDefinition', 'IfcRoot'],
     predefinedTypes: [
@@ -2571,6 +2626,44 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
       },
     },
   },
+  Pset_RoofCommon: {
+    applicable: ['IfcRoof', 'IfcRoofType'],
+    templateType: 'PSET_TYPEDRIVENOVERRIDE',
+    properties: {
+      Reference: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcIdentifier',
+      },
+      Status: {
+        kind: 'P_ENUMERATEDVALUE',
+        type: 'IfcLabel',
+        enumeration: {
+          name: 'PEnum_ElementStatus',
+          values: ['DEMOLISH', 'EXISTING', 'NEW', 'TEMPORARY', 'OTHER', 'NOTKNOWN', 'UNSET'],
+        },
+      },
+      AcousticRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      IsExternal: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+      ThermalTransmittance: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcThermalTransmittanceMeasure',
+      },
+      FireRating: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcLabel',
+      },
+      LoadBearing: {
+        kind: 'P_SINGLEVALUE',
+        type: 'IfcBoolean',
+      },
+    },
+  },
   Pset_SlabCommon: {
     applicable: ['IfcSlab', 'IfcSlabType'],
     templateType: 'PSET_TYPEDRIVENOVERRIDE',
@@ -3600,6 +3693,24 @@ export const IFC_PROPERTY_SETS: Readonly<Record<string, IfcPropertySetTemplate>>
     properties: {
       GrossWeight: {
         kind: 'Q_WEIGHT',
+        type: null,
+      },
+    },
+  },
+  Qto_RoofBaseQuantities: {
+    applicable: ['IfcRoof', 'IfcRoofType'],
+    templateType: 'QTO_TYPEDRIVENOVERRIDE',
+    properties: {
+      GrossArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      NetArea: {
+        kind: 'Q_AREA',
+        type: null,
+      },
+      ProjectedArea: {
+        kind: 'Q_AREA',
         type: null,
       },
     },

@@ -10,6 +10,9 @@ import {
   layersThickness,
   newId,
   removeArchType,
+  ROOF_IFC_PREDEFINED,
+  ROOF_SHAPE_LABELS,
+  ROOF_SHAPES,
   updateArchType,
   WINDOW_OPERATION_LABELS,
   WINDOW_OPERATIONS,
@@ -21,6 +24,7 @@ import {
   type ArchType,
   type ArchTypeInput,
   type Project,
+  type RoofShape,
 } from '@hydrobim/core';
 import {
   ARCH_IFC_ENTITIES,
@@ -126,6 +130,7 @@ export function archTypePatchOf(draft: ArchType): Partial<ArchTypeInput> {
       frameWidth: draft.frameWidth,
     };
   }
+  if (draft.category === 'roof') return { ...common, layers: draft.layers, shape: draft.shape };
   return { ...common, layers: draft.layers };
 }
 
@@ -156,7 +161,13 @@ export function archTypeAffected(
 }
 
 /** Enumeração oficial do tipo predefinido da entidade IFC da categoria. */
-export function predefinedTypesOf(category: ArchCategory, current?: string): string[] {
+export function predefinedTypesOf(
+  category: ArchCategory,
+  current?: string,
+  shape?: RoofShape,
+): string[] {
+  // Telhado: o tipo predefinido é o da tipologia modelada (uma ou duas águas), sem escolha.
+  if (category === 'roof' && shape) return [ROOF_IFC_PREDEFINED[shape]];
   const values = [...(IFC_ENTITIES[ARCH_IFC_ENTITIES[category]]?.predefinedTypes ?? [])];
   // Um valor gravado que a enumeração não traga continua visível (não é trocado em silêncio).
   if (current && !values.includes(current)) values.unshift(current);
@@ -491,9 +502,32 @@ export function ArchTypeParameters({
           />
         </Labeled>
       </fieldset>
+      {draft.category === 'roof' && (
+        <fieldset data-testid="arch-roof-fields">
+          <legend>Telhado</legend>
+          <div className="archcat__grid">
+            <Labeled label="Tipologia">
+              <Select
+                value={draft.shape}
+                testId="arch-type-roof-shape"
+                options={ROOF_SHAPES.map((value) => ({ value, label: ROOF_SHAPE_LABELS[value] }))}
+                onChange={(shape) =>
+                  // A tipologia define o tipo predefinido IFC: os dois mudam juntos.
+                  onChange({ ...draft, shape, ifcPredefinedType: ROOF_IFC_PREDEFINED[shape] })
+                }
+              />
+            </Labeled>
+          </div>
+          <p className="muted">
+            Camadas de cima (telha) para baixo; a espessura é medida perpendicularmente à água.
+            Inclinação, beiral e contorno são de cada ocorrência.
+          </p>
+        </fieldset>
+      )}
       {(draft.category === 'wall' ||
         draft.category === 'slab' ||
-        draft.category === 'flooring') && (
+        draft.category === 'flooring' ||
+        draft.category === 'roof') && (
         <LayersTable layers={draft.layers} onChange={(layers) => onChange({ ...draft, layers })} />
       )}
       {draft.category === 'door' && (
@@ -654,10 +688,11 @@ function ProductFields({
             <Select
               value={draft.ifcPredefinedType}
               testId="arch-type-predefined"
-              options={predefinedTypesOf(draft.category, draft.ifcPredefinedType).map((value) => ({
-                value,
-                label: value,
-              }))}
+              options={predefinedTypesOf(
+                draft.category,
+                draft.ifcPredefinedType,
+                draft.category === 'roof' ? draft.shape : undefined,
+              ).map((value) => ({ value, label: value }))}
               onChange={(ifcPredefinedType) => onChange({ ...draft, ifcPredefinedType })}
             />
           </Labeled>

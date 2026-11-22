@@ -249,6 +249,37 @@ describe('corte e elevação', () => {
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every((entry) => entry.cut.length === 0)).toBe(true);
   });
+
+  it('o telhado aparece cortado no corte transversal e projetado na elevação', () => {
+    const roof = demo.architecture.elements.find((element) => element.kind === 'roof');
+    if (!roof) throw new Error('a demonstração não tem telhado');
+    expect(archLayerOf(roof)).toBe(ARCH_LAYERS.roof);
+    // Corte em x = 3, atravessando as duas águas (a cumeeira corre ao longo de X).
+    const across = { ...view, a: { x: 3, y: -2 }, b: { x: 3, y: 6 }, depth: 5 };
+    const cut = archViewEntryOf(demo, roof, archProjectionOf(demo, across));
+    expect(cut?.cut.length).toBeGreaterThan(0);
+    expect(cut?.cut[0]?.role).toBe('roof');
+    // Topo da cumeeira: 2,80 + (4,18 ÷ 2) × 30 % + espessura na vertical.
+    const vertical = 0.12 / Math.cos(Math.atan(0.3));
+    expect(cut?.bounds.max.y).toBeCloseTo(2.8 + 2.09 * 0.3 + vertical, 6);
+    // Borda do beiral, 0,50 m para fora: 15 cm abaixo da cota de referência.
+    expect(cut?.bounds.min.y).toBeCloseTo(2.8 - 0.15, 6);
+    const elevation = { ...view, kind: 'elevation' as const, direction: 'south' as const };
+    const seen = archViewEntryOf(demo, roof, archProjectionOf(demo, elevation));
+    expect(seen?.projected).not.toBeNull();
+    expect(seen?.cut).toHaveLength(0);
+    // Na planta do térreo o telhado está inteiro acima do plano de corte: dentro da faixa da
+    // vista aparece só em projeção (tracejado), sem seção; acima dela, não é desenhado.
+    const plan = archProjectionOf(demo, planOf(demo));
+    const above = archViewEntryOf(demo, roof, plan);
+    if ((plan.band?.top ?? 0) > 2.8 - 0.15) {
+      expect(above?.above).not.toBeNull();
+      expect(above?.cut).toHaveLength(0);
+      expect(above?.projected).toBeNull();
+    } else expect(above).toBeNull();
+    // Os cantos do contorno, dos beirais e as pontas da cumeeira são pontos de captura.
+    expect(archNotablePoints(demo.architecture, roof)).toHaveLength(10);
+  });
 });
 
 describe('símbolo da porta na vista', () => {

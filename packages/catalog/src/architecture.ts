@@ -1,9 +1,11 @@
 import {
   newId,
+  ROOF_IFC_PREDEFINED,
   type ArchCategory,
   type ArchLayer,
   type ArchTypeInput,
   type DoorOperation,
+  type RoofShape,
   type WindowOperation,
 } from '@hydrobim/core';
 
@@ -46,7 +48,7 @@ export interface ArchFamily {
 }
 
 type FamilyDefaults =
-  | { readonly layers: readonly Omit<ArchLayer, 'id'>[] }
+  | { readonly layers: readonly Omit<ArchLayer, 'id'>[]; readonly shape?: RoofShape }
   | {
       readonly operation: DoorOperation;
       readonly width: number;
@@ -119,6 +121,43 @@ const floor = (
         },
   notes: [INITIAL, NO_PERFORMANCE],
   defaults: { layers },
+});
+
+const ROOF_RATIONALE: Record<RoofShape, string> = {
+  shed: 'SHED_ROOF: telhado de uma só água (um plano inclinado).',
+  gable: 'GABLE_ROOF: telhado de duas águas que se encontram na cumeeira, com empenas nas pontas.',
+};
+
+/**
+ * Família de telhado: a tipologia (uma ou duas águas) é da família e segue para o tipo, com
+ * o tipo predefinido IFC correspondente. Inclinação e beiral são da ocorrência.
+ */
+const roof = (
+  id: string,
+  name: string,
+  description: string,
+  shape: RoofShape,
+  layers: readonly Omit<ArchLayer, 'id'>[],
+): ArchFamily => ({
+  id,
+  category: 'roof',
+  name,
+  description,
+  generic: true,
+  source: null,
+  ifc: {
+    entity: 'IfcRoof',
+    typeEntity: 'IfcRoofType',
+    predefinedType: ROOF_IFC_PREDEFINED[shape],
+    rationale: ROOF_RATIONALE[shape],
+  },
+  notes: [
+    INITIAL,
+    NO_PERFORMANCE,
+    'Águas planas sobre contorno retangular; a estrutura (tesouras, terças, caibros e ripas) não é modelada peça a peça — a camada de estrutura só reserva a espessura.',
+    'Inclinação e beiral são da ocorrência e não vêm de fabricante: a inclinação mínima de cada telha é dado do produto adotado.',
+  ],
+  defaults: { shape, layers },
 });
 
 const door = (
@@ -244,6 +283,26 @@ export const ARCH_FAMILIES: readonly ArchFamily[] = [
     layer('Manta', 0.002, 'membrane'),
     layer('Contrapiso', 0.04, 'substrate'),
   ]),
+  roof(
+    'arq-telhado-uma-agua',
+    'Telhado de uma água',
+    'Um plano inclinado sobre contorno retangular, caindo para o lado do beiral.',
+    'shed',
+    [
+      layer('Cobertura (telhas)', 0.02, 'finish'),
+      layer('Estrutura de apoio (ripas, caibros e terças)', 0.1, 'structure'),
+    ],
+  ),
+  roof(
+    'arq-telhado-duas-aguas',
+    'Telhado de duas águas',
+    'Duas águas iguais sobre contorno retangular, com a cumeeira no meio do vão.',
+    'gable',
+    [
+      layer('Cobertura (telhas)', 0.02, 'finish'),
+      layer('Estrutura de apoio (ripas, caibros e terças)', 0.1, 'structure'),
+    ],
+  ),
   door(
     'arq-porta-giro-1',
     'Porta de giro, uma folha',
@@ -334,7 +393,10 @@ export function archTypeFromFamily(
   const { defaults } = family;
   const specific =
     'layers' in defaults
-      ? { layers: defaults.layers.map((entry) => ({ ...entry, id: newId() })) }
+      ? {
+          layers: defaults.layers.map((entry) => ({ ...entry, id: newId() })),
+          ...(defaults.shape ? { shape: defaults.shape } : {}),
+        }
       : { ...defaults, materials: {} };
   return { ...base, category: family.category, ...specific, ...overrides } as ArchTypeInput;
 }

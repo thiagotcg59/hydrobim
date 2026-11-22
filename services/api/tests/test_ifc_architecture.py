@@ -4,7 +4,8 @@ O exemplo `edificacao-simples` é gerado pelo cliente (`npm run examples:generat
 do projeto nativo de mesmo nome. Aqui o arquivo é reaberto e conferido contra o projeto:
 entidades e tipos, atributos, vãos (IfcOpeningElement, IfcRelVoidsElement, IfcRelFillsElement),
 ambientes como elementos espaciais, camadas de material, unidades e quantitativos — inclusive
-o volume do sólido tesselado, com os vãos subtraídos, contra o volume líquido gravado.
+o volume do sólido tesselado, com os vãos subtraídos, contra o volume líquido gravado —, e o
+telhado (IfcRoof), com a área inclinada, a projeção horizontal e o volume.
 """
 
 import json
@@ -69,6 +70,7 @@ def test_entidades_e_tipos_predefinidos(model, document):
     assert len(model.by_type("IfcDoor")) == count("door") == 2
     assert len(model.by_type("IfcWindow")) == count("window") == 3
     assert len(model.by_type("IfcSpace")) == count("space") == 2
+    assert len(model.by_type("IfcRoof")) == count("roof") == 1
     assert {wall.PredefinedType for wall in model.by_type("IfcWall")} == {
         "SOLIDWALL",
         "ELEMENTEDWALL",
@@ -76,7 +78,7 @@ def test_entidades_e_tipos_predefinidos(model, document):
     assert model.by_type("IfcSlab")[0].PredefinedType == "FLOOR"
     assert model.by_type("IfcCovering")[0].PredefinedType == "FLOORING"
     # Arquitetura não vira entidade de distribuição nem ganha portas hidráulicas.
-    for entity in ("IfcWall", "IfcSlab", "IfcCovering", "IfcDoor", "IfcWindow"):
+    for entity in ("IfcWall", "IfcSlab", "IfcCovering", "IfcRoof", "IfcDoor", "IfcWindow"):
         for item in model.by_type(entity):
             assert not item.is_a("IfcDistributionElement")
             assert not [rel for rel in item.IsNestedBy if rel.RelatedObjects]
@@ -100,6 +102,7 @@ def test_tipos_compartilhados_com_classificacao_da_familia(model, document):
         ("IfcWall", "IfcWallType"),
         ("IfcSlab", "IfcSlabType"),
         ("IfcCovering", "IfcCoveringType"),
+        ("IfcRoof", "IfcRoofType"),
         ("IfcDoor", "IfcDoorType"),
         ("IfcWindow", "IfcWindowType"),
     ]:
@@ -111,7 +114,7 @@ def test_tipos_compartilhados_com_classificacao_da_familia(model, document):
     wall_type = by_name(model, "IfcWallType", "Alvenaria cerâmica 18 cm")
     assert len(wall_type.Types[0].RelatedObjects) == 4
     assert len(model.by_type("IfcWallType")) == 2
-    assert len(types) == 8
+    assert len(types) == 9
     # Ambientes não têm tipo no modelo.
     assert len(model.by_type("IfcSpaceType")) == 0
 
@@ -305,6 +308,79 @@ def test_geometria_tesselada_subtrai_os_vaos(model):
         for item in model.by_type(entity):
             shape = ifcopenshell.geom.create_shape(settings, item)
             assert len(shape.geometry.faces) > 0
+
+
+def test_telhado_de_duas_aguas(model, document):
+    """IfcRoof com corpo próprio: tipologia, cotas, áreas e volume conferidos com o projeto."""
+    source = next(item for item in document["architecture"]["elements"] if item["kind"] == "roof")
+    roof_type = next(
+        item for item in document["architecture"]["types"] if item["id"] == source["typeId"]
+    )
+    roof = model.by_type("IfcRoof")[0]
+    assert roof.Name == source["name"]
+    assert roof.PredefinedType == "GABLE_ROOF" and roof_type["shape"] == "gable"
+    element_type = ifcopenshell.util.element.get_type(roof)
+    assert element_type.is_a("IfcRoofType") and element_type.PredefinedType == "GABLE_ROOF"
+    # Contido no pavimento do seu nível (Cobertura), não no térreo.
+    storey = by_name(model, "IfcBuildingStorey", "Cobertura")
+    contained = [obj for rel in storey.ContainsElements for obj in rel.RelatedElements]
+    assert roof in contained
+
+    # Contorno de 6,18 × 4,18 m, beiral de 0,50 m nos quatro lados, inclinação de 30 %.
+    slope = source["slope"]
+    assert math.tan(slope) == pytest.approx(0.30)
+    side_a = math.dist(
+        (source["boundary"][0]["x"], source["boundary"][0]["y"]),
+        (source["boundary"][1]["x"], source["boundary"][1]["y"]),
+    )
+    side_b = math.dist(
+        (source["boundary"][1]["x"], source["boundary"][1]["y"]),
+        (source["boundary"][2]["x"], source["boundary"][2]["y"]),
+    )
+    overhang = source["overhang"]
+    projected = (side_a + 2 * overhang) * (side_b + 2 * overhang)
+    thickness = sum(layer["thickness"] for layer in roof_type["layers"])
+    sets = psets(roof)
+    quantities = sets["Qto_RoofBaseQuantities"]
+    # Área inclinada (bruta = líquida: sem aberturas) e projeção horizontal são distintas.
+    assert quantities["ProjectedArea"] == pytest.approx(projected)
+    assert quantities["GrossArea"] == pytest.approx(projected / math.cos(slope))
+    assert quantities["NetArea"] == pytest.approx(quantities["GrossArea"])
+    assert quantities["GrossArea"] > quantities["ProjectedArea"]
+    own = sets["HydroBIM_Telhado"]
+    assert own["Slope"] == pytest.approx(slope)
+    assert own["Overhang"] == pytest.approx(overhang)
+    assert own["Volume"] == pytest.approx(quantities["GrossArea"] * thickness)
+    assert own["RidgeLength"] == pytest.approx(side_a + 2 * overhang)
+    # Propriedades de desempenho continuam pendentes: nada é presumido.
+    common = sets.get("Pset_RoofCommon", {})
+    for name in ("FireRating", "ThermalTransmittance", "AcousticRating", "IsExternal"):
+        assert common.get(name) is None
+
+    # O sólido tesselado tem o volume gravado e fica entre as cotas derivadas.
+    settings = ifcopenshell.geom.settings()
+    settings.set("use-world-coords", True)
+    shape = ifcopenshell.geom.create_shape(settings, roof)
+    assert ifcopenshell.util.shape.get_volume(shape.geometry) == pytest.approx(
+        own["Volume"], rel=1e-4
+    )
+    zs = shape.geometry.verts[2::3]
+    level = next(item for item in document["levels"] if item["id"] == source["levelId"])
+    reference = level["elevation"] + source["offset"]
+    vertical = thickness / math.cos(slope)
+    assert min(zs) == pytest.approx(reference - overhang * math.tan(slope), abs=1e-6)
+    assert max(zs) == pytest.approx(reference + side_b / 2 * math.tan(slope) + vertical, abs=1e-6)
+    position = sets["HydroBIM_Posicao"]
+    assert position["BaseElevation"] == pytest.approx(min(zs), abs=1e-6)
+    assert position["TopElevation"] == pytest.approx(max(zs), abs=1e-6)
+
+    # As camadas vão no tipo; a água inclinada não tem uso de camadas por eixo.
+    layer_set = ifcopenshell.util.element.get_material(element_type)
+    assert layer_set.is_a("IfcMaterialLayerSet")
+    assert [layer.Material.Name for layer in layer_set.MaterialLayers] == [
+        layer["material"] for layer in roof_type["layers"]
+    ]
+    assert ifcopenshell.util.element.get_material(roof, should_inherit=False) is None
 
 
 def test_posicao_da_parede_e_do_vao(model):

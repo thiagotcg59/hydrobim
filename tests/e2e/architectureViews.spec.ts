@@ -88,7 +88,9 @@ test('arquitetura nas vistas: planta cortada, corte, plano de corte e categorias
   const view = page.getByTestId('doc-view');
   const svg = page.getByTestId('doc-view-svg');
   await expect(view).toHaveAttribute('data-view-kind', 'plan');
-  await expect(view).toHaveAttribute('data-arch-elements', '12');
+  // Doze elementos do térreo e o telhado, que fica acima do plano de corte: só em projeção.
+  await expect(view).toHaveAttribute('data-arch-elements', '13');
+  await expect(svg.locator('[data-arch-kind="roof"][data-layer="Projeção_2"]')).toHaveCount(1);
   // Cinco paredes, duas portas e as duas janelas de peitoril 1,10 m são cortadas a 1,20 m.
   await expect(view).toHaveAttribute('data-arch-cut', '9');
   await expect(view).toHaveAttribute('data-elements', '3');
@@ -202,8 +204,8 @@ test('catálogo de arquitetura: buscar, filtrar, criar, editar, recusar, duplica
   await expect(dialog).toBeVisible();
   const families = dialog.getByTestId('arch-family-item');
   const types = dialog.getByTestId('arch-type-item');
-  await expect(families).toHaveCount(16);
-  await expect(types).toHaveCount(8);
+  await expect(families).toHaveCount(18);
+  await expect(types).toHaveCount(9);
 
   // Busca e filtro por categoria.
   await dialog.getByTestId('arch-catalog-search').fill('drywall');
@@ -320,13 +322,16 @@ test('quantitativo de arquitetura: linhas, ambientes pendentes e CSV', async ({ 
   const dialog = page.getByTestId('arch-quantities-dialog');
   await expect(dialog).toBeVisible();
 
-  // Um tipo por linha: 2 de parede, laje, revestimento, 2 de porta e 2 de janela.
+  // Um tipo por linha: 2 de parede, laje, revestimento, 2 de porta, 2 de janela e o telhado.
   const rows = dialog.getByTestId('arch-quantities-row');
-  await expect(rows).toHaveCount(8);
+  await expect(rows).toHaveCount(9);
+  // Telhado: área inclinada e projeção horizontal em colunas separadas (7,18 × 5,18 m).
+  const roofRow = rows.filter({ hasText: 'Telhados' });
+  await expect(roofRow.getByTestId('arch-quantities-projected')).toHaveText('37,19');
   await expect(rows.first()).toContainText('Paredes');
   await expect(rows.first()).toContainText('Alvenaria cerâmica 18 cm');
   // Nenhum tipo da demonstração é classificado.
-  await expect(dialog.getByTestId('arch-quantities-nbr')).toHaveText(Array(8).fill('NC'));
+  await expect(dialog.getByTestId('arch-quantities-nbr')).toHaveText(Array(9).fill('NC'));
   await expect(dialog.getByTestId('arch-quantities-note')).toContainText('uma única vez');
 
   // Ambientes: a sala tem pé-direito; o do banheiro não foi informado (pendente).

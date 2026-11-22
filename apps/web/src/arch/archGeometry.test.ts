@@ -3,13 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { createBuildingDemoProject } from '../demo/buildingDemo';
 import {
   activeTypeIdOf,
+  archOnLevel,
+  archSnapSegments,
   closestOnSegment,
   hostedCarriedBy,
   hostedPlacementAt,
-  parseLength,
   planCenterOf,
-  pointAtLength,
-  snapArchPoint,
   wallAt,
   workLevelIdOf,
 } from './archGeometry';
@@ -21,24 +20,31 @@ const typeOf = (category: string): string =>
   architecture.types.find((type) => type.category === category)?.id ?? '';
 
 describe('captura de pontos da arquitetura', () => {
-  it('prefere extremidades, depois faces e eixo, depois a grade', () => {
-    const options = { tolerance: 0.1, gridStep: 0.5 };
-    expect(snapArchPoint(architecture, { x: 0.03, y: -0.02 }, options)).toEqual({
-      point: { x: 0, y: 0 },
-      kind: 'endpoint',
-    });
-    // Parede sul (eixo em y = 0, 18 cm): a face externa fica em y = −0,09.
-    const face = snapArchPoint(architecture, { x: 2.33, y: -0.11 }, options);
-    expect(face.kind).toBe('face');
-    expect(face.point.x).toBeCloseTo(2.33);
-    expect(face.point.y).toBeCloseTo(-0.09);
-    expect(snapArchPoint(architecture, { x: 2.2, y: 1.8 }, options)).toEqual({
-      point: { x: 2, y: 2 },
-      kind: 'grid',
-    });
-    expect(
-      snapArchPoint(architecture, { x: 2.2, y: 1.8 }, { tolerance: 0.1, gridStep: 0 }).kind,
-    ).toBe('free');
+  it('arestas de referência: eixo e faces das paredes, contornos, só do nível pedido', () => {
+    const [ground] = project.levels;
+    const all = archSnapSegments(architecture, { levelId: null });
+    const onGround = archSnapSegments(architecture, { levelId: ground?.id ?? '' });
+    // Cada parede dá o eixo e as faces do contorno (com os encontros resolvidos).
+    const south = walls[0];
+    const axis = all.find((segment) => segment.sourceId === south?.id && segment.role === 'axis');
+    expect(axis?.a).toEqual(south?.start);
+    expect(axis?.b).toEqual(south?.end);
+    expect(all.some((segment) => segment.sourceId === south?.id && segment.role === 'face')).toBe(
+      true,
+    );
+    expect(all.some((segment) => segment.role === 'edge')).toBe(true);
+    // O filtro de nível só deixa os elementos daquele nível.
+    for (const segment of onGround) {
+      const element = architecture.elements.find((item) => item.id === segment.sourceId);
+      expect(element && archOnLevel(architecture, element, ground?.id ?? '')).toBe(true);
+    }
+    expect(archSnapSegments(architecture, { levelId: 'outro-nivel' })).toEqual([]);
+    // O elemento em edição não captura a si mesmo.
+    const without = archSnapSegments(architecture, { levelId: null, exclude: [south?.id ?? ''] });
+    expect(without.some((segment) => segment.sourceId === south?.id)).toBe(false);
+    expect(without.length).toBeLessThan(all.length);
+    // O resultado é guardado enquanto a arquitetura não muda.
+    expect(archSnapSegments(architecture, { levelId: null })).toBe(all);
   });
 
   it('acha a parede sob o ponto ou a mais próxima dentro da tolerância', () => {
@@ -96,15 +102,7 @@ describe('captura de pontos da arquitetura', () => {
 });
 
 describe('entrada numérica e contexto', () => {
-  it('interpreta o comprimento e o aplica na direção do cursor', () => {
-    expect(parseLength('2,5')).toBe(2.5);
-    expect(parseLength(' 3.25 ')).toBe(3.25);
-    expect(parseLength('0')).toBeNull();
-    expect(parseLength('-1')).toBeNull();
-    expect(parseLength('1;2')).toBeNull();
-    expect(parseLength('')).toBeNull();
-    expect(pointAtLength({ x: 1, y: 1 }, { x: 1, y: 9 }, 2)).toEqual({ x: 1, y: 3 });
-    expect(pointAtLength({ x: 1, y: 1 }, { x: 1, y: 1 }, 2)).toBeNull();
+  it('ponto do segmento mais próximo do cursor', () => {
     expect(closestOnSegment({ x: 5, y: 1 }, { x: 0, y: 0 }, { x: 2, y: 0 })).toEqual({
       x: 2,
       y: 0,

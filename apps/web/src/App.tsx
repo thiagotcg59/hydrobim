@@ -2,8 +2,9 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { ArchCatalogDialog } from './arch/ArchCatalogDialog';
 import { ArchProperties } from './arch/ArchProperties';
 import { ArchQuantitiesDialog } from './arch/ArchQuantitiesDialog';
+import { ARCH_TRANSFORM_LABELS } from './arch/archEdit';
 import { ARCH_TOOL_LABELS, useArchStore } from './arch/archStore';
-import { ArchToolOptions } from './arch/ArchToolOptions';
+import { ArchModePanel, ArchToolOptions } from './arch/ArchToolOptions';
 import { BimTree } from './bim/BimTree';
 import { IfcLibraryDialog } from './bim/IfcLibraryDialog';
 import { IfcPanel } from './bim/IfcPanel';
@@ -55,13 +56,18 @@ function RightPanel() {
   const tool = useEditorStore((s) => s.tool);
   const bim = useEditorStore((s) => s.viewMode === 'bim');
   const archTool = useArchStore((s) => s.tool);
+  // Mover/copiar/girar/espelhar por pontos e a edição de contorno também têm painel próprio.
+  const archMode = useArchStore((s) =>
+    s.contour ? 'Editar contorno' : s.transform ? ARCH_TRANSFORM_LABELS[s.transform.kind] : null,
+  );
   const archSelected = useArchStore((s) => s.selection.length);
   const selectionSize = useEditorStore((s) => s.selection.length) + archSelected;
   const tab = useUiStore((s) => s.panelTab);
   const setTab = useUiStore((s) => s.setPanelTab);
   if (bim) return archSelected > 0 ? <ArchProperties /> : <IfcPanel />;
-  const creating = archTool !== null || (tool !== 'select' && !isAnnotationTool(tool));
-  const toolLabel = archTool ? ARCH_TOOL_LABELS[archTool] : TOOL_LABELS[tool];
+  const creating =
+    archTool !== null || archMode !== null || (tool !== 'select' && !isAnnotationTool(tool));
+  const toolLabel = archTool ? ARCH_TOOL_LABELS[archTool] : (archMode ?? TOOL_LABELS[tool]);
   const showTool = creating && tab === 'tool';
   // Aba "Vista": configuração da vista de projeto em uso e do detalhe 2D selecionado.
   const showView = tab === 'view' && !creating;
@@ -115,6 +121,8 @@ function RightPanel() {
       {showTool ? (
         archTool ? (
           <ArchToolOptions tool={archTool} />
+        ) : archMode ? (
+          <ArchModePanel />
         ) : (
           <ToolOptions />
         )
