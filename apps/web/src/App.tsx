@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { ArchCatalogDialog } from './arch/ArchCatalogDialog';
 import { ArchProperties } from './arch/ArchProperties';
 import { ArchQuantitiesDialog } from './arch/ArchQuantitiesDialog';
+import { ArchDraftMenu } from './arch/ArchDraftMenu';
 import { ARCH_TRANSFORM_LABELS } from './arch/archEdit';
 import { ARCH_MODIFY_LABELS } from './arch/archModify';
 import { ARCH_TOOL_LABELS, useArchStore } from './arch/archStore';
@@ -218,6 +219,7 @@ export function App() {
         </SidePanel>
         <StatusBar />
         <ContextMenu />
+        <ArchDraftMenu />
         <OpenProjectDialog open={dialog === 'open'} onClose={closeDialog('open')} />
         <FamiliesDialog open={dialog === 'families'} onClose={closeDialog('families')} />
         <IfcLibraryDialog open={dialog === 'ifcLibrary'} onClose={closeDialog('ifcLibrary')} />

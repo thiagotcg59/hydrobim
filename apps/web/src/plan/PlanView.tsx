@@ -1265,6 +1265,8 @@ export function PlanView() {
   const onPointerLeave = (): void => {
     if (drag.current) return;
     lastMove.current = null;
+      // Desenho da arquitetura em andamento: o botão direito oferece "Criar a parede".
+      if (useArchStore.getState().openDraftMenu({ x: event.clientX, y: event.clientY })) return;
     setPointer(null);
     useEditorStore.getState().setCursor(null);
     if (archPointing) useArchStore.getState().clearPointer();

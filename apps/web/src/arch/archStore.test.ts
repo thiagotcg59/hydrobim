@@ -141,7 +141,7 @@ describe('ferramentas de criação', () => {
     expect(walls().map((wall) => wall.id)).toEqual(ids);
   });
 
-  it('parede por dois cliques (padrão): o segundo clique cria a parede e encerra o trecho', () => {
+  it('parede por dois cliques (traçado contínuo desligado): o segundo clique cria e encerra', () => {
     emptyWithTypes();
     arch().setOptions({ chain: false });
     arch().setTool('wall');
@@ -199,6 +199,34 @@ describe('ferramentas de criação', () => {
     expect(arch().points).toHaveLength(2);
     expect(arch().finish()).toBe(true);
     expect(walls()).toHaveLength(1);
+  });
+
+  it('menu do botão direito: criar a parede, fechar, desfazer o último ponto e cancelar', () => {
+    emptyWithTypes();
+    // Sem desenho por pontos em andamento não há menu.
+    expect(arch().openDraftMenu({ x: 10, y: 10 })).toBe(false);
+    arch().setTool('door');
+    expect(arch().openDraftMenu({ x: 10, y: 10 })).toBe(false);
+    arch().setTool('wall');
+    expect(arch().options.chain).toBe(true);
+    arch().clickPoint({ x: 0, y: 0 });
+    arch().clickPoint({ x: 4, y: 0 });
+    arch().clickPoint({ x: 4, y: 3 });
+    // O traçado continua em rascunho: nada foi criado ainda.
+    expect(walls()).toHaveLength(0);
+    expect(arch().openDraftMenu({ x: 120, y: 80 })).toBe(true);
+    expect(arch().draftMenu).toEqual({ x: 120, y: 80 });
+    arch().closeDraftMenu();
+    expect(arch().draftMenu).toBeNull();
+    // "Criar a parede" é a mesma conclusão do Enter, sem fechar o contorno.
+    expect(arch().finish(false)).toBe(true);
+    expect(walls()).toHaveLength(2);
+    expect(arch().points).toEqual([]);
+    expect(arch().tool).toBe('wall');
+    // Sair da ferramenta fecha o menu.
+    arch().openDraftMenu({ x: 1, y: 1 });
+    arch().setTool(null);
+    expect(arch().draftMenu).toBeNull();
   });
 
   it('comprimento digitado define o trecho na direção do cursor; traçado fechado liga as pontas', () => {

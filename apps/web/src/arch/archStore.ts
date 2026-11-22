@@ -37,6 +37,7 @@ import { setArchIfcValue, type IfcScope, type IfcValue } from '@hydrobim/ifc';
 import { create } from 'zustand';
 import { resolveSnap, segmentNear, type SnapResult, type SnapSegment } from '../editor/planSnaps';
 import { isPolarLockHeld } from '../editor/polarLock';
+import { referenceSegmentsNear } from '../editor/referenceSegments';
 import { useEditorStore } from '../state/editorStore';
 import { snapPreferences } from '../state/snapStore';
 import { useUiStore } from '../state/uiStore';
@@ -110,9 +111,9 @@ export const ARCH_TOOL_LABELS: Record<ArchTool, string> = {
 };
 
 export const ARCH_TOOL_HINTS: Record<ArchTool, string> = {
-  wall: 'Parede: dois cliques na planta criam a parede e encerram o trecho — a ferramenta continua pronta para a próxima. Com "Traçado contínuo" (opções da ferramenta), cada clique emenda um novo trecho e Enter ou duplo clique conclui. As capturas ligadas na barra de referências valem (extremidade, meio, interseção, perpendicular, paralela, ortogonal, alinhamento); Tab alterna entre capturas sobrepostas e R fixa a aresta de referência. Digite o comprimento do trecho (ou comprimento<ângulo, @ΔX;ΔY, X;Y). Shift trava o trecho de 45° em 45°. Backspace desfaz o último ponto; Esc cancela.',
+  wall: 'Parede: clique os pontos do traçado na planta; cada clique emenda um novo trecho. Para criar as paredes: botão direito › "Criar a parede", Enter ou duplo clique. As capturas ligadas na barra de referências valem (extremidade, meio, interseção, perpendicular, paralela, ortogonal, alinhamento); Tab alterna entre capturas sobrepostas e R fixa a aresta de referência. Digite o comprimento do trecho (ou comprimento<ângulo, @ΔX;ΔY, X;Y). Shift trava o trecho de 45° em 45°. Backspace desfaz o último ponto; Esc cancela. Sem "Traçado contínuo" (opções da ferramenta), o segundo clique já cria a parede.',
   roof: 'Telhado: três cliques na planta — os dois primeiros dão o lado do beiral (a água cai para ele; em duas águas, a cumeeira é paralela a ele) e o terceiro, a largura do retângulo, medida na perpendicular. Digite o comprimento ou a largura. Inclinação, beiral e lado do beiral são ajustados nas propriedades. Esc cancela.',
-  slab: 'Laje: clique os vértices do contorno na planta. Shift trava o lado de 45° em 45°. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
+  slab: 'Laje: clique os vértices do contorno na planta. Shift trava o lado de 45° em 45°. Enter, o clique no primeiro ponto ou o botão direito › "Criar a laje" fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
   flooring:
     'Piso (revestimento): clique os vértices do contorno na planta. Shift trava o lado de 45° em 45°. Enter (ou o clique no primeiro ponto) fecha o contorno; Backspace desfaz o último ponto; Esc cancela.',
   door: 'Porta: clique sobre uma parede na planta. A prévia mostra o vão (em vermelho, quando não cabe). A posição, a mão e a face são refinadas no painel de propriedades. Esc encerra.',
@@ -166,8 +167,9 @@ export interface ArchOptions {
   wallBaseOffset: number;
   locationLine: WallLocationLine;
   /**
-   * Paredes em traçado contínuo: cada clique emenda um trecho e o traçado só é gravado ao
-   * concluir (Enter ou duplo clique). Desligado, o segundo clique cria a parede e encerra.
+   * Paredes em traçado contínuo (o padrão): cada clique emenda um trecho e o traçado só é
+   * gravado ao concluir (botão direito › Criar a parede, Enter ou duplo clique). Desligado, o
+   * segundo clique cria a parede e encerra.
    */
   chain: boolean;
   /** Traçado contínuo fechado: o último ponto é ligado ao primeiro ao concluir. */
@@ -191,7 +193,7 @@ const DEFAULT_OPTIONS: ArchOptions = {
   wallHeight: 2.8,
   wallBaseOffset: 0,
   locationLine: 'center',
-  chain: false,
+  chain: true,
   closed: false,
   floorOffset: 0,
   sillHeight: null,
@@ -237,6 +239,11 @@ interface ArchState {
    */
   modify: ArchModify | null;
   modifyHover: ArchPick | null;
+  /** Menu do botão direito durante o desenho por pontos (posição na janela, px). */
+  draftMenu: { x: number; y: number } | null;
+  /** Abre o menu do desenho em andamento; devolve `false` quando não há desenho por pontos. */
+  openDraftMenu: (at: { x: number; y: number }) => boolean;
+  closeDraftMenu: () => void;
   /** Alinhar: escolha entre arestas sobrepostas (Tab) e o ponto do cursor em que foi feita. */
   modifyCycle: number;
   modifyCycleAt: Point2 | null;
@@ -653,6 +660,18 @@ export const useArchStore = create<ArchState>()((set, get) => {
     modifyHover: null,
     modifyCycle: 0,
     modifyCycleAt: null,
+    draftMenu: null,
+
+    openDraftMenu: (at) => {
+      const { tool } = get();
+      // O telhado se cria no terceiro clique; porta e janela, em um: não têm o que concluir.
+      if (!isDrawingTool(tool) || tool === 'roof') return false;
+      set({ draftMenu: { x: at.x, y: at.y } });
+      return true;
+    },
+    closeDraftMenu: () => {
+      if (get().draftMenu) set({ draftMenu: null });
+    },
 
     cycleModify: (step) => {
       if (!get().modify || !lastModifyRaw) return;
@@ -729,7 +748,8 @@ export const useArchStore = create<ArchState>()((set, get) => {
       const state = editor();
       const preferences = snapPreferences();
       const scene = snapScene();
-      const segments = snapSegments(scene.exclude);
+      // Arestas do modelo em edição e as de referência (objetos IFC importados à mostra).
+      const segments = [...snapSegments(scene.exclude), ...referenceSegmentsNear(raw, tolerance)];
       let { reference, snapCycle, snapCycleAt } = get();
       // A escolha por Tab vale enquanto o cursor fica onde ela foi feita.
       if (
@@ -982,7 +1002,14 @@ export const useArchStore = create<ArchState>()((set, get) => {
     setTool: (tool) => {
       if (tool === null) {
         if (get().tool === null) return;
-        set({ tool: null, points: [], cursor: null, openingTarget: null, snap: null });
+        set({
+          tool: null,
+          points: [],
+          cursor: null,
+          openingTarget: null,
+          snap: null,
+          draftMenu: null,
+        });
         if (editor().tool === 'select') useUiStore.getState().setPanelTab('properties');
         return;
       }

@@ -109,8 +109,6 @@ test('capturas: perpendicular a uma parede a 23°, estável com a ampliação, c
   await expect(roofInPlan).toHaveCount(0);
   await page.getByTestId('arch-wall').click();
   await expect(plan).toHaveAttribute('data-arch-tool', 'wall');
-  // Dois trechos seguidos: traçado contínuo, concluído com Enter.
-  await page.getByTestId('arch-option-chain').check();
   // Canto do beiral do telhado (0,59 m para fora das paredes).
   await page.mouse.move(...(await planPoint(page, -0.57, -0.6)));
   await expect(snap).not.toHaveAttribute('data-kind', 'endpoint');
@@ -434,7 +432,17 @@ test('paredes: aparar para canto, alinhar levando o canto e dividir, com prévia
     await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');
     await page.keyboard.type(entry);
     await page.keyboard.press('Enter');
-    // Parede por dois pontos (padrão): o segundo ponto cria a parede e nada fica pendente.
+    // O traçado continua em rascunho; o botão direito oferece "Criar a parede".
+    await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '2');
+    await page.mouse.click(...(await planPoint(page, x + 0.5, y + 0.5)), { button: 'right' });
+    await expect(page.getByTestId('arch-draft-menu')).toBeVisible();
+    await expect(page.getByTestId('arch-draft-create')).toContainText('Criar a parede');
+    await page.getByTestId('arch-draft-create').click();
+    await expect(page.getByTestId('arch-draft-menu')).toHaveCount(0);
+    await expect(status).toContainText('1 parede criada');
+    // A ferramenta continua ativa, sem rascunho pendente, para a parede seguinte.
+    await expect(plan).toHaveAttribute('data-arch-tool', 'wall');
+    await page.mouse.move(...(await planPoint(page, x + 0.5, y + 0.5)));
     await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '0');
   }
   await page.keyboard.press('Escape');
@@ -442,10 +450,17 @@ test('paredes: aparar para canto, alinhar levando o canto e dividir, com prévia
   await expect(plan).toHaveAttribute('data-arch-tool', '');
   await expect(drawn).toHaveCount(17);
 
-  // Com dois cliques na planta é a mesma coisa; o duplo clique no fim não deixa início pendente.
+  // Com um ponto só, "Criar a parede" fica desabilitado, com o motivo; Esc fecha só o menu.
   await page.getByTestId('arch-wall').click();
   await page.mouse.click(...(await planPoint(page, 8, -4)));
   await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');
+  await page.mouse.click(...(await planPoint(page, 9, -3.5)), { button: 'right' });
+  await expect(page.getByTestId('arch-draft-create')).toBeDisabled();
+  await expect(page.getByTestId('arch-draft-create-hint')).toContainText('Faltam pontos');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('arch-draft-menu')).toHaveCount(0);
+  await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');
+  // O duplo clique no último ponto também conclui, sem criar um trecho a mais.
   await page.mouse.dblclick(...(await planPoint(page, 10, -4)));
   await expect(status).toContainText('1 parede criada');
   await expect(drawn).toHaveCount(18);

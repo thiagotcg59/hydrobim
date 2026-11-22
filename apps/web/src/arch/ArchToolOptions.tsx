@@ -474,7 +474,7 @@ export function ArchToolOptions({ tool }: { tool: ArchTool }) {
               />
               <label
                 className="check"
-                title="Desligado: dois cliques criam a parede e encerram o trecho. Ligado: cada clique emenda um novo trecho, e Enter ou duplo clique conclui o traçado"
+                title="Ligado (padrão): cada clique emenda um novo trecho; o botão direito › Criar a parede, Enter ou o duplo clique conclui o traçado. Desligado: dois cliques criam a parede e encerram o trecho"
               >
                 <input
                   type="checkbox"
