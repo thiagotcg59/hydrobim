@@ -521,3 +521,28 @@ Verificação: `packages/core/src/terrain/edit.test.ts` e `earthworks.test.ts` (
 **Consequências e limites.** A geometria vai ao headset sem níveis de detalhe; os limites de desempenho são estimativas até a medição no aparelho. A vista é de leitura. O botão da faixa é só o símbolo, para a aba Visualizar caber em uma linha a 1920 px. Nenhuma alteração de esquema: os projetos salvos abrem sem migração.
 
 Verificação: `apps/web/src/vr/*.test.ts` e `tests/e2e/vr.spec.ts`, este com um dispositivo WebXR simulado (`tests/e2e/fakeXr.ts`). O teste no Meta Quest 2 segue o roteiro de `docs/WEBXR.md` e ainda não foi feito.
+
+## ADR-047 — Modelagem arquitetônica de precisão: motor de capturas no plano de trabalho, edição com prévia pela operação real, e telhados (esquema v18)
+
+**Data:** 2026-11-22 · **Estado:** aceita (complementa a ADR-044)
+
+**Contexto.** A arquitetura só capturava extremidades, faces e a grade, e só era editada por valores no painel. Faltavam a perpendicularidade em paredes oblíquas, a edição direta na vista e a categoria Telhados. A referência de fluxo de trabalho é o de ferramentas de autoria BIM — sem pretensão de equivalência.
+
+**Decisões.**
+
+- **Um motor de capturas puro, no plano de trabalho** (`apps/web/src/editor/planSnaps.ts`). Recebe o cursor em metros, o raio de captura já convertido de pixels, as arestas de referência e o estado do traçado, e devolve o ponto, o tipo de captura e o que desenhar. As três relações de ângulo reto — ortogonal aos eixos, perpendicular ao trecho anterior, perpendicular a uma aresta de referência — são candidatos distintos; a normal é obtida trocando as componentes do versor (produto escalar exatamente zero), nunca por seno e cosseno de um ângulo somado. `referenceSnaps.ts` (capturas da rede, por portas e com cota) e `polarLock.ts` (Shift) foram revistos: o primeiro continua reservado à rede, cujos pontos têm cota e cuja conexão é só por porta; o segundo é reutilizado pelo motor. A captura antiga da arquitetura (`snapArchPoint`) foi removida.
+- **Prioridade fixa, depois distância, depois posição**, com Tab percorrendo a lista e a grade (ou o ponto livre) sempre no fim: o resultado não depende da ordem em que os elementos estão no projeto, e Tab também desfaz uma captura indesejada.
+- **Prévia e confirmação pela mesma chamada.** O clique resolve a captura de novo com o mesmo estado (Tab, Shift, referência); as prévias de mover, copiar, girar, espelhar, alças e contorno são o resultado da operação de `@hydrobim/core` calculado sobre o projeto atual e desenhado como fantasma. O projeto só é trocado na confirmação — um passo no histórico —, e cancelar não tem o que desfazer. (As alças de tubo usam outro padrão, que aplica a prévia ao projeto e a restaura; não foi alterado.)
+- **Captura não é vínculo.** Nada além das coordenadas é gravado: nenhuma restrição paramétrica, nenhuma conexão.
+- **Extremidade de parede preserva a hospedagem** (`moveWallEndpoint`): a distância dos vãos é medida do início; ao mover o início ela é corrigida para o vão ficar onde está. Os campos do painel passaram a usar a mesma operação.
+- **Telhado: tipologia no tipo, direção como lado do contorno.** `RoofType.shape` (`shed`/`gable`) vem da família e fixa o tipo predefinido IFC; a ocorrência guarda o retângulo, o lado que é beiral (`eaveEdge`), a cota, a inclinação e o beiral. Guardar a direção como um ângulo livre criaria um parâmetro capaz de contradizer o contorno; como índice de lado isso é impossível, e o contorno é normalizado (anti-horário) com o índice acompanhando a inversão, inclusive no espelho.
+- **Convenções do telhado**: cota de referência na face inferior sobre a linha do beiral do contorno; beiral na horizontal, nos quatro lados; espessura perpendicular à água, bordas a prumo. Com isso a área inclinada é `projeção ÷ cos` e o volume `projeção × espessura ÷ cos`, exatos, e iguais ao volume da malha.
+- **IFC**: `IfcRoof` com corpo próprio (malha fechada), `IfcRoofType`, `Pset_RoofCommon` e `Qto_RoofBaseQuantities` lidos do esquema (o gerador de `schemaData.ts` passou a incluir `IfcRoof`); o que o esquema não traz (inclinação, beiral, cumeeira, volume) vai em `HydroBIM_Telhado`. Camadas no tipo, sem uso por eixo na ocorrência. A decomposição em `IfcSlab`/`ROOF` por água foi descartada nesta etapa: exigiria identidades persistentes por água que o modelo não tem.
+- **Filtro de nível na planta de trabalho** ("Só o nível ativo", ligado por padrão): desenho, seleção e captura da arquitetura seguem o nível do plano de trabalho. É preferência do navegador, como as capturas ligadas.
+- **Sem dependências novas.**
+
+**Esquema.** v18: categoria de tipo `roof`, ocorrência `roof` e categoria de vista `roofs`. A migração v17 → v18 só troca a versão (TypeScript e Python).
+
+**Consequências e limites.** Só uma e duas águas iguais sobre retângulo; sem vínculo com as paredes. As capturas e a edição interativa valem na planta de trabalho, não nas vistas salvas nem no 3D. A planta de trabalho deixou de mostrar todos os níveis sobrepostos por padrão. Lista completa em `docs/ROADMAP.md` (Arquitetura) e `docs/ARQUITETURA.md` (Limites conhecidos).
+
+Verificação: `apps/web/src/editor/planSnaps.test.ts`, `apps/web/src/arch/archEdit.test.ts`, `packages/core/src/architecture/roofs.test.ts`, `packages/geometry/src/roof.test.ts` (malha fechada, volume e área contra o quantitativo), `services/api/tests/test_project.py` e `test_ifc_architecture.py` (IfcOpenShell) e `tests/e2e/architectureEdit.spec.ts`.
