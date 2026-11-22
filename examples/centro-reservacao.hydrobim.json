@@ -1,0 +1,5559 @@
+{
+  "format": "hydrobim-project",
+  "schemaVersion": 17,
+  "id": "b855eeb7-ccd5-40c1-b142-33d77e4ff367",
+  "name": "Centro de reservação — poço, elevatória e reservatórios",
+  "discipline": "mep",
+  "units": {
+    "length": "m",
+    "angle": "rad"
+  },
+  "createdAt": "2026-11-22T16:58:51.800Z",
+  "updatedAt": "2026-11-22T16:58:51.828Z",
+  "systems": [
+    {
+      "id": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "name": "Adução do poço",
+      "kind": "waterSupply"
+    },
+    {
+      "id": "84babae8-096f-4598-a383-403d5847170e",
+      "name": "Recalque",
+      "kind": "waterSupply"
+    },
+    {
+      "id": "db639424-cded-422b-9529-04a7b23959d4",
+      "name": "Distribuição",
+      "kind": "waterSupply"
+    },
+    {
+      "id": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "name": "Extravasão e descarga",
+      "kind": "other"
+    }
+  ],
+  "levels": [
+    {
+      "id": "8a4c0054-1c2a-429f-9c9b-2f14a3ca6d59",
+      "name": "Térreo",
+      "elevation": 0
+    }
+  ],
+  "families": [],
+  "tankFamilies": [],
+  "pumpFamilies": [],
+  "ifcTypes": {},
+  "georeference": null,
+  "terrain": null,
+  "earthworks": {
+    "platforms": [],
+    "swellPercent": null,
+    "compactionFactor": null,
+    "reusePercent": null
+  },
+  "elements": [
+    {
+      "id": "d67c2c13-58ac-4179-9a09-6d39c4dae15c",
+      "name": "Reservatório apoiado 50 m³",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tramec-vertical-apoiado",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório vertical apoiado 50.000 L"
+      },
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.800Z",
+        "updatedAt": "2026-11-22T16:58:51.823Z",
+        "revision": 5
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 12,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "verticalGround",
+      "variantId": "tramec-vertical-apoiado/50000-600-320",
+      "nominalCapacity": 50,
+      "diameter": 3.2,
+      "height": 6,
+      "outletHeight": 0.3,
+      "inletHeight": 5.7,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": true,
+        "guardrail": true,
+        "manhole": true
+      },
+      "nozzles": [
+        {
+          "id": "734eb9d0-13ce-42f1-89fc-8d38db849ae2",
+          "role": "overflow",
+          "height": 5.5,
+          "azimuth": -1.5707963267948966,
+          "spec": {
+            "specificationId": "ferro-ductil-nbr7675-k9",
+            "material": "ductileIron",
+            "standard": "ABNT NBR 7675 / ISO 2531",
+            "jointType": "socketSpigot",
+            "pressureClass": "K9",
+            "dn": 100,
+            "sizeLabel": "DN 100",
+            "outerDiameter": 0.118,
+            "wallThickness": 0.006,
+            "innerDiameter": 0.106,
+            "jointDeflection": 0.08726646259971647
+          }
+        },
+        {
+          "id": "98b15d01-7768-4705-b84d-fe697bb9a3b7",
+          "role": "drain",
+          "height": 0.15,
+          "azimuth": -1.5707963267948966,
+          "spec": {
+            "specificationId": "ferro-ductil-nbr7675-k9",
+            "material": "ductileIron",
+            "standard": "ABNT NBR 7675 / ISO 2531",
+            "jointType": "socketSpigot",
+            "pressureClass": "K9",
+            "dn": 80,
+            "sizeLabel": "DN 80",
+            "outerDiameter": 0.098,
+            "wallThickness": 0.006,
+            "innerDiameter": 0.08600000000000001,
+            "jointDeflection": 0.08726646259971647
+          }
+        }
+      ]
+    },
+    {
+      "id": "9146af1f-9907-41e4-98f8-05a76c515c79",
+      "name": "Tubo de sucção do poço",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.801Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -48.751000000000005
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": -48.151
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "c605b7e3-d06f-4a03-becf-ce1e9986eeef",
+      "name": "Bomba do poço",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "higra-anfibia-multiplos-estagios-60hz",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "HIGRA",
+        "model": "Bomba anfíbia HIGRA de múltiplos estágios, 60 Hz — R2-155/15B a R2-155/20B"
+      },
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.801Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pump",
+      "placement": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -48.151
+        },
+        "rotation": {
+          "x": -0.5,
+          "y": -0.5,
+          "z": -0.5,
+          "w": 0.5
+        }
+      },
+      "dischargeSpec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "pumpType": "amphibious",
+      "variantId": "higra-anfibia-multiplos-estagios-60hz/r2-155-132l",
+      "stages": 2,
+      "suctionFlangeClass": "PN 40",
+      "dischargeFlangeClass": "PN 40",
+      "footOffset": 0.16,
+      "footSpan": 0.599,
+      "rearLength": 0.193,
+      "length": 0.951,
+      "footWidth": 0.27,
+      "footHoleDiameter": 0.024,
+      "axisHeight": 0.206,
+      "totalHeight": 0.396,
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "d345c3a1-0d49-44e4-8439-6678a7cd2455",
+      "name": "Tubo edutor 1",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.802Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -47.2
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": -41.2
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "0a797a7c-71c6-4ae8-97fe-bfab4e6967d4",
+      "name": "Tubo edutor 2",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.802Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -41.2
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": -35.2
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "a70cc25d-7671-4bdf-91f3-ec0c7a7cedd4",
+      "name": "Tubo edutor 3",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.802Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -35.2
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": -29.200000000000003
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "b39fef48-0137-43d5-b933-5a79091142b1",
+      "name": "Tubo edutor 4",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.802Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -29.200000000000003
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": -23.200000000000003
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "50dbc908-8ddd-4503-bc53-a12e4599e1d4",
+      "name": "Tubo edutor 5",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.803Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -23.200000000000003
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": -17.200000000000003
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "d18b5bb8-2c79-4f68-bf0b-b2a01a0ac217",
+      "name": "Tubo edutor 6",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.803Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -17.200000000000003
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": -11.200000000000003
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "2ec20c58-aab6-494d-ba7c-2b0ffd0a9d74",
+      "name": "Tubo edutor 7",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.803Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -11.200000000000003
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": -5.200000000000003
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "482d2536-7541-484f-b146-97c5989c85ec",
+      "name": "Tubo edutor 8",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.804Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0,
+        "y": 0,
+        "z": -5.200000000000003
+      },
+      "end": {
+        "x": 0,
+        "y": 0,
+        "z": 0.6349999999999971
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "8eaf0c63-3a01-4a47-bb36-4042d7dc171a",
+      "name": "Joelho 1",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.805Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "placement": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0.7999999999999972
+        },
+        "rotation": {
+          "x": 0.5,
+          "y": 0.5,
+          "z": 0.5,
+          "w": -0.5
+        }
+      },
+      "angle": 1.5707963267948963,
+      "bendRadius": 0.16500000000000006
+    },
+    {
+      "id": "782ff15e-a4b7-40bc-b4b7-5c9a11dce0a0",
+      "name": "Cavalete do poço",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.805Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 0.165,
+        "y": 0,
+        "z": 0.7999999999999972
+      },
+      "end": {
+        "x": 0.735,
+        "y": 0,
+        "z": 0.7999999999999974
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "70cb543e-0e29-4255-8619-550ba8729d0d",
+      "name": "Tê da ventosa",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-te-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.805Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "placement": {
+        "rotation": {
+          "x": 0.7071067811865475,
+          "y": -1.0759726917706417e-16,
+          "z": 1.0759726917706416e-16,
+          "w": 0.7071067811865476
+        },
+        "position": {
+          "x": 0.9,
+          "y": 0,
+          "z": 0.7999999999999974
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "branch": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "runLength": 0.33,
+      "branchLength": 0.165,
+      "kind": "tee"
+    },
+    {
+      "id": "61e00a4a-94ec-4bc4-8694-88088a025c34",
+      "name": "Tubo 1",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.805Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 1.065,
+        "y": 0,
+        "z": 0.7999999999999974
+      },
+      "end": {
+        "x": 1.5699999999999998,
+        "y": 0,
+        "z": 0.7999999999999976
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "1ad239a7-9ec6-468f-838f-b4d3793c769f",
+      "name": "Ventosa do cavalete",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-ventosa-701@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.806Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "position": {
+          "x": 0.9,
+          "y": 2.7755575615628914e-17,
+          "z": 0.9649999999999974
+        },
+        "rotation": {
+          "x": -0.5,
+          "y": -0.5000000000000001,
+          "z": -0.5,
+          "w": 0.4999999999999999
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "airRelease",
+      "length": 0.605
+    },
+    {
+      "id": "70efff72-fbad-4c5b-a740-4ac7818af2cc",
+      "name": "Válvula de retenção do poço",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-retencao-portinhola-en558-s48@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.806Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": -1.5518551305185645e-16,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 1.6999999999999997,
+          "y": 0,
+          "z": 0.7999999999999976
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "check",
+      "length": 0.26,
+      "height": 0.135
+    },
+    {
+      "id": "643420f1-1213-4535-919b-eefe9d1eb40e",
+      "name": "Tubo 2",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.806Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 1.83,
+        "y": 0,
+        "z": 0.7999999999999976
+      },
+      "end": {
+        "x": 2.6,
+        "y": 0,
+        "z": 0.7999999999999978
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "9143c87a-1e4c-40c9-b9a4-5b7f7e5b9425",
+      "name": "Macromedidor do poço",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "sanecom-eletromagnetico@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.807Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": -1.561694791672215e-16,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 2.7,
+          "y": 0,
+          "z": 0.7999999999999978
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "flowMeter",
+      "length": 0.2,
+      "height": 0.25
+    },
+    {
+      "id": "f7df0d84-1a78-4ffc-ba35-c5a3c1444a69",
+      "name": "Tubo 3",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.807Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 2.8000000000000003,
+        "y": 0,
+        "z": 0.7999999999999978
+      },
+      "end": {
+        "x": 3.435,
+        "y": 0,
+        "z": 0.799999999999998
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "9d489a85-9a55-49bc-80d5-a25cbe7256a7",
+      "name": "Tê de descarga",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-te-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.807Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "placement": {
+        "rotation": {
+          "x": 1,
+          "y": -9.924314404721834e-33,
+          "z": 1.620763539598769e-16,
+          "w": 6.123233995736766e-17
+        },
+        "position": {
+          "x": 3.6,
+          "y": 0,
+          "z": 0.799999999999998
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "branch": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "runLength": 0.33,
+      "branchLength": 0.165,
+      "kind": "tee"
+    },
+    {
+      "id": "58f30ec6-f5cf-4daf-b5d7-be2d1bde7dec",
+      "name": "Tubo 4",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.807Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 3.765,
+        "y": 0,
+        "z": 0.799999999999998
+      },
+      "end": {
+        "x": 4.41,
+        "y": 0,
+        "z": 0.7999999999999983
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "56135eeb-03d2-4d95-98cd-f5da2fb51b13",
+      "name": "Descarga de limpeza do poço",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.808Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 3.6,
+        "y": -0.165,
+        "z": 0.799999999999998
+      },
+      "end": {
+        "x": 3.6,
+        "y": -0.61,
+        "z": 0.7999999999999987
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "cddd0e5d-fde5-420c-98c2-6eb65fa440af",
+      "name": "Registro da descarga do poço",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.808Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": -4.923634887858527e-16,
+          "y": -4.923634887858527e-16,
+          "z": -0.7071067811865476,
+          "w": 0.7071067811865475
+        },
+        "position": {
+          "x": 3.6,
+          "y": -0.7,
+          "z": 0.7999999999999988
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "440a0f23-c20f-41b3-9349-8233f5d971ab",
+      "name": "Tubo 5",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.808Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 3.6,
+        "y": -0.7899999999999999,
+        "z": 0.7999999999999989
+      },
+      "end": {
+        "x": 3.6,
+        "y": -1.6,
+        "z": 0.8
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "0bb70a37-5983-43bc-8dc1-f9274da231e5",
+      "name": "Registro do cavalete",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.808Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": -1.6978771829441652e-16,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 4.5,
+          "y": 0,
+          "z": 0.7999999999999983
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "4b8ac924-efeb-4953-8072-1bcd51852949",
+      "name": "Tubo 6",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.808Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 4.59,
+        "y": 0,
+        "z": 0.7999999999999983
+      },
+      "end": {
+        "x": 9.485000000000001,
+        "y": 0,
+        "z": 0.7999999999999999
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "3945e9d8-3750-46b1-b40e-ec6b667d0eb3",
+      "name": "Joelho 2",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.808Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "placement": {
+        "position": {
+          "x": 9.65,
+          "y": 0,
+          "z": 0.8
+        },
+        "rotation": {
+          "x": 0.7071067811865475,
+          "y": -1.241179809236186e-16,
+          "z": 1.241179809236186e-16,
+          "w": 0.7071067811865476
+        }
+      },
+      "angle": 1.5707963267948963,
+      "bendRadius": 0.16500000000000006
+    },
+    {
+      "id": "42f6783f-1288-4ec4-b919-36fceb18df73",
+      "name": "Subida ao reservatório apoiado",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.809Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 9.65,
+        "y": 0,
+        "z": 0.9650000000000001
+      },
+      "end": {
+        "x": 9.65,
+        "y": 0,
+        "z": 5.535
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "26f4c0ce-9d08-4f67-9a9e-d8db4d6aaae1",
+      "name": "Joelho 3",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.809Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "placement": {
+        "position": {
+          "x": 9.65,
+          "y": 0,
+          "z": 5.7
+        },
+        "rotation": {
+          "x": 0.5,
+          "y": 0.5,
+          "z": 0.5,
+          "w": -0.5
+        }
+      },
+      "angle": 1.5707963267948966,
+      "bendRadius": 0.16500000000000004
+    },
+    {
+      "id": "0c7b23d4-6c6d-4f37-967b-46d5fa258aab",
+      "name": "Entrada do reservatório apoiado",
+      "systemId": "2abce551-4620-4d0e-86e6-1e4821909834",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.809Z",
+        "updatedAt": "2026-11-22T16:58:51.810Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 9.815,
+        "y": 0,
+        "z": 5.7
+      },
+      "end": {
+        "x": 10.25,
+        "y": 0,
+        "z": 5.7
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "b02e0895-a403-4663-a563-18bd4aa2a3c8",
+      "name": "Reservatório elevado 20 m³",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tramec-taca-sem-agua",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório tipo taça sem água na coluna 20.000 L"
+      },
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.811Z",
+        "updatedAt": "2026-11-22T16:58:51.826Z",
+        "revision": 4
+      },
+      "kind": "tank",
+      "placement": {
+        "position": {
+          "x": 26,
+          "y": 0,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "ends": {},
+      "tankType": "gobletDry",
+      "variantId": "tramec-taca-sem-agua/20000-1020-255-600",
+      "nominalCapacity": 20,
+      "diameter": 2.55,
+      "height": 10.2,
+      "columnHeight": 6,
+      "columnDiameter": 1.275,
+      "coneHeight": 0.51,
+      "outletHeight": 0.3,
+      "inletHeight": 0.3,
+      "nozzleLength": 0.15,
+      "accessories": {
+        "ladderAzimuth": 1.5707963267948966,
+        "guardrailHeight": 1.1,
+        "ladder": true,
+        "cage": true,
+        "guardrail": true,
+        "manhole": true
+      },
+      "nozzles": [
+        {
+          "id": "2b1318df-dcbb-44bc-b876-1f37477a5175",
+          "role": "overflow",
+          "height": 0.8,
+          "azimuth": -1.5707963267948966,
+          "spec": {
+            "specificationId": "ferro-ductil-nbr7675-k9",
+            "material": "ductileIron",
+            "standard": "ABNT NBR 7675 / ISO 2531",
+            "jointType": "socketSpigot",
+            "pressureClass": "K9",
+            "dn": 100,
+            "sizeLabel": "DN 100",
+            "outerDiameter": 0.118,
+            "wallThickness": 0.006,
+            "innerDiameter": 0.106,
+            "jointDeflection": 0.08726646259971647
+          }
+        },
+        {
+          "id": "58a7ddc7-ad68-4b11-afb3-47b94bc5625c",
+          "role": "drain",
+          "height": 0.3,
+          "azimuth": -1.5707963267948966,
+          "spec": {
+            "specificationId": "ferro-ductil-nbr7675-k9",
+            "material": "ductileIron",
+            "standard": "ABNT NBR 7675 / ISO 2531",
+            "jointType": "socketSpigot",
+            "pressureClass": "K9",
+            "dn": 80,
+            "sizeLabel": "DN 80",
+            "outerDiameter": 0.098,
+            "wallThickness": 0.006,
+            "innerDiameter": 0.08600000000000001,
+            "jointDeflection": 0.08726646259971647
+          }
+        }
+      ]
+    },
+    {
+      "id": "4df64617-741c-4037-b007-840f67ce0525",
+      "name": "Sucção da elevatória",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.811Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 13.75,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 14.51,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "773c7764-f927-43c6-874d-7c4a56262dfd",
+      "name": "Registro geral da sucção",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.812Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 14.6,
+          "y": 0,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "5b929e61-22fe-4ad9-9098-e05bf1828da6",
+      "name": "Tubo 7",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.812Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 14.69,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 15.435,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "e643416a-c5c2-4966-834e-8351d0a5d3a0",
+      "name": "Tê do barrilete de sucção",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-te-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.813Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "placement": {
+        "rotation": {
+          "x": 1,
+          "y": 0,
+          "z": 0,
+          "w": 6.123233995736766e-17
+        },
+        "position": {
+          "x": 15.6,
+          "y": 0,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "branch": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "runLength": 0.33,
+      "branchLength": 0.165,
+      "kind": "tee"
+    },
+    {
+      "id": "32c857b0-35fd-4eb7-8fae-9206e5f7ad91",
+      "name": "Tubo 8",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.813Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 15.764999999999999,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 16.31,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "c530ea6a-b32b-4cd5-8b2e-ff78840585a1",
+      "name": "Registro de sucção da bomba 1",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.813Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 16.4,
+          "y": 0,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "7eb46ed6-50c9-4502-b170-768565258f73",
+      "name": "Tubo 9",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.813Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 16.49,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 17,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "d90e2b35-7d6c-4614-89e9-c026ee34e8f2",
+      "name": "Bomba de recalque 1",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "higra-anfibia-estagio-unico-60hz",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "HIGRA",
+        "model": "Bomba anfíbia HIGRA de estágio único, 60 Hz — R1-195/15B a R1-195/30B"
+      },
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.813Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pump",
+      "placement": {
+        "position": {
+          "x": 17,
+          "y": 0,
+          "z": 0.3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "dischargeSpec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "pumpType": "amphibious",
+      "variantId": "higra-anfibia-estagio-unico-60hz/r1-195-132l",
+      "stages": 1,
+      "suctionFlangeClass": "PN 40",
+      "dischargeFlangeClass": "PN 40",
+      "footOffset": 0.16,
+      "footSpan": 0.599,
+      "rearLength": 0.174,
+      "length": 0.933,
+      "footWidth": 0.27,
+      "footHoleDiameter": 0.0265,
+      "axisHeight": 0.206,
+      "totalHeight": 0.396,
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "0605f0a2-5b36-4b43-b8b1-bd5f8cbb8de7",
+      "name": "Recalque",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.814Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 17.933,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 18.503,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "d2462bc5-e5ea-4ee1-a564-5fd0716c30d2",
+      "name": "Válvula de retenção da bomba 1",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-retencao-portinhola-en558-s48@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.814Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 18.633,
+          "y": 0,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "check",
+      "length": 0.26,
+      "height": 0.135
+    },
+    {
+      "id": "4ee2e675-77f4-4652-9a19-e26638eca87a",
+      "name": "Tubo 10",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.814Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 18.762999999999998,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 19.243,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "44a72cca-e1d9-46bd-bbd1-167f5886007d",
+      "name": "Registro de recalque da bomba 1",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.814Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 19.333,
+          "y": 0,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "b779a57e-e4a7-4f23-944c-69aa117fa8ec",
+      "name": "Tubo 11",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.814Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 19.423,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 20.068,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "3c9853ab-9c41-43c0-9a3a-cd1b41729339",
+      "name": "Tê do barrilete de recalque",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-te-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.814Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "placement": {
+        "rotation": {
+          "x": 1,
+          "y": 0,
+          "z": 0,
+          "w": 6.123233995736766e-17
+        },
+        "position": {
+          "x": 20.233,
+          "y": 0,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "branch": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "runLength": 0.33,
+      "branchLength": 0.165,
+      "kind": "tee"
+    },
+    {
+      "id": "48af4ce8-9275-4099-8939-64e7aed55744",
+      "name": "Tubo 12",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.814Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 20.398,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 25.2125,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "33234e96-94b6-4c31-bf00-c6b61302e28e",
+      "name": "Ramal de sucção da bomba 2",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.815Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 15.6,
+        "y": -0.165,
+        "z": 0.3
+      },
+      "end": {
+        "x": 15.6,
+        "y": -1.335,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "b7ddce5d-6d22-4de6-b99f-91511986f980",
+      "name": "Joelho 4",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.816Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 1
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "placement": {
+        "position": {
+          "x": 15.6,
+          "y": -1.5,
+          "z": 0.3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": -0.7071067811865475,
+          "w": 0.7071067811865476
+        }
+      },
+      "angle": 1.5707963267948963,
+      "bendRadius": 0.16500000000000006
+    },
+    {
+      "id": "4c09dbf1-2b85-42e4-82f3-9e1a2bdf30f1",
+      "name": "Sucção da bomba 2",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.816Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 15.764999999999999,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "end": {
+        "x": 16.31,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "f5fb02bf-9cf3-4900-a636-7ca280ee451a",
+      "name": "Registro de sucção da bomba 2",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.816Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 16.4,
+          "y": -1.5,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "f257909d-14c6-463b-bff2-1ad84bad979e",
+      "name": "Tubo 13",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.817Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 16.49,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "end": {
+        "x": 17,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "42c39e96-4e57-4a48-856c-0b434e37f0bf",
+      "name": "Bomba de recalque 2",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "higra-anfibia-estagio-unico-60hz",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "HIGRA",
+        "model": "Bomba anfíbia HIGRA de estágio único, 60 Hz — R1-195/15B a R1-195/30B"
+      },
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.817Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pump",
+      "placement": {
+        "position": {
+          "x": 17,
+          "y": -1.5,
+          "z": 0.3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "dischargeSpec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "pumpType": "amphibious",
+      "variantId": "higra-anfibia-estagio-unico-60hz/r1-195-132l",
+      "stages": 1,
+      "suctionFlangeClass": "PN 40",
+      "dischargeFlangeClass": "PN 40",
+      "footOffset": 0.16,
+      "footSpan": 0.599,
+      "rearLength": 0.174,
+      "length": 0.933,
+      "footWidth": 0.27,
+      "footHoleDiameter": 0.0265,
+      "axisHeight": 0.206,
+      "totalHeight": 0.396,
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "81bca1d1-7654-4b81-895d-1a27cbee1bb5",
+      "name": "Recalque da bomba 2",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.818Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 17.933,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "end": {
+        "x": 18.503,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "80ea9617-6241-4dcd-bc38-a3f6e5fba9b3",
+      "name": "Válvula de retenção da bomba 2",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-retencao-portinhola-en558-s48@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.818Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 18.633,
+          "y": -1.5,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "check",
+      "length": 0.26,
+      "height": 0.135
+    },
+    {
+      "id": "033d40c6-309b-47c0-92bc-6150ef3cca63",
+      "name": "Tubo 14",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.818Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 18.762999999999998,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "end": {
+        "x": 19.243,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "24be54fa-9ffd-41e0-8bbf-58c6b76276f3",
+      "name": "Registro de recalque da bomba 2",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.818Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 19.333,
+          "y": -1.5,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "00824c14-c796-40c2-9b93-9db3022a6716",
+      "name": "Tubo 15",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.818Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 19.423,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "end": {
+        "x": 20.068,
+        "y": -1.5,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "796aa162-bcc1-428f-9dac-d06f82814946",
+      "name": "Joelho 5",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.819Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 1
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "placement": {
+        "position": {
+          "x": 20.233,
+          "y": -1.5,
+          "z": 0.3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      },
+      "angle": 1.5707963267948966,
+      "bendRadius": 0.16500000000000004
+    },
+    {
+      "id": "e1f15ee0-992b-4fc9-b0a6-972551a071f1",
+      "name": "Ramal de recalque da bomba 2",
+      "systemId": "84babae8-096f-4598-a383-403d5847170e",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.819Z",
+        "updatedAt": "2026-11-22T16:58:51.819Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 20.233,
+        "y": -1.335,
+        "z": 0.3
+      },
+      "end": {
+        "x": 20.233,
+        "y": -0.165,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "c2092a2a-d33a-45f3-a9c2-4062b4182ac7",
+      "name": "Saída para a distribuição",
+      "systemId": "db639424-cded-422b-9529-04a7b23959d4",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.820Z",
+        "updatedAt": "2026-11-22T16:58:51.821Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 26.7875,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 27.6975,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "f533cd80-d394-4b21-8b65-6e5403469424",
+      "name": "Registro da distribuição",
+      "systemId": "db639424-cded-422b-9529-04a7b23959d4",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.820Z",
+        "updatedAt": "2026-11-22T16:58:51.821Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 27.7875,
+          "y": 0,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "27c84a3a-bf7d-4f30-879c-2cb03de21f43",
+      "name": "Tubo 16",
+      "systemId": "db639424-cded-422b-9529-04a7b23959d4",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.820Z",
+        "updatedAt": "2026-11-22T16:58:51.821Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 27.8775,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 29.4875,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "ec81966a-ed6a-422c-b3f1-e275ac37e4f0",
+      "name": "Macromedidor da distribuição",
+      "systemId": "db639424-cded-422b-9529-04a7b23959d4",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "sanecom-eletromagnetico@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.820Z",
+        "updatedAt": "2026-11-22T16:58:51.821Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "position": {
+          "x": 29.587500000000002,
+          "y": 0,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "flowMeter",
+      "length": 0.2,
+      "height": 0.25
+    },
+    {
+      "id": "e7c4c96c-04b8-4be9-b63d-e4f4fcac5c3c",
+      "name": "Tubo 17",
+      "systemId": "db639424-cded-422b-9529-04a7b23959d4",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.821Z",
+        "updatedAt": "2026-11-22T16:58:51.821Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 29.687500000000004,
+        "y": 0,
+        "z": 0.3
+      },
+      "end": {
+        "x": 31.7875,
+        "y": 0,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "35cb7c9d-a6c7-4ba3-ab2a-9b0b3e032363",
+      "name": "Extravasor do apoiado",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.821Z",
+        "updatedAt": "2026-11-22T16:58:51.827Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 12,
+        "y": -1.75,
+        "z": 5.5
+      },
+      "end": {
+        "x": 12,
+        "y": -2.17,
+        "z": 5.5
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "a3c117fc-9eb0-498b-b1df-b06ca9b1ab3c",
+      "name": "Joelho 6",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-flanges@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.822Z",
+        "updatedAt": "2026-11-22T16:58:51.827Z",
+        "revision": 1
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "placement": {
+        "position": {
+          "x": 12,
+          "y": -2.35,
+          "z": 5.5
+        },
+        "rotation": {
+          "x": -0.5000000000000001,
+          "y": 0.5,
+          "z": -0.5,
+          "w": 0.5
+        }
+      },
+      "angle": 1.5707963267948966,
+      "bendRadius": 0.18000000000000002
+    },
+    {
+      "id": "3f19db69-6455-4aed-8bfb-dff15b20dbcc",
+      "name": "Descida do extravasor do apoiado",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.822Z",
+        "updatedAt": "2026-11-22T16:58:51.828Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 12,
+        "y": -2.35,
+        "z": 5.32
+      },
+      "end": {
+        "x": 12,
+        "y": -2.35,
+        "z": 0.5
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "7c0c2419-e34d-4810-8834-077d62a708b6",
+      "name": "Descarga do apoiado",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.823Z",
+        "updatedAt": "2026-11-22T16:58:51.828Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 12,
+        "y": -1.75,
+        "z": 0.15
+      },
+      "end": {
+        "x": 12,
+        "y": -2.8600000000000003,
+        "z": 0.15
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "e2f457de-0ea3-4575-a72b-0905af79038e",
+      "name": "Registro da descarga do apoiado",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.824Z",
+        "updatedAt": "2026-11-22T16:58:51.828Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": -0.7071067811865476,
+          "w": 0.7071067811865475
+        },
+        "position": {
+          "x": 12,
+          "y": -2.95,
+          "z": 0.15
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "806aa0db-3a94-4a1d-be99-51980d29052c",
+      "name": "Tubo 18",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.824Z",
+        "updatedAt": "2026-11-22T16:58:51.828Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 12,
+        "y": -3.04,
+        "z": 0.15
+      },
+      "end": {
+        "x": 12,
+        "y": -3.55,
+        "z": 0.15
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "51cc5501-76fa-4196-9199-3d6bf918e99e",
+      "name": "Extravasor do elevado",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.106,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.825Z",
+        "updatedAt": "2026-11-22T16:58:51.828Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 26,
+        "y": -0.7875,
+        "z": 0.8
+      },
+      "end": {
+        "x": 26,
+        "y": -1.7875,
+        "z": 0.8
+      }
+    },
+    {
+      "id": "2814f306-0ea2-49ee-93b3-73f51c95fb4c",
+      "name": "Descarga do elevado",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.827Z",
+        "updatedAt": "2026-11-22T16:58:51.828Z",
+        "revision": 2
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 26,
+        "y": -0.7875,
+        "z": 0.3
+      },
+      "end": {
+        "x": 26,
+        "y": -2.0974999999999997,
+        "z": 0.3
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "e3cf29ba-d59c-40ab-b540-aa74f77d4684",
+      "name": "Registro da descarga do elevado",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-gaveta-curta-en558-s14@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.827Z",
+        "updatedAt": "2026-11-22T16:58:51.828Z",
+        "revision": 2
+      },
+      "kind": "valve",
+      "placement": {
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": -0.7071067811865476,
+          "w": 0.7071067811865475
+        },
+        "position": {
+          "x": 26,
+          "y": -2.1874999999999996,
+          "z": 0.3
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "valveType": "gate",
+      "length": 0.18,
+      "height": 0.282,
+      "handwheelDiameter": 0.225
+    },
+    {
+      "id": "c90e701e-808b-441c-b026-87c6f2251ed9",
+      "name": "Tubo 19",
+      "systemId": "824823ef-c304-4f3c-ab1f-3213a88e70f1",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 80,
+        "sizeLabel": "DN 80",
+        "outerDiameter": 0.098,
+        "wallThickness": 0.006,
+        "innerDiameter": 0.08600000000000001,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:58:51.827Z",
+        "updatedAt": "2026-11-22T16:58:51.828Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": 26,
+        "y": -2.2774999999999994,
+        "z": 0.3
+      },
+      "end": {
+        "x": 26,
+        "y": -2.6875,
+        "z": 0.3
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.2,
+          "boltCircle": 0.16,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.132,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "34a3981d-e4c2-4240-8dd4-c36c8a459144",
+      "a": {
+        "elementId": "9146af1f-9907-41e4-98f8-05a76c515c79",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "c605b7e3-d06f-4a03-becf-ce1e9986eeef",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "8a52743d-44f6-4ab7-b625-39c2ec07def4",
+      "a": {
+        "elementId": "d345c3a1-0d49-44e4-8439-6678a7cd2455",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "c605b7e3-d06f-4a03-becf-ce1e9986eeef",
+        "portId": "b"
+      }
+    },
+    {
+      "id": "e6041481-9413-4456-9ddc-6f5da5750d69",
+      "a": {
+        "elementId": "0a797a7c-71c6-4ae8-97fe-bfab4e6967d4",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "d345c3a1-0d49-44e4-8439-6678a7cd2455",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "5be0edcd-c6bc-4d8d-9fd0-3c42b9606780",
+      "a": {
+        "elementId": "a70cc25d-7671-4bdf-91f3-ec0c7a7cedd4",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "0a797a7c-71c6-4ae8-97fe-bfab4e6967d4",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "de769fb4-e0eb-4903-b853-0e897d2b0ea0",
+      "a": {
+        "elementId": "b39fef48-0137-43d5-b933-5a79091142b1",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "a70cc25d-7671-4bdf-91f3-ec0c7a7cedd4",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "a17a560f-fb1c-496f-b28f-6fa191d2514b",
+      "a": {
+        "elementId": "50dbc908-8ddd-4503-bc53-a12e4599e1d4",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "b39fef48-0137-43d5-b933-5a79091142b1",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "aab79a80-f0a9-47a8-83b6-a0a2991025ff",
+      "a": {
+        "elementId": "d18b5bb8-2c79-4f68-bf0b-b2a01a0ac217",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "50dbc908-8ddd-4503-bc53-a12e4599e1d4",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "fb66a62b-d990-46c4-9969-85879edd8e10",
+      "a": {
+        "elementId": "2ec20c58-aab6-494d-ba7c-2b0ffd0a9d74",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "d18b5bb8-2c79-4f68-bf0b-b2a01a0ac217",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "683476f6-f746-4e4c-bdd6-dac7f6fae5ab",
+      "a": {
+        "elementId": "482d2536-7541-484f-b146-97c5989c85ec",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "2ec20c58-aab6-494d-ba7c-2b0ffd0a9d74",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "22257cce-7579-43a1-9fb4-b9d19ba6335d",
+      "a": {
+        "elementId": "482d2536-7541-484f-b146-97c5989c85ec",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "8eaf0c63-3a01-4a47-bb36-4042d7dc171a",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "f945b2cd-c27f-4c79-9d67-81f7f2711c90",
+      "a": {
+        "elementId": "8eaf0c63-3a01-4a47-bb36-4042d7dc171a",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "782ff15e-a4b7-40bc-b4b7-5c9a11dce0a0",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "57d9ec62-7bed-490e-9c4f-29003ffd8797",
+      "a": {
+        "elementId": "782ff15e-a4b7-40bc-b4b7-5c9a11dce0a0",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "70cb543e-0e29-4255-8619-550ba8729d0d",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "8b5d0c9b-5c4d-441b-9f92-7a8479a32a36",
+      "a": {
+        "elementId": "70cb543e-0e29-4255-8619-550ba8729d0d",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "61e00a4a-94ec-4bc4-8694-88088a025c34",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "fc18174b-3994-4b46-b3a7-30ee8eb21794",
+      "a": {
+        "elementId": "70cb543e-0e29-4255-8619-550ba8729d0d",
+        "portId": "branch"
+      },
+      "b": {
+        "elementId": "1ad239a7-9ec6-468f-838f-b4d3793c769f",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "593d5b21-4fb8-429f-aba2-ab5e62f78027",
+      "a": {
+        "elementId": "61e00a4a-94ec-4bc4-8694-88088a025c34",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "70efff72-fbad-4c5b-a740-4ac7818af2cc",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "e9549d89-9cba-47af-a5aa-df7dba936e63",
+      "a": {
+        "elementId": "70efff72-fbad-4c5b-a740-4ac7818af2cc",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "643420f1-1213-4535-919b-eefe9d1eb40e",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "f3faaeca-098b-43ca-9ada-db6881d440a7",
+      "a": {
+        "elementId": "643420f1-1213-4535-919b-eefe9d1eb40e",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "9143c87a-1e4c-40c9-b9a4-5b7f7e5b9425",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "a8240dd7-3259-4580-8efb-e1f84da15162",
+      "a": {
+        "elementId": "9143c87a-1e4c-40c9-b9a4-5b7f7e5b9425",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "f7df0d84-1a78-4ffc-ba35-c5a3c1444a69",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "b4a5abd4-9d5d-40da-b719-475f409a8cfd",
+      "a": {
+        "elementId": "f7df0d84-1a78-4ffc-ba35-c5a3c1444a69",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "9d489a85-9a55-49bc-80d5-a25cbe7256a7",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "57d5d95f-f02b-4fec-be13-e2a6a26fe74d",
+      "a": {
+        "elementId": "9d489a85-9a55-49bc-80d5-a25cbe7256a7",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "58f30ec6-f5cf-4daf-b5d7-be2d1bde7dec",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "c50d88ca-cc1e-474f-8933-30e58c8a8d29",
+      "a": {
+        "elementId": "56135eeb-03d2-4d95-98cd-f5da2fb51b13",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "9d489a85-9a55-49bc-80d5-a25cbe7256a7",
+        "portId": "branch"
+      }
+    },
+    {
+      "id": "c6a3eb7e-e6c0-40f9-887a-84d4719d738c",
+      "a": {
+        "elementId": "56135eeb-03d2-4d95-98cd-f5da2fb51b13",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "cddd0e5d-fde5-420c-98c2-6eb65fa440af",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "75638de1-9550-4449-a316-581064f9abe2",
+      "a": {
+        "elementId": "cddd0e5d-fde5-420c-98c2-6eb65fa440af",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "440a0f23-c20f-41b3-9349-8233f5d971ab",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "5d090c35-a42c-4aec-8671-d2ad99319691",
+      "a": {
+        "elementId": "58f30ec6-f5cf-4daf-b5d7-be2d1bde7dec",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "0bb70a37-5983-43bc-8dc1-f9274da231e5",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "9423a739-4491-4ef8-aba5-c68ceb79d42c",
+      "a": {
+        "elementId": "0bb70a37-5983-43bc-8dc1-f9274da231e5",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "4b8ac924-efeb-4953-8072-1bcd51852949",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "bbafecbe-b24c-4971-8ce7-aa4cf640412d",
+      "a": {
+        "elementId": "4b8ac924-efeb-4953-8072-1bcd51852949",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "3945e9d8-3750-46b1-b40e-ec6b667d0eb3",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "fefd7f55-f302-4ab4-9871-35ee5293f029",
+      "a": {
+        "elementId": "3945e9d8-3750-46b1-b40e-ec6b667d0eb3",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "42f6783f-1288-4ec4-b919-36fceb18df73",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "1293f3aa-3618-4cff-af0e-e40932ad5f86",
+      "a": {
+        "elementId": "42f6783f-1288-4ec4-b919-36fceb18df73",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "26f4c0ce-9d08-4f67-9a9e-d8db4d6aaae1",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "af5a68e8-b2d6-42ea-b79b-8d110d7d4618",
+      "a": {
+        "elementId": "26f4c0ce-9d08-4f67-9a9e-d8db4d6aaae1",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "0c7b23d4-6c6d-4f37-967b-46d5fa258aab",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "7f478dd9-a976-4d8c-9333-478b6b68076e",
+      "a": {
+        "elementId": "0c7b23d4-6c6d-4f37-967b-46d5fa258aab",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "d67c2c13-58ac-4179-9a09-6d39c4dae15c",
+        "portId": "b"
+      }
+    },
+    {
+      "id": "0aec4e45-f052-4d97-a31b-83800ef0b090",
+      "a": {
+        "elementId": "4df64617-741c-4037-b007-840f67ce0525",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "d67c2c13-58ac-4179-9a09-6d39c4dae15c",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "4bebb39b-7554-43e6-8f78-7e9107afc43d",
+      "a": {
+        "elementId": "4df64617-741c-4037-b007-840f67ce0525",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "773c7764-f927-43c6-874d-7c4a56262dfd",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "4650e5e4-492a-4431-9b30-1971cd341af7",
+      "a": {
+        "elementId": "773c7764-f927-43c6-874d-7c4a56262dfd",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "5b929e61-22fe-4ad9-9098-e05bf1828da6",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "5dcf2557-d536-4316-963e-b52afcf1ff94",
+      "a": {
+        "elementId": "5b929e61-22fe-4ad9-9098-e05bf1828da6",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "e643416a-c5c2-4966-834e-8351d0a5d3a0",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "ae51d2f8-ffec-4af1-95a4-c3abe2943017",
+      "a": {
+        "elementId": "e643416a-c5c2-4966-834e-8351d0a5d3a0",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "32c857b0-35fd-4eb7-8fae-9206e5f7ad91",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "cbc1f36f-5ee2-4e73-a245-d54404165d49",
+      "a": {
+        "elementId": "32c857b0-35fd-4eb7-8fae-9206e5f7ad91",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "c530ea6a-b32b-4cd5-8b2e-ff78840585a1",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "e499b473-2af6-4c1a-9b00-6abf9db0776b",
+      "a": {
+        "elementId": "c530ea6a-b32b-4cd5-8b2e-ff78840585a1",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "7eb46ed6-50c9-4502-b170-768565258f73",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "d111c13b-d2d1-444d-bae0-67783248acd2",
+      "a": {
+        "elementId": "7eb46ed6-50c9-4502-b170-768565258f73",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "d90e2b35-7d6c-4614-89e9-c026ee34e8f2",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "cfc44b23-5408-4ba2-b9c7-ecb0bb216f07",
+      "a": {
+        "elementId": "0605f0a2-5b36-4b43-b8b1-bd5f8cbb8de7",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "d90e2b35-7d6c-4614-89e9-c026ee34e8f2",
+        "portId": "b"
+      }
+    },
+    {
+      "id": "f97f1cbf-7613-4963-9dd7-c85413302132",
+      "a": {
+        "elementId": "48af4ce8-9275-4099-8939-64e7aed55744",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "b02e0895-a403-4663-a563-18bd4aa2a3c8",
+        "portId": "b"
+      }
+    },
+    {
+      "id": "d9c3b679-c0d3-4500-ab04-2defb26af6d1",
+      "a": {
+        "elementId": "0605f0a2-5b36-4b43-b8b1-bd5f8cbb8de7",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "d2462bc5-e5ea-4ee1-a564-5fd0716c30d2",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "cd6f5d60-dfd8-4165-8419-6458f3fa0273",
+      "a": {
+        "elementId": "d2462bc5-e5ea-4ee1-a564-5fd0716c30d2",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "4ee2e675-77f4-4652-9a19-e26638eca87a",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "8b2f7089-38e4-4213-a1bb-5ca5bc66c222",
+      "a": {
+        "elementId": "4ee2e675-77f4-4652-9a19-e26638eca87a",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "44a72cca-e1d9-46bd-bbd1-167f5886007d",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "16ead556-2635-42ee-91ee-17284a23fd26",
+      "a": {
+        "elementId": "44a72cca-e1d9-46bd-bbd1-167f5886007d",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "b779a57e-e4a7-4f23-944c-69aa117fa8ec",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "e8165ddc-5e74-467d-ad3f-25cd866984a8",
+      "a": {
+        "elementId": "b779a57e-e4a7-4f23-944c-69aa117fa8ec",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "3c9853ab-9c41-43c0-9a3a-cd1b41729339",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "bf0a6f03-4702-421b-8388-39aac5d7f75c",
+      "a": {
+        "elementId": "3c9853ab-9c41-43c0-9a3a-cd1b41729339",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "48af4ce8-9275-4099-8939-64e7aed55744",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "061fa9d1-b528-4eda-b576-ddf0aa49fd44",
+      "a": {
+        "elementId": "33234e96-94b6-4c31-bf00-c6b61302e28e",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "e643416a-c5c2-4966-834e-8351d0a5d3a0",
+        "portId": "branch"
+      }
+    },
+    {
+      "id": "b34ca820-3fc9-4fbf-a182-7a9501f20ef5",
+      "a": {
+        "elementId": "33234e96-94b6-4c31-bf00-c6b61302e28e",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "b7ddce5d-6d22-4de6-b99f-91511986f980",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "8804317b-d03d-40c0-a1c1-55415d05bd5f",
+      "a": {
+        "elementId": "b7ddce5d-6d22-4de6-b99f-91511986f980",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "4c09dbf1-2b85-42e4-82f3-9e1a2bdf30f1",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "b19f3963-ea48-47fb-8f35-461dd9a60d78",
+      "a": {
+        "elementId": "4c09dbf1-2b85-42e4-82f3-9e1a2bdf30f1",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "f5fb02bf-9cf3-4900-a636-7ca280ee451a",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "89a8b5d3-5202-4f84-812c-05f9f1954959",
+      "a": {
+        "elementId": "f5fb02bf-9cf3-4900-a636-7ca280ee451a",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "f257909d-14c6-463b-bff2-1ad84bad979e",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "4c6fb9df-67aa-4524-8b9e-f1793368407f",
+      "a": {
+        "elementId": "f257909d-14c6-463b-bff2-1ad84bad979e",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "42c39e96-4e57-4a48-856c-0b434e37f0bf",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "c9f6ee15-fae6-4f5d-a491-4706ce17ed0d",
+      "a": {
+        "elementId": "81bca1d1-7654-4b81-895d-1a27cbee1bb5",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "42c39e96-4e57-4a48-856c-0b434e37f0bf",
+        "portId": "b"
+      }
+    },
+    {
+      "id": "3d9eda08-f20e-4fa1-98a3-4ba7227f92a3",
+      "a": {
+        "elementId": "81bca1d1-7654-4b81-895d-1a27cbee1bb5",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "80ea9617-6241-4dcd-bc38-a3f6e5fba9b3",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "aee3a6ec-bd80-4504-ba97-cc08578ea48b",
+      "a": {
+        "elementId": "80ea9617-6241-4dcd-bc38-a3f6e5fba9b3",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "033d40c6-309b-47c0-92bc-6150ef3cca63",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "d6bee132-722a-4542-b3f3-71b388423604",
+      "a": {
+        "elementId": "033d40c6-309b-47c0-92bc-6150ef3cca63",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "24be54fa-9ffd-41e0-8bbf-58c6b76276f3",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "f8e26b61-cd1e-48a8-8a35-4dc0d6c8d313",
+      "a": {
+        "elementId": "24be54fa-9ffd-41e0-8bbf-58c6b76276f3",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "00824c14-c796-40c2-9b93-9db3022a6716",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "408cb675-d444-4755-9645-0157f61e9260",
+      "a": {
+        "elementId": "00824c14-c796-40c2-9b93-9db3022a6716",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "796aa162-bcc1-428f-9dac-d06f82814946",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "c790ce3c-8244-48a3-bba5-d8256bc1499f",
+      "a": {
+        "elementId": "796aa162-bcc1-428f-9dac-d06f82814946",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "e1f15ee0-992b-4fc9-b0a6-972551a071f1",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "55cd5e19-4ebd-48d1-ba6f-a27a635879d5",
+      "a": {
+        "elementId": "e1f15ee0-992b-4fc9-b0a6-972551a071f1",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "3c9853ab-9c41-43c0-9a3a-cd1b41729339",
+        "portId": "branch"
+      }
+    },
+    {
+      "id": "88ee72a4-9b6e-4104-b969-0f99cb7c7c17",
+      "a": {
+        "elementId": "c2092a2a-d33a-45f3-a9c2-4062b4182ac7",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "b02e0895-a403-4663-a563-18bd4aa2a3c8",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "9156eec3-ac45-4f25-80f1-291572604c26",
+      "a": {
+        "elementId": "c2092a2a-d33a-45f3-a9c2-4062b4182ac7",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "f533cd80-d394-4b21-8b65-6e5403469424",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "f8fce949-1d7a-4a6b-8a81-c23a22022e9e",
+      "a": {
+        "elementId": "f533cd80-d394-4b21-8b65-6e5403469424",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "27c84a3a-bf7d-4f30-879c-2cb03de21f43",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "1fb2bc2c-0ca0-4219-894f-da8a94128c43",
+      "a": {
+        "elementId": "27c84a3a-bf7d-4f30-879c-2cb03de21f43",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "ec81966a-ed6a-422c-b3f1-e275ac37e4f0",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "3eb2f690-1f1c-4713-81e3-b288d8f3e2a1",
+      "a": {
+        "elementId": "ec81966a-ed6a-422c-b3f1-e275ac37e4f0",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "e7c4c96c-04b8-4be9-b63d-e4f4fcac5c3c",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "cea81d03-7f35-4c3d-8f18-a96404498480",
+      "a": {
+        "elementId": "35cb7c9d-a6c7-4ba3-ab2a-9b0b3e032363",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "d67c2c13-58ac-4179-9a09-6d39c4dae15c",
+        "portId": "734eb9d0-13ce-42f1-89fc-8d38db849ae2"
+      }
+    },
+    {
+      "id": "bd8bb7a1-8782-4d85-b057-e19dc9226fb8",
+      "a": {
+        "elementId": "35cb7c9d-a6c7-4ba3-ab2a-9b0b3e032363",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "a3c117fc-9eb0-498b-b1df-b06ca9b1ab3c",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "d7b65b53-7a2d-44a0-b371-cfab9b198234",
+      "a": {
+        "elementId": "a3c117fc-9eb0-498b-b1df-b06ca9b1ab3c",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "3f19db69-6455-4aed-8bfb-dff15b20dbcc",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "d45deeb5-be02-4fcb-9f6d-72648b3d542c",
+      "a": {
+        "elementId": "7c0c2419-e34d-4810-8834-077d62a708b6",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "d67c2c13-58ac-4179-9a09-6d39c4dae15c",
+        "portId": "98b15d01-7768-4705-b84d-fe697bb9a3b7"
+      }
+    },
+    {
+      "id": "e949f786-1102-4f81-a269-36fb4a66bff9",
+      "a": {
+        "elementId": "7c0c2419-e34d-4810-8834-077d62a708b6",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "e2f457de-0ea3-4575-a72b-0905af79038e",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "34e699f8-2454-4d4a-8a70-3e9ae34b73bb",
+      "a": {
+        "elementId": "e2f457de-0ea3-4575-a72b-0905af79038e",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "806aa0db-3a94-4a1d-be99-51980d29052c",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "aac993f1-d7cc-4423-ac57-0db2574ae4a8",
+      "a": {
+        "elementId": "51cc5501-76fa-4196-9199-3d6bf918e99e",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "b02e0895-a403-4663-a563-18bd4aa2a3c8",
+        "portId": "2b1318df-dcbb-44bc-b876-1f37477a5175"
+      }
+    },
+    {
+      "id": "a5223b23-0144-425d-ac2e-72d2eb434345",
+      "a": {
+        "elementId": "2814f306-0ea2-49ee-93b3-73f51c95fb4c",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "b02e0895-a403-4663-a563-18bd4aa2a3c8",
+        "portId": "58a7ddc7-ad68-4b11-afb3-47b94bc5625c"
+      }
+    },
+    {
+      "id": "3ef4d84c-f115-45bc-9cb6-c2eaf027fe41",
+      "a": {
+        "elementId": "2814f306-0ea2-49ee-93b3-73f51c95fb4c",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "e3cf29ba-d59c-40ab-b540-aa74f77d4684",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "350e9905-be12-484d-bf11-75e0953e4175",
+      "a": {
+        "elementId": "e3cf29ba-d59c-40ab-b540-aa74f77d4684",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "c90e701e-808b-441c-b026-87c6f2251ed9",
+        "portId": "start"
+      }
+    }
+  ],
+  "annotations": [],
+  "drawingScale": 50,
+  "infra": {
+    "drawingScale": 1000,
+    "basemap": {
+      "sourceId": null,
+      "visible": true,
+      "opacity": 1
+    },
+    "layers": {
+      "network": true,
+      "equipment": true,
+      "terrain": true,
+      "references": true,
+      "annotations": true
+    },
+    "labels": {
+      "names": false,
+      "lengths": false,
+      "elevations": false
+    }
+  },
+  "views": [],
+  "architecture": {
+    "types": [],
+    "elements": []
+  }
+}

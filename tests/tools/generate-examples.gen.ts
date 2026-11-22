@@ -8,6 +8,7 @@ import { createBuildingDemoProject } from '../../apps/web/src/demo/buildingDemo'
 import { createDemoProject } from '../../apps/web/src/demo/demoProject';
 import { createEarthworkDemoProject } from '../../apps/web/src/demo/earthworkDemo';
 import { createJunctionDemoProject } from '../../apps/web/src/demo/junctionDemo';
+import { createReservationDemoProject } from '../../apps/web/src/demo/reservationDemo';
 import { createTankDemoProject } from '../../apps/web/src/demo/tankDemo';
 
 /** Famílias do catálogo e do projeto: alimentam os tipos IFC (fabricante, fonte, modelo). */
@@ -65,6 +66,21 @@ it('gera examples/reservatorios-tramec (.hydrobim.json e .ifc)', () => {
   );
   writeFileSync(
     join(directory, 'reservatorios-tramec.ifc'),
+    exportIfc(project, ifcOptions(project)),
+    'utf8',
+  );
+});
+
+it('gera examples/centro-reservacao (.hydrobim.json e .ifc)', () => {
+  const directory = join(import.meta.dirname, '..', '..', 'examples');
+  const project = createReservationDemoProject();
+  writeFileSync(
+    join(directory, 'centro-reservacao.hydrobim.json'),
+    `${serializeProject(project)}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    join(directory, 'centro-reservacao.ifc'),
     exportIfc(project, ifcOptions(project)),
     'utf8',
   );
