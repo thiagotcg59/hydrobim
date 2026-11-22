@@ -44,6 +44,8 @@ interface VrState {
   /** Leitura da vista: ponto do projeto sob o usuário, elemento consultado e menu aberto. */
   position: Vec3 | null;
   selected: string | null;
+  /** Elemento sob o raio do controle (o rótulo com o nome aparece junto dele). */
+  hovered: string | null;
   menuOpen: boolean;
   /** Mira do teletransporte: destino aceito, recusado (sem piso ou íngreme) ou com obstáculo. */
   aim: 'valid' | 'invalid' | 'blocked' | null;
@@ -64,6 +66,7 @@ const INITIAL: VrState = {
   hiddenCategories: [],
   position: null,
   selected: null,
+  hovered: null,
   menuOpen: false,
   aim: null,
 };
@@ -203,6 +206,7 @@ export async function closeVr(): Promise<void> {
     stats: null,
     position: null,
     selected: null,
+    hovered: null,
     menuOpen: false,
     aim: null,
   });

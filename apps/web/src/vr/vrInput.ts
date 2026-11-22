@@ -2,8 +2,10 @@
  * Leitura dos controles (Meta Quest Touch e outros com o mapeamento `xr-standard`): transforma
  * o estado do direcional e dos botões, lido a cada quadro, em ações discretas. Funções puras.
  *
- * - Direcional para a frente: mira o teletransporte; soltar confirma.
- * - Direcional para os lados: giro por etapas, um por toque (não há locomoção contínua).
+ * - Mão esquerda: o direcional anda de forma contínua, na direção do olhar (pode ser desligado
+ *   no menu; aí vale o mesmo que a direita).
+ * - Mão direita — direcional para a frente: mira o teletransporte; soltar confirma.
+ * - Mão direita — direcional para os lados: giro por etapas, um por toque.
  * - Botões A/B (direita) ou X/Y (esquerda): abrem e fecham o menu.
  * O gatilho (seleção) e o aperto chegam como eventos da sessão, não por aqui.
  */
@@ -52,12 +54,42 @@ export function readPad(
   return { x, y, menu };
 }
 
+/** Velocidade da caminhada com o direcional todo inclinado (m/s): um passo apressado. */
+export const VR_WALK_SPEED = 2;
+/** Folga do direcional em repouso: abaixo disto não há deslocamento. */
+export const STICK_DEADZONE = 0.15;
+
+/**
+ * Papel do direcional de uma mão. `move`: caminhada contínua (mão esquerda, como nos jogos do
+ * Quest). `steer`: teletransporte para a frente e giro por etapas para os lados.
+ */
+export type StickMode = 'move' | 'steer';
+
+/**
+ * Caminhada pedida pelo direcional, de −1 a 1 em cada eixo: `ahead` para a frente, `right` para
+ * a direita. A folga central é descontada e o resto, reescalado — inclinar pouco anda devagar.
+ */
+export function moveVector(pad: PadState): { ahead: number; right: number } {
+  const length = Math.hypot(pad.x, pad.y);
+  if (length < STICK_DEADZONE) return { ahead: 0, right: 0 };
+  const scale = Math.min(1, (length - STICK_DEADZONE) / (1 - STICK_DEADZONE)) / length;
+  // `+ 0` evita o zero negativo quando o direcional está exatamente sobre um eixo.
+  return { ahead: -pad.y * scale + 0, right: pad.x * scale + 0 };
+}
+
 /** Avança o estado de uma mão e devolve as ações disparadas neste quadro. */
 export function stepHand(
   previous: HandState,
   pad: PadState,
+  mode: StickMode = 'steer',
 ): { state: HandState; actions: HandAction[] } {
   const actions: HandAction[] = [];
+  if (mode === 'move') {
+    // O direcional desta mão só anda: não mira o teletransporte nem gira.
+    if (previous.aiming) actions.push('cancelTeleport');
+    if (pad.menu && !previous.menuDown) actions.push('menu');
+    return { state: { aiming: false, turned: false, menuDown: pad.menu }, actions };
+  }
   const forward = -pad.y;
   const side = Math.abs(pad.x);
 

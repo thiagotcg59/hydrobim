@@ -18,7 +18,14 @@ import { createTankDemoProject } from '../demo/tankDemo';
 import { visibleElementsOf } from '../editor/visibility';
 import { projectToXr, xrToProject, type VrPlacement } from './vrCoordinates';
 import { vrArchInfo, vrElementInfo, vrProjectInfo } from './vrInfo';
-import { IDLE_HAND, readPad, stepHand, type HandAction, type PadState } from './vrInput';
+import {
+  IDLE_HAND,
+  moveVector,
+  readPad,
+  stepHand,
+  type HandAction,
+  type PadState,
+} from './vrInput';
 import { buildVrModel } from './vrModel';
 import { hitPanel, layoutPanel, panelHeightM, wrapText, type PanelSpec } from './vrPanel';
 import { FrameMeter, sessionQuality, VR_HEAVY_TRIANGLES } from './vrPerformance';
@@ -487,6 +494,32 @@ describe('controles', () => {
 
   it('não gira enquanto mira nem logo depois de soltar com o direcional de lado', () => {
     expect(run(pad(0, -0.9), pad(0.9, -0.5), pad(0.2, 0))).toEqual(['teleport']);
+  });
+
+  it('mão de caminhada: o direcional anda, não mira nem gira', () => {
+    const moving = (...states: PadState[]): HandAction[] => {
+      let state = IDLE_HAND;
+      const actions: HandAction[] = [];
+      for (const next of states) {
+        const step = stepHand(state, next, 'move');
+        state = step.state;
+        actions.push(...step.actions);
+        expect(state.aiming).toBe(false);
+      }
+      return actions;
+    };
+    expect(moving(pad(0, -1), pad(0, 0), pad(1, 0), pad(0, 0))).toEqual([]);
+    expect(moving(pad(0, -1, true), pad(0, -1, true))).toEqual(['menu']);
+  });
+
+  it('caminhada: folga central, proporcional à inclinação, nunca acima de 1', () => {
+    expect(moveVector(pad(0.05, -0.1))).toEqual({ ahead: 0, right: 0 });
+    expect(moveVector(pad(0, -1))).toEqual({ ahead: 1, right: 0 });
+    expect(moveVector(pad(1, 0))).toEqual({ ahead: 0, right: 1 });
+    const half = moveVector(pad(0, -0.575));
+    expect(half.ahead).toBeCloseTo(0.5);
+    const corner = moveVector(pad(1, -1));
+    expect(Math.hypot(corner.ahead, corner.right)).toBeCloseTo(1);
   });
 
   it('botão de face abre o menu uma vez por toque', () => {

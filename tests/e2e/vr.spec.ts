@@ -145,14 +145,14 @@ test('sessão simulada: entrar, teletransportar, girar, selecionar, abrir o menu
   expect(Math.abs(moved.x - start.x)).toBeLessThan(0.5);
   expect(moved.z).toBeCloseTo(start.z, 2);
 
-  // Giro por etapas: não tira o usuário do lugar.
+  // Giro por etapas (direcional direito): não tira o usuário do lugar.
   await device(page, (xr) => {
-    const hand = xr.hands[0];
+    const hand = xr.hands[1];
     if (hand) hand.axes = [0, 0, 1, 0];
   });
   await page.waitForTimeout(300);
   await device(page, (xr) => {
-    const hand = xr.hands[0];
+    const hand = xr.hands[1];
     if (hand) hand.axes = [0, 0, 0, 0];
   });
   await page.waitForTimeout(400);
@@ -161,12 +161,12 @@ test('sessão simulada: entrar, teletransportar, girar, selecionar, abrir o menu
   // Volta a olhar para o norte (11 giros de 30° completam a volta).
   for (let i = 0; i < 11; i += 1) {
     await device(page, (xr) => {
-      const hand = xr.hands[0];
+      const hand = xr.hands[1];
       if (hand) hand.axes = [0, 0, 1, 0];
     });
     await page.waitForTimeout(80);
     await device(page, (xr) => {
-      const hand = xr.hands[0];
+      const hand = xr.hands[1];
       if (hand) hand.axes = [0, 0, 0, 0];
     });
     await page.waitForTimeout(80);
@@ -174,6 +174,7 @@ test('sessão simulada: entrar, teletransportar, girar, selecionar, abrir o menu
 
   // Seleção: varre o raio do controle até apontar para um elemento e aperta o gatilho.
   let selected = '';
+  let hovered = '';
   search: for (const pitch of [0, 0.1, -0.1, 0.2, 0.3, -0.2, 0.45, 0.6]) {
     for (const yaw of [0, 0.15, -0.15, 0.3, -0.3, 0.5, -0.5, 0.8, -0.8]) {
       await page.evaluate(
@@ -186,14 +187,54 @@ test('sessão simulada: entrar, teletransportar, girar, selecionar, abrir o menu
         },
         [pitch, yaw],
       );
-      await page.waitForTimeout(80);
+      await page.waitForTimeout(120);
+      hovered = (await view(page).getAttribute('data-hovered')) ?? '';
+      if (!hovered) continue;
       await device(page, (xr) => xr.press(1));
       await page.waitForTimeout(120);
       selected = (await view(page).getAttribute('data-selected')) ?? '';
       if (selected) break search;
     }
   }
-  expect(selected).not.toBe('');
+  // Mirar já identifica o elemento (rótulo com o nome); o gatilho abre as propriedades dele.
+  expect(hovered).not.toBe('');
+  expect(selected).toBe(hovered);
+  await expect(view(page)).toHaveAttribute('data-hovered', '');
+
+  // Caminhada contínua: o direcional esquerdo anda na direção do olhar (norte), sem saltos.
+  const beforeWalk = await reading(page);
+  await device(page, (xr) => {
+    const hand = xr.hands[0];
+    if (hand) hand.axes = [0, 0, 0, -1];
+  });
+  await page.waitForTimeout(700);
+  const walking = await reading(page);
+  await device(page, (xr) => {
+    const hand = xr.hands[0];
+    if (hand) hand.axes = [0, 0, 0, 0];
+  });
+  await page.waitForTimeout(400);
+  const walked = await reading(page);
+  expect(walking.y).toBeGreaterThan(beforeWalk.y + 0.2);
+  expect(walked.y).toBeGreaterThan(walking.y - 0.01);
+  // A 2 m/s, menos de dois segundos de direcional não passam de 4 m.
+  expect(walked.y - beforeWalk.y).toBeLessThan(4);
+  expect(Math.abs(walked.x - beforeWalk.x)).toBeLessThan(0.05);
+  expect(walked.z).toBeCloseTo(beforeWalk.z, 2);
+  // Para o lado: o direcional esquerdo desloca para leste, sem girar.
+  await device(page, (xr) => {
+    const hand = xr.hands[0];
+    if (hand) hand.axes = [0, 0, 1, 0];
+  });
+  await page.waitForTimeout(500);
+  await device(page, (xr) => {
+    const hand = xr.hands[0];
+    if (hand) hand.axes = [0, 0, 0, 0];
+  });
+  await page.waitForTimeout(400);
+  const strafed = await reading(page);
+  expect(strafed.x).toBeGreaterThan(walked.x + 0.2);
+  expect(Math.abs(strafed.y - walked.y)).toBeLessThan(0.05);
 
   // Menu: botão de face do controle esquerdo.
   await device(page, (xr) => {

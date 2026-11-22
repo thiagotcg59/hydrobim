@@ -10,6 +10,7 @@ import {
   snapTurn,
   teleportPlacement,
   toVr,
+  walkPlacement,
   xrToProject,
   type VrPlacement,
 } from './vrCoordinates';
@@ -141,6 +142,35 @@ describe('giro por etapas', () => {
     for (let i = 0; i < 12; i += 1) placement = snapTurn(placement, head, Math.PI / 6);
     const probe = vec3(8, 1, 2);
     close(projectToXr(placement, probe), projectToXr(start, probe), 9);
+  });
+});
+
+describe('caminhada pelo direcional', () => {
+  const start: VrPlacement = { anchor: vec3(100, 200, 10), yaw: 0, floorY: 0 };
+
+  it('anda para onde a cabeça está voltada, na horizontal', () => {
+    // Cabeça voltada para −Z com giro zero: norte do projeto.
+    const head = { x: 0, z: 0 };
+    const ahead = walkPlacement(start, head, 2, 0);
+    close(feetOf(ahead, head), vec3(100, 202, 10));
+    const right = walkPlacement(start, head, 0, 1.5);
+    close(feetOf(right, head), vec3(101.5, 200, 10));
+  });
+
+  it('segue o olhar depois de um giro e com a cabeça virada', () => {
+    const head = { x: 0.4, z: -0.2, forward: { x: 1, z: 0 } };
+    const turned = snapTurn(start, head, Math.PI / 2);
+    const before = feetOf(turned, head);
+    const after = feetOf(walkPlacement(turned, head, 3, 0), head);
+    expect(distance(before, after)).toBeCloseTo(3, 9);
+    expect(after.z).toBe(before.z);
+    // O que estava 3 m adiante do olhar passa a ficar sob os pés.
+    const target = xrToProject(turned, vec3(head.x + 3, 0, head.z));
+    close(after, target);
+  });
+
+  it('não gira o modelo', () => {
+    expect(walkPlacement(start, { x: 0, z: 0 }, 1, 1).yaw).toBe(start.yaw);
   });
 });
 
