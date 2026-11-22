@@ -1,0 +1,3219 @@
+{
+  "format": "hydrobim-project",
+  "schemaVersion": 17,
+  "id": "2f23a482-e4db-4381-8066-13f65573e584",
+  "name": "Exemplo02",
+  "discipline": "mep",
+  "units": {
+    "length": "m",
+    "angle": "rad"
+  },
+  "createdAt": "2026-11-20T20:41:34.547Z",
+  "updatedAt": "2026-11-22T16:46:04.560Z",
+  "systems": [
+    {
+      "id": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "name": "Abastecimento de água",
+      "kind": "waterSupply"
+    }
+  ],
+  "levels": [
+    {
+      "id": "e814b02f-69ae-4fbc-ba5b-e19a2e9de75b",
+      "name": "Referência",
+      "elevation": 0
+    }
+  ],
+  "families": [],
+  "tankFamilies": [],
+  "pumpFamilies": [],
+  "ifcTypes": {
+    "valve|gate|euro21-gaveta-longa-pn16@ferro-ductil-nbr7675-k9|ferro-ductil-nbr7675-k9|80|0.28|0.275|0.174||a:flange|b:flange": {
+      "Pset_ManufacturerTypeInformation.Manufacturer": "SEM MARCA",
+      "Pset_ValveTypeCommon.ValveMechanism": "GLAND",
+      "Pset_ValveTypeCommon.ValveOperation": "FLOAT"
+    }
+  },
+  "georeference": {
+    "crsName": "SIRGAS 2000 / UTM zone 21S",
+    "epsg": 31981,
+    "eastings": 753743.745,
+    "northings": 7739257.677,
+    "orthogonalHeight": 0,
+    "rotation": 0,
+    "verticalDatum": null
+  },
+  "terrain": {
+    "id": "terreno",
+    "name": "Terreno — Terrain Tiles",
+    "tag": "",
+    "points": [
+      {
+        "x": -59.1181,
+        "y": -94.0037,
+        "z": 666.1052
+      },
+      {
+        "x": -54.7524,
+        "y": -93.2361,
+        "z": 666.0567
+      },
+      {
+        "x": -57.9281,
+        "y": -88.7198,
+        "z": 666.125
+      },
+      {
+        "x": -46.0209,
+        "y": -91.7009,
+        "z": 665.6278
+      },
+      {
+        "x": -41.6552,
+        "y": -90.9333,
+        "z": 665.3164
+      },
+      {
+        "x": -44.4882,
+        "y": -88.919,
+        "z": 665.5
+      },
+      {
+        "x": -78.123,
+        "y": -88.6853,
+        "z": 665.9304
+      },
+      {
+        "x": -77.352,
+        "y": -92.8797,
+        "z": 665.9454
+      },
+      {
+        "x": -75.8479,
+        "y": -88.4542,
+        "z": 665.9375
+      },
+      {
+        "x": -37.2895,
+        "y": -90.1657,
+        "z": 665.0213
+      },
+      {
+        "x": -40.0083,
+        "y": -88.9854,
+        "z": 665.168
+      },
+      {
+        "x": -67.8495,
+        "y": -95.5389,
+        "z": 666.0307
+      },
+      {
+        "x": -63.4838,
+        "y": -94.7713,
+        "z": 666.0815
+      },
+      {
+        "x": -66.954,
+        "y": -93.0406,
+        "z": 666.0508
+      },
+      {
+        "x": -38.2764,
+        "y": -86.033,
+        "z": 665.0625
+      },
+      {
+        "x": -39.9423,
+        "y": -84.5318,
+        "z": 665.168
+      },
+      {
+        "x": -48.9682,
+        "y": -88.8526,
+        "z": 665.8125
+      },
+      {
+        "x": -50.3866,
+        "y": -92.4685,
+        "z": 665.8914
+      },
+      {
+        "x": -53.4481,
+        "y": -88.7862,
+        "z": 666.0352
+      },
+      {
+        "x": -71.434,
+        "y": -92.9742,
+        "z": 665.9883
+      },
+      {
+        "x": -44.4222,
+        "y": -84.4654,
+        "z": 665.5
+      },
+      {
+        "x": -62.4741,
+        "y": -93.107,
+        "z": 666.1055
+      },
+      {
+        "x": -57.8621,
+        "y": -84.2662,
+        "z": 666.1172
+      },
+      {
+        "x": -62.408,
+        "y": -88.6534,
+        "z": 666.1133
+      },
+      {
+        "x": -72.2153,
+        "y": -96.3065,
+        "z": 665.9911
+      },
+      {
+        "x": -48.9022,
+        "y": -84.399,
+        "z": 665.8125
+      },
+      {
+        "x": -75.9139,
+        "y": -92.9078,
+        "z": 665.9492
+      },
+      {
+        "x": -66.888,
+        "y": -88.587,
+        "z": 666.0508
+      },
+      {
+        "x": -76.581,
+        "y": -97.0741,
+        "z": 665.9836
+      },
+      {
+        "x": -71.368,
+        "y": -88.5206,
+        "z": 665.9805
+      },
+      {
+        "x": -66.822,
+        "y": -84.1334,
+        "z": 666.043
+      },
+      {
+        "x": -62.276,
+        "y": -79.7462,
+        "z": 666.0898
+      },
+      {
+        "x": -66.756,
+        "y": -79.6798,
+        "z": 666.0391
+      },
+      {
+        "x": -78.8941,
+        "y": -84.4909,
+        "z": 665.9359
+      },
+      {
+        "x": -75.7819,
+        "y": -84.0006,
+        "z": 665.9453
+      },
+      {
+        "x": -62.342,
+        "y": -84.1998,
+        "z": 666.1055
+      },
+      {
+        "x": -57.7961,
+        "y": -79.8126,
+        "z": 666.1016
+      },
+      {
+        "x": -71.302,
+        "y": -84.067,
+        "z": 665.9805
+      },
+      {
+        "x": -53.3161,
+        "y": -79.879,
+        "z": 666.0273
+      },
+      {
+        "x": -53.3821,
+        "y": -84.3326,
+        "z": 666.0313
+      },
+      {
+        "x": -48.8362,
+        "y": -79.9454,
+        "z": 665.8281
+      },
+      {
+        "x": -44.3562,
+        "y": -80.0118,
+        "z": 665.543
+      },
+      {
+        "x": -39.2633,
+        "y": -81.9003,
+        "z": 665.1655
+      },
+      {
+        "x": -40.2502,
+        "y": -77.7676,
+        "z": 665.3137
+      },
+      {
+        "x": -71.17,
+        "y": -75.1598,
+        "z": 666
+      },
+      {
+        "x": -71.236,
+        "y": -79.6134,
+        "z": 665.9844
+      },
+      {
+        "x": -66.69,
+        "y": -75.2262,
+        "z": 666.0391
+      },
+      {
+        "x": -48.7702,
+        "y": -75.4918,
+        "z": 665.8633
+      },
+      {
+        "x": -44.2902,
+        "y": -75.5582,
+        "z": 665.6133
+      },
+      {
+        "x": -41.2371,
+        "y": -73.6349,
+        "z": 665.4882
+      },
+      {
+        "x": -57.7301,
+        "y": -75.359,
+        "z": 666.0938
+      },
+      {
+        "x": -53.2501,
+        "y": -75.4254,
+        "z": 666.0313
+      },
+      {
+        "x": -62.21,
+        "y": -75.2926,
+        "z": 666.082
+      },
+      {
+        "x": -75.7159,
+        "y": -79.547,
+        "z": 665.9648
+      },
+      {
+        "x": -75.6499,
+        "y": -75.0934,
+        "z": 665.9883
+      },
+      {
+        "x": -79.6651,
+        "y": -80.2966,
+        "z": 665.9594
+      },
+      {
+        "x": -80.4361,
+        "y": -76.1022,
+        "z": 665.9893
+      },
+      {
+        "x": -80.0639,
+        "y": -70.5735,
+        "z": 666.0234
+      },
+      {
+        "x": -77.7803,
+        "y": -66.9938,
+        "z": 666.0287
+      },
+      {
+        "x": -81.9782,
+        "y": -67.7134,
+        "z": 666.0326
+      },
+      {
+        "x": -81.2071,
+        "y": -71.9078,
+        "z": 666.0167
+      },
+      {
+        "x": -57.6641,
+        "y": -70.9054,
+        "z": 666.0898
+      },
+      {
+        "x": -53.1181,
+        "y": -66.5182,
+        "z": 666.043
+      },
+      {
+        "x": -57.5981,
+        "y": -66.4518,
+        "z": 666.0742
+      },
+      {
+        "x": -75.5839,
+        "y": -70.6398,
+        "z": 666.0117
+      },
+      {
+        "x": -60.9891,
+        "y": -64.1153,
+        "z": 666.0532
+      },
+      {
+        "x": -62.078,
+        "y": -66.3854,
+        "z": 666.0703
+      },
+      {
+        "x": -71.104,
+        "y": -70.7062,
+        "z": 666.0156
+      },
+      {
+        "x": -53.1841,
+        "y": -70.9718,
+        "z": 666.043
+      },
+      {
+        "x": -66.624,
+        "y": -70.7726,
+        "z": 666.043
+      },
+      {
+        "x": -48.6382,
+        "y": -66.5846,
+        "z": 665.957
+      },
+      {
+        "x": -62.144,
+        "y": -70.839,
+        "z": 666.0781
+      },
+      {
+        "x": -48.7042,
+        "y": -71.0382,
+        "z": 665.9102
+      },
+      {
+        "x": -44.2242,
+        "y": -71.1046,
+        "z": 665.7109
+      },
+      {
+        "x": -44.1582,
+        "y": -66.651,
+        "z": 665.8242
+      },
+      {
+        "x": -42.224,
+        "y": -69.5022,
+        "z": 665.6667
+      },
+      {
+        "x": -43.2109,
+        "y": -65.3695,
+        "z": 665.8319
+      },
+      {
+        "x": -56.7913,
+        "y": -63.3957,
+        "z": 666.047
+      },
+      {
+        "x": -44.1979,
+        "y": -61.2368,
+        "z": 665.9675
+      },
+      {
+        "x": -48.3957,
+        "y": -61.9564,
+        "z": 665.9949
+      },
+      {
+        "x": -65.1869,
+        "y": -64.8349,
+        "z": 666.0457
+      },
+      {
+        "x": -66.558,
+        "y": -66.319,
+        "z": 666.0469
+      },
+      {
+        "x": -69.3847,
+        "y": -65.5545,
+        "z": 666.0329
+      },
+      {
+        "x": -52.5935,
+        "y": -62.676,
+        "z": 666.0254
+      },
+      {
+        "x": -73.5825,
+        "y": -66.2742,
+        "z": 666.0272
+      }
+    ],
+    "triangles": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      4,
+      9,
+      10,
+      4,
+      10,
+      5,
+      11,
+      12,
+      13,
+      10,
+      9,
+      14,
+      5,
+      10,
+      15,
+      16,
+      3,
+      5,
+      17,
+      16,
+      18,
+      1,
+      17,
+      18,
+      3,
+      16,
+      17,
+      11,
+      13,
+      19,
+      16,
+      5,
+      20,
+      1,
+      18,
+      2,
+      12,
+      21,
+      13,
+      22,
+      23,
+      2,
+      0,
+      21,
+      12,
+      24,
+      11,
+      19,
+      18,
+      16,
+      25,
+      24,
+      19,
+      26,
+      27,
+      21,
+      23,
+      28,
+      24,
+      26,
+      29,
+      19,
+      27,
+      7,
+      28,
+      26,
+      7,
+      26,
+      8,
+      26,
+      19,
+      29,
+      30,
+      31,
+      32,
+      33,
+      6,
+      8,
+      8,
+      26,
+      29,
+      34,
+      33,
+      8,
+      35,
+      22,
+      36,
+      34,
+      8,
+      37,
+      37,
+      8,
+      29,
+      19,
+      13,
+      27,
+      22,
+      38,
+      36,
+      37,
+      29,
+      30,
+      30,
+      29,
+      27,
+      13,
+      21,
+      27,
+      39,
+      40,
+      38,
+      30,
+      27,
+      35,
+      39,
+      25,
+      40,
+      35,
+      27,
+      23,
+      21,
+      0,
+      2,
+      22,
+      35,
+      23,
+      2,
+      18,
+      39,
+      23,
+      21,
+      2,
+      25,
+      20,
+      41,
+      22,
+      2,
+      39,
+      20,
+      42,
+      41,
+      39,
+      18,
+      25,
+      42,
+      43,
+      41,
+      25,
+      16,
+      20,
+      20,
+      15,
+      42,
+      10,
+      14,
+      15,
+      20,
+      5,
+      15,
+      44,
+      45,
+      46,
+      15,
+      14,
+      42,
+      30,
+      35,
+      31,
+      22,
+      39,
+      38,
+      47,
+      40,
+      48,
+      48,
+      43,
+      49,
+      40,
+      25,
+      41,
+      37,
+      30,
+      32,
+      37,
+      32,
+      45,
+      50,
+      36,
+      51,
+      51,
+      38,
+      47,
+      31,
+      35,
+      36,
+      34,
+      37,
+      45,
+      52,
+      31,
+      50,
+      53,
+      45,
+      44,
+      54,
+      53,
+      44,
+      34,
+      45,
+      53,
+      33,
+      34,
+      55,
+      56,
+      55,
+      53,
+      55,
+      34,
+      53,
+      56,
+      53,
+      54,
+      57,
+      58,
+      59,
+      60,
+      56,
+      54,
+      46,
+      32,
+      52,
+      57,
+      60,
+      54,
+      61,
+      62,
+      63,
+      57,
+      54,
+      64,
+      65,
+      66,
+      63,
+      64,
+      54,
+      67,
+      67,
+      54,
+      44,
+      45,
+      32,
+      46,
+      61,
+      68,
+      62,
+      67,
+      44,
+      69,
+      69,
+      44,
+      46,
+      32,
+      31,
+      52,
+      68,
+      70,
+      62,
+      69,
+      46,
+      71,
+      68,
+      72,
+      70,
+      61,
+      71,
+      52,
+      31,
+      36,
+      50,
+      71,
+      46,
+      52,
+      61,
+      52,
+      50,
+      36,
+      38,
+      51,
+      72,
+      73,
+      74,
+      61,
+      50,
+      68,
+      68,
+      50,
+      51,
+      38,
+      40,
+      47,
+      73,
+      75,
+      74,
+      68,
+      51,
+      72,
+      75,
+      76,
+      74,
+      73,
+      72,
+      47,
+      40,
+      41,
+      48,
+      72,
+      51,
+      47,
+      73,
+      47,
+      48,
+      41,
+      43,
+      48,
+      73,
+      48,
+      49,
+      73,
+      49,
+      75,
+      69,
+      71,
+      66,
+      62,
+      77,
+      63,
+      76,
+      78,
+      79,
+      74,
+      76,
+      79,
+      70,
+      72,
+      74,
+      66,
+      80,
+      81,
+      69,
+      81,
+      82,
+      62,
+      70,
+      83,
+      67,
+      69,
+      82,
+      71,
+      61,
+      63,
+      66,
+      65,
+      80,
+      77,
+      65,
+      63,
+      66,
+      71,
+      63,
+      67,
+      82,
+      84,
+      69,
+      66,
+      81,
+      81,
+      80,
+      82,
+      64,
+      67,
+      84,
+      64,
+      84,
+      58,
+      57,
+      64,
+      58,
+      60,
+      57,
+      59,
+      77,
+      62,
+      83,
+      70,
+      74,
+      79,
+      83,
+      70,
+      79
+    ],
+    "boundary": [
+      [
+        {
+          "x": -81.9782,
+          "y": -67.7134,
+          "z": 666.0326
+        },
+        {
+          "x": -81.2071,
+          "y": -71.9078,
+          "z": 666.0167
+        },
+        {
+          "x": -80.4361,
+          "y": -76.1022,
+          "z": 665.9893
+        },
+        {
+          "x": -79.6651,
+          "y": -80.2966,
+          "z": 665.9594
+        },
+        {
+          "x": -78.8941,
+          "y": -84.4909,
+          "z": 665.9359
+        },
+        {
+          "x": -78.123,
+          "y": -88.6853,
+          "z": 665.9304
+        },
+        {
+          "x": -77.352,
+          "y": -92.8797,
+          "z": 665.9454
+        },
+        {
+          "x": -76.581,
+          "y": -97.0741,
+          "z": 665.9836
+        },
+        {
+          "x": -72.2153,
+          "y": -96.3065,
+          "z": 665.9911
+        },
+        {
+          "x": -67.8495,
+          "y": -95.5389,
+          "z": 666.0307
+        },
+        {
+          "x": -63.4838,
+          "y": -94.7713,
+          "z": 666.0815
+        },
+        {
+          "x": -59.1181,
+          "y": -94.0037,
+          "z": 666.1052
+        },
+        {
+          "x": -54.7524,
+          "y": -93.2361,
+          "z": 666.0567
+        },
+        {
+          "x": -50.3866,
+          "y": -92.4685,
+          "z": 665.8914
+        },
+        {
+          "x": -46.0209,
+          "y": -91.7009,
+          "z": 665.6278
+        },
+        {
+          "x": -41.6552,
+          "y": -90.9333,
+          "z": 665.3164
+        },
+        {
+          "x": -37.2895,
+          "y": -90.1657,
+          "z": 665.0213
+        },
+        {
+          "x": -38.2764,
+          "y": -86.033,
+          "z": 665.0625
+        },
+        {
+          "x": -39.2633,
+          "y": -81.9003,
+          "z": 665.1655
+        },
+        {
+          "x": -40.2502,
+          "y": -77.7676,
+          "z": 665.3137
+        },
+        {
+          "x": -41.2371,
+          "y": -73.6349,
+          "z": 665.4882
+        },
+        {
+          "x": -42.224,
+          "y": -69.5022,
+          "z": 665.6667
+        },
+        {
+          "x": -43.2109,
+          "y": -65.3695,
+          "z": 665.8319
+        },
+        {
+          "x": -44.1979,
+          "y": -61.2368,
+          "z": 665.9675
+        },
+        {
+          "x": -48.3957,
+          "y": -61.9564,
+          "z": 665.9949
+        },
+        {
+          "x": -52.5935,
+          "y": -62.676,
+          "z": 666.0254
+        },
+        {
+          "x": -56.7913,
+          "y": -63.3957,
+          "z": 666.047
+        },
+        {
+          "x": -60.9891,
+          "y": -64.1153,
+          "z": 666.0532
+        },
+        {
+          "x": -65.1869,
+          "y": -64.8349,
+          "z": 666.0457
+        },
+        {
+          "x": -69.3847,
+          "y": -65.5545,
+          "z": 666.0329
+        },
+        {
+          "x": -73.5825,
+          "y": -66.2742,
+          "z": 666.0272
+        },
+        {
+          "x": -77.7803,
+          "y": -66.9938,
+          "z": 666.0287
+        }
+      ]
+    ],
+    "breaklines": [],
+    "source": {
+      "kind": "dem",
+      "provider": "Terrain Tiles (Mapzen/Tilezen, dados abertos na AWS)",
+      "dataset": "aws-terrarium — nível 15",
+      "horizontalCrs": "EPSG:3857",
+      "verticalDatum": null,
+      "resolution": 4.467,
+      "verticalAccuracy": null,
+      "acquiredAt": "2026-11-20T20:44:12.414Z",
+      "attribution": "Terrain Tiles (Mapzen/Tilezen): SRTM, GMTED2010 e 3DEP (USGS), ETOPO1 (NOAA) e fontes regionais listadas em github.com/tilezen/joerd/blob/master/docs/attribution.md",
+      "notes": "Mosaico de várias fontes; no Brasil o dado em terra é o SRTM (30 m nominais). A fonte não declara referência altimétrica nem exatidão: as cotas servem a estudos preliminares, não a projeto executivo. Nível 15 acima da resolução nominal do dado de origem: os valores são sobreamostrados pelo serviço e não acrescentam detalhe real."
+    },
+    "original": null
+  },
+  "earthworks": {
+    "platforms": [],
+    "swellPercent": null,
+    "compactionFactor": null,
+    "reusePercent": null
+  },
+  "elements": [
+    {
+      "id": "d194f3d3-18fa-4991-8169-f50702874dfd",
+      "name": "Tubo 6",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T20:57:51.069Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 6
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -76.3428744015511,
+        "y": -95.04088400017676,
+        "z": 665.9027012436817
+      },
+      "end": {
+        "x": -77.32561250788403,
+        "y": -89.14445536217913,
+        "z": 665.9027012436817
+      }
+    },
+    {
+      "id": "729dc5e4-1208-4009-a1b0-e78050fa275f",
+      "name": "Joelho 2",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T20:57:54.474Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 5
+      },
+      "placement": {
+        "position": {
+          "x": -77.3428744015511,
+          "y": -89.04088400017676,
+          "z": 665.9027012436817
+        },
+        "rotation": {
+          "x": 0.6463748961301958,
+          "y": 0.7630199824727258,
+          "z": 0,
+          "w": 0
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        }
+      },
+      "kind": "elbow",
+      "angle": 1.5707963267948963,
+      "bendRadius": 0.10500000000000004
+    },
+    {
+      "id": "b2391f08-d5f5-473c-9563-2365cc5b2eec",
+      "name": "Tubo 7",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-20T20:57:54.474Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 8
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -77.23930303954873,
+        "y": -89.02362210650969,
+        "z": 665.9027012436817
+      },
+      "end": {
+        "x": -62.64024292720033,
+        "y": -86.59044542111829,
+        "z": 666.2050556733643
+      }
+    },
+    {
+      "id": "4fe5d252-0fa9-428a-9713-9cb9b420a989",
+      "name": "Tubo 8",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:56:43.975Z",
+        "updatedAt": "2026-11-21T18:33:14.598Z",
+        "revision": 19
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -67.06153009568739,
+        "y": -85.33490264174483,
+        "z": 667.9996629774591
+      },
+      "end": {
+        "x": -66.27137942321127,
+        "y": -85.20975506971264,
+        "z": 667.9996629774591
+      },
+      "ends": {
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "29b7bf83-cd0f-4c90-a4b4-793ac2fed3a1",
+      "name": "Joelho 3",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:57:36.088Z",
+        "updatedAt": "2026-11-21T18:33:14.598Z",
+        "revision": 7
+      },
+      "placement": {
+        "position": {
+          "x": -67.16523737144988,
+          "y": -85.35132826057405,
+          "z": 667.9996629774591
+        },
+        "rotation": {
+          "x": 0.05547895863492341,
+          "y": -0.7049270069651074,
+          "z": 0.7049270069651075,
+          "w": -0.05547895863492341
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        }
+      },
+      "kind": "elbow",
+      "angle": 1.5707963267948966,
+      "bendRadius": 0.10500000000000001
+    },
+    {
+      "id": "0a2f5e38-1692-4830-bfae-de1227c34d7f",
+      "name": "Tubo 9",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:57:36.088Z",
+        "updatedAt": "2026-11-21T18:33:14.598Z",
+        "revision": 15
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -67.16523737144988,
+        "y": -85.35132826057405,
+        "z": 667.8946629774591
+      },
+      "end": {
+        "x": -67.16523737144988,
+        "y": -85.35132826057405,
+        "z": 634.3546629774592
+      }
+    },
+    {
+      "id": "86ace5d9-9c36-40e8-bbc5-363e73b0c5bc",
+      "name": "Joelho 4",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:57:45.044Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 7
+      },
+      "placement": {
+        "position": {
+          "x": -64.20217234966447,
+          "y": -84.88202486545336,
+          "z": 667.9996629774591
+        },
+        "rotation": {
+          "x": -0.7049270069651074,
+          "y": -0.055478958634924205,
+          "z": 0.055478958634924205,
+          "w": 0.7049270069651074
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        }
+      },
+      "kind": "elbow",
+      "angle": 1.5707963267948966,
+      "bendRadius": 0.10500000000000001
+    },
+    {
+      "id": "ebbf4390-53b2-4db7-8563-dc171a837cbc",
+      "name": "Tubo 10",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:57:45.044Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 15
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -64.20217234966447,
+        "y": -84.88202486545336,
+        "z": 667.8946629774591
+      },
+      "end": {
+        "x": -64.20217234966447,
+        "y": -84.88202486545336,
+        "z": 666.3140546426214
+      }
+    },
+    {
+      "id": "e1656758-77b3-421f-a059-22486fb23d73",
+      "name": "Válvula 1",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "avk-retencao-portinhola-en558-s48@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:59:12.218Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 7
+      },
+      "placement": {
+        "position": {
+          "x": -64.78984691231858,
+          "y": -84.9751033721523,
+          "z": 667.9996629774591
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0.07845909572784449,
+          "w": 0.9969173337331281
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "kind": "valve",
+      "valveType": "check",
+      "length": 0.3,
+      "height": 0.15
+    },
+    {
+      "id": "2a4e03f6-0a79-456b-9bd8-109b4651d75a",
+      "name": "Tubo 11",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:59:12.218Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 7
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -64.64169366122931,
+        "y": -84.95163820239627,
+        "z": 667.9996629774591
+      },
+      "end": {
+        "x": -64.30587962542695,
+        "y": -84.89845048428259,
+        "z": 667.9996629774591
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "99260b12-f9dd-44fd-8b0d-8ea24a99dc6b",
+      "name": "Válvula 2",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "euro21-gaveta-longa-pn16@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:59:35.921Z",
+        "updatedAt": "2026-11-21T18:33:14.598Z",
+        "revision": 7
+      },
+      "placement": {
+        "position": {
+          "x": -65.28369108261614,
+          "y": -85.05332060467242,
+          "z": 667.9996629774591
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0.07845909572784443,
+          "w": 0.9969173337331281
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "kind": "valve",
+      "valveType": "gate",
+      "length": 0.3,
+      "height": 0.323,
+      "width": 0.194,
+      "bonnetLength": 0.111
+    },
+    {
+      "id": "df7d9244-4d97-46c4-9b3d-bb85a3dffcd8",
+      "name": "Tubo 12",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:59:35.922Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 8
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -65.13553783152688,
+        "y": -85.02985543491639,
+        "z": 667.9996629774591
+      },
+      "end": {
+        "x": -64.93800016340785,
+        "y": -84.99856854190834,
+        "z": 667.9996629774591
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "a86ec1f2-7642-498c-aeee-3e6ccb00f9b8",
+      "name": "Medidor de vazão 1",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "sanecom-eletromagnetico@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:59:54.065Z",
+        "updatedAt": "2026-11-21T18:33:14.598Z",
+        "revision": 9
+      },
+      "placement": {
+        "position": {
+          "x": -66.14791838063688,
+          "y": -85.19020076158262,
+          "z": 667.9996629774591
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0.07845909572784418,
+          "w": 0.9969173337331281
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        },
+        "b": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      },
+      "kind": "valve",
+      "valveType": "flowMeter",
+      "length": 0.25,
+      "height": 0.26
+    },
+    {
+      "id": "ffd01a3d-6f32-49dd-b07b-c8dcf313bb04",
+      "name": "Tubo 13",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tubo-fofo-flanges-pn10",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T15:59:54.065Z",
+        "updatedAt": "2026-11-21T18:33:14.598Z",
+        "revision": 10
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -66.02445733806249,
+        "y": -85.17064645345259,
+        "z": 667.9996629774591
+      },
+      "end": {
+        "x": -65.43184433370541,
+        "y": -85.07678577442846,
+        "z": 667.9996629774591
+      },
+      "ends": {
+        "start": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        },
+        "end": {
+          "type": "flange",
+          "length": 0.019,
+          "outerDiameter": 0.22,
+          "boltCircle": 0.18,
+          "boltCount": 8,
+          "boltHoleDiameter": 0.019,
+          "raisedFaceDiameter": 0.156,
+          "raisedFaceHeight": 0.003
+        }
+      }
+    },
+    {
+      "id": "b0dc75da-8743-4c61-8ce8-4441af9758c1",
+      "name": "Tê 1",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-te-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:04:01.067Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 5
+      },
+      "placement": {
+        "position": {
+          "x": -62.53669317035552,
+          "y": -86.57318712831082,
+          "z": 666.2072002448253
+        },
+        "rotation": {
+          "x": 0.0018290340345705443,
+          "y": -0.01009631437569473,
+          "z": 0.08248626687287743,
+          "w": 0.9965393794767491
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        },
+        "branch": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        }
+      },
+      "kind": "tee",
+      "runLength": 0.21,
+      "branchLength": 0.105
+    },
+    {
+      "id": "4d2a0168-58c2-42f9-bfb1-33380ce6bd69",
+      "name": "Tubo 15",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:04:01.067Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 8
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -62.30493895265522,
+        "y": -86.53456142536078,
+        "z": 666.212
+      },
+      "end": {
+        "x": -60.572723128335696,
+        "y": -86.24585878797419,
+        "z": 666.2093448162864
+      }
+    },
+    {
+      "id": "43962503-a0a5-4b63-96a7-20040bfa7c34",
+      "name": "Tubo 16",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:04:01.067Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 6
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -62.55395921909409,
+        "y": -86.46961666752432,
+        "z": 666.2074081232289
+      },
+      "end": {
+        "x": -62.62093409810746,
+        "y": -86.06786759420912,
+        "z": 666.2082144820629
+      }
+    },
+    {
+      "id": "4e587f8f-8c23-479d-86b3-3329da6c77bd",
+      "name": "Joelho 6",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-45-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:04:04.818Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 5
+      },
+      "placement": {
+        "position": {
+          "x": -62.631622604469435,
+          "y": -86.00375254705557,
+          "z": 666.2083431686937
+        },
+        "rotation": {
+          "x": 0.0002839790311557464,
+          "y": -0.0011962569361604666,
+          "z": 0.763032010256981,
+          "w": 0.6463595281640421
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        }
+      },
+      "kind": "elbow",
+      "angle": 0.7853981633974474,
+      "bendRadius": 0.15692388155425138
+    },
+    {
+      "id": "c18be0e5-93a3-4eb7-ae16-d4bc9e9c27e2",
+      "name": "Tubo 17",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:04:04.818Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 7
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -62.68451676687238,
+        "y": -85.96597415363374,
+        "z": 666.2083671302508
+      },
+      "end": {
+        "x": -64.02721473556242,
+        "y": -85.00698416677174,
+        "z": 666.2089753851631
+      }
+    },
+    {
+      "id": "3badf6bd-7661-4ea7-a780-508a58cea999",
+      "name": "Joelho 7",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:05:30.969Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 4
+      },
+      "placement": {
+        "position": {
+          "x": -64.20217234966447,
+          "y": -84.88202486545336,
+          "z": 666.2090546426214
+        },
+        "rotation": {
+          "x": -0.6287300875843157,
+          "y": -0.3235714402820787,
+          "z": 0.6287300875843156,
+          "w": -0.3235714402820787
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        }
+      },
+      "kind": "elbow",
+      "angle": 1.5704276874455698,
+      "bendRadius": 0.105038714267919
+    },
+    {
+      "id": "50d3ef6a-57a7-40ac-9323-ab88fcd4fc60",
+      "name": "Tubo 18",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:05:30.969Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 4
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -64.1167279334751,
+        "y": -84.94305150098094,
+        "z": 666.2090159354906
+      },
+      "end": {
+        "x": -64.02721473556242,
+        "y": -85.00698416677174,
+        "z": 666.2089753851631
+      }
+    },
+    {
+      "id": "4294d181-99b2-4da2-992f-235f97c82e5b",
+      "name": "Redução 1",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 100,
+        "sizeLabel": "DN 100",
+        "outerDiameter": 0.118,
+        "innerDiameter": 0.106,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-reducao-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:11:32.515Z",
+        "updatedAt": "2026-11-21T18:33:14.597Z",
+        "revision": 3
+      },
+      "placement": {
+        "position": {
+          "x": -62.36904118308296,
+          "y": -86.54524513043206,
+          "z": 666.2106724081432
+        },
+        "rotation": {
+          "x": 0.0008423553305175677,
+          "y": -0.010177979424774641,
+          "z": 0.08247623003887411,
+          "w": 0.9965407019539646
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.088,
+          "outerDiameter": 0.1875
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        }
+      },
+      "kind": "reducer",
+      "outletSpec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "length": 0.13
+    },
+    {
+      "id": "d6219d18-4c27-4be7-a6eb-004f27be6c3d",
+      "name": "Reservatório 3",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "tramec-tubular-alto",
+      "properties": {},
+      "manufacturing": {
+        "manufacturer": "TRAMEC",
+        "model": "Reservatório tubular alto 200.000 L"
+      },
+      "meta": {
+        "createdAt": "2026-11-21T16:27:59.529Z",
+        "updatedAt": "2026-11-21T18:24:56.275Z",
+        "revision": 14
+      },
+      "placement": {
+        "position": {
+          "x": -58,
+          "y": -75,
+          "z": 667.0915
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 1,
+          "w": 2.220446049250313e-16
+        }
+      },
+      "ends": {},
+      "kind": "tank",
+      "diameter": 3.82,
+      "height": 18,
+      "outletHeight": 0.2,
+      "inletHeight": 17.7,
+      "nozzleLength": 0.15,
+      "tankType": "tubular",
+      "variantId": "tramec-tubular-alto/200000-1800-382",
+      "nominalCapacity": 200,
+      "shellThickness": 0.006,
+      "accessories": {
+        "ladder": true,
+        "ladderAzimuth": 0,
+        "cage": true,
+        "guardrail": true,
+        "guardrailHeight": 1.1,
+        "manhole": true
+      }
+    },
+    {
+      "id": "aad2c7f7-558d-463b-802e-1cbb5b71b2ad",
+      "name": "Tubo 19",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:29:28.428Z",
+        "updatedAt": "2026-11-21T18:24:56.275Z",
+        "revision": 5
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -60.06,
+        "y": -75,
+        "z": 667.292
+      },
+      "end": {
+        "x": -61.4875,
+        "y": -75,
+        "z": 667.292
+      }
+    },
+    {
+      "id": "4787dd0f-9d2d-42db-a3ee-14788d42c9ca",
+      "name": "Joelho 8",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:29:29.758Z",
+        "updatedAt": "2026-11-21T18:24:56.275Z",
+        "revision": 4
+      },
+      "placement": {
+        "position": {
+          "x": -61.64,
+          "y": -75,
+          "z": 667.292
+        },
+        "rotation": {
+          "x": -1.1102230246251565e-16,
+          "y": -0.7071067811865475,
+          "z": 0.7071067811865476,
+          "w": 1.1102230246251565e-16
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        }
+      },
+      "kind": "elbow",
+      "angle": 1.5707963267948966,
+      "bendRadius": 0.15250000000000002
+    },
+    {
+      "id": "6a8cb326-56d7-4b7f-acdb-96e4b23abb85",
+      "name": "Tubo 20",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T16:29:29.758Z",
+        "updatedAt": "2026-11-21T18:24:56.275Z",
+        "revision": 4
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -61.64,
+        "y": -75,
+        "z": 667.1395
+      },
+      "end": {
+        "x": -61.64,
+        "y": -75,
+        "z": 665.942
+      }
+    },
+    {
+      "id": "c8d250a2-d71d-4543-a437-80486fbc072d",
+      "name": "Tubo 21",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T18:24:44.299Z",
+        "updatedAt": "2026-11-21T18:25:25.520Z",
+        "revision": 7
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -55.94,
+        "y": -75,
+        "z": 684.7915
+      },
+      "end": {
+        "x": -55.76250000000001,
+        "y": -75,
+        "z": 684.7915
+      }
+    },
+    {
+      "id": "5231c168-1667-40e9-afbf-fde4092878c9",
+      "name": "Joelho 9",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T18:24:52.731Z",
+        "updatedAt": "2026-11-21T18:25:25.520Z",
+        "revision": 6
+      },
+      "placement": {
+        "position": {
+          "x": -55.61000000000001,
+          "y": -75,
+          "z": 684.7915
+        },
+        "rotation": {
+          "x": -0.7071067811865475,
+          "y": 0,
+          "z": 0,
+          "w": 0.7071067811865476
+        }
+      },
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        }
+      },
+      "kind": "elbow",
+      "angle": 1.5707963267948966,
+      "bendRadius": 0.15250000000000002
+    },
+    {
+      "id": "c9f36117-be93-41ad-b9a4-429e319393b5",
+      "name": "Tubo 22",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-21T18:24:52.731Z",
+        "updatedAt": "2026-11-21T18:25:25.520Z",
+        "revision": 8
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -55.61000000000001,
+        "y": -75,
+        "z": 684.639
+      },
+      "end": {
+        "x": -55.61000000000001,
+        "y": -75,
+        "z": 665
+      }
+    },
+    {
+      "id": "c199c32a-21aa-4c0a-8c71-fa3e4ea78422",
+      "name": "Tubo 23",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:46:04.558Z",
+        "updatedAt": "2026-11-22T16:46:04.559Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -60.572723128335696,
+        "y": -86.24585878797419,
+        "z": 666.2093448162864
+      },
+      "end": {
+        "x": -59.059638866089486,
+        "y": -85.99367807759981,
+        "z": 666.2070255229085
+      }
+    },
+    {
+      "id": "77c65c0d-8b1b-44a2-bfbf-f2b5536b98de",
+      "name": "Joelho 10",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:46:04.559Z",
+        "updatedAt": "2026-11-22T16:46:04.559Z",
+        "revision": 0
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        }
+      },
+      "placement": {
+        "position": {
+          "x": -58.909213964644486,
+          "y": -85.96860726069231,
+          "z": 666.2067949478595
+        },
+        "rotation": {
+          "x": -0.704478929572761,
+          "y": -0.05776787003450413,
+          "z": 0.05887677820121334,
+          "w": 0.7049154814361355
+        }
+      },
+      "angle": 1.5707963267948812,
+      "bendRadius": 0.15250000000000236
+    },
+    {
+      "id": "2c37f455-c7c8-4e5b-8648-b7d66f603bb2",
+      "name": "Tubo 24",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:46:04.559Z",
+        "updatedAt": "2026-11-22T16:46:04.559Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -58.909460070732166,
+        "y": -85.96853315704543,
+        "z": 666.0542951644484
+      },
+      "end": {
+        "x": -58.91216121631883,
+        "y": -85.96771982999358,
+        "z": 664.3805286972555
+      }
+    },
+    {
+      "id": "916ab3bb-1204-4abc-ad31-7237a4dfbe52",
+      "name": "Joelho 11",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:46:04.559Z",
+        "updatedAt": "2026-11-22T16:46:04.559Z",
+        "revision": 0
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        }
+      },
+      "placement": {
+        "position": {
+          "x": -58.91240732240651,
+          "y": -85.9676457263467,
+          "z": 664.2280289138444
+        },
+        "rotation": {
+          "x": 0.10312232334791119,
+          "y": 0.7001488961037804,
+          "z": -0.10294866920053353,
+          "w": 0.6989698714693112
+        }
+      },
+      "angle": 1.5707963267948977,
+      "bendRadius": 0.15249999999999983
+    },
+    {
+      "id": "ebdd2c48-7ada-44fd-9b9f-c739e008aac0",
+      "name": "Tubo 25",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:46:04.559Z",
+        "updatedAt": "2026-11-22T16:46:04.560Z",
+        "revision": 1
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -58.86843882773142,
+        "y": -85.82162168217587,
+        "z": 664.2280289138444
+      },
+      "end": {
+        "x": -55.65396849467509,
+        "y": -75.14602404417083,
+        "z": 664.2280289138444
+      }
+    },
+    {
+      "id": "48b67787-821a-4929-806d-9ba481b8011a",
+      "name": "Joelho 12",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": "pam-curva-90-bolsas@ferro-ductil-nbr7675-k9",
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:46:04.560Z",
+        "updatedAt": "2026-11-22T16:46:04.560Z",
+        "revision": 0
+      },
+      "kind": "elbow",
+      "ends": {
+        "a": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        },
+        "b": {
+          "type": "socket",
+          "length": 0.094,
+          "outerDiameter": 0.241
+        }
+      },
+      "placement": {
+        "position": {
+          "x": -55.61,
+          "y": -75,
+          "z": 664.2280289138444
+        },
+        "rotation": {
+          "x": 0.5675204837425365,
+          "y": 0.42180623576783816,
+          "z": 0.4218062357678419,
+          "w": 0.5675204837425416
+        }
+      },
+      "angle": 1.5707963267948992,
+      "bendRadius": 0.15249999999999958
+    },
+    {
+      "id": "642408b1-962f-4d98-802d-42416db9070f",
+      "name": "Tubo 26",
+      "systemId": "225a2624-464e-439b-9efa-a95fe277ee3f",
+      "spec": {
+        "specificationId": "ferro-ductil-nbr7675-k9",
+        "material": "ductileIron",
+        "standard": "ABNT NBR 7675 / ISO 2531",
+        "jointType": "socketSpigot",
+        "pressureClass": "K9",
+        "dn": 150,
+        "sizeLabel": "DN 150",
+        "outerDiameter": 0.17,
+        "innerDiameter": 0.158,
+        "wallThickness": 0.006,
+        "jointDeflection": 0.08726646259971647
+      },
+      "familyId": null,
+      "properties": {},
+      "manufacturing": {},
+      "meta": {
+        "createdAt": "2026-11-22T16:46:04.560Z",
+        "updatedAt": "2026-11-22T16:46:04.560Z",
+        "revision": 0
+      },
+      "kind": "pipe",
+      "start": {
+        "x": -55.61,
+        "y": -75,
+        "z": 664.3805289138444
+      },
+      "end": {
+        "x": -55.61000000000001,
+        "y": -75,
+        "z": 665
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "646d2cb7-408e-4339-8905-a67bf0a8821b",
+      "a": {
+        "elementId": "d194f3d3-18fa-4991-8169-f50702874dfd",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "729dc5e4-1208-4009-a1b0-e78050fa275f",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "4ee9375a-493b-4472-bbe3-0e885fdaf6f6",
+      "a": {
+        "elementId": "729dc5e4-1208-4009-a1b0-e78050fa275f",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "b2391f08-d5f5-473c-9563-2365cc5b2eec",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "d859e8cf-5915-4c01-a562-b363eec7a11d",
+      "a": {
+        "elementId": "4fe5d252-0fa9-428a-9713-9cb9b420a989",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "29b7bf83-cd0f-4c90-a4b4-793ac2fed3a1",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "6b57216f-2781-4ec8-9243-cc4b8f972152",
+      "a": {
+        "elementId": "29b7bf83-cd0f-4c90-a4b4-793ac2fed3a1",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "0a2f5e38-1692-4830-bfae-de1227c34d7f",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "80b01592-0930-42fe-941b-7b59c475782c",
+      "a": {
+        "elementId": "2a4e03f6-0a79-456b-9bd8-109b4651d75a",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "86ace5d9-9c36-40e8-bbc5-363e73b0c5bc",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "7cef964d-3554-4756-8aad-df028c7cbe23",
+      "a": {
+        "elementId": "86ace5d9-9c36-40e8-bbc5-363e73b0c5bc",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "ebbf4390-53b2-4db7-8563-dc171a837cbc",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "52c08b72-8ac8-4585-902f-a9f5465dd147",
+      "a": {
+        "elementId": "df7d9244-4d97-46c4-9b3d-bb85a3dffcd8",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "e1656758-77b3-421f-a059-22486fb23d73",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "85d32fa1-bc63-4e6f-9090-1da03d48e8a9",
+      "a": {
+        "elementId": "e1656758-77b3-421f-a059-22486fb23d73",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "2a4e03f6-0a79-456b-9bd8-109b4651d75a",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "ec5f90f0-65a2-47ca-849f-d9fc8ea1b9d6",
+      "a": {
+        "elementId": "ffd01a3d-6f32-49dd-b07b-c8dcf313bb04",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "99260b12-f9dd-44fd-8b0d-8ea24a99dc6b",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "a879c187-b20f-41e8-9a9b-b1111c396e20",
+      "a": {
+        "elementId": "99260b12-f9dd-44fd-8b0d-8ea24a99dc6b",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "df7d9244-4d97-46c4-9b3d-bb85a3dffcd8",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "f8fcded2-9374-448b-927e-51370e68a8b9",
+      "a": {
+        "elementId": "4fe5d252-0fa9-428a-9713-9cb9b420a989",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "a86ec1f2-7642-498c-aeee-3e6ccb00f9b8",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "ae5d97f0-dc28-4315-bb4a-1fd1fe96b5fd",
+      "a": {
+        "elementId": "a86ec1f2-7642-498c-aeee-3e6ccb00f9b8",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "ffd01a3d-6f32-49dd-b07b-c8dcf313bb04",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "866ec8a0-d80a-4d80-b366-04b4667c04c6",
+      "a": {
+        "elementId": "b2391f08-d5f5-473c-9563-2365cc5b2eec",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "b0dc75da-8743-4c61-8ce8-4441af9758c1",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "45dc24b0-8150-4a03-96e1-f0378ce6ca6c",
+      "a": {
+        "elementId": "43962503-a0a5-4b63-96a7-20040bfa7c34",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "b0dc75da-8743-4c61-8ce8-4441af9758c1",
+        "portId": "branch"
+      }
+    },
+    {
+      "id": "4ef8b630-170d-4160-a7e0-e237887c4590",
+      "a": {
+        "elementId": "43962503-a0a5-4b63-96a7-20040bfa7c34",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "4e587f8f-8c23-479d-86b3-3329da6c77bd",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "d876a3c4-c0da-40ee-8580-a6534e21b5ab",
+      "a": {
+        "elementId": "4e587f8f-8c23-479d-86b3-3329da6c77bd",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "c18be0e5-93a3-4eb7-ae16-d4bc9e9c27e2",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "3e9fb23d-4278-4c3b-9821-f1c87f43d08f",
+      "a": {
+        "elementId": "ebbf4390-53b2-4db7-8563-dc171a837cbc",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "3badf6bd-7661-4ea7-a780-508a58cea999",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "f15c56b2-563a-49ca-bd6b-1b069c76db32",
+      "a": {
+        "elementId": "3badf6bd-7661-4ea7-a780-508a58cea999",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "50d3ef6a-57a7-40ac-9323-ab88fcd4fc60",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "30b24631-4484-4c15-9ba4-553d7a2eeb18",
+      "a": {
+        "elementId": "50d3ef6a-57a7-40ac-9323-ab88fcd4fc60",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "c18be0e5-93a3-4eb7-ae16-d4bc9e9c27e2",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "a18c81f3-6b7c-4a33-b31c-11ba5f6a08d1",
+      "a": {
+        "elementId": "b0dc75da-8743-4c61-8ce8-4441af9758c1",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "4294d181-99b2-4da2-992f-235f97c82e5b",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "cefed63c-093c-4319-8f27-d7a179e2ee19",
+      "a": {
+        "elementId": "4294d181-99b2-4da2-992f-235f97c82e5b",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "4d2a0168-58c2-42f9-bfb1-33380ce6bd69",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "739e08eb-4782-4d35-b27d-38831ec0719a",
+      "a": {
+        "elementId": "aad2c7f7-558d-463b-802e-1cbb5b71b2ad",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "d6219d18-4c27-4be7-a6eb-004f27be6c3d",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "c0fde689-1fb0-4ed3-9134-d8419904f6d4",
+      "a": {
+        "elementId": "aad2c7f7-558d-463b-802e-1cbb5b71b2ad",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "4787dd0f-9d2d-42db-a3ee-14788d42c9ca",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "9b08322b-bde1-4f6c-8721-5aaa523bad13",
+      "a": {
+        "elementId": "4787dd0f-9d2d-42db-a3ee-14788d42c9ca",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "6a8cb326-56d7-4b7f-acdb-96e4b23abb85",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "ef160938-ad51-402d-be8c-d45acd99fd18",
+      "a": {
+        "elementId": "c8d250a2-d71d-4543-a437-80486fbc072d",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "d6219d18-4c27-4be7-a6eb-004f27be6c3d",
+        "portId": "b"
+      }
+    },
+    {
+      "id": "3a5f4c19-65cb-4e3a-9782-a4fc4a126eaf",
+      "a": {
+        "elementId": "c8d250a2-d71d-4543-a437-80486fbc072d",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "5231c168-1667-40e9-afbf-fde4092878c9",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "06f7f81e-96a8-404c-886e-d070aa3a34f1",
+      "a": {
+        "elementId": "5231c168-1667-40e9-afbf-fde4092878c9",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "c9f36117-be93-41ad-b9a4-429e319393b5",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "c2eba7e5-f7ca-4413-9dd2-3b8084da4590",
+      "a": {
+        "elementId": "c199c32a-21aa-4c0a-8c71-fa3e4ea78422",
+        "portId": "start"
+      },
+      "b": {
+        "elementId": "4d2a0168-58c2-42f9-bfb1-33380ce6bd69",
+        "portId": "end"
+      }
+    },
+    {
+      "id": "b2b6698e-d598-4d3a-b2ef-53fff29e9a3d",
+      "a": {
+        "elementId": "c199c32a-21aa-4c0a-8c71-fa3e4ea78422",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "77c65c0d-8b1b-44a2-bfbf-f2b5536b98de",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "05ac47b8-2ab3-4693-bb4e-70e365f35558",
+      "a": {
+        "elementId": "77c65c0d-8b1b-44a2-bfbf-f2b5536b98de",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "2c37f455-c7c8-4e5b-8648-b7d66f603bb2",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "0926d7b7-4312-4855-a3ca-a314c40da734",
+      "a": {
+        "elementId": "2c37f455-c7c8-4e5b-8648-b7d66f603bb2",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "916ab3bb-1204-4abc-ad31-7237a4dfbe52",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "d1a2ab1f-cbf8-4588-95eb-13a628aa47f8",
+      "a": {
+        "elementId": "916ab3bb-1204-4abc-ad31-7237a4dfbe52",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "ebdd2c48-7ada-44fd-9b9f-c739e008aac0",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "1063f373-68ed-4a9a-839b-1658bdd2f3b4",
+      "a": {
+        "elementId": "ebdd2c48-7ada-44fd-9b9f-c739e008aac0",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "48b67787-821a-4929-806d-9ba481b8011a",
+        "portId": "a"
+      }
+    },
+    {
+      "id": "fefc3e06-0cc3-46ff-ad76-55edf526b392",
+      "a": {
+        "elementId": "48b67787-821a-4929-806d-9ba481b8011a",
+        "portId": "b"
+      },
+      "b": {
+        "elementId": "642408b1-962f-4d98-802d-42416db9070f",
+        "portId": "start"
+      }
+    },
+    {
+      "id": "78c62e10-9238-452e-839e-330721b11daa",
+      "a": {
+        "elementId": "642408b1-962f-4d98-802d-42416db9070f",
+        "portId": "end"
+      },
+      "b": {
+        "elementId": "c9f36117-be93-41ad-b9a4-429e319393b5",
+        "portId": "end"
+      }
+    }
+  ],
+  "annotations": [],
+  "drawingScale": 500,
+  "infra": {
+    "drawingScale": 1000,
+    "basemap": {
+      "sourceId": "custom",
+      "visible": true,
+      "opacity": 1
+    },
+    "layers": {
+      "network": true,
+      "equipment": true,
+      "terrain": true,
+      "references": true,
+      "annotations": true
+    },
+    "labels": {
+      "names": false,
+      "lengths": false,
+      "elevations": false
+    }
+  },
+  "views": [],
+  "architecture": {
+    "types": [],
+    "elements": []
+  }
+}
