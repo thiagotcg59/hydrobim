@@ -44,6 +44,7 @@ import {
   Library,
   Link2,
   ListChecks,
+  LogOut,
   Map as MapIcon,
   Maximize,
   MessageSquare,
@@ -56,6 +57,7 @@ import {
   PanelRight,
   PanelTop,
   PenLine,
+  RectangleGoggles,
   RectangleHorizontal,
   Slash,
   SquareSplitHorizontal,
@@ -129,6 +131,7 @@ import {
   type DetailTool,
   type ViewTool,
 } from '../views/viewStore';
+import { closeVr, enterVr, openVr, useVrStore } from '../vr/vrStore';
 
 /**
  * Registro único dos comandos da interface. A faixa de comandos, os atalhos de teclado, o
@@ -159,6 +162,8 @@ export interface CommandContext {
   readonly inlineClearances?: boolean;
   /** Percurso em primeira pessoa aberto na consulta BIM / IFC. */
   readonly bimWalk?: boolean;
+  /** Vista de realidade virtual aberta no lugar da área de desenho. */
+  readonly vrOpen?: boolean;
   /** Vista que ocupa sozinha a área de desenho, quando uma delas está maximizada. */
   readonly maximizedView?: 'plan' | '3d' | null;
   /** Operação do terreno em andamento na Planta Infra e painel do terreno aberto. */
@@ -1160,6 +1165,37 @@ export const COMMANDS: readonly Command[] = [
     run: () => ui().setInlineClearances(!ui().inlineClearances),
   },
 
+  // ----- Realidade virtual (WebXR) -----
+  {
+    id: 'view.vr',
+    label: 'Entrar em VR',
+    description:
+      'Abre o modelo em realidade virtual imersiva (WebXR), em escala real, no navegador de um headset como o Meta Quest: teletransporte, giro por etapas e consulta das propriedades com os controles. Modo de inspeção: não altera o projeto. Em navegador sem WebXR, informa a incompatibilidade.',
+    icon: RectangleGoggles,
+    testId: 'view-vr',
+    state: (context) =>
+      context.project.elements.length === 0 &&
+      !context.project.terrain &&
+      context.project.architecture.elements.length === 0
+        ? off('O projeto ainda não tem elementos nem superfície de terreno.')
+        : { enabled: true, active: context.vrOpen === true },
+    run: () => {
+      // O pedido da sessão parte deste clique: os navegadores só a concedem a um gesto do usuário.
+      openVr();
+      void enterVr();
+    },
+  },
+  {
+    id: 'view.vrExit',
+    label: 'Sair do VR',
+    description: 'Encerra a sessão de realidade virtual e volta à área de desenho do editor.',
+    icon: LogOut,
+    testId: 'view-vr-exit',
+    state: (context) =>
+      context.vrOpen === true ? ENABLED : off('A realidade virtual não está aberta.'),
+    run: () => void closeVr(),
+  },
+
   // ----- Painéis e layout -----
   {
     id: 'view.split',
@@ -1607,6 +1643,7 @@ export function commandContext(): CommandContext {
     workspaceLayout: layout.workspaceLayout,
     inlineClearances: layout.inlineClearances,
     bimWalk: layout.bimWalk,
+    vrOpen: useVrStore.getState().open,
     maximizedView: layout.maximizedView,
     terrainMode: terrain().mode,
     terrainPanelOpen: terrain().panelOpen,

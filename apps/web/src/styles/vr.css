@@ -1,0 +1,129 @@
+/* Vista de realidade virtual (WebXR): barra de estado e prévia no lugar da área de desenho. */
+.vr {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #cfe0ef;
+}
+
+.vr__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border, #cfd6de);
+  background: var(--surface, #ffffff);
+  font-size: 12px;
+}
+
+.vr__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.vr__status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted, #556270);
+}
+
+.vr__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 1px solid var(--border, #cfd6de);
+  border-radius: 4px;
+  background: var(--surface, #ffffff);
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vr__button:hover:not(:disabled) {
+  background: #eef4fa;
+}
+
+.vr__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vr__button--primary {
+  border-color: #0f4c81;
+  background: #0f4c81;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.vr__button--primary:hover:not(:disabled) {
+  background: #14609f;
+}
+
+.vr__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.vr__notice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(640px, calc(100% - 24px));
+  padding: 10px 14px;
+  border: 1px solid #d9a441;
+  border-radius: 6px;
+  background: #fff7e3;
+  color: #4a3505;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.vr__help {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: min(420px, calc(100% - 20px));
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(12, 17, 24, 0.72);
+  color: #f2f5f8;
+  font-size: 11px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.vr__help strong {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9fd8e6;
+}
+
+.vr__help b {
+  font-weight: 600;
+}
+
+@media (pointer: coarse) {
+  /* No navegador do headset os botões são acionados com o raio do controle. */
+  .vr__button {
+    min-height: 40px;
+    padding: 6px 14px;
+    font-size: 14px;
+  }
+}

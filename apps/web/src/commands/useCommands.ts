@@ -6,6 +6,7 @@ import { useUiStore } from '../state/uiStore';
 import { useEarthworkStore } from '../terrain/earthworkStore';
 import { useTerrainStore } from '../terrain/terrainStore';
 import { useViewStore } from '../views/viewStore';
+import { useVrStore } from '../vr/vrStore';
 import { isWalkKey } from '../walk/walkMotion';
 import {
   commandForKey,
@@ -58,10 +59,12 @@ export function useCommandContext(): CommandContext {
   );
   const archTool = useArchStore((s) => s.tool);
   const archSelection = useArchStore((s) => s.selection);
+  const vrOpen = useVrStore((s) => s.open);
   return useMemo(
     () => ({
       ...editor,
       ...layout,
+      vrOpen,
       terrainMode,
       terrainPanelOpen,
       earthworkTab,
@@ -69,7 +72,17 @@ export function useCommandContext(): CommandContext {
       archTool,
       archSelection,
     }),
-    [editor, layout, terrainMode, terrainPanelOpen, earthworkTab, views, archTool, archSelection],
+    [
+      editor,
+      layout,
+      vrOpen,
+      terrainMode,
+      terrainPanelOpen,
+      earthworkTab,
+      views,
+      archTool,
+      archSelection,
+    ],
   );
 }
 

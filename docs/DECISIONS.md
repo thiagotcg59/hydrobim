@@ -501,3 +501,23 @@ Verificação: `packages/core/src/architecture/architecture.test.ts`, `packages/
 **Consequências e limites.** Reentrâncias estreitas do perímetro são recusadas (o encontro de taludes de lados opostos exigiria o eixo medial do polígono). O leque dos cantos é uma aproximação poligonal do cone. Rede e equipamentos continuam assentados sobre o terreno natural. Os conjuntos IFC do terreno são escritos direto pela exportação, fora do registro central de propriedades, e ainda não aparecem na aba BIM / IFC.
 
 Verificação: `packages/core/src/terrain/edit.test.ts` e `earthworks.test.ts` (volumes contra fórmulas e contra uma integração independente), `packages/ifc/src/terrainExport.test.ts`, `services/api/tests/test_ifc_terrain.py` (IfcOpenShell) e `tests/e2e/earthworks.spec.ts`.
+
+## ADR-046 — Realidade virtual pela WebXR, em vista própria, com a cena posta em volta do usuário e a rede em lotes
+
+**Data:** 2026-11-22 · **Estado:** aceita; validação em headset pendente
+
+**Contexto.** O projeto precisa ser visto em escala real em um headset (referência: Meta Quest 2), pela página publicada no GitHub Pages, sem aplicativo separado. O editor desenha com React Three Fiber sobre o Three.js, com Z para cima, uma malha e um material por parte de elemento, e uma origem de desenho para coordenadas UTM.
+
+**Decisão.**
+
+- **WebXR do próprio Three.js, sem dependência nova.** `renderer.xr` e o suporte do React Three Fiber (que troca o laço para `setAnimationLoop` ao receber `sessionstart`) bastam. `@react-three/xr` foi descartado: traria um modelo de interação e de locomoção próprio para substituir cerca de 300 linhas, e os modelos de controle do Three.js (`XRControllerModelFactory`) buscam arquivos em uma CDN — o editor não faz chamadas externas desnecessárias. Os controles são formas simples.
+- **Vista própria, no lugar da área de desenho, com um só renderizador ativo.** Segue o precedente do Percurso. Reaproveitar o `Canvas` de modelagem exigiria desligar órbita, rótulos HTML, gizmo, alças e a origem de desenho durante a sessão e restaurá-los depois — risco de regressão na experiência de modelagem, que não pode mudar. Com a vista aberta o Modelo 3D é desmontado; ao sair, é remontado com a câmera que tinha.
+- **A cena é posta em volta do usuário.** O espaço de referência (`local-floor`) fica parado e o modelo é transformado por giro vertical · (X, Y, Z) → (X, Z, −Y) · translação por −âncora. Teletransporte, giro e recentrar são funções puras sobre a âncora e o giro (`vrCoordinates.ts`). A alternativa usual — mover um "carrinho" com a câmera pelo mundo — deixaria as coordenadas UTM na matriz da câmera; aqui a subtração é feita em precisão dupla e a placa de vídeo só vê números pequenos.
+- **A rede em lotes (`BatchedMesh`), só nesta vista.** Uma chamada de desenho por acabamento, com cor, posição e descarte por parte, e a identidade do elemento pelo índice da parte. A geometria continua vindo de `buildElementGeometry`. O viewport de modelagem não foi alterado: ele depende de uma malha por elemento para realce, corte e seleção por janela.
+- **Só é piso o que o modelo declara como piso** (terreno, lajes e pisos); sem eles, um piso virtual que não entra no projeto.
+- **A sessão é pedida no clique do comando** e entregue à vista quando a cena fica pronta: um clique basta, sem perder o gesto do usuário que os navegadores exigem.
+- **Texto em canvas 2D** aplicado a planos, em vez de uma biblioteca de texto 3D: sem dependência e sem fontes externas.
+
+**Consequências e limites.** A geometria vai ao headset sem níveis de detalhe; os limites de desempenho são estimativas até a medição no aparelho. A vista é de leitura. O botão da faixa é só o símbolo, para a aba Visualizar caber em uma linha a 1920 px. Nenhuma alteração de esquema: os projetos salvos abrem sem migração.
+
+Verificação: `apps/web/src/vr/*.test.ts` e `tests/e2e/vr.spec.ts`, este com um dispositivo WebXR simulado (`tests/e2e/fakeXr.ts`). O teste no Meta Quest 2 segue o roteiro de `docs/WEBXR.md` e ainda não foi feito.

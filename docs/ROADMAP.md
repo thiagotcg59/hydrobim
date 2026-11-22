@@ -152,6 +152,17 @@ Ver `docs/ARQUITETURA.md` (requisitos adotados do Caderno BIM de SC v3.0, vigên
 
 ## Próxima etapa recomendada
 
+## Realidade virtual (WebXR) 🟡
+
+Ver `docs/WEBXR.md` (arquitetura, controles, publicação, roteiro de teste e limites).
+
+- ✅ Fundação: detecção de compatibilidade, comando **Entrar em VR** (Visualizar), sessão `immersive-vr` no renderizador da vista, `local-floor` com alternativa de piso estimado, saída e retorno ao editor, mensagens para navegador incompatível.
+- ✅ Modelo: a rede do projeto em lotes (poucas chamadas de desenho, identidade por elemento), terreno e arquitetura com os componentes do Modelo 3D; Z para cima → Y para cima sem espelhamento, escala 1:1 e origem local para coordenadas UTM.
+- ✅ Navegação: teletransporte por arco só em terreno, lajes e pisos (ou piso virtual por nível), com recusa de ponto sem piso, talude íngreme e obstáculo; giro de 30°; ponto inicial e recentrar.
+- ✅ Inspeção: seleção com o raio do controle, painel de propriedades lido do elemento, menu com visibilidade por categoria, terreno, informações do projeto e saída.
+- 🟡 Verificação: testes unitários e no navegador com dispositivo WebXR simulado. **⬜ Validação no Meta Quest 2 (roteiro em `docs/WEBXR.md`)**: sessão no navegador do headset, escala, conforto, legibilidade, controles reais e taxa de quadros.
+- ⬜ Níveis de detalhe e simplificação visual; terreno por região visível; medição e leitura de cota; pontos de visita salvos; colisão; propriedades IFC completas; realidade mista (passthrough).
+
 1. Conferir as famílias com os catálogos vigentes dos fornecedores do projeto e completar o que ficou genérico (PEAD, curvas PBA, ferro dúctil e válvulas de fabricantes brasileiros).
 2. Peças de transição e verificação do tipo de extremidade, para que flange e ponta não se conectem sem a peça adequada.
 3. Abrir o IFC exportado em visualizadores de terceiros e ajustar o que for necessário; conferir o IDS com o `ifctester`.
