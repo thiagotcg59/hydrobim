@@ -35,6 +35,8 @@ interface Props {
   /** Muda para tentar de novo os ladrilhos que falharam. */
   retry: number;
   onStatus: (status: BasemapStatus) => void;
+  /** Identificação da camada nos testes (o mapa sobre o terreno usa a sua). */
+  testId?: string;
 }
 
 /** Espera (ms) para a vista assentar antes de pedir ladrilhos: zoom e arrasto não geram rajadas. */
@@ -55,6 +57,7 @@ export function BasemapLayer({
   opacity,
   retry,
   onStatus,
+  testId = 'basemap-layer',
 }: Props) {
   const [online, setOnline] = useState(() => navigator.onLine);
   useEffect(() => {
@@ -133,7 +136,7 @@ export function BasemapLayer({
   return (
     <g
       data-ui="basemap"
-      data-testid="basemap-layer"
+      data-testid={testId}
       data-zoom={zoom}
       data-state={state}
       opacity={opacity}

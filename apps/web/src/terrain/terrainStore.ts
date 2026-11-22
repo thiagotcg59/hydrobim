@@ -63,20 +63,28 @@ export interface TerrainDisplay {
    * 1:1 (o padrão). Acima de 1 o terreno deixa de coincidir com a rede e a interface avisa.
    */
   readonly exaggeration: number;
-  /** Opacidade da superfície no modelo 3D, de 0,1 a 1 (abaixo de 1 a rede enterrada aparece). */
+  /**
+   * Opacidade da superfície na planta e no modelo 3D, de 0,1 a 1 (abaixo de 1 a rede enterrada
+   * aparece no 3D e o que está sob a superfície aparece na planta).
+   */
   readonly opacity: number;
   /**
-   * Fonte de mapa (ruas, satélite) desenhada sobre a superfície no modelo 3D, acompanhando o
-   * relevo; `null` = cor pela opção `colorMode`.
+   * Fonte de mapa (ruas, satélite) desenhada sobre a superfície — na planta e, acompanhando o
+   * relevo, no modelo 3D; `null` = cor pela opção `colorMode`.
    */
   readonly drapeSourceId: string | null;
   /** Superfície à mostra no modelo 3D (MEP e Infra). */
   readonly show3d: boolean;
   /**
-   * Superfície à mostra na planta do MEP. No Infra a planta segue a camada Terreno do
-   * ambiente (`project.infra.layers.terrain`).
+   * Superfície à mostra nas plantas do MEP e da Arquitetura. No Infra a planta segue a camada
+   * Terreno do ambiente (`project.infra.layers.terrain`).
    */
   readonly mepPlan: boolean;
+  /**
+   * Na planta, a superfície é preenchida como no modelo 3D (cor ou mapa); desligada, ficam só
+   * o limite, as curvas de nível e a triangulação.
+   */
+  readonly planFill: boolean;
 }
 
 export const DEFAULT_DISPLAY: TerrainDisplay = {
@@ -89,10 +97,14 @@ export const DEFAULT_DISPLAY: TerrainDisplay = {
   opacity: 0.6,
   drapeSourceId: null,
   show3d: true,
-  mepPlan: false,
+  mepPlan: true,
+  planFill: true,
 };
 
 export const EXAGGERATIONS = [1, 2, 3, 5, 10] as const;
+
+/** Como os ladrilhos do mapa da planta responderam (os mesmos estados do mapa de fundo). */
+export type PlanMapState = 'loading' | 'ready' | 'partial' | 'unavailable' | 'offline' | 'tooWide';
 
 export type TerrainJobState =
   | { readonly status: 'idle' }
@@ -121,6 +133,11 @@ interface TerrainState {
   job: TerrainJobState;
   /** Situação do mapa sobre o terreno no 3D (`null` = desligado ou ainda não pedido). */
   drape: { readonly state: DrapeState | 'blocked'; readonly message: string } | null;
+  /**
+   * Situação dos ladrilhos do mapa desenhado sobre a superfície na planta (`null` = sem mapa na
+   * planta ou ainda sem resposta).
+   */
+  planMap: PlanMapState | null;
 
   setPanelOpen: (open: boolean) => void;
   setMode: (mode: TerrainMode | null) => void;
@@ -170,6 +187,7 @@ export const useTerrainStore = create<TerrainState>()((set, get) => ({
   display: DEFAULT_DISPLAY,
   job: { status: 'idle' },
   drape: null,
+  planMap: null,
 
   setPanelOpen: (panelOpen) => {
     set({ panelOpen });

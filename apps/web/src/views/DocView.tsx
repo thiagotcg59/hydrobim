@@ -27,6 +27,13 @@ import { downloadText, projectFileBase } from '../persistence/fileIO';
 import { HIGHLIGHT, INK, PAPER, PlanElement } from '../plan/planDrawing';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
+import { selectEarthworkAt, useEarthworkStore } from '../terrain/earthworkStore';
+import { TerrainSurfacePlan } from '../terrain/TerrainLayers';
+import {
+  TerrainPlanFill,
+  TerrainPlanNotice,
+  useTerrainPlanVisible,
+} from '../terrain/TerrainPlanFill';
 import { TOOL_LABELS } from '../ui/labels';
 import '../styles/architecture.css';
 import { selectArchElement, useArchSelection } from './archSelection';
@@ -247,6 +254,8 @@ export function DocView({ view }: { view: ProjectView2d }) {
   const crop = cropPreview ?? (view.crop?.enabled ? view.crop : null);
   const plan = view.kind === 'plan';
   const drafting = tool !== 'select';
+  /** Superfície do terreno à mostra nas plantas (a mesma opção da planta de trabalho). */
+  const terrainVisible = useTerrainPlanVisible();
 
   // Origem de desenho: o SVG trabalha em precisão simples; perto dela os números são pequenos.
   const originX = Math.round(camera.cx / 200) * 200;
@@ -421,6 +430,11 @@ export function DocView({ view }: { view: ProjectView2d }) {
         return;
       }
       if (!additive) selectArchElement(null);
+      // Clique fora dos elementos, em uma planta: a superfície do terreno sob o ponto.
+      if (!d.elementId && !additive) {
+        if (plan && terrainVisible && selectEarthworkAt(toPlan(raw), false)) return;
+        useEarthworkStore.getState().select(null);
+      }
       editor.select(d.elementId, additive);
       return;
     }
@@ -697,6 +711,26 @@ export function DocView({ view }: { view: ProjectView2d }) {
     minY: camera.cy - (size.height / 2) * camera.mpp,
     maxY: camera.cy + (size.height / 2) * camera.mpp,
   };
+  // Terreno nas plantas: o ponto do projeto que cai na origem de desenho e a janela visível,
+  // em coordenadas do projeto (a planta pode estar girada).
+  const terrainOrigin = useMemo<Point2>(() => {
+    const world = fromViewPoint(frame, origin);
+    return { x: world.x, y: world.y };
+  }, [frame, origin]);
+  const terrainBounds = useMemo(() => {
+    const corners = [
+      { x: viewBounds.minX, y: viewBounds.minY },
+      { x: viewBounds.maxX, y: viewBounds.minY },
+      { x: viewBounds.maxX, y: viewBounds.maxY },
+      { x: viewBounds.minX, y: viewBounds.maxY },
+    ].map((corner) => fromViewPoint(frame, corner));
+    return {
+      minX: Math.min(...corners.map((p) => p.x)),
+      maxX: Math.max(...corners.map((p) => p.x)),
+      minY: Math.min(...corners.map((p) => p.y)),
+      maxY: Math.max(...corners.map((p) => p.y)),
+    };
+  }, [frame, viewBounds.minX, viewBounds.maxX, viewBounds.minY, viewBounds.maxY]);
   const [first, second] = draft;
   const last = draft[draft.length - 1];
   const draftColor = { stroke: HIGHLIGHT, strokeWidth: 1.5 * camera.mpp, fill: 'none' } as const;
@@ -793,6 +827,27 @@ export function DocView({ view }: { view: ProjectView2d }) {
                 </text>
               </g>
             ))}
+          </g>
+        )}
+        {/* Plantas: a superfície do terreno ao fundo, como na planta de trabalho e no 3D. */}
+        {plan && terrainVisible && project.terrain && size.width > 0 && (
+          <g data-layer="terrain" clipPath={crop ? `url(#${clipId})` : undefined}>
+            {/* As camadas do terreno desenham em coordenadas do projeto; a planta pode estar
+                girada, e a matriz as leva ao referencial da vista. */}
+            <g transform={`matrix(${frame.u.x} ${frame.u.y} ${-frame.u.y} ${frame.u.x} 0 0)`}>
+              <TerrainPlanFill
+                terrain={project.terrain}
+                origin={terrainOrigin}
+                mpp={camera.mpp}
+                bounds={terrainBounds}
+                basemapSourceId={null}
+              />
+              <TerrainSurfacePlan
+                terrain={project.terrain}
+                origin={terrainOrigin}
+                mpp={camera.mpp}
+              />
+            </g>
           </g>
         )}
         <g data-layer="elements" clipPath={crop ? `url(#${clipId})` : undefined}>
@@ -992,6 +1047,7 @@ export function DocView({ view }: { view: ProjectView2d }) {
         </g>
       </svg>
 
+      {plan && <TerrainPlanNotice basemapSourceId={null} />}
       <div className="docview__title" data-testid="doc-view-title">
         <strong>{view.name}</strong>
         <span>

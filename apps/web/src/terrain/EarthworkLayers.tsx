@@ -75,7 +75,6 @@ export function EarthworkPlanLayer({ terrain, origin, mpp }: Props) {
   const ring = (points: readonly Point2[]): string =>
     `${points.map((p, i) => `${i === 0 ? 'M' : 'L'}${n(X(p.x))} ${n(Y(p.y))}`).join('')}Z`;
   const selected = pointIndex !== null ? terrain?.points[pointIndex] : undefined;
-  const surfaceSelected = selection?.kind === 'surface';
   const showDesign = view === 'design' || view === 'compare';
 
   return (
@@ -98,18 +97,6 @@ export function EarthworkPlanLayer({ terrain, origin, mpp }: Props) {
           />
         </g>
       )}
-      {surfaceSelected &&
-        terrain?.boundary?.map((points, index) => (
-          <path
-            key={index}
-            data-testid="earthwork-surface-selected"
-            d={ring(points)}
-            fill="none"
-            stroke={HIGHLIGHT}
-            strokeWidth={3}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
       {summary?.platforms.map(({ platform, footprint, error }) => {
         const active = selection?.kind === 'platform' && selection.id === platform.id;
         const first = platform.outline[0];

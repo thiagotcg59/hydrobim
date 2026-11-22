@@ -100,11 +100,13 @@ import { SectionDraft, SectionMarkers } from '../views/SectionMarkers';
 import { useViewStore } from '../views/viewStore';
 import { cursorElementOf } from '../state/viewPreview';
 import { EarthworkPanel } from '../terrain/EarthworkPanel';
+import { selectEarthworkAt, useEarthworkStore } from '../terrain/earthworkStore';
 import { TerrainEditingLayer, TerrainSurfacePlan } from '../terrain/TerrainLayers';
 import { planDrawOrder } from './drawOrder';
 import { PlanPreviewLayer } from './PlanPreviewLayer';
 import { InlineClearanceLayer } from './InlineClearanceLayer';
 import { TerrainPanel } from '../terrain/TerrainPanel';
+import { TerrainPlanFill, TerrainPlanNotice } from '../terrain/TerrainPlanFill';
 import { TerrainProfilePanel } from '../terrain/TerrainProfilePanel';
 import { useTerrainStore } from '../terrain/terrainStore';
 import { useTerrainKeys } from '../terrain/useTerrainKeys';
@@ -517,8 +519,6 @@ export function PlanView() {
    */
   const archPoint = (raw: Point2): { point: Point2; snap: SnapKind } => {
     if (archTool === 'door' || archTool === 'window') return { point: raw, snap: 'plane' };
-    const resolved = useArchStore.getState().resolvePointer(raw, SNAP_PX * view.mpp);
-    return {
     if (archModify) {
       // Aparar, alinhar e dividir indicam paredes e arestas: a sessão resolve o que está sob o cursor.
       return {
@@ -526,6 +526,8 @@ export function PlanView() {
         snap: 'plane',
       };
     }
+    const resolved = useArchStore.getState().resolvePointer(raw, SNAP_PX * view.mpp);
+    return {
       point: resolved.point,
       snap:
         resolved.kind === 'grid'
@@ -762,6 +764,13 @@ export function PlanView() {
       else if (d.archId) useArchStore.getState().select(d.archId, additive);
       else {
         if (!additive) useArchStore.getState().select(null);
+        // Clique fora dos elementos: a superfície do terreno sob o ponto (ou um platô, onde
+        // eles são desenhados) é selecionada como qualquer elemento; fora dela, nada fica
+        // selecionado.
+        if (!d.elementId && !additive) {
+          if (showTerrainPlan && selectEarthworkAt(raw, infra)) return;
+          useEarthworkStore.getState().select(null);
+        }
         store.select(d.elementId, additive);
       }
       return;
@@ -1540,6 +1549,16 @@ export function PlanView() {
             onStatus={setBasemapStatus}
           />
         )}
+        {/* Superfície preenchida como no 3D (cor ou mapa) e, por cima, limite e curvas. */}
+        {showTerrainPlan && project.terrain && size.width > 0 && (
+          <TerrainPlanFill
+            terrain={project.terrain}
+            origin={origin}
+            mpp={view.mpp}
+            bounds={viewBounds}
+            basemapSourceId={imagery && provider ? provider.id : null}
+          />
+        )}
         {showTerrainPlan && project.terrain && (
           <TerrainSurfacePlan terrain={project.terrain} origin={origin} mpp={view.mpp} />
         )}
@@ -1828,6 +1847,7 @@ export function PlanView() {
         )}
       </svg>
 
+      <TerrainPlanNotice basemapSourceId={imagery && provider ? provider.id : null} />
       {infra && <TerrainPanel />}
       {infra && <EarthworkPanel />}
       {infra && <TerrainProfilePanel />}

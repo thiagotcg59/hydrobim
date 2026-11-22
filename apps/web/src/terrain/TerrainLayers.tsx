@@ -12,6 +12,7 @@ import { HIGHLIGHT } from '../plan/planDrawing';
 import { useEditorStore } from '../state/editorStore';
 import { EarthworkPlanLayer } from './EarthworkLayers';
 import { shownTerrain, useEarthworkStore } from './earthworkStore';
+import { terrainFootprintPath } from './terrainRaster';
 import { areaRings, useTerrainStore } from './terrainStore';
 
 /**
@@ -87,6 +88,14 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
     return parts.join('');
   }, [terrain, origin, display.triangulation]);
 
+  // Selecionada, a superfície é realçada pelo contorno da área triangulada (o limite pode não
+  // estar definido: sem ele, o contorno é o da própria malha).
+  const selected = useEarthworkStore((s) => s.selection?.kind === 'surface');
+  const outline = useMemo(
+    () => (selected ? terrainFootprintPath(terrain, origin) : ''),
+    [selected, terrain, origin],
+  );
+
   const interval = contourIntervalOf(terrain, display.contourInterval);
   const contours = useMemo(() => {
     if (!display.contours) return null;
@@ -126,6 +135,7 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
       data-testid="infra-terrain"
       data-triangles={terrain.triangles.length / 3}
       data-surface-view={view}
+      data-selected={selected}
       pointerEvents="none"
     >
       {display.triangulation && (
@@ -197,6 +207,20 @@ export const TerrainSurfacePlan = memo(function TerrainSurfacePlan({
           vectorEffect="non-scaling-stroke"
         />
       ))}
+      {selected && outline && (
+        // Realce de seleção: é da tela, não do desenho exportado.
+        <path
+          data-ui="selection"
+          data-testid="terrain-surface-selected"
+          d={outline}
+          fill={HIGHLIGHT}
+          fillOpacity={0.08}
+          fillRule="evenodd"
+          stroke={HIGHLIGHT}
+          strokeWidth={3}
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
     </g>
   );
 });

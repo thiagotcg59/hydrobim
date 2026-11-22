@@ -78,6 +78,29 @@ function groundOf(state: Parameters<typeof equipmentGroundElevation>[0]): PickGr
   };
 }
 
+/**
+ * O raio do cursor atinge a superfície do terreno desenhada no 3D? Vale a superfície à mostra
+ * (natural, projetada ou original), com o exagero vertical do desenho.
+ */
+function terrainUnderRay(ray: Ray): boolean {
+  const { display } = useTerrainStore.getState();
+  if (!display.show3d) return false;
+  const terrain = shownTerrain(
+    useEditorStore.getState().project,
+    useEarthworkStore.getState().view,
+  );
+  if (!terrain) return false;
+  const base = terrainStats(terrain).minZ;
+  const { exaggeration } = display;
+  return (
+    terrainRayHit(
+      terrain,
+      vec3(ray.origin.x, ray.origin.y, base + (ray.origin.z - base) / exaggeration),
+      vec3(ray.direction.x, ray.direction.y, ray.direction.z / exaggeration),
+    ) !== null
+  );
+}
+
 function elementIdOf(
   object: Object3D | null,
   key: 'elementId' | 'archId' = 'elementId',
@@ -378,12 +401,24 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       const { pick, hit } = resolve(event);
       if (useEditorStore.getState().tool === 'select') {
         const arch = useArchStore.getState();
-        const { archId } = cast(event);
+        const { archId, ray } = cast(event);
         if (archId) {
           arch.select(archId, isAdditive(event));
           return;
         }
-        if (!isAdditive(event)) arch.select(null);
+        if (!isAdditive(event)) {
+          arch.select(null);
+          // Nenhum elemento sob o cursor: a superfície do terreno, quando o raio a atinge, é
+          // selecionada como elemento. A rede enterrada continua clicável através dela.
+          if (!hit) {
+            const earthwork = useEarthworkStore.getState();
+            if (terrainUnderRay(ray)) {
+              earthwork.select({ kind: 'surface' });
+              return;
+            }
+            if (earthwork.selection) earthwork.select(null);
+          }
+        }
       }
       useEditorStore.getState().handleViewportClick({
         point: pick?.point ?? null,

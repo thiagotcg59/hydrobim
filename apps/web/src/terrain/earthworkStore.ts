@@ -25,6 +25,7 @@ import {
   type Terrain,
 } from '@hydrobim/core';
 import { create } from 'zustand';
+import { useArchStore } from '../arch/archStore';
 import { useEditorStore } from '../state/editorStore';
 import { registerTerrainEditHandlers, useTerrainStore, type TerrainMode } from './terrainStore';
 
@@ -121,6 +122,10 @@ export const useEarthworkStore = create<EarthworkState>()((set, get) => ({
     // As propriedades de um elemento e as do terreno ocupam o mesmo painel.
     if (selection && (editor().selection.length > 0 || editor().annotationSelection)) {
       editor().select(null);
+    }
+    // A seleção é exclusiva: a da arquitetura também é limpa.
+    if (selection && useArchStore.getState().selection.length > 0) {
+      useArchStore.getState().select(null);
     }
     set({ selection });
   },
@@ -250,7 +255,11 @@ export function restoreSurface(): boolean {
   return done;
 }
 
-export function renameSurface(patch: { name?: string; tag?: string }): boolean {
+export function renameSurface(patch: {
+  name?: string;
+  tag?: string;
+  verticalAccuracy?: number | null;
+}): boolean {
   const terrain = currentTerrain();
   if (!terrain) return false;
   return commitTerrain(setTerrainProperties(terrain, patch), 'Propriedades do terreno alteradas.');
@@ -320,6 +329,27 @@ function createPlatformFrom(ring: Point2[]): boolean {
 // Cliques e anéis vindos da planta
 // ---------------------------------------------------------------------------
 
+/**
+ * Seleciona o que há no ponto da planta: o platô sob ele (o mais recente primeiro, quando os
+ * platôs estão desenhados) ou a superfície do terreno. Fora dos dois, limpa a seleção.
+ * Devolve se algo ficou selecionado.
+ */
+export function selectEarthworkAt(point: Point2, platforms: boolean): boolean {
+  const { project } = editor();
+  const { terrain } = project;
+  const platform =
+    terrain && platforms
+      ? [...project.earthworks.platforms]
+          .reverse()
+          .find((p) => pointInRing(p.outline, point.x, point.y))
+      : undefined;
+  if (platform) earthwork().select({ kind: 'platform', id: platform.id });
+  else if (terrain && terrainElevationAt(terrain, point.x, point.y) !== null) {
+    earthwork().select({ kind: 'surface' });
+  } else if (earthwork().selection) earthwork().select(null);
+  return earthwork().selection !== null;
+}
+
 registerTerrainEditHandlers({
   point: (mode, point, tolerance) => {
     const { project, notify } = editor();
@@ -344,14 +374,7 @@ registerTerrainEditHandlers({
       }
       return;
     }
-    // Seleção: o platô sob o ponto (o mais recente primeiro) ou a superfície.
-    const platform = [...project.earthworks.platforms]
-      .reverse()
-      .find((p) => pointInRing(p.outline, point.x, point.y));
-    if (platform) earthwork().select({ kind: 'platform', id: platform.id });
-    else if (terrainElevationAt(terrain, point.x, point.y) !== null) {
-      earthwork().select({ kind: 'surface' });
-    } else earthwork().select(null);
+    selectEarthworkAt(point, true);
   },
   ring: (mode, ring) => {
     if (mode === 'platform') return createPlatformFrom(ring);
@@ -407,6 +430,13 @@ useEditorStore.subscribe((state, previous) => {
     patch.selection = null;
   }
   if (Object.keys(patch).length > 0) useEarthworkStore.setState(patch);
+});
+
+// Um elemento da arquitetura selecionado também toma o painel de propriedades.
+useArchStore.subscribe((state) => {
+  if (state.selection.length > 0 && earthwork().selection) {
+    useEarthworkStore.setState({ selection: null });
+  }
 });
 
 // O painel de geração da superfície e o de terraplenagem ocupam o mesmo lugar.
