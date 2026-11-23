@@ -63,6 +63,12 @@ Tudo em `apps/web/src/vr/`. Só `VRView.tsx` conhece React e a cena; o resto sã
 - Sem `local-floor`, a sessão usa `local` (origem na cabeça) e o piso é posto 1,60 m abaixo — a barra da vista avisa "piso estimado".
 - Nada disso chega ao projeto: persistência, IFC e DXF continuam nas coordenadas originais.
 
+### Modelos IFC importados
+
+Os modelos de `project.ifcModels` aparecem na realidade virtual com as malhas lidas do arquivo, pelo mesmo componente do Modelo 3D (`ifc/IfcScene.tsx`), e um projeto que só tem um IFC importado já habilita "Entrar em VR". O ponto de partida e o "Recentrar" consideram a envoltória deles. Apontar para um objeto mostra o rótulo, e o gatilho abre o painel com o que o arquivo informa — classe IFC e tipo predefinido, nome, tipo, pavimento, etiqueta, GlobalId, modelo e esquema —, sem preencher o que falta. O objeto fica selecionado também no editor. No menu, "Modelos IFC importados" liga e desliga a categoria.
+
+São objetos de referência (regra 15 do `AGENTS.md`): **as lajes e os pisos de um IFC importado não são superfície caminhável** — num projeto só com IFC o usuário anda sobre o piso virtual, na cota de apoio do modelo ou na de um nível do projeto escolhido no menu. Não entram nos lotes da rede: cada peça do arquivo é uma chamada de desenho, e um modelo grande pode passar do orçamento do Quest 2.
+
 ### Superfícies caminháveis
 
 Só é piso o que o modelo declara como piso: a **superfície do terreno** à mostra (natural ou projetada) e as **lajes e pisos** da arquitetura (face superior, dentro do contorno e fora das aberturas). O topo de um reservatório ou de um flange não é piso. Projeto sem terreno nem pisos recebe um **piso virtual** (grade de 1 m) na cota de apoio do modelo ou na de um nível escolhido no menu — não entra no projeto.
@@ -120,6 +126,7 @@ Registre data, versão do sistema e do navegador do headset, projeto usado e o r
 - **Sem validação em headset físico** até o roteiro acima ser executado.
 - Só leitura: não edita, não mede, não corta. As anotações, cotas e vistas salvas não aparecem.
 - O botão da faixa mostra só o símbolo (a aba Visualizar tem de caber em uma linha a 1920 px); o nome está na dica e na busca de comandos.
+- IFC importado: pisos do arquivo não são caminháveis (piso virtual) e as peças não são reunidas em lotes; o painel mostra a identificação do objeto, não os conjuntos de propriedades do arquivo.
 - Geometria sem níveis de detalhe: redes com muitas peças flangeadas (furação desenhada) podem passar do orçamento do Quest 2. O terreno é desenhado inteiro, com a malha do projeto, e o mapa sobre ele continua sendo baixado se estiver ligado.
 - Sem colisão: o usuário atravessa peças andando fisicamente ou pelo direcional. A caminhada contínua pode causar enjoo em pessoas sensíveis (não há redução do campo de visão ao andar); o teletransporte continua disponível e ela pode ser desligada no menu. O obstáculo só é verificado no arco do teletransporte, não no ponto de chegada.
 - O giro "Recentrar" aponta para o centro do modelo; não há pontos de visita salvos.
