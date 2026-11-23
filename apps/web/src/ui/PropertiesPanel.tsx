@@ -11,6 +11,7 @@ import {
   connectedComponent,
   connectedPortRef,
   elementElevation,
+  elevationFollowers,
   degToRad,
   elementKindLabel,
   formatMeters,
@@ -54,6 +55,8 @@ import {
 } from '../state/editorStore';
 import { ArchProperties } from '../arch/ArchProperties';
 import { useArchStore } from '../arch/archStore';
+import { IfcProperties } from '../ifc/IfcProperties';
+import { hasIfcSelection, useIfcStore } from '../ifc/ifcStore';
 import { EarthworkProperties } from '../terrain/EarthworkProperties';
 import { useEarthworkStore } from '../terrain/earthworkStore';
 import { useUiStore } from '../state/uiStore';
@@ -260,8 +263,9 @@ function PointFields({
 }
 
 /**
- * Cota Z do elemento. Em tubos e conexões a alteração leva junto todos os elementos
- * conectados; em equipamentos, só o próprio elemento (a regra está no domínio).
+ * Cota Z do elemento. Em tubos e conexões a alteração leva junto o trecho acoplado até os
+ * tubos verticais, que esticam ou encolhem com a outra extremidade fixa; em equipamentos, só
+ * o próprio elemento (a regra está no domínio).
  */
 function ElevationField({
   element,
@@ -274,6 +278,7 @@ function ElevationField({
 }) {
   const equipment = element.kind === 'pump' || element.kind === 'tank';
   const connected = equipment ? 0 : connectedComponent(project, element.id).length - 1;
+  const followers = equipment ? 0 : elevationFollowers(project, element.id).length - 1;
   return (
     <>
       <NumberField
@@ -287,9 +292,11 @@ function ElevationField({
       <span className="muted" data-testid="prop-elevation-info">
         {equipment
           ? 'Altera só este equipamento; tubos conectados se ajustam quando o acoplamento permite.'
-          : connected > 0
-            ? `Alterar a elevação move também os ${connected} elemento(s) conectado(s).`
-            : 'Sem elementos conectados: só este elemento é movido.'}
+          : connected === 0
+            ? 'Sem elementos conectados: só este elemento é movido.'
+            : followers < connected
+              ? `Alterar a elevação move também ${followers} elemento(s) acoplado(s); os tubos verticais ligados esticam ou encolhem, com a outra extremidade fixa.`
+              : `Alterar a elevação move também os ${connected} elemento(s) conectado(s).`}
       </span>
     </>
   );
@@ -1214,6 +1221,9 @@ export function PropertiesPanel() {
   const archSelected = useArchStore((s) => s.selection.length > 0);
   // Superfície do terreno ou platô escolhidos (edição do terreno e terraplenagem).
   const earthworkSelected = useEarthworkStore((s) => s.selection !== null);
+  // Objeto ou modelo IFC importado selecionado: painel próprio, sem edição paramétrica.
+  const ifcSelected = useIfcStore(hasIfcSelection);
+  if (ifcSelected) return <IfcProperties />;
   if (archSelected) return <ArchProperties />;
   return earthworkSelected ? <EarthworkProperties /> : <NetworkProperties />;
 }

@@ -43,6 +43,7 @@ const CATEGORY_LABELS: Record<ViewCategory, string> = {
   windows: 'Janelas',
   spaces: 'Ambientes',
   roofs: 'Telhados',
+  ifcModels: 'Modelos IFC importados',
 };
 
 function Check({

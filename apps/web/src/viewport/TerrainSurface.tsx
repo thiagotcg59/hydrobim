@@ -14,12 +14,14 @@ import {
   SRGBColorSpace,
 } from 'three';
 import { findBasemapProvider } from '../map/providers';
+import { HIGHLIGHT } from '../plan/planDrawing';
 import { useEditorStore } from '../state/editorStore';
 import { drapeMosaic, drapeUvs, loadDrapeCanvas } from '../terrain/drape';
 import { CUT_COLOR, FILL_COLOR } from '../terrain/EarthworkPanel';
 import { shownSurface, useEarthworkStore } from '../terrain/earthworkStore';
 import { buildTerrainMesh, contourSegments, terrainEdges } from '../terrain/terrainColors';
 import { contourIntervalOf } from '../terrain/TerrainLayers';
+import { terrainBoundaryLoops } from '../terrain/terrainRaster';
 import { useTerrainStore } from '../terrain/terrainStore';
 import { ModelDisplayContext } from '../views/clipContext';
 
@@ -234,6 +236,24 @@ function TerrainSurfaceMesh() {
         : null,
     [terrain, mesh, display.triangulation],
   );
+  // Selecionada como elemento: o contorno da área triangulada é realçado.
+  const selected = useEarthworkStore((s) => s.selection?.kind === 'surface');
+  const outline = useMemo(() => {
+    if (!terrain || !mesh || !selected) return null;
+    const { base } = mesh;
+    const positions: number[] = [];
+    for (const loop of terrainBoundaryLoops(terrain)) {
+      for (let i = 0; i < loop.length; i += 1) {
+        const p = terrain.points[loop[i] as number];
+        const q = terrain.points[loop[(i + 1) % loop.length] as number];
+        if (!p || !q) continue;
+        positions.push(p.x - base.x, p.y - base.y, p.z - base.z);
+        positions.push(q.x - base.x, q.y - base.y, q.z - base.z);
+      }
+    }
+    return positions.length > 0 ? linesGeometry(new Float32Array(positions)) : null;
+  }, [terrain, mesh, selected]);
+  useEffect(() => () => outline?.dispose(), [outline]);
   const contours = useMemo(() => {
     if (!terrain || !mesh || !display.contours) return null;
     const segments = contourSegments(
@@ -268,6 +288,7 @@ function TerrainSurfaceMesh() {
         exaggeration: display.exaggeration,
         opacity: display.opacity,
         draped,
+        selected,
         surfaceView,
         triangles: mesh.triangleCount,
       }}
@@ -283,6 +304,9 @@ function TerrainSurfaceMesh() {
           clippingPlanes={planes}
           roughness={0.95}
           metalness={0}
+          // Selecionada, a superfície ganha o tom do realce (como os demais elementos).
+          emissive={selected ? HIGHLIGHT : '#000000'}
+          emissiveIntensity={selected ? 0.12 : 0}
           // Translúcida, sem gravar profundidade: a rede enterrada continua visível através
           // da superfície. Com opacidade total ela volta a encobrir o que está abaixo.
           transparent={display.opacity < 1}
@@ -297,6 +321,11 @@ function TerrainSurfaceMesh() {
       {edges && (
         <lineSegments geometry={edges} raycast={() => null}>
           <lineBasicMaterial color="#3f5a33" transparent opacity={0.45} clippingPlanes={planes} />
+        </lineSegments>
+      )}
+      {outline && (
+        <lineSegments geometry={outline} raycast={() => null} renderOrder={3}>
+          <lineBasicMaterial color={HIGHLIGHT} depthTest={false} clippingPlanes={planes} />
         </lineSegments>
       )}
       {contours && (

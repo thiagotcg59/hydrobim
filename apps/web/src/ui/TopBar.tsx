@@ -110,6 +110,7 @@ function FileMenu() {
         >
           <CommandButton id="file.new" context={context} variant="menu" onRun={done} />
           <CommandButton id="file.open" context={context} variant="menu" onRun={done} />
+          <CommandButton id="file.importIfc" context={context} variant="menu" onRun={done} />
           {recent.length > 0 && (
             <>
               <span className="menu__heading">Salvos neste navegador (recentes)</span>

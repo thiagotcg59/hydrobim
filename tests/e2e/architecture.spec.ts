@@ -81,6 +81,8 @@ test('arquitetura: demonstração, ambientes, parede e porta pela planta, painel
   await page.getByTestId('arch-wall').click();
   await expect(page.getByTestId('plan-view')).toHaveAttribute('data-arch-tool', 'wall');
   await expect(page.getByTestId('arch-tool-options')).toBeVisible();
+  // O traçado contínuo é o padrão: os trechos se emendam até a conclusão.
+  await expect(page.getByTestId('arch-option-chain')).toBeChecked();
   await page.mouse.click(...(await planPoint(page, 1, 2)));
   await page.mouse.move(...(await planPoint(page, 2.4, 2)));
   await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');

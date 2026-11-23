@@ -270,9 +270,34 @@ export function originalTerrainOf(terrain: Terrain): Terrain | null {
 /** Nome e identificação da superfície. */
 export function setTerrainProperties(
   terrain: Terrain,
-  patch: { readonly name?: string; readonly tag?: string },
+  patch: {
+    readonly name?: string;
+    readonly tag?: string;
+    /**
+     * Exatidão altimétrica (m) declarada para os dados — a do relatório do levantamento ou da
+     * documentação da fonte; `null` volta a deixá-la sem valor. Nunca é presumida.
+     */
+    readonly verticalAccuracy?: number | null;
+  },
 ): Result<Terrain> {
   const name = patch.name?.trim() ?? terrain.name;
   if (name.length === 0) return fail('TERRAIN_NAME', 'Dê um nome à superfície.');
-  return ok({ ...terrain, name, tag: patch.tag?.trim() ?? terrain.tag });
+  const { verticalAccuracy } = patch;
+  if (
+    verticalAccuracy !== undefined &&
+    verticalAccuracy !== null &&
+    !(Number.isFinite(verticalAccuracy) && verticalAccuracy > 0)
+  ) {
+    return fail(
+      'TERRAIN_ACCURACY',
+      'A exatidão altimétrica é um valor positivo, em metros; deixe o campo vazio se a fonte não a declara.',
+    );
+  }
+  return ok({
+    ...terrain,
+    name,
+    tag: patch.tag?.trim() ?? terrain.tag,
+    source:
+      verticalAccuracy === undefined ? terrain.source : { ...terrain.source, verticalAccuracy },
+  });
 }

@@ -3,7 +3,6 @@ import {
   arePortsAligned,
   autoConnectElement,
   connectPorts,
-  connectedComponent,
   findConnection,
   getElement,
   deflectionAllowance,
@@ -169,6 +168,7 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     infra: defaultInfraSettings(),
     views: [],
     architecture: { types: [], elements: [] },
+    ifcModels: [],
   };
 }
 
@@ -1840,28 +1840,6 @@ export function copyAlignedElements(
  */
 export function elementElevation(element: HydroElement): number {
   return element.kind === 'pipe' ? element.start.z : element.placement.position.z;
-}
-
-/**
- * Define a elevação do elemento (ver `elementElevation`).
- *  - Tubo ou conexão: todos os elementos conectados sobem ou descem junto, rigidamente,
- *    preservando declividades, prumadas e acoplamentos.
- *  - Equipamento (bomba, reservatório): só ele é deslocado; os tubos vizinhos se ajustam
- *    quando o acoplamento permite (ex.: prumada sob o bocal), senão a operação é recusada.
- */
-export function setElementElevation(
-  project: Project,
-  id: string,
-  elevation: number,
-): Result<Project> {
-  const element = getElement(project, id);
-  if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
-  if (!Number.isFinite(elevation)) return fail('INVALID_VALUE', 'Elevação inválida.');
-  const dz = elevation - elementElevation(element);
-  if (Math.abs(dz) < 1e-9) return ok(project);
-  const ids =
-    element.kind === 'pump' || element.kind === 'tank' ? [id] : connectedComponent(project, id);
-  return translateElements(project, ids, { x: 0, y: 0, z: dz });
 }
 
 /**

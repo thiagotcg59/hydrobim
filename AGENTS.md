@@ -4,7 +4,7 @@
 
 HydroBIM é um editor BIM hidráulico paramétrico para web (instalações prediais/industriais — MEP — e redes de abastecimento/adutoras — Infra). É software de engenharia em evolução: cada recurso deve ser realmente operacional, testado e coerente com a prática de engenharia. Não é um visualizador IFC nem uma demonstração gráfica.
 
-Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md` e `docs/DOMAIN_MODEL.md` antes de alterar o domínio, `docs/INTERFACE.md` antes de alterar a organização da interface, `docs/INFRA.md` antes de alterar o ambiente Infra, e `docs/ARQUITETURA.md` antes de alterar a seção de arquitetura (paredes, pisos, portas, janelas e ambientes).
+Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md` e `docs/DOMAIN_MODEL.md` antes de alterar o domínio, `docs/INTERFACE.md` antes de alterar a organização da interface, `docs/INFRA.md` antes de alterar o ambiente Infra, `docs/ARQUITETURA.md` antes de alterar a seção de arquitetura (paredes, pisos, portas, janelas e ambientes) e `docs/IFC_IMPORT.md` antes de alterar a importação de modelos IFC.
 
 ## Organização
 
@@ -13,9 +13,10 @@ Estado e próximos passos: `docs/ROADMAP.md`. Leia também `docs/ARCHITECTURE.md
 | `packages/core` | Esquema, matemática, portas, conectividade, operações, validação, serialização | apenas `zod` |
 | `packages/catalog` | Especificações de tubos e famílias de conexões (com fontes) | `core` |
 | `packages/ifc` | Camada BIM (`src/bim`: modelo de informação, registro de propriedades, validação, IDS) e exportação IFC 4.3 (escritor IFC-SPF puro) | `core`, `geometry` |
+| `packages/ifc-import` | Importação IFC: leitura de arquivos `.ifc` (IFC2X3, IFC4, IFC4X3_ADD2) com o web-ifc — estrutura, objetos, malhas, unidades e propriedades; identificação do arquivo e empacotamento da fonte | `core`, `web-ifc` |
 | `packages/dxf` | Exportação DXF (planta anotada em R2000 e modelo 3D em R12), escritor ASCII puro | `core`, `geometry` |
 | `packages/geometry` | Malhas paramétricas (sem motor gráfico) | `core` |
-| `apps/web` | Editor React/Three.js: `ui/`, `commands/` (registro de comandos), `viewport/`, `plan/`, `infra/` (Planta Infra), `map/` (provedores de mapa), `views/` (vistas de projeto e detalhes 2D), `bim/` (aba BIM / IFC), `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
+| `apps/web` | Editor React/Three.js: `ui/`, `commands/` (registro de comandos), `viewport/`, `plan/`, `infra/` (Planta Infra), `map/` (provedores de mapa), `views/` (vistas de projeto e detalhes 2D), `bim/` (aba BIM / IFC), `ifc/` (modelos IFC importados), `editor/`, `state/`, `persistence/`, `demo/` | todos os pacotes |
 | `services/api` | API FastAPI (validação; verificação do IFC com IfcOpenShell nos testes) | contrato JSON do projeto |
 | `tests/integration`, `tests/e2e` | Integração entre pacotes e testes no navegador | — |
 | `examples/` | Projetos de exemplo, gerados por `npm run examples:generate` | — |
@@ -73,6 +74,7 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 12. **Dados de catálogo só de fontes identificadas**: todo valor de família vem de um documento citado em `source` (fabricante, edição, página, URL); valores derivados são declarados; nada é inventado ou interpolado. Ver `docs/CATALOGS.md`.
 13. **A porta fica no fundo da bolsa ou na face do flange**; a bolsa é geometria sobre o tubo.
 14. **Flanges PN vêm da tabela única** (`packages/catalog/src/flanges.ts`, PN 10/16/25/40): toda família nova com flange PN usa `flangeEndMm`/`flangeEnd` em vez de transcrever o flange de outra fonte; DN que a tabela não traz fica sem flange. Flanges de outro padrão (ex.: ASME) só com a fonte própria citada. Ver `docs/CATALOGS.md`.
+15. **Objetos IFC importados são referência**: ficam em `project.ifcModels`, não criam conexões hidráulicas, não viram elementos paramétricos por terem uma classe IFC e nunca recebem geometria substituta — o que o arquivo não traz aparece no relatório. Ver `docs/IFC_IMPORT.md`.
 
 ## Alterações no esquema do projeto
 

@@ -139,11 +139,20 @@ export function archSnapSegments(
   return segments;
 }
 
-/** Parede sob o ponto (dentro do contorno) ou a mais próxima dele dentro da tolerância. */
-export function wallAt(architecture: Architecture, point: Point2, tolerance: number): Wall | null {
+/**
+ * Parede sob o ponto (dentro do contorno) ou a mais próxima dele dentro da tolerância. Com
+ * `levelId`, só as paredes desse nível.
+ */
+export function wallAt(
+  architecture: Architecture,
+  point: Point2,
+  tolerance: number,
+  levelId: string | null = null,
+): Wall | null {
   let best: Wall | null = null;
   let bestDistance = tolerance;
   for (const wall of walls(architecture)) {
+    if (levelId !== null && wall.levelId !== levelId) continue;
     const polygon = wallFootprint(architecture, wall)?.polygon;
     if (!polygon || polygon.length < 3) continue;
     if (pointInRing(polygon, point.x, point.y)) return wall;

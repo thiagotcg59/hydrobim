@@ -7,7 +7,7 @@ import { EXAGGERATIONS, useTerrainStore, type TerrainColorMode } from './terrain
 const INTERVALS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100] as const;
 
 /**
- * Visualização do terreno (planta e modelo 3D), na aba Visualizar: cor da superfície, curvas
+ * Visualização do terreno (plantas e modelo 3D), na aba Visualizar: cor da superfície, curvas
  * de nível e o seu intervalo, arestas da triangulação e escala vertical. São opções de
  * exibição da sessão: não alteram a superfície, o projeto nem as exportações.
  */
@@ -36,7 +36,7 @@ export function TerrainDisplayControls() {
       {mep && (
         <label
           className="check"
-          title="Mostrar a superfície do terreno (limite, curvas de nível e triangulação) na planta do MEP"
+          title="Mostrar a superfície do terreno nas plantas (planta de trabalho e plantas por nível)"
         >
           <input
             type="checkbox"
@@ -56,8 +56,20 @@ export function TerrainDisplayControls() {
         />
         No 3D
       </label>
+      <label
+        className="check"
+        title="Preencher a superfície na planta como no modelo 3D (cor ou mapa). Desligado, a planta mostra só o limite, as curvas de nível e a triangulação. O preenchimento é da tela: não vai para a exportação da planta"
+      >
+        <input
+          type="checkbox"
+          data-testid="terrain-plan-fill-toggle"
+          checked={display.planFill}
+          onChange={(event) => setDisplay({ planFill: event.target.checked })}
+        />
+        Preenchida na planta
+      </label>
       <label className="plan__field">
-        <span>Superfície (3D)</span>
+        <span>Superfície</span>
         <select
           data-testid="terrain-color-mode"
           value={display.drapeSourceId ? `map:${display.drapeSourceId}` : display.colorMode}
@@ -66,7 +78,7 @@ export function TerrainDisplayControls() {
             if (value.startsWith('map:')) setDisplay({ drapeSourceId: value.slice(4) });
             else setDisplay({ drapeSourceId: null, colorMode: value as TerrainColorMode });
           }}
-          title="Superfície no modelo 3D: cor por altitude (hipsometria), por classes de declividade, lisa, ou o mapa de ruas ou de satélite estendido sobre o relevo (exige o projeto georreferenciado)"
+          title="Superfície na planta e no modelo 3D: cor por altitude (hipsometria), por classes de declividade, lisa, ou o mapa de ruas ou de satélite estendido sobre o relevo (exige o projeto georreferenciado)"
         >
           <option value="elevation">Altitude</option>
           <option value="slope">Declividade</option>
@@ -155,9 +167,9 @@ export function TerrainDisplayControls() {
       </label>
       <label
         className="plan__field"
-        title="Transparência da superfície no modelo 3D: quanto mais transparente, mais visível a rede enterrada"
+        title="Transparência da superfície na planta e no modelo 3D: quanto mais transparente, mais visível a rede enterrada (3D) e o que está sob a superfície (planta)"
       >
-        <span>Transparência (3D)</span>
+        <span>Transparência</span>
         <input
           type="range"
           className="infra__range"

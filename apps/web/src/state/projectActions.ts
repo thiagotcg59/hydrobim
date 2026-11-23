@@ -7,6 +7,7 @@ import {
   parseTerrainPoints,
   quantitiesToCsv,
   surveySource,
+  type Project,
 } from '@hydrobim/core';
 import { encodeDxf, exportModelDxf } from '@hydrobim/dxf';
 import { exportIds, exportIfc } from '@hydrobim/ifc';
@@ -18,6 +19,7 @@ import {
   projectFileBase,
   readFileAsText,
 } from '../persistence/fileIO';
+import { createDefaultIfcSourceStore, withIfcSources } from '../persistence/ifcSourceStore';
 import { createDefaultRepository } from '../persistence/LocalStorageProjectRepository';
 import type { ProjectRepository } from '../persistence/ProjectRepository';
 import { familiesOf, ifcOptionsOf, selectIsDirty, useEditorStore } from './editorStore';
@@ -27,7 +29,20 @@ import { familiesOf, ifcOptionsOf, selectIsDirty, useEditorStore } from './edito
  * ao repositório de persistência.
  */
 
-export const repository: ProjectRepository = createDefaultRepository();
+// Os arquivos-fonte IFC dos modelos importados não cabem no armazenamento do documento:
+// vão para o IndexedDB e voltam ao abrir (o arquivo baixado sempre os leva embutidos).
+export const repository: ProjectRepository = withIfcSources(
+  createDefaultRepository(),
+  createDefaultIfcSourceStore(),
+);
+
+/** Aviso das exportações que não levam os objetos IFC importados. */
+export function importedIfcNote(project: Project): string {
+  const count = project.ifcModels.length;
+  return count === 0
+    ? ''
+    : ` Atenção: ${count === 1 ? 'o modelo IFC importado não entra' : `os ${count} modelos IFC importados não entram`} nesta exportação (só o arquivo do projeto os leva).`;
+}
 
 const store = () => useEditorStore.getState();
 
@@ -78,7 +93,11 @@ export async function importProjectFile(file: File): Promise<boolean> {
   store().loadProject(result.value);
   store().notify(
     'success',
-    `Projeto "${result.value.name}" importado (${result.value.elements.length} elementos).`,
+    `Projeto "${result.value.name}" importado (${result.value.elements.length} elementos${
+      result.value.ifcModels.length > 0
+        ? `, ${result.value.ifcModels.length} modelo(s) IFC importado(s)`
+        : ''
+    }).`,
   );
   return true;
 }
@@ -86,7 +105,13 @@ export async function importProjectFile(file: File): Promise<boolean> {
 export function exportCurrentProject(): void {
   try {
     downloadProject(store().project);
-    store().notify('success', 'Arquivo JSON do projeto exportado.');
+    const models = store().project.ifcModels.length;
+    store().notify(
+      'success',
+      models > 0
+        ? `Arquivo do projeto exportado, com ${models} modelo(s) IFC importado(s) e os arquivos-fonte embutidos.`
+        : 'Arquivo JSON do projeto exportado.',
+    );
   } catch (error) {
     console.error('[HydroBIM] Falha ao exportar.', error);
     store().notify('error', 'Não foi possível exportar o projeto.');
@@ -110,7 +135,7 @@ export function exportIfcFile(): void {
     downloadText(`${projectFileBase(project)}.ifc`, text, 'application/x-step');
     store().notify(
       'success',
-      `IFC 4.3 exportado (${project.elements.length + project.architecture.elements.length} elementos).`,
+      `IFC 4.3 exportado (${project.elements.length + project.architecture.elements.length} elementos).${importedIfcNote(project)}`,
     );
   } catch (error) {
     console.error('[HydroBIM] Falha na exportação IFC.', error);
@@ -149,7 +174,7 @@ export function exportModelDxfFile(): void {
     );
     store().notify(
       'success',
-      `Modelo 3D exportado em DXF (${project.elements.length} elementos, unidades em metros).`,
+      `Modelo 3D exportado em DXF (${project.elements.length} elementos, unidades em metros).${importedIfcNote(project)}`,
     );
   } catch (error) {
     console.error('[HydroBIM] Falha na exportação DXF.', error);
@@ -166,7 +191,10 @@ export function exportQuantitiesFile(): void {
     return;
   }
   downloadText(`${projectFileBase(project)}-quantitativo.csv`, quantitiesToCsv(rows), 'text/csv');
-  store().notify('success', `Quantitativo exportado (${rows.length} linhas).`);
+  store().notify(
+    'success',
+    `Quantitativo exportado (${rows.length} linhas).${importedIfcNote(project)}`,
+  );
 }
 
 /** Exporta a rede no formato INP do EPANET. */
@@ -178,7 +206,10 @@ export function exportEpanetFile(): void {
   }
   const { inp, warnings } = exportEpanet(project);
   downloadText(`${projectFileBase(project)}.inp`, inp, 'text/plain');
-  store().notify('info', `EPANET exportado. Atenção: ${warnings.join(' ')}`);
+  store().notify(
+    'info',
+    `EPANET exportado. Atenção: ${warnings.join(' ')}${importedIfcNote(project)}`,
+  );
 }
 
 /** Importa um terreno a partir de um arquivo de pontos "X Y Z". */

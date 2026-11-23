@@ -1,0 +1,361 @@
+{
+  "source": "IfcOpenShell 0.9.0.post1",
+  "schema": "IFC2X3",
+  "products": {
+    "3UaEFBi6LUAxaatJMzWHPa": {
+      "entity": "IfcBuildingElementProxy",
+      "name": "Eixo de referência",
+      "bbox": null,
+      "volume": null,
+      "container": "Térreo",
+      "type": null,
+      "typeEntity": null,
+      "predefinedType": null,
+      "materials": [],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "2sAPccfDnM98VAk9xR4i0F": {
+      "entity": "IfcColumn",
+      "name": "Pilar P1",
+      "bbox": [
+        [
+          103.978109,
+          54.21016,
+          10.0
+        ],
+        [
+          104.387917,
+          54.619967,
+          12.8
+        ]
+      ],
+      "volume": 0.252,
+      "container": "Térreo",
+      "type": "Pilar 30x30",
+      "typeEntity": "IfcColumnType",
+      "predefinedType": null,
+      "materials": [
+        "Concreto C30"
+      ],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "0CFjwbhffNZQird1lXHUB4": {
+      "entity": "IfcColumn",
+      "name": "Pilar P2",
+      "bbox": [
+        [
+          105.277147,
+          54.96016,
+          10.0
+        ],
+        [
+          105.686955,
+          55.369967,
+          12.8
+        ]
+      ],
+      "volume": 0.252,
+      "container": "Térreo",
+      "type": "Pilar 30x30",
+      "typeEntity": "IfcColumnType",
+      "predefinedType": null,
+      "materials": [
+        "Concreto C30"
+      ],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "0YQeFvoxLUxee74rIM9xIo": {
+      "entity": "IfcColumn",
+      "name": "Pilar P3",
+      "bbox": [
+        [
+          106.597377,
+          55.731352,
+          10.0
+        ],
+        [
+          106.964801,
+          56.098775,
+          12.8
+        ]
+      ],
+      "volume": 0.252,
+      "container": "Térreo",
+      "type": "Pilar 30x30",
+      "typeEntity": "IfcColumnType",
+      "predefinedType": null,
+      "materials": [
+        "Concreto C30"
+      ],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "1DzWTqoKDKnOXfb9IUOGEx": {
+      "entity": "IfcDoor",
+      "name": "Porta P1",
+      "bbox": null,
+      "volume": null,
+      "container": "Térreo",
+      "type": null,
+      "typeEntity": null,
+      "predefinedType": null,
+      "materials": [],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "2WlazvPMDV9xrDkEKGSjWF": {
+      "entity": "IfcSlab",
+      "name": "Laje do pavimento 1",
+      "bbox": [
+        [
+          103.363397,
+          51.863397,
+          12.8
+        ],
+        [
+          108.600704,
+          56.734679,
+          13.0
+        ]
+      ],
+      "volume": 2.688,
+      "container": "Pavimento 1",
+      "type": null,
+      "typeEntity": null,
+      "predefinedType": "FLOOR",
+      "materials": [
+        "Concreto C30",
+        "Aço CA-50"
+      ],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "0wSS1b3BXU3exA5XoG8zWa": {
+      "entity": "IfcSlab",
+      "name": "Rampa inclinada",
+      "bbox": [
+        [
+          108.786613,
+          54.95557,
+          10.0
+        ],
+        [
+          111.261034,
+          58.041393,
+          11.167014
+        ]
+      ],
+      "volume": 0.54,
+      "container": "Térreo",
+      "type": null,
+      "typeEntity": null,
+      "predefinedType": "USERDEFINED",
+      "materials": [],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "2sUzXhRY1O0BS2_H9T5vH4": {
+      "entity": "IfcWall",
+      "name": "Parede A",
+      "bbox": [
+        [
+          104.95,
+          51.913397,
+          10.0
+        ],
+        [
+          108.514102,
+          54.086603,
+          12.8
+        ]
+      ],
+      "volume": 1.862,
+      "container": "Térreo",
+      "type": "Parede de alvenaria 20 cm",
+      "typeEntity": "IfcWallType",
+      "predefinedType": null,
+      "materials": [
+        "Argamassa de reboco",
+        "Bloco cerâmico",
+        "Argamassa de reboco"
+      ],
+      "psets": {
+        "Pset_WallCommon": {
+          "Reference": "PAR-01",
+          "IsExternal": true,
+          "LoadBearing": false,
+          "ThermalTransmittance": 2.5,
+          "FireRating": "EI 120"
+        },
+        "Construtora_Dados": {
+          "Altura": 2.8,
+          "Inclinacao": 90.0,
+          "Lote": 7,
+          "Observacao": "Conferir prumo",
+          "Fases": [
+            "Estrutura",
+            "Acabamento"
+          ],
+          "FaixaDeTemperatura": {
+            "type": "IfcPropertyBoundedValue",
+            "Name": "FaixaDeTemperatura",
+            "Description": null,
+            "UpperBoundValue": 45.0,
+            "LowerBoundValue": 5.0
+          },
+          "Fornecedor": null
+        }
+      },
+      "typePsets": {
+        "Pset_WallCommon": {
+          "Reference": "TIPO-20",
+          "AcousticRating": "45 dB"
+        }
+      },
+      "quantities": {
+        "BaseQuantities": {
+          "Length": 4.0,
+          "Height": 2.8,
+          "Width": 0.2,
+          "GrossSideArea": 11.2,
+          "NetVolume": 1.862,
+          "Fiadas": 14.0
+        }
+      }
+    },
+    "2bcpWazO9NK9W0dKCNqPU1": {
+      "entity": "IfcWall",
+      "name": "Parede B",
+      "bbox": [
+        [
+          106.877499,
+          53.95,
+          10.0
+        ],
+        [
+          108.550704,
+          56.648076,
+          12.8
+        ]
+      ],
+      "volume": 1.68,
+      "container": "Térreo",
+      "type": "Parede de alvenaria 20 cm",
+      "typeEntity": "IfcWallType",
+      "predefinedType": null,
+      "materials": [],
+      "psets": {},
+      "typePsets": {
+        "Pset_WallCommon": {
+          "Reference": "TIPO-20",
+          "AcousticRating": "45 dB"
+        }
+      },
+      "quantities": {}
+    },
+    "3lQDX9fcXKAfc6N11k2wFT": {
+      "entity": "IfcFlowSegment",
+      "name": "Tubo de água fria",
+      "bbox": [
+        [
+          104.655513,
+          53.501407,
+          12.445401
+        ],
+        [
+          107.308589,
+          55.09667,
+          12.554599
+        ]
+      ],
+      "volume": 0.0049,
+      "container": "Térreo",
+      "type": null,
+      "typeEntity": null,
+      "predefinedType": null,
+      "materials": [],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "0sEOyvQDzI9eJkr2fd4Gbg": {
+      "entity": "IfcOpeningElement",
+      "name": "Vão da porta",
+      "bbox": null,
+      "volume": null,
+      "container": "Térreo",
+      "type": null,
+      "typeEntity": null,
+      "predefinedType": null,
+      "materials": [],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    },
+    "1A0W19ZNHRXPxOqT5BpCTb": {
+      "entity": "IfcDistributionPort",
+      "name": "Porta de entrada",
+      "bbox": null,
+      "volume": null
+    },
+    "2mJN1O0HzVMRjE55bCP3f6": {
+      "entity": "IfcBuilding",
+      "name": "Bloco A",
+      "bbox": null,
+      "volume": null
+    },
+    "3et_tDWCzJRQiyMi4dFlvE": {
+      "entity": "IfcBuildingStorey",
+      "name": "Térreo",
+      "bbox": null,
+      "volume": null
+    },
+    "08gkhWfhvVxvjZGdSf_XS6": {
+      "entity": "IfcBuildingStorey",
+      "name": "Pavimento 1",
+      "bbox": null,
+      "volume": null
+    },
+    "21VsHo4cfPBfdOEdVlR5fc": {
+      "entity": "IfcSite",
+      "name": "Terreno",
+      "bbox": null,
+      "volume": null
+    },
+    "03ytcUEHjQ_BnHnkXAPKrR": {
+      "entity": "IfcSpace",
+      "name": "01",
+      "bbox": [
+        [
+          103.686603,
+          52.223205,
+          10.0
+        ],
+        [
+          108.104294,
+          56.274871,
+          12.6
+        ]
+      ],
+      "volume": 24.336,
+      "container": "Térreo",
+      "type": null,
+      "typeEntity": null,
+      "predefinedType": null,
+      "materials": [],
+      "psets": {},
+      "typePsets": {},
+      "quantities": {}
+    }
+  }
+}

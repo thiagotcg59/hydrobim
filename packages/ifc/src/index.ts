@@ -6,6 +6,7 @@ export * from './bim/archDefinitions';
 export * from './bim/archModel';
 export * from './bim/archValidate';
 export * from './bim/model';
+export * from './bim/terrainModel';
 export * from './bim/values';
 export {
   IFC_ENTITIES,

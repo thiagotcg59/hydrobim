@@ -83,6 +83,12 @@ import {
 } from 'lucide-react';
 import { contourOf, type ArchTransformKind } from '../arch/archEdit';
 import {
+  ARCH_MODIFY_HINTS,
+  ARCH_MODIFY_LABELS,
+  archModifyBlocker,
+  type ArchModifyKind,
+} from '../arch/archModify';
+import {
   ARCH_TOOL_HINTS,
   ARCH_TOOL_LABELS,
   archMissingTypeCategory,
@@ -90,6 +96,7 @@ import {
   useArchStore,
   type ArchTool,
 } from '../arch/archStore';
+import { useIfcStore } from '../ifc/ifcStore';
 import { ISO_LABELS, isIsoQuadrant } from '../editor/viewPresets';
 import { exportPlanDxfFile } from '../plan/planExport';
 import {
@@ -119,10 +126,14 @@ import {
   ELEMENT_ICONS,
   FloorOpeningIcon,
   FlooringIcon,
+  AlignEdgeIcon,
   MirrorIcon,
   RoofIcon,
   SlabIcon,
   SpaceIcon,
+  SplitWallIcon,
+  TrimCornerIcon,
+  TrimExtendIcon,
   WallIcon,
   WindowIcon,
 } from '../ui/EngineeringIcons';
@@ -190,6 +201,14 @@ export interface CommandContext {
   /** Mover, copiar, girar ou espelhar por pontos em andamento; contorno em edição. */
   readonly archTransform?: ArchTransformKind | null;
   readonly archContour?: boolean;
+  /** Aparar/estender, alinhar ou dividir parede em andamento. */
+  readonly archModify?: ArchModifyKind | null;
+  /** Objetos IFC importados selecionados (o modelo inteiro conta como 1). */
+  readonly ifcSelectionCount?: number;
+  /** Objetos IFC importados ocultos nesta sessão. */
+  readonly ifcHiddenCount?: number;
+  /** Importação IFC aguardando a confirmação do posicionamento. */
+  readonly ifcPlacing?: boolean;
 }
 
 /** Parte do contexto que vem das vistas de projeto. */
@@ -264,6 +283,7 @@ const editor = () => useEditorStore.getState();
 const views = () => useViewStore.getState();
 const ui = () => useUiStore.getState();
 const arch = () => useArchStore.getState();
+const ifc = () => useIfcStore.getState();
 
 const ENABLED: CommandState = { enabled: true };
 const off = (reason: string): CommandState => ({ enabled: false, reason });
@@ -355,6 +375,7 @@ function toolCommand(tool: Exclude<ToolId, 'move' | 'rotate' | 'align'>): Comman
         (context.viewTool !== undefined && context.viewTool !== 'select') ||
         (context.archTool ?? null) !== null ||
         (context.archTransform ?? null) !== null ||
+        (context.archModify ?? null) !== null ||
         context.archContour === true;
       return { enabled: true, active: context.tool === tool && !(tool === 'select' && drawing) };
     },
@@ -362,6 +383,7 @@ function toolCommand(tool: Exclude<ToolId, 'move' | 'rotate' | 'align'>): Comman
       if (tool === 'select') {
         views().setTool('select');
         arch().setTool(null);
+        arch().endModify();
       }
       editor().setTool(tool);
     },
@@ -624,6 +646,28 @@ function archModifyCommand(
   };
 }
 
+/**
+ * Modificação que atua sobre o que é indicado na planta (paredes e arestas), sem depender da
+ * seleção: a ferramenta fica ativa até Esc, e cada operação confirmada é um passo do histórico.
+ */
+function archPickCommand(kind: ArchModifyKind, icon: LucideIcon): Command {
+  const id = `arch.${kind}`;
+  return {
+    id,
+    label: ARCH_MODIFY_LABELS[kind],
+    description: ARCH_MODIFY_HINTS[kind],
+    icon,
+    testId: id.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`).replace('.', '-'),
+    state: (context) => {
+      const blocked = modeling(context);
+      if (blocked) return blocked;
+      const reason = archModifyBlocker(context.project, kind);
+      return reason ? off(reason) : { enabled: true, active: context.archModify === kind };
+    },
+    run: () => (arch().modify?.kind === kind ? arch().endModify() : arch().startModify(kind)),
+  };
+}
+
 const ARCH_COMMANDS: readonly Command[] = [
   ...(Object.keys(ARCH_TOOL_IDS) as ArchTool[]).map(archToolCommand),
   {
@@ -672,6 +716,10 @@ const ARCH_COMMANDS: readonly Command[] = [
     'Espelha a seleção arquitetônica em relação ao eixo indicado por dois pontos.',
     MirrorIcon,
   ),
+  archPickCommand('trimCorner', TrimCornerIcon),
+  archPickCommand('trimExtend', TrimExtendIcon),
+  archPickCommand('align', AlignEdgeIcon),
+  archPickCommand('split', SplitWallIcon),
   {
     id: 'arch.editContour',
     label: 'Editar contorno',
@@ -718,6 +766,19 @@ export const COMMANDS: readonly Command[] = [
     icon: FolderOpen,
     testId: 'action-open',
     run: () => ui().openDialog('open'),
+  },
+  {
+    id: 'file.importIfc',
+    label: 'Importar IFC…',
+    description:
+      'Abre um arquivo .ifc (IFC2X3, IFC4 ou IFC4X3_ADD2), mostra a prévia e insere os objetos escolhidos como referência, junto da rede e da arquitetura.',
+    icon: FileBox,
+    testId: 'action-import-ifc',
+    state: (context) =>
+      context.ifcPlacing
+        ? off('Há uma importação aguardando o posicionamento: confirme ou cancele no painel.')
+        : ENABLED,
+    run: () => ui().openDialog('ifcImport'),
   },
   {
     id: 'file.save',
@@ -798,6 +859,7 @@ export const COMMANDS: readonly Command[] = [
       modeling(context) ??
       (context.selection.length > 0 ||
       (context.archSelection?.length ?? 0) > 0 ||
+      (context.ifcSelectionCount ?? 0) > 0 ||
       context.annotationSelection !== null ||
       (context.detailSelectionCount ?? 0) > 0 ||
       context.viewMarker
@@ -807,6 +869,7 @@ export const COMMANDS: readonly Command[] = [
       // Detalhes e marcador de corte pertencem às vistas; o restante é do modelo.
       const { detailSelection, marker } = views();
       if (detailSelection.length > 0) views().deleteDetails();
+      else if (ifc().modelSelection || ifc().selection.length > 0) ifc().removeSelection();
       else if (arch().selection.length > 0) arch().deleteSelected();
       else if (marker && editor().selection.length === 0 && !editor().annotationSelection) {
         views().remove(marker);
@@ -1153,7 +1216,9 @@ export const COMMANDS: readonly Command[] = [
     icon: Focus,
     testId: 'view-fit-selection',
     state: (context) =>
-      context.selection.length > 0 ? ENABLED : off('Selecione um ou mais elementos.'),
+      context.selection.length > 0 || (context.ifcSelectionCount ?? 0) > 0
+        ? ENABLED
+        : off('Selecione um ou mais elementos.'),
     run: () => editor().requestView('fit', { selection: true }),
   },
   viewCommand('iso', 'Perspectiva', 'Vista em perspectiva de três quartos.', Box, 'view-iso'),
@@ -1345,8 +1410,14 @@ export const COMMANDS: readonly Command[] = [
     icon: Focus,
     testId: 'bim-isolate-selection',
     state: (context) =>
-      context.selection.length > 0 ? ENABLED : off('Selecione um ou mais elementos.'),
-    run: () => editor().isolateBim(editor().selection),
+      context.selection.length > 0 || (context.ifcSelectionCount ?? 0) > 0
+        ? ENABLED
+        : off('Selecione um ou mais elementos.'),
+    run: () => {
+      // Objetos IFC importados selecionados: isola entre os importados.
+      if (ifc().selection.length > 0) ifc().isolate(ifc().selection);
+      else editor().isolateBim(editor().selection);
+    },
   },
   {
     id: 'bim.hide',
@@ -1355,8 +1426,25 @@ export const COMMANDS: readonly Command[] = [
     icon: EyeOff,
     testId: 'bim-hide-selection',
     state: (context) =>
-      context.selection.length > 0 ? ENABLED : off('Selecione um ou mais elementos.'),
-    run: () => editor().setBimHidden(editor().selection, true),
+      context.selection.length > 0 || (context.ifcSelectionCount ?? 0) > 0
+        ? ENABLED
+        : off('Selecione um ou mais elementos.'),
+    run: () => {
+      if (ifc().selection.length > 0) {
+        ifc().setHidden(ifc().selection, true);
+        ifc().select(null);
+      } else editor().setBimHidden(editor().selection, true);
+    },
+  },
+  {
+    id: 'ifc.showAll',
+    label: 'Mostrar importados',
+    description: 'Volta a exibir os objetos IFC importados ocultos ou fora do isolamento.',
+    icon: Eye,
+    testId: 'ifc-show-all-command',
+    state: (context) =>
+      (context.ifcHiddenCount ?? 0) > 0 ? ENABLED : off('Nenhum objeto importado está oculto.'),
+    run: () => ifc().showAll(),
   },
   {
     id: 'bim.library',
@@ -1686,6 +1774,10 @@ export function commandContext(): CommandContext {
     archSelection: arch().selection,
     archTransform: arch().transform?.kind ?? null,
     archContour: arch().contour !== null,
+    archModify: arch().modify?.kind ?? null,
+    ifcSelectionCount: ifc().modelSelection ? 1 : ifc().selection.length,
+    ifcHiddenCount: ifc().hidden.length,
+    ifcPlacing: ifc().wizard?.step === 'placing',
   };
 }
 

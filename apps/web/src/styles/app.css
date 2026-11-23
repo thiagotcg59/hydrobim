@@ -2518,6 +2518,11 @@ code {
   color: #9a3412;
 }
 
+/* Na planta, o aviso fica acima da barra de estado do ambiente. */
+.terrain-drape--plan {
+  bottom: 40px;
+}
+
 .terrain-drape__attribution a {
   color: inherit;
 }

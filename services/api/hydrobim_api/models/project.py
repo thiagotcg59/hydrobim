@@ -19,7 +19,7 @@ from pydantic import (
 from pydantic.alias_generators import to_camel
 
 PROJECT_FORMAT = "hydrobim-project"
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 20
 
 
 def _json_number(value: Any) -> int | float:
@@ -694,6 +694,8 @@ ViewCategory = Literal[
     "spaces",
     # Esquema v18.
     "roofs",
+    # Esquema v19: objetos de modelos IFC importados.
+    "ifcModels",
 ]
 
 
@@ -856,6 +858,24 @@ class JoineryMaterials(CamelModel):
     glazing: NonEmptyString = Field(default=None, validate_default=False)
 
 
+class DoorFrieze(CamelModel):
+    """Friso reto da folha, de borda a borda; `position` é fração da folha (0 a 1, exclusivos).
+
+    Horizontal: da base para o topo. Vertical: da borda das dobradiças para a da fechadura.
+    """
+
+    orientation: Literal["horizontal", "vertical"]
+    position: Annotated[float, Field(gt=0, lt=1)]
+
+
+class DoorLeafDesign(CamelModel):
+    """Desenho da folha (esquema v20). `schematic` = posição dos frisos não cotada pela fonte."""
+
+    friezes: Annotated[list[DoorFrieze], Field(min_length=1)]
+    frieze_width: PositiveNumber
+    schematic: bool
+
+
 class DoorType(ArchTypeBase):
     category: Literal["door"]
     operation: Literal["singleSwing", "doubleSwing", "sliding", "pivot"]
@@ -864,6 +884,8 @@ class DoorType(ArchTypeBase):
     frame_width: PositiveNumber
     panel_thickness: PositiveNumber
     materials: JoineryMaterials
+    # Esquema v20: ausente = folha lisa.
+    leaf: DoorLeafDesign = Field(default=None, validate_default=False)
 
 
 class WindowType(ArchTypeBase):
@@ -990,6 +1012,52 @@ def default_arch_cut_height(cut_height: Any) -> float:
     return max(0.1, min(1.2, top))
 
 
+# --- Modelos IFC importados (esquema v19) -----------------------------------------------
+# Objetos de referência lidos de arquivos .ifc: o projeto guarda o arquivo-fonte íntegro
+# (compactado), os objetos incluídos e as transformações. Malhas e propriedades são relidas
+# da fonte pelo editor; o backend só valida o contrato.
+
+IFC_IMPORT_MAX_OBJECTS = 50_000
+
+
+class IfcSource(CamelModel):
+    file_name: NonEmptyString
+    byte_length: Annotated[int, Field(ge=0)]
+    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    encoding: Literal["gzip-base64"]
+    # Vazio = fonte não embutida (cópia de trabalho do navegador).
+    data: str
+
+
+class IfcTransform(CamelModel):
+    translation: Vec3
+    # Giro em torno de Z, em radianos.
+    rotation: FiniteNumber
+
+
+class IfcImportedObject(CamelModel):
+    id: NonEmptyString
+    express_id: Annotated[int, Field(gt=0)]
+    global_id: str
+    transform: IfcTransform | None
+    copy_: Annotated[bool, Field(alias="copy")]
+
+
+class IfcImportedModel(CamelModel):
+    id: NonEmptyString
+    name: NonEmptyString
+    source: IfcSource
+    schema_: Annotated[NonEmptyString, Field(alias="schema")]
+    length_unit: str
+    unit_scale: PositiveNumber
+    imported_at: str
+    placement_mode: Literal["original", "basePoint", "offset", "aligned"]
+    placement: IfcTransform
+    visible: bool
+    opacity: Annotated[FiniteNumber, Field(ge=0.05, le=1)]
+    objects: Annotated[list[IfcImportedObject], Field(max_length=IFC_IMPORT_MAX_OBJECTS)]
+
+
 class Units(CamelModel):
     length: Literal["m"]
     angle: Literal["rad"]
@@ -997,7 +1065,7 @@ class Units(CamelModel):
 
 class Project(CamelModel):
     format: Literal["hydrobim-project"]
-    schema_version: Annotated[Literal[18], BeforeValidator(_json_number)]
+    schema_version: Annotated[Literal[20], BeforeValidator(_json_number)]
     id: NonEmptyString
     name: str
     discipline: Discipline
@@ -1025,13 +1093,31 @@ class Project(CamelModel):
     views: list[ProjectView]
     # Esquema v16: modelo arquitetônico, nos mesmos níveis e coordenadas da rede.
     architecture: Architecture
+    # Esquema v19: modelos IFC importados como referência.
+    ifc_models: list[IfcImportedModel]
 
     @model_validator(mode="before")
     @classmethod
     def migrate(cls, document: Any) -> Any:
-        """Mesmas migrações de core/serialization.ts (v1 → … → v18), sem mutar o documento."""
+        """Mesmas migrações de core/serialization.ts (v1 → … → v20), sem mutar o documento."""
         if not isinstance(document, dict):
             return document
+        version = document.get("schemaVersion", document.get("schema_version"))
+        if isinstance(version, bool) or version not in tuple(range(1, 20)):
+            return document
+        if version == 19:
+            # v19 → v20: desenho da folha no tipo de porta (`leaf`), opcional. Documentos v19
+            # já são válidos: nada muda além da versão.
+            return {**document, "schemaVersion": 20}
+        if version != 18:
+            document = cls._migrate_to_v18(document)
+        # v18 → v19: modelos IFC importados (nenhum nos documentos antigos) e a categoria
+        # `ifcModels` nas vistas.
+        return {"ifcModels": [], **document, "schemaVersion": 20}
+
+    @classmethod
+    def _migrate_to_v18(cls, document: dict[str, Any]) -> dict[str, Any]:
+        """Migrações v1 → … → v18."""
         version = document.get("schemaVersion", document.get("schema_version"))
         if isinstance(version, bool) or version not in tuple(range(1, 18)):
             return document

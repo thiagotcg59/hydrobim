@@ -108,6 +108,7 @@ const CATEGORY_LABELS: Record<ViewCategory, string> = {
   windows: 'Janelas',
   spaces: 'Ambientes',
   roofs: 'Telhados',
+  ifcModels: 'Modelos IFC importados',
 };
 
 /** Altura da câmera da prévia no monitor (m): uma pessoa em pé. */

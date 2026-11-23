@@ -407,3 +407,142 @@ test('telhados: duas águas e uma água, parâmetros, contorno, quantitativos e 
 
   expect(errors).toEqual([]);
 });
+
+test('paredes: aparar para canto, alinhar levando o canto e dividir, com prévia e desfazer', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await openDemo(page);
+  const plan = page.getByTestId('plan-view');
+  const status = page.getByTestId('status-message');
+  const drawn = page.getByTestId('arch-plan-element');
+  const modify = page.getByTestId('arch-modify');
+  await expect(drawn).toHaveCount(14);
+
+  // Três paredes soltas, fora da edificação: referência (x = 8), vertical (x = 9) e horizontal
+  // (y = 3), estas duas afastadas uma da outra como em um canto por fechar.
+  await page.getByTestId('arch-wall').click();
+  // O início é o ponto clicado; o trecho é digitado (@ΔX;ΔY), para a direção ser exata.
+  for (const [x, y, entry] of [
+    [8, -2, '@0;1'],
+    [9, 0, '@0;2.5'],
+    [10, 3, '@2;0'],
+  ] as const) {
+    await page.mouse.click(...(await planPoint(page, x, y)));
+    await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');
+    await page.keyboard.type(entry);
+    await page.keyboard.press('Enter');
+    // O traçado continua em rascunho; o botão direito oferece "Criar a parede".
+    await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '2');
+    await page.mouse.click(...(await planPoint(page, x + 0.5, y + 0.5)), { button: 'right' });
+    await expect(page.getByTestId('arch-draft-menu')).toBeVisible();
+    await expect(page.getByTestId('arch-draft-create')).toContainText('Criar a parede');
+    await page.getByTestId('arch-draft-create').click();
+    await expect(page.getByTestId('arch-draft-menu')).toHaveCount(0);
+    await expect(status).toContainText('1 parede criada');
+    // A ferramenta continua ativa, sem rascunho pendente, para a parede seguinte.
+    await expect(plan).toHaveAttribute('data-arch-tool', 'wall');
+    await page.mouse.move(...(await planPoint(page, x + 0.5, y + 0.5)));
+    await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '0');
+  }
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(plan).toHaveAttribute('data-arch-tool', '');
+  await expect(drawn).toHaveCount(17);
+
+  // Com um ponto só, "Criar a parede" fica desabilitado, com o motivo; Esc fecha só o menu.
+  await page.getByTestId('arch-wall').click();
+  await page.mouse.click(...(await planPoint(page, 8, -4)));
+  await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');
+  await page.mouse.click(...(await planPoint(page, 9, -3.5)), { button: 'right' });
+  await expect(page.getByTestId('arch-draft-create')).toBeDisabled();
+  await expect(page.getByTestId('arch-draft-create-hint')).toContainText('Faltam pontos');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('arch-draft-menu')).toHaveCount(0);
+  await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '1');
+  // O duplo clique no último ponto também conclui, sem criar um trecho a mais.
+  await page.mouse.dblclick(...(await planPoint(page, 10, -4)));
+  await expect(status).toContainText('1 parede criada');
+  await expect(drawn).toHaveCount(18);
+  await expect(page.getByTestId('arch-draft')).toHaveAttribute('data-points', '0');
+  await page.keyboard.press('Escape');
+  await expect(plan).toHaveAttribute('data-arch-tool', '');
+  await page.getByTestId('action-undo').click();
+  await expect(drawn).toHaveCount(17);
+  const lastWalls = async (count: number): Promise<SavedWall[]> =>
+    (await savedElements(page)).filter((element) => element.kind === 'wall').slice(-count);
+  const [reference, vertical0, horizontal0] = await lastWalls(3);
+  if (!reference || !vertical0 || !horizontal0) throw new Error('Paredes não gravadas.');
+
+  // Aparar/estender para canto: dois cliques, com a prévia do resultado antes do segundo.
+  await page.getByTestId('arch-trim-corner').click();
+  await expect(plan).toHaveAttribute('data-arch-mode', 'modify');
+  await expect(page.getByTestId('arch-mode-panel')).toBeVisible();
+  await expect(page.getByTestId('arch-modify-steps').locator('li')).toHaveCount(2);
+  await page.mouse.move(...(await planPoint(page, 9, 1)));
+  await expect(page.getByTestId('arch-modify-pick')).toHaveCount(1);
+  await page.mouse.click(...(await planPoint(page, 9, 1)));
+  await expect(modify).toHaveAttribute('data-picks', '1');
+  await page.mouse.move(...(await planPoint(page, 11, 3)));
+  await expect(modify).toHaveAttribute('data-valid', 'true');
+  await expect(page.getByTestId('arch-ghost')).toHaveCount(2);
+  await page.mouse.click(...(await planPoint(page, 11, 3)));
+  await expect(status).toContainText('levadas ao canto');
+  // A ferramenta continua ativa, sem cliques pendentes.
+  await expect(modify).toHaveAttribute('data-picks', '0');
+
+  const [vertical, horizontal] = await lastWalls(2);
+  if (!vertical || !horizontal) throw new Error('Paredes não gravadas.');
+  // O canto é o cruzamento das duas linhas de referência; as outras extremidades ficaram.
+  expect(vertical.start).toEqual(vertical0.start);
+  expect(vertical.end.x).toBeCloseTo(vertical0.start.x, 9);
+  expect(vertical.end.y).toBeCloseTo(horizontal0.start.y, 9);
+  expect(horizontal.start).toEqual(vertical.end);
+  expect(horizontal.end).toEqual(horizontal0.end);
+
+  // Paralelas: a prévia mostra a recusa junto ao cursor e o clique não grava.
+  await page.mouse.click(...(await planPoint(page, 9, 1)));
+  await page.mouse.move(...(await planPoint(page, 8, -1.5)));
+  await expect(modify).toHaveAttribute('data-valid', 'false');
+  await expect(page.getByTestId('arch-edit-refusal')).toContainText('paralelas');
+  await page.mouse.click(...(await planPoint(page, 8, -1.5)));
+  await expect(status).toHaveAttribute('data-level', 'error');
+
+  // Alinhar: o eixo da parede de referência e o eixo da vertical — o canto vai junto.
+  await page.getByTestId('arch-align').click();
+  await expect(modify).toHaveAttribute('data-kind', 'align');
+  await page.mouse.click(...(await planPoint(page, 8, -1.5)));
+  await expect(modify).toHaveAttribute('data-picks', '1');
+  await page.mouse.move(...(await planPoint(page, 9, 1.5)));
+  await expect(page.getByTestId('arch-ghost')).toHaveCount(2);
+  await page.mouse.click(...(await planPoint(page, 9, 1.5)));
+  await expect(status).toContainText('alinhada');
+
+  // Dividir: um clique sobre a parede horizontal.
+  await page.getByTestId('arch-split').click();
+  await expect(modify).toHaveAttribute('data-kind', 'split');
+  await page.mouse.click(...(await planPoint(page, 10, 3)));
+  await expect(status).toContainText('dividida em duas paredes');
+  await expect(drawn).toHaveCount(18);
+  await page.keyboard.press('Escape');
+  await expect(plan).toHaveAttribute('data-arch-mode', '');
+
+  const [moved, head, tail] = await lastWalls(3);
+  if (!moved || !head || !tail) throw new Error('Paredes não gravadas.');
+  // A vertical foi para a linha da referência e o canto acompanhou o alinhamento.
+  expect(moved.start.x).toBeCloseTo(reference.start.x, 9);
+  expect(moved.end.x).toBeCloseTo(reference.start.x, 9);
+  expect(moved.end.y).toBeCloseTo(horizontal0.start.y, 9);
+  expect(head.start).toEqual(moved.end);
+  // A divisão ficou sobre a linha da parede: os dois trechos se tocam e o fim não mudou.
+  expect(head.end.y).toBeCloseTo(horizontal0.start.y, 9);
+  expect(tail.start).toEqual(head.end);
+  expect(tail.end).toEqual(horizontal0.end);
+
+  // Cada operação foi um passo: três desfazer devolvem as paredes como foram desenhadas.
+  for (let i = 0; i < 3; i += 1) await page.getByTestId('action-undo').click();
+  await expect(drawn).toHaveCount(17);
+  expect(await lastWalls(3)).toEqual([reference, vertical0, horizontal0]);
+
+  expect(errors).toEqual([]);
+});

@@ -19,6 +19,7 @@ const KIND_NOTES: Record<ExportDetails['kind'], string> = {
 export function ExportDialog({ open, onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const context = useCommandContext();
+  const ifcModels = context.project.ifcModels.length;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -54,6 +55,15 @@ export function ExportDialog({ open, onClose }: Props) {
           O arquivo nativo do projeto (.hydrobim.json), que reabre no HydroBIM sem perda, fica em
           Arquivo › Baixar arquivo. As saídas abaixo são para outros programas.
         </p>
+        {ifcModels > 0 && (
+          <p className="warn" data-testid="export-ifc-note">
+            Este projeto tem {ifcModels} modelo(s) IFC importado(s). Eles{' '}
+            <strong>não entram</strong> nas exportações IFC, DXF, CSV, INP e IDS — essas saídas
+            levam só a rede, a arquitetura e o terreno modelados no HydroBIM. A planta em SVG leva
+            os traços dos objetos importados que estiverem à mostra. O arquivo do projeto
+            (.hydrobim.json) leva os modelos completos, com o arquivo-fonte.
+          </p>
+        )}
         {open &&
           KINDS.map((kind) => (
             <section key={kind} className="exports" data-testid={`export-kind-${kind}`}>

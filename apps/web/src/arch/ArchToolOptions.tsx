@@ -19,6 +19,7 @@ import { useUiStore } from '../state/uiStore';
 import { NumberField, ReadOnlyRow, Section, SelectField } from '../ui/fields';
 import { ARCH_TRANSFORM_LABELS, ARCH_TRANSFORM_STEPS, contourOutcome } from './archEdit';
 import { activeTypeIdOf, workLevelIdOf } from './archGeometry';
+import { ARCH_MODIFY_HINTS, ARCH_MODIFY_LABELS, ARCH_MODIFY_STEPS } from './archModify';
 import {
   ARCH_TOOL_CATEGORY,
   ARCH_TOOL_HINTS,
@@ -179,8 +180,50 @@ export function ArchModePanel() {
   const project = useEditorStore((s) => s.project);
   const transform = useArchStore((s) => s.transform);
   const contour = useArchStore((s) => s.contour);
+  const modify = useArchStore((s) => s.modify);
   const count = useArchStore((s) => s.selection.length);
   const arch = useArchStore.getState();
+  if (modify) {
+    const steps = ARCH_MODIFY_STEPS[modify.kind];
+    return (
+      <aside className="panel inspector" aria-label="Ferramenta" data-testid="arch-mode-panel">
+        <header className="panel__header">
+          <h2>{ARCH_MODIFY_LABELS[modify.kind]}</h2>
+        </header>
+        <div className="panel__scroll">
+          <p className="panel__empty">{ARCH_MODIFY_HINTS[modify.kind]}</p>
+          <Section title="Operação" testId="arch-modify-panel">
+            <ol className="arch-steps" data-testid="arch-modify-steps">
+              {steps.map((step, index) => (
+                <li
+                  key={step}
+                  data-done={index < modify.picks.length}
+                  aria-current={index === modify.picks.length ? 'step' : undefined}
+                >
+                  {step}
+                  {modify.picks[index] ? ` — ${modify.picks[index].name}` : ''}
+                </li>
+              ))}
+            </ol>
+            <span className="muted">
+              A prévia (em verde) é o resultado da operação; o motivo de uma recusa aparece junto ao
+              cursor. Cada operação confirmada é um passo do histórico.
+            </span>
+            <div className="arch-actions">
+              <button
+                type="button"
+                className="btn btn--compact"
+                data-testid="arch-modify-cancel"
+                onClick={() => arch.endModify()}
+              >
+                <X size={14} aria-hidden /> Encerrar
+              </button>
+            </div>
+          </Section>
+        </div>
+      </aside>
+    );
+  }
   if (contour) {
     const element = getArchElement(project.architecture, contour.elementId);
     const outcome = contourOutcome(project, contour);
@@ -429,15 +472,33 @@ export function ArchToolOptions({ tool }: { tool: ArchTool }) {
                 options={LOCATION_LINE_OPTIONS}
                 onChange={(locationLine) => setOptions({ locationLine })}
               />
-              <label className="check" title="Liga o último ponto ao primeiro ao concluir">
+              <label
+                className="check"
+                title="Ligado (padrão): cada clique emenda um novo trecho; o botão direito › Criar a parede, Enter ou o duplo clique conclui o traçado. Desligado: dois cliques criam a parede e encerram o trecho"
+              >
                 <input
                   type="checkbox"
-                  data-testid="arch-option-closed"
-                  checked={options.closed}
-                  onChange={(event) => setOptions({ closed: event.target.checked })}
+                  data-testid="arch-option-chain"
+                  checked={options.chain}
+                  onChange={(event) => {
+                    setOptions({ chain: event.target.checked });
+                    // Um traçado começado na outra forma de desenhar não continua.
+                    useArchStore.setState({ points: [] });
+                  }}
                 />
-                Fechar o traçado ao concluir
+                Traçado contínuo (vários trechos)
               </label>
+              {options.chain && (
+                <label className="check" title="Liga o último ponto ao primeiro ao concluir">
+                  <input
+                    type="checkbox"
+                    data-testid="arch-option-closed"
+                    checked={options.closed}
+                    onChange={(event) => setOptions({ closed: event.target.checked })}
+                  />
+                  Fechar o traçado ao concluir
+                </label>
+              )}
             </>
           )}
           {tool === 'roof' && (
