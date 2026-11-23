@@ -8,9 +8,19 @@ import {
   type Project,
   type Terrain,
 } from '@hydrobim/core';
+import { buildTerrainIfcInfo, IFC_ORIGIN_LABELS } from '@hydrobim/ifc';
 import { ArrowLeft, Hexagon, Mountain } from 'lucide-react';
+import { useMemo } from 'react';
 import { useEditorStore } from '../state/editorStore';
-import { NumberField, ReadOnlyRow, Section, TextField } from '../ui/fields';
+import {
+  formatDecimal,
+  NumberField,
+  parseDecimal,
+  ReadOnlyRow,
+  Section,
+  TextField,
+} from '../ui/fields';
+import { formatIfcValue } from '../ui/ifcFormat';
 import { changePlatform, deletePlatform, renameSurface, useEarthworkStore } from './earthworkStore';
 
 /**
@@ -26,6 +36,67 @@ const area = (m2: number): string => (m2 >= 10_000 ? `${nf(m2 / 10_000)} ha` : `
 const m3 = (value: number | null | undefined): string =>
   value === null || value === undefined ? 'pendente' : `${nf(value)} m³`;
 const PENDING = <em className="muted">não informado</em>;
+
+/**
+ * Dados IFC da superfície: a classificação, os atributos e os conjuntos de propriedades e de
+ * quantidades que vão para o arquivo — lidos do mesmo modelo que o exportador usa.
+ */
+function SurfaceIfc({ project }: { project: Project }) {
+  const info = useMemo(() => buildTerrainIfcInfo(project), [project]);
+  if (!info) {
+    return (
+      <Section title="IFC" testId="terrain-props-ifc">
+        <span className="muted">Superfície sem faces: não é exportada.</span>
+      </Section>
+    );
+  }
+  return (
+    <>
+      <Section title="IFC" testId="terrain-props-ifc">
+        <ReadOnlyRow
+          label="Entidade"
+          value={<span data-testid="terrain-ifc-entity">{info.entity}</span>}
+        />
+        <ReadOnlyRow
+          label="Tipo predefinido"
+          value={<span data-testid="terrain-ifc-predefined">{info.predefinedType}</span>}
+        />
+        <ReadOnlyRow label="ObjectType" value={info.objectType} />
+        <ReadOnlyRow
+          label="GlobalId"
+          value={<code data-testid="terrain-ifc-guid">{info.globalId}</code>}
+        />
+        <ReadOnlyRow label="Name" value={info.name} />
+        <ReadOnlyRow label="Tag" value={info.tag || PENDING} />
+        <ReadOnlyRow label="Description" value={info.description} />
+        <ReadOnlyRow label="Contido em" value="IfcSite" />
+      </Section>
+      {info.psets.map((set) => (
+        <Section key={set.name} title={set.name} testId={`terrain-ifc-set-${set.name}`}>
+          {set.description && <span className="muted">{set.description}</span>}
+          {set.properties.map((property) => {
+            const text = formatIfcValue(property);
+            return (
+              <ReadOnlyRow
+                key={property.key}
+                label={property.label}
+                value={
+                  <span
+                    data-testid={`terrain-ifc-${property.name}`}
+                    data-origin={property.origin}
+                    title={`${property.set}.${property.name} · ${property.ifcType} · ${IFC_ORIGIN_LABELS[property.origin]}`}
+                  >
+                    {text ?? PENDING}
+                  </span>
+                }
+              />
+            );
+          })}
+        </Section>
+      ))}
+    </>
+  );
+}
 
 function SurfaceProperties({ terrain, project }: { terrain: Terrain; project: Project }) {
   const stats = terrainStats(terrain);
@@ -99,10 +170,27 @@ function SurfaceProperties({ terrain, project }: { terrain: Terrain; project: Pr
           label="Resolução"
           value={source.resolution === null ? PENDING : `${nf(source.resolution)} m`}
         />
-        <ReadOnlyRow
-          label="Exatidão altimétrica"
-          value={source.verticalAccuracy === null ? PENDING : `${nf(source.verticalAccuracy)} m`}
+        <TextField
+          label="Exatidão altimétrica (m)"
+          value={source.verticalAccuracy === null ? '' : formatDecimal(source.verticalAccuracy, 3)}
+          testId="terrain-prop-accuracy"
+          onCommit={(text) => {
+            // Vazio = a fonte não declara: fica sem valor, no painel e no IFC.
+            const value = text.trim() === '' ? null : parseDecimal(text);
+            if (value !== null && !Number.isFinite(value)) {
+              useEditorStore
+                .getState()
+                .notify('error', 'Exatidão altimétrica: informe um número, em metros.');
+              return;
+            }
+            renameSurface({ verticalAccuracy: value });
+          }}
         />
+        {source.verticalAccuracy === null && (
+          <span className="muted">
+            Exatidão não declarada pela fonte: informe a do relatório do levantamento, se houver.
+          </span>
+        )}
       </Section>
       <Section title="Coordenadas e referência" testId="terrain-props-reference">
         <ReadOnlyRow
@@ -127,6 +215,7 @@ function SurfaceProperties({ terrain, project }: { terrain: Terrain; project: Pr
         />
         {geo.state !== 'ready' && georeference && <span className="muted">{geo.message}</span>}
       </Section>
+      <SurfaceIfc project={project} />
     </>
   );
 }

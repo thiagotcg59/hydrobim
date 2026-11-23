@@ -47,6 +47,10 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Exportação IFC | `packages/ifc` (cliente); verificação em `services/api/tests` |
 | Informação IFC (classificação, tipos, propriedades, quantidades, validação, IDS) | `packages/ifc/src/bim`; aba BIM / IFC em `apps/web/src/bim` |
 | Exportação DXF (planta anotada e modelo 3D) | `packages/dxf` (cliente) |
+| Importação IFC: leitura (web-ifc), identificação do arquivo e empacotamento da fonte | `packages/ifc-import`; ver [IFC_IMPORT.md](IFC_IMPORT.md) |
+| Modelos IFC importados: esquema e operações puras (posição, cópia, remoção) | `packages/core/src/ifcModels.ts` |
+| Modelos IFC importados no editor: worker, sessão, assistente, camadas 3D/2D, navegador e painéis | `apps/web/src/ifc/`; fontes no navegador em `persistence/ifcSourceStore.ts` |
+| Arestas vivas e contorno de seção de malhas trianguladas quaisquer | `packages/geometry/src/meshEdges.ts` |
 | Quantitativo, EPANET, interferências, perfil da rede | `packages/core/src/quantities.ts`, `epanet.ts`, `analysis.ts` |
 | Superfície do terreno: triangulação restrita, DEM, curvas de nível, corte | `packages/core/src/terrain/` (puro) |
 | Fontes de elevação, GeoTIFF, geração em Web Worker, painel do terreno | `apps/web/src/terrain/` |
@@ -63,7 +67,7 @@ services/api (Python)  — valida o mesmo documento JSON; exportará IFC (Fase 3
 | Informação IFC da arquitetura (registro, modelo, validação) e exportação | `packages/ifc/src/bim/archDefinitions.ts`, `archModel.ts`, `archValidate.ts`; `packages/ifc/src/archExport.ts` |
 | Arquitetura no editor: sessão, ferramentas, painel, catálogo e quantitativo | `apps/web/src/arch/` |
 | Capturas de desenho em planta (ponto e direção, com prioridade e alternância) — função pura | `apps/web/src/editor/planSnaps.ts`; preferências em `state/snapStore.ts` |
-| Edição interativa da arquitetura (operações por pontos, alças, contorno) — funções puras e camadas de prévia | `apps/web/src/arch/archEdit.ts`, `ArchEditLayer.tsx` |
+| Edição interativa da arquitetura (operações por pontos, alças, contorno) — funções puras e camadas de prévia | `apps/web/src/arch/archEdit.ts`, `archModify.ts` (aparar, estender, alinhar e dividir por indicação), `ArchEditLayer.tsx` |
 | Realidade virtual (WebXR): sessão, coordenadas, cena em lotes, navegação e painéis | `apps/web/src/vr/`; ver [WEBXR.md](WEBXR.md) |
 
 ## Fluxo de uma edição
@@ -103,6 +107,7 @@ A edição direta do traçado (`slide.ts`: `stretchPipe`, `slideElements`) usa a
 ## Persistência
 
 - Documento JSON versionado (`format: "hydrobim-project"`, `schemaVersion`), validado por Zod ao abrir, com verificação referencial e ponto de extensão para migrações (`serialization.ts`).
+- Os arquivos-fonte dos modelos IFC importados vão embutidos no documento baixado; na cópia de trabalho do navegador ficam no IndexedDB, por SHA-256 (`persistence/ifcSourceStore.ts`), porque o `localStorage` não os comporta.
 - `ProjectRepository` abstrai o armazenamento. Hoje: `LocalStorageProjectRepository`. A interface é assíncrona para ser substituída por uma implementação sobre a API (PostgreSQL) sem alterar o editor.
 
 ## Backend
@@ -115,3 +120,9 @@ A edição direta do traçado (`slide.ts`: `stretchPipe`, `slideElements`) usa a
 - Uma malha por elemento no Modelo 3D. Para redes grandes será necessário instanciamento e níveis de detalhe. A vista de realidade virtual já desenha a rede em lotes (`vr/vrModel.ts`), o que pode ser levado ao viewport de modelagem.
 - A exportação DXF escreve as coordenadas do projeto por extenso; não foi conferida com coordenadas de centenas de quilômetros.
 - O contrato TypeScript ↔ Python é mantido manualmente e protegido por testes; avaliar geração a partir de JSON Schema quando o esquema crescer.
+
+## Modelos IFC importados
+
+Objetos lidos de arquivos `.ifc` são **referência**, não elementos do domínio: ficam em `Project.ifcModels`, sem portas, especificação nem edição paramétrica, e nunca entram no grafo de conexões. O projeto guarda o arquivo-fonte íntegro, os objetos incluídos e as transformações; **malhas e propriedades são derivadas** — relidas da fonte por um Web Worker (`apps/web/src/ifc/ifcWorker.ts`, um por arquivo) sempre que o projeto passa a referenciá-la (abrir, desfazer, refazer) e soltas quando deixa de referenciar.
+
+O caminho de uma alteração é o de sempre: o painel chama a sessão (`ifc/ifcStore.ts`), que chama uma operação pura de `core/ifcModels.ts` e entrega o resultado à store do editor (`applyOperation`) — um passo no histórico. O assistente de importação (arquivo lido, objetos escolhidos, posicionamento em edição), a seleção e os objetos ocultos são sessão: não marcam o projeto como alterado. A prévia do posicionamento e a confirmação usam a mesma função (`placementTransform`). Detalhes em [IFC_IMPORT.md](IFC_IMPORT.md).

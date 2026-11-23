@@ -16,12 +16,14 @@
     "@hydrobim/dxf": "*",
     "@hydrobim/geometry": "*",
     "@hydrobim/ifc": "*",
+    "@hydrobim/ifc-import": "*",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "lucide-react": "^1.73.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "three": "^0.187.0",
+    "web-ifc": "0.0.78",
     "zustand": "^5.1.0"
   }
 }

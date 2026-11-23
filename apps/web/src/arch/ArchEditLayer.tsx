@@ -13,6 +13,7 @@ import {
   transformOutcome,
   type ArchGrip,
 } from './archEdit';
+import { modifyOutcome, type ArchPick } from './archModify';
 import { shapeOf } from './ArchPlanLayer';
 import { useArchStore } from './archStore';
 
@@ -27,6 +28,13 @@ const HIGHLIGHT = '#00a6c0';
 const GHOST = '#1c9c5a';
 const REFUSED = '#c92a2a';
 const GUIDE = '#d9480f';
+
+const EDGE_LABELS: Record<SnapSegment['role'], string> = {
+  axis: 'eixo',
+  face: 'face',
+  edge: 'contorno',
+  ridge: 'cumeeira',
+};
 
 interface LayerProps {
   origin: Point2;
@@ -289,6 +297,63 @@ function Ghosts({ before, after, origin, mpp }: LayerProps & { before: Project; 
 }
 
 /**
+ * O que um clique de aparar, alinhar ou dividir indica: a aresta (alinhar), o contorno da
+ * parede ou, no dividir, o ponto do corte.
+ */
+function PickMark({
+  project,
+  pick,
+  confirmed,
+  split,
+  origin,
+  mpp,
+}: LayerProps & { project: Project; pick: ArchPick; confirmed: boolean; split: boolean }) {
+  const X = (x: number): number => x - origin.x;
+  const Y = (y: number): number => -(y - origin.y);
+  const color = confirmed ? GUIDE : HIGHLIGHT;
+  const element = getArchElement(project.architecture, pick.elementId);
+  const ring = !pick.segment && element ? shapeOf(project, element).rings[0] : undefined;
+  return (
+    <g
+      data-testid="arch-modify-pick"
+      data-confirmed={confirmed}
+      data-source={pick.elementId}
+      data-role={pick.segment?.role ?? 'wall'}
+    >
+      {pick.segment && (
+        <line
+          x1={X(pick.segment.a.x)}
+          y1={Y(pick.segment.a.y)}
+          x2={X(pick.segment.b.x)}
+          y2={Y(pick.segment.b.y)}
+          stroke={color}
+          strokeWidth={3.5 * mpp}
+          strokeOpacity={0.8}
+        />
+      )}
+      {ring && (
+        <polygon
+          points={ring.map((p) => `${X(p.x)},${Y(p.y)}`).join(' ')}
+          fill="none"
+          stroke={color}
+          strokeWidth={2.5 * mpp}
+        />
+      )}
+      {(split || confirmed) && (
+        <circle
+          cx={X(pick.point.x)}
+          cy={Y(pick.point.y)}
+          r={(split ? 4.5 : 3.5) * mpp}
+          fill={split ? REFUSED : color}
+          stroke="#ffffff"
+          strokeWidth={1.2 * mpp}
+        />
+      )}
+    </g>
+  );
+}
+
+/**
  * Prévias e indicadores, sem receber o ponteiro: fantasma do resultado de mover, copiar, girar
  * e espelhar e do arrasto de uma alça; contorno em edição (vermelho quando o núcleo o
  * recusaria); guias, aresta de referência, ângulo reto e rótulo da captura.
@@ -303,6 +368,8 @@ export function ArchEditLayer({ origin, mpp }: LayerProps) {
   const snap = useArchStore((s) => s.snap);
   const reference = useArchStore((s) => s.reference);
   const active = useArchStore((s) => s.tool !== null);
+  const modify = useArchStore((s) => s.modify);
+  const modifyHover = useArchStore((s) => s.modifyHover);
   const X = (x: number): number => x - origin.x;
   const Y = (y: number): number => -(y - origin.y);
   const dash = `${6 * mpp} ${4 * mpp}`;
@@ -321,7 +388,13 @@ export function ArchEditLayer({ origin, mpp }: LayerProps) {
     [project, contour],
   );
 
-  const busy = active || transform !== null || grip !== null || contour !== null;
+  // Só há prévia com o cursor sobre algo: o resultado é o do clique que viria agora.
+  const modifyResult = useMemo(
+    () => (modify && modifyHover ? modifyOutcome(project, modify, modifyHover) : null),
+    [project, modify, modifyHover],
+  );
+
+  const busy = active || transform !== null || grip !== null || contour !== null || modify !== null;
   if (!busy) return null;
   const [first, second] = transform?.points ?? [];
   const turn =
@@ -335,7 +408,8 @@ export function ArchEditLayer({ origin, mpp }: LayerProps) {
       : null;
   const refusal =
     (transformResult && !transformResult.ok ? transformResult.error.message : null) ??
-    (gripResult && !gripResult.ok ? gripResult.error.message : null);
+    (gripResult && !gripResult.ok ? gripResult.error.message : null) ??
+    (modifyResult && !modifyResult.ok ? modifyResult.error.message : null);
 
   return (
     <g data-ui="arch-edit">
@@ -391,6 +465,53 @@ export function ArchEditLayer({ origin, mpp }: LayerProps) {
                   ? `${formatDecimal((turn * 180) / Math.PI, 1)}°`
                   : ''
                 : `${formatDecimal(Math.hypot(cursor.x - first.x, cursor.y - first.y), 3)} m`}
+            </text>
+          )}
+        </g>
+      )}
+      {modify && (
+        <g
+          data-testid="arch-modify"
+          data-kind={modify.kind}
+          data-picks={modify.picks.length}
+          data-valid={modifyResult ? modifyResult.ok : ''}
+        >
+          {modifyResult?.ok && (
+            <Ghosts before={project} after={modifyResult.value.project} origin={origin} mpp={mpp} />
+          )}
+          {modify.picks.map((pick, index) => (
+            <PickMark
+              key={index}
+              project={project}
+              pick={pick}
+              confirmed
+              split={false}
+              origin={origin}
+              mpp={mpp}
+            />
+          ))}
+          {modifyHover && (
+            <PickMark
+              project={project}
+              pick={modifyHover}
+              confirmed={false}
+              split={modify.kind === 'split'}
+              origin={origin}
+              mpp={mpp}
+            />
+          )}
+          {modifyHover && cursor && (
+            // O que o clique indicaria: o elemento, a aresta e a escolha entre as sobrepostas.
+            <text
+              data-testid="arch-modify-label"
+              x={X(cursor.x) + 12 * mpp}
+              y={Y(cursor.y) + 20 * mpp}
+              fill={HIGHLIGHT}
+              {...label}
+            >
+              {modifyHover.name}
+              {modifyHover.segment ? ` · ${EDGE_LABELS[modifyHover.segment.role]}` : ''}
+              {modifyHover.count > 1 ? ` · Tab: ${modifyHover.index + 1}/${modifyHover.count}` : ''}
             </text>
           )}
         </g>

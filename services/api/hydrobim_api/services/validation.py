@@ -222,7 +222,22 @@ def validate_project(project: Project) -> list[ValidationIssue]:
                 [],
             )
     _validate_architecture(project, level_ids, seen_ids, add)
+    _validate_ifc_models(project, seen_ids, add)
     return issues
+
+
+def _validate_ifc_models(project: Project, other_ids: set[str], add: Callable[..., None]) -> None:
+    """Identidades dos modelos IFC importados (esquema v19), como `ifcModelsIntegrityProblem`.
+
+    Cada modelo e cada objeto incluído tem identidade interna única no projeto; cópias do
+    mesmo componente repetem `globalId`/`expressId`, nunca o `id`.
+    """
+    seen: set[str] = set(other_ids) | {e.id for e in project.architecture.elements}
+    for model in project.ifc_models:
+        for identifier in (model.id, *(item.id for item in model.objects)):
+            if identifier in seen:
+                add("DUPLICATE_ID", f"Identificador duplicado: {identifier}.", [identifier])
+            seen.add(identifier)
 
 
 def _validate_architecture(

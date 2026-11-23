@@ -546,3 +546,56 @@ Verificação: `apps/web/src/vr/*.test.ts` e `tests/e2e/vr.spec.ts`, este com um
 **Consequências e limites.** Só uma e duas águas iguais sobre retângulo; sem vínculo com as paredes. As capturas e a edição interativa valem na planta de trabalho, não nas vistas salvas nem no 3D. A planta de trabalho deixou de mostrar todos os níveis sobrepostos por padrão. Lista completa em `docs/ROADMAP.md` (Arquitetura) e `docs/ARQUITETURA.md` (Limites conhecidos).
 
 Verificação: `apps/web/src/editor/planSnaps.test.ts`, `apps/web/src/arch/archEdit.test.ts`, `packages/core/src/architecture/roofs.test.ts`, `packages/geometry/src/roof.test.ts` (malha fechada, volume e área contra o quantitativo), `services/api/tests/test_project.py` e `test_ifc_architecture.py` (IfcOpenShell) e `tests/e2e/architectureEdit.spec.ts`.
+
+## ADR-048 — Aparar, estender, dividir e alinhar paredes: operações sobre as linhas de referência, por indicação na planta
+
+**Data:** 2026-11-22 · **Estado:** aceita (complementa a ADR-047)
+
+**Contexto.** Fechar um canto entre duas paredes afastadas exigia arrastar duas alças até o mesmo ponto; não havia como aparar uma parede em outra, dividi-la nem levá-la a uma referência. A referência de fluxo é o das ferramentas de autoria BIM (aparar/estender para canto, aparar/estender um elemento, alinhar, dividir) — sem pretensão de equivalência.
+
+**Decisões.**
+
+- **As regras ficam no núcleo** (`trimWallsToCorner`, `trimWallToWall`, `splitWall`, `alignArchElement`): qual extremidade anda, o que acompanha e o que é recusado. A interface só traduz os cliques (`apps/web/src/arch/archModify.ts`).
+- **Tudo pela linha de referência.** O ponto de encontro é o cruzamento das linhas de referência; os encontros em L e em T continuam derivados das extremidades (coincidentes ou apoiadas), como na ADR-044. Nenhum dado novo é gravado: **o esquema não muda**.
+- **O clique diz o lado que fica.** Cruzamento fora da parede: estende a extremidade mais próxima. Cruzamento no corpo: fica o lado clicado. É a mesma regra nas duas ferramentas de aparar.
+- **Vãos ficam no lugar.** A distância dos vãos é medida do início; ao mudar o início ela é recalculada pela posição do vão em planta. Dividir passa cada vão para o trecho em que está e recusa cortar dentro de um vão.
+- **Dividir mantém o `id` no trecho do início** (regra 7 do `AGENTS.md`); o trecho do fim é uma parede nova, com cópia das propriedades.
+- **Alinhar não gira e não cria vínculo.** A aresta tem de ser paralela à referência; o deslocamento é a distância perpendicular. Girar junto mudaria a geometria além do que o usuário indicou, e um vínculo persistente exigiria restrições paramétricas que o modelo não tem (ADR-047: captura não é vínculo).
+- **A parede alinhada leva os encontros.** Sem isso, alinhar uma parede de um cômodo fechado abriria os cantos. O canto vai ao novo cruzamento das duas linhas, de modo que a vizinha muda de comprimento e nunca de direção; vizinhas paralelas ficam como estão. Mover pela alça ou por Mover continua sem levar as vizinhas.
+- **Ferramentas por indicação, não por seleção**, em um estado próprio da sessão (`modify`), ao lado de `transform`: ficam ativas até Esc e usam o ponto do cursor sem captura (ele só indica a parede e o lado); só o dividir usa as capturas. No alinhar, arestas sobrepostas são ordenadas pela distância, com a da parede antes da de contorno, e Tab alterna.
+- **Sem dependências novas.**
+
+**Consequências e limites.** Só entre paredes do mesmo nível; sem junção em X, offset, concordância ou chanfro; alinhar não gira. Lista em `docs/ARQUITETURA.md` (Limites conhecidos) e `docs/ROADMAP.md`.
+
+Verificação: `packages/core/src/architecture/wallModify.test.ts`, `apps/web/src/arch/archModify.test.ts` e `tests/e2e/architectureEdit.spec.ts` ("aparar para canto, alinhar levando o canto e dividir").
+
+## ADR-050 — Importação IFC: objetos de referência lidos com o web-ifc, com a fonte guardada no projeto (esquema v19)
+
+**Contexto.** O editor só exportava IFC. Para trabalhar junto de modelos de outras disciplinas (arquitetura, estrutura, outras instalações) é preciso abrir arquivos `.ifc`, ver o conteúdo, escolher o que importar, posicionar, consultar propriedades e salvar o projeto com esses objetos — no navegador e na publicação estática do GitHub Pages, sem backend.
+
+**Decisão.**
+
+- **Objetos de referência, não elementos do domínio.** O que vem de um IFC fica em `project.ifcModels`, fora de `project.elements` e de `project.architecture`: sem portas, especificação ou edição paramétrica, e sem criar conexões hidráulicas. Uma parede importada não vira `Wall` só porque o arquivo a classifica como `IfcWall`. Converter objetos importados em elementos do domínio é outra funcionalidade, não iniciada.
+- **Leitor: `web-ifc` 0.0.78** (ThatOpen, licença **MPL-2.0**), fixado na versão exata. É o leitor IFC consolidado para navegador: C++ compilado para WebAssembly, lê IFC2X3, IFC4 e IFC4X3, gera malhas com os posicionamentos hierárquicos, vãos e instâncias, e roda também no Node (os testes usam a mesma função que o worker). A MPL-2.0 é de copyleft por arquivo: usar a biblioteca sem modificá-la não impõe condições ao código do HydroBIM. Custo: ~1,6 MB de `.wasm` e ~3,6 MB de JavaScript **em um bloco à parte**, carregado só ao importar (o pacote inicial do editor não cresce por isso). Usa-se a variante de uma linha de execução, que dispensa `SharedArrayBuffer` e os cabeçalhos COOP/COEP que uma hospedagem estática não envia.
+- **Pacote novo `@hydrobim/ifc-import`**, separado do `@hydrobim/ifc` (exportação, sem dependências de execução). O índice do pacote (tipos, identificação do arquivo, empacotamento da fonte) não carrega o web-ifc; o leitor fica em `@hydrobim/ifc-import/reader`, importado só pelo worker e pelos testes.
+- **Esquemas aceitos por lista**: `IFC2X3`, `IFC4` e `IFC4X3_ADD2`, os três com arquivo de teste. Os demais identificadores são identificados no cabeçalho e recusados com o motivo; a leitura "por aproximação" de esquemas preliminares do web-ifc fica desligada.
+- **Sem recentralizar.** A leitura mantém as coordenadas do arquivo (`COORDINATE_TO_ORIGIN: false`); a posição vai em matrizes de dupla precisão e as vistas usam a origem de renderização que já servia às redes em UTM.
+- **Posicionamento rígido em planta** (giro em Z + translação), confirmado com prévia nas próprias vistas. A georreferência declarada no arquivo é lida e mostrada, não aplicada: aplicar exigiria presumir a equivalência entre o CRS do arquivo e o do projeto.
+- **A fonte vai dentro do projeto**, compactada (gzip + base64) e com SHA-256; malhas e propriedades são relidas dela. O projeto baixado é autossuficiente. A cópia de trabalho do navegador guarda a fonte no IndexedDB (o `localStorage` não comporta) e, se ela faltar, o modelo pede o arquivo original, conferido pelo SHA-256.
+- **Um Web Worker por arquivo**, que fica vivo para responder às consultas de propriedades (lidas sob demanda, não copiadas para a página). Encerrar o worker é o cancelamento e a liberação de memória.
+- **Vistas 2D por arestas vivas e contorno de seção** (`packages/geometry/src/meshEdges.ts`), de custo linear, em vez da projeção com linhas ocultas usada nos elementos paramétricos: malhas de terceiros não têm porte previsível.
+- **Nada some em silêncio e nada é inventado.** Todo `IfcProduct` é objeto, nó da estrutura ou item do relatório; objeto sem malha entra sem geometria, nunca com caixa substituta.
+
+**Alternativas descartadas.**
+
+- *IfcOpenShell no navegador (Pyodide/wasm)*: geometria mais robusta, mas dezenas de megabytes de execução e partida lenta; segue como verificador independente nos testes.
+- *Importar pelo backend (FastAPI + IfcOpenShell)*: contraria o requisito de funcionar na publicação estática.
+- *Leitor STEP próprio*: a geometria IFC (sólidos de varredura, B-rep, booleanas, instâncias) não se reimplementa com segurança; só a identificação do cabeçalho é própria.
+- *`@thatopen/components` / fragmentos*: traria motor de cena, formato intermediário e dependências de interface para um editor que já tem os seus.
+- *Guardar só as malhas (ou só um caminho local)*: perderia propriedades e a possibilidade de reler; caminho local e URL temporária não são portáteis.
+- *Guardar as propriedades no projeto*: duplicaria a fonte e poderia divergir dela.
+- *Converter para elementos paramétricos na importação*: a geometria de terceiros não tem os parâmetros (eixo, camadas, portas) que o domínio exige; seria inventar.
+
+**Consequências e limites.** 100 MB por arquivo e 50 000 objetos por modelo; 4 000 objetos importados por vista 2D; sem escala nem inclinação no posicionamento; exportações IFC/DXF/CSV/INP/IDS não incluem os importados (avisado ao usuário). A conferência com o IfcOpenShell encontrou uma diferença do web-ifc em operadores de instância com eixos parciais, registrada nos limites. Documentos v18 migram com `ifcModels: []`. Detalhes, suporte comprovado e arquivos de teste: `docs/IFC_IMPORT.md`.
+
+Verificação: `packages/core/src/ifcModels.test.ts`, `packages/geometry/src/meshEdges.test.ts`, `tests/integration/ifcImport.test.ts` (web-ifc × IfcOpenShell), `apps/web/src/ifc/ifcStore.test.ts`, `services/api/tests/test_ifc_import_fixtures.py` e `tests/e2e/ifcImport.spec.ts`.

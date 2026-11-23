@@ -148,6 +148,25 @@ Toda operação termina conferindo a arquitetura inteira (`archIntegrityProblem`
 
 **Extremidade de parede** (`moveWallEndpoint`, usada pela alça na planta e pelos campos Início/Fim do painel): a outra extremidade fica e as portas e janelas hospedadas permanecem **onde estão** — ao mover o início, a distância gravada (medida do início) é corrigida para que o vão não ande junto. Se algum vão deixar de caber, a operação é recusada por inteiro.
 
+### Aparar, estender, dividir e alinhar
+
+Quatro operações de `packages/core/src/architecture/ops.ts`, todas tudo-ou-nada e sem trocar o `id` de nenhum elemento existente. Trabalham sobre as **linhas de referência** das paredes; os encontros (bisel em L, topo em T) continuam derivados das extremidades. As portas e janelas hospedadas ficam **onde estão**: quando o início da parede muda, a distância gravada é recalculada.
+
+| Operação | O que faz | Recusas |
+| --- | --- | --- |
+| **Aparar/estender para canto** (`trimWallsToCorner`) | Leva as duas paredes ao cruzamento das suas linhas de referência. Cruzamento fora da parede: a extremidade mais próxima é estendida. Cruzamento no corpo: fica o lado indicado pelo clique e o outro é aparado | Paralelas (`WALLS_PARALLEL`), a mesma parede (`TRIM_SAME_WALL`), níveis diferentes (`WALLS_DIFFERENT_LEVELS`), vão no trecho aparado (`OPENING_DOES_NOT_FIT`), parede que ficaria sem comprimento (`WALL_TOO_SHORT`) |
+| **Aparar/estender até parede** (`trimWallToWall`) | Só a segunda parede muda: a extremidade dela vai à linha de referência da parede-limite, pela mesma regra. Se cair no corpo da parede-limite, o encontro em T é derivado | As mesmas |
+| **Dividir parede** (`splitWall`) | Corta no pé da perpendicular do ponto indicado. A original mantém o `id` e o trecho do início; o trecho do fim é uma parede nova, com o mesmo tipo, nível, altura e propriedades. Cada porta ou janela passa para o trecho em que está | Ponto a menos de 5 cm de uma extremidade ou fora da parede (`SPLIT_OUTSIDE_WALL`), ponto dentro de um vão (`SPLIT_THROUGH_OPENING`) |
+| **Alinhar** (`alignArchElement`) | Desloca o elemento na perpendicular à reta de referência até a aresta indicada ficar sobre ela | Aresta não paralela à referência (`ALIGN_NOT_PARALLEL` — nada é girado), aresta já alinhada (`ALIGN_NO_CHANGE`), porta ou janela (`ALIGN_HOSTED`: acompanham a parede) |
+
+No **alinhar**, o efeito depende da aresta indicada:
+
+- **Parede, aresta ao longo dela** (face ou eixo): a parede inteira se desloca e **leva os encontros** — o canto compartilhado vai ao novo cruzamento das duas linhas (a vizinha é esticada ou encurtada na própria direção, sem girar); a extremidade apoiada em T continua sobre a parede de apoio; as paredes apoiadas nela são levadas até ela. Vizinha paralela (no prolongamento) não tem cruzamento e fica como está. Com três ou mais paredes no nó, só acompanham as vizinhas cuja linha passa pelo novo canto.
+- **Parede, aresta de topo**: só a extremidade mais próxima anda ao longo da parede até a aresta chegar à referência (as vizinhas não acompanham).
+- **Laje, piso, ambiente e telhado**: o elemento inteiro se desloca.
+
+A referência é uma reta em planta — na interface, uma aresta de qualquer elemento de arquitetura. Nenhum vínculo é gravado: depois de alinhado, o elemento não acompanha a referência.
+
 ## Catálogo
 
 Dezoito famílias embutidas, todas **modelos genéricos parametrizáveis** (`generic: true`, sem fonte): paredes de alvenaria cerâmica, de blocos de concreto e de drywall; laje de concreto; pisos cerâmico/porcelanato, vinílico e laminado; telhados de uma água e de duas águas; portas de giro de uma e duas folhas, de correr e pivotante; janelas fixa, de correr, de abrir, basculante e maxim-ar.
@@ -178,6 +197,7 @@ Critérios dos conjuntos `Qto_*BaseQuantities` do IFC 4.3 (descrições lidas no
 
 - Só paredes retas, de altura constante e base horizontal; sem paredes curvas, inclinadas ou de perfil editado. O assentamento sobre o terreno usa um único ponto de referência e não fica vinculado à superfície (ver "Elevação e assentamento sobre o terreno"). Camadas não são desenhadas nem cortadas uma a uma (o corpo é único; a hachura é a da camada estrutural).
 - Encontros: resolvidos por extremidades coincidentes (até 1 mm) ou apoiadas; não há junção em X entre paredes que se cruzam no meio, nem prioridade de camadas no encontro.
+- Aparar, estender, dividir e alinhar: só entre paredes do mesmo nível e pelas linhas de referência; aparar não divide a parede-limite nem cria junção em X; alinhar não gira (a aresta tem de ser paralela à referência) e não grava vínculo; não há deslocamento paralelo com cópia (offset), concordância (fillet) nem chanfro.
 - Lajes e revestimentos planos e horizontais; sem inclinação nem rebaixos.
 - Ambientes: o contorno é desenhado pelo usuário (não é detectado a partir das paredes); não há áreas líquidas, limites de espaço (`IfcRelSpaceBoundary`), zonas (`IfcZone`) nem tipo de ambiente (`IfcSpaceType`).
 - Portas e janelas: retangulares; folha representada fechada no 3D; sem bandeiras, peitoris ou soleiras como peças.
@@ -185,4 +205,4 @@ Critérios dos conjuntos `Qto_*BaseQuantities` do IFC 4.3 (descrições lidas no
 - Telhados: só uma e duas águas iguais, sobre contorno retangular, com a mesma inclinação e o mesmo beiral nos quatro lados. **Não há** quatro águas, águas desiguais, cumeeira deslocada, contornos em L, mansardas, águas-furtadas, rincões e espigões, calhas, rufos, aberturas (claraboias) nem a estrutura peça a peça. O telhado não estende nem recorta as paredes e não fica vinculado a elas.
 - Sem escada, rampa, forro, estrutura (pilares, vigas, fundações) e mobiliário.
 - Sem importação IFC; o DXF ainda não leva a arquitetura.
-- Editor: as alças diretas existem para extremidades de parede e cantos de telhado; lajes, pisos e ambientes são editados pelo modo "Editar contorno"; aberturas de piso não têm edição de contorno (remove-se e desenha-se de novo); mover uma extremidade de parede não leva as paredes vizinhas do encontro; materiais de esquadria (marco, folha, vidro) não editáveis no formulário do tipo; demais limites da interface em [INTERFACE.md](INTERFACE.md), "Ambiente Arquitetura".
+- Editor: as alças diretas existem para extremidades de parede e cantos de telhado; lajes, pisos e ambientes são editados pelo modo "Editar contorno"; aberturas de piso não têm edição de contorno (remove-se e desenha-se de novo); mover uma extremidade de parede não leva as paredes vizinhas do encontro (o alinhar leva); materiais de esquadria (marco, folha, vidro) não editáveis no formulário do tipo; demais limites da interface em [INTERFACE.md](INTERFACE.md), "Ambiente Arquitetura".

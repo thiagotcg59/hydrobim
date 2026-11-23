@@ -19,18 +19,20 @@ const isTyping = (target: EventTarget | null): boolean =>
  *   ponto; Tab alterna entre capturas sobrepostas; R fixa ou solta a aresta de referência; Del
  *   remove o vértice selecionado do contorno em edição.
  * - Editar contorno: barra com Concluir e Cancelar.
+ * - Aparar, alinhar e dividir: só o Tab, que alterna entre arestas sobrepostas no alinhar.
  */
 export function ArchLengthEntry() {
   const tool = useArchStore((s) => s.tool);
   const count = useArchStore((s) => s.points.length);
   const transform = useArchStore((s) => s.transform);
   const contour = useArchStore((s) => s.contour !== null);
+  const modifying = useArchStore((s) => s.modify !== null);
   const rectangular = useArchStore((s) => s.contour?.rectangular ?? false);
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const drawing = isDrawingTool(tool);
   const entering = drawing || transform !== null;
-  const active = entering || contour;
+  const active = entering || contour || modifying;
   const steps = transform ? ARCH_TRANSFORM_STEPS[transform.kind] : [];
   const indicated = transform ? transform.points.length : count;
 
@@ -41,6 +43,14 @@ export function ArchLengthEntry() {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (useEditorStore.getState().viewMode !== 'plan') return;
       const arch = useArchStore.getState();
+      if (arch.modify) {
+        // Aparar, alinhar e dividir: só o Tab é daqui (arestas sobrepostas no alinhar).
+        if (event.key === 'Tab' && (arch.modifyHover?.count ?? 0) > 1) {
+          event.preventDefault();
+          arch.cycleModify(event.shiftKey ? -1 : 1);
+        }
+        return;
+      }
       if (event.key === 'Tab') {
         // Só quando há o que alternar: senão o Tab segue a sua função no navegador.
         if ((arch.snap?.count ?? 0) > 1) {
@@ -77,7 +87,7 @@ export function ArchLengthEntry() {
   // Ponto confirmado ou operação encerrada: o campo recomeça vazio.
   useEffect(() => setText(''), [indicated, tool, transform?.kind]);
 
-  if (!active) return null;
+  if (!active || (modifying && !entering && !contour)) return null;
   if (contour) {
     return (
       <div className="arch-entry arch-entry--bar" data-testid="arch-contour-bar" role="toolbar">

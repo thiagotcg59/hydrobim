@@ -9,7 +9,7 @@ import { z } from 'zod';
  */
 
 export const PROJECT_FORMAT = 'hydrobim-project' as const;
-export const SCHEMA_VERSION = 18 as const;
+export const SCHEMA_VERSION = 20 as const;
 
 const finite = z.number().finite();
 const positive = finite.positive();
@@ -1038,6 +1038,7 @@ export const VIEW_CATEGORIES = [
   'windows',
   'spaces',
   'roofs',
+  'ifcModels',
 ] as const;
 export const ViewCategorySchema = z.enum(VIEW_CATEGORIES);
 export type ViewCategory = z.infer<typeof ViewCategorySchema>;
@@ -1301,6 +1302,31 @@ const JoineryMaterialsSchema = z.object({
 });
 export type JoineryMaterials = z.infer<typeof JoineryMaterialsSchema>;
 
+export const DOOR_FRIEZE_ORIENTATIONS = ['horizontal', 'vertical'] as const;
+
+/**
+ * Friso reto da folha, de borda a borda. `position` é uma FRAÇÃO da folha (não uma cota), para
+ * o desenho acompanhar qualquer medida do modelo: no friso horizontal, da base para o topo; no
+ * vertical, da borda das dobradiças para a da fechadura.
+ */
+export const DoorFriezeSchema = z.object({
+  orientation: z.enum(DOOR_FRIEZE_ORIENTATIONS),
+  position: z.number().gt(0).lt(1),
+});
+export type DoorFrieze = z.infer<typeof DoorFriezeSchema>;
+
+/**
+ * Desenho da folha (frisos). `schematic: true` = a fonte ilustra os frisos mas não cota a
+ * posição deles: quantidade e orientação são do produto, a posição é representação (regra 8).
+ */
+export const DoorLeafDesignSchema = z.object({
+  friezes: z.array(DoorFriezeSchema).min(1),
+  /** Largura do friso (m). */
+  friezeWidth: positive,
+  schematic: z.boolean(),
+});
+export type DoorLeafDesign = z.infer<typeof DoorLeafDesignSchema>;
+
 export const DoorTypeSchema = z.object({
   ...archTypeBase,
   category: z.literal('door'),
@@ -1313,6 +1339,8 @@ export const DoorTypeSchema = z.object({
   /** Espessura da folha (m). */
   panelThickness: positive,
   materials: JoineryMaterialsSchema,
+  /** Desenho da folha, quando o modelo tem frisos; ausente = folha lisa. */
+  leaf: DoorLeafDesignSchema.optional(),
 });
 export type DoorType = z.infer<typeof DoorTypeSchema>;
 
@@ -1507,6 +1535,89 @@ export const ArchitectureSchema = z.object({
 });
 export type Architecture = z.infer<typeof ArchitectureSchema>;
 
+// --- Modelos IFC importados --------------------------------------------------------------
+//
+// Objetos de referência lidos de arquivos .ifc de terceiros. Não são elementos da rede nem da
+// arquitetura: não têm portas, especificação nem edição paramétrica. O projeto guarda o
+// arquivo-fonte íntegro, quais objetos foram incluídos e as transformações; malhas e
+// propriedades são relidas da fonte (nunca gravadas).
+
+/** Limites documentados da importação (`docs/IFC_IMPORT.md`). */
+export const IFC_IMPORT_LIMITS = {
+  /** Tamanho máximo do arquivo .ifc, em bytes. */
+  maxFileBytes: 100 * 1024 * 1024,
+  /** Máximo de objetos incluídos por modelo. */
+  maxObjects: 50_000,
+} as const;
+
+export const IFC_SOURCE_ENCODINGS = ['gzip-base64'] as const;
+
+/**
+ * Arquivo-fonte, guardado como veio (compactado, sem alteração de conteúdo): `sha256` e
+ * `byteLength` são do arquivo original. `data` vazio = a fonte não está embutida neste
+ * documento (cópia de trabalho do navegador, que a guarda à parte); o arquivo baixado sempre
+ * a traz.
+ */
+export const IfcSourceSchema = z.object({
+  fileName: z.string().min(1),
+  byteLength: z.number().int().nonnegative(),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  encoding: z.enum(IFC_SOURCE_ENCODINGS),
+  data: z.string(),
+});
+export type IfcSource = z.infer<typeof IfcSourceSchema>;
+
+/**
+ * Transformação rígida em planta: giro em torno de Z (radianos, anti-horário visto de cima)
+ * seguido de translação (metros). Sem escala e sem inclinação: a geometria do arquivo é
+ * preservada.
+ */
+export const IfcTransformSchema = z.object({ translation: Vec3Schema, rotation: finite });
+export type IfcTransform = z.infer<typeof IfcTransformSchema>;
+
+/** Como o posicionamento foi definido na importação (registro; o que vale é a transformação). */
+export const IFC_PLACEMENT_MODES = ['original', 'basePoint', 'offset', 'aligned'] as const;
+export const IfcPlacementModeSchema = z.enum(IFC_PLACEMENT_MODES);
+export type IfcPlacementMode = z.infer<typeof IfcPlacementModeSchema>;
+
+/**
+ * Objeto incluído. `id` é a identidade interna, persistente e única no projeto; `expressId`
+ * e `globalId` apontam a entidade no arquivo-fonte (que não muda). Uma cópia é outro objeto
+ * (outro `id`, `copy: true`) da mesma entidade.
+ */
+export const IfcImportedObjectSchema = z.object({
+  id: z.string().min(1),
+  expressId: z.number().int().positive(),
+  globalId: z.string(),
+  /**
+   * Transformação própria do componente, no referencial do arquivo (aplicada ANTES da do
+   * modelo); `null` = no lugar original dentro do modelo.
+   */
+  transform: IfcTransformSchema.nullable(),
+  copy: z.boolean(),
+});
+export type IfcImportedObject = z.infer<typeof IfcImportedObjectSchema>;
+
+export const IfcImportedModelSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  source: IfcSourceSchema,
+  /** Esquema declarado no cabeçalho do arquivo (ex.: `IFC2X3`, `IFC4`, `IFC4X3_ADD2`). */
+  schema: z.string().min(1),
+  /** Unidade de comprimento declarada no arquivo e quantos metros ela vale (registro). */
+  lengthUnit: z.string(),
+  unitScale: positive,
+  importedAt: z.string(),
+  placementMode: IfcPlacementModeSchema,
+  /** Do referencial do arquivo (em metros, Z para cima) para o do projeto. */
+  placement: IfcTransformSchema,
+  visible: z.boolean(),
+  /** Opacidade de exibição, de 0,05 a 1. */
+  opacity: z.number().min(0.05).max(1),
+  objects: z.array(IfcImportedObjectSchema),
+});
+export type IfcImportedModel = z.infer<typeof IfcImportedModelSchema>;
+
 export const DisciplineSchema = z.enum(['mep', 'infra', 'architecture']);
 export type Discipline = z.infer<typeof DisciplineSchema>;
 
@@ -1557,5 +1668,7 @@ export const ProjectSchema = z.object({
    * no mesmo projeto, níveis e coordenadas da rede hidráulica.
    */
   architecture: ArchitectureSchema,
+  /** Modelos IFC importados como referência (arquivo-fonte, objetos incluídos e posição). */
+  ifcModels: z.array(IfcImportedModelSchema),
 });
 export type Project = z.infer<typeof ProjectSchema>;

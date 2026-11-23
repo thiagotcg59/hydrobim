@@ -31,6 +31,9 @@ UUIDs dos projetos e elementos são preservados; IDs textuais legados usam a sem
 `${id}:legacy`. Entidades derivadas usam papéis estáveis, como `${id}:site`,
 `${id}:storey`, `${id}:port:${portId}` e `${id}:connection`.
 
+A leitura de arquivos `.ifc` de terceiros fica em outro pacote, `@hydrobim/ifc-import`
+(ver `docs/IFC_IMPORT.md`); este pacote só exporta.
+
 ## Camada BIM (`src/bim`)
 
 | Função | O que faz |

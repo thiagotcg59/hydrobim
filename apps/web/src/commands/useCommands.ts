@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useArchStore } from '../arch/archStore';
+import { useIfcStore } from '../ifc/ifcStore';
 import { useEditorStore } from '../state/editorStore';
 import { useUiStore } from '../state/uiStore';
 import { useEarthworkStore } from '../terrain/earthworkStore';
@@ -61,7 +62,11 @@ export function useCommandContext(): CommandContext {
   const archSelection = useArchStore((s) => s.selection);
   const archTransform = useArchStore((s) => s.transform?.kind ?? null);
   const archContour = useArchStore((s) => s.contour !== null);
+  const archModify = useArchStore((s) => s.modify?.kind ?? null);
   const vrOpen = useVrStore((s) => s.open);
+  const ifcSelectionCount = useIfcStore((s) => (s.modelSelection ? 1 : s.selection.length));
+  const ifcHiddenCount = useIfcStore((s) => s.hidden.length);
+  const ifcPlacing = useIfcStore((s) => s.wizard?.step === 'placing');
   return useMemo(
     () => ({
       ...editor,
@@ -75,8 +80,15 @@ export function useCommandContext(): CommandContext {
       archSelection,
       archTransform,
       archContour,
+      archModify,
+      ifcSelectionCount,
+      ifcHiddenCount,
+      ifcPlacing,
     }),
     [
+      ifcSelectionCount,
+      ifcHiddenCount,
+      ifcPlacing,
       editor,
       layout,
       vrOpen,
@@ -88,6 +100,7 @@ export function useCommandContext(): CommandContext {
       archSelection,
       archTransform,
       archContour,
+      archModify,
     ],
   );
 }
@@ -130,7 +143,11 @@ export function useKeyboardShortcuts(): void {
         const ui = useUiStore.getState();
         if (ui.validationOpen) ui.setValidationOpen(false);
         // O desenho 2D em andamento (ou a seleção de detalhes) é o primeiro a ser desfeito.
-        else if (!useArchStore.getState().cancel() && !useViewStore.getState().cancel()) {
+        else if (
+          !useIfcStore.getState().cancel() &&
+          !useArchStore.getState().cancel() &&
+          !useViewStore.getState().cancel()
+        ) {
           useEditorStore.getState().cancelInteraction();
         }
         return;

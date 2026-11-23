@@ -2,7 +2,7 @@ import { connectedPortRef, getElement, isPortFree } from './connectivity';
 import { ANGLE_TOLERANCE, MIN_PIPE_LENGTH } from './dimensions';
 import { putElement, touch } from './internal';
 import { add, angleBetween, isFiniteVec, length, normalize, scale, sub, type Vec3 } from './math';
-import { setPipeEndpoint, translateElements } from './operations';
+import { elementElevation, setPipeEndpoint, translateElements } from './operations';
 import { getPorts, pipeLength } from './ports';
 import { setPipeEnd, verifyCoupling } from './reconcile';
 import { fail, ok, type Result } from './result';
@@ -104,6 +104,44 @@ export function slideElements(
   if (length(delta) < 1e-9) return ok(project);
   const moved = asNoRoom(translateElements(project, rigidSet(project, ids, delta), delta));
   return moved.ok ? checkPipeLengths(project, moved.value) : moved;
+}
+
+/**
+ * Define a elevação do elemento (ver `elementElevation`).
+ *  - Tubo ou conexão: é um deslizamento na vertical (`slideElements`). Os tubos verticais
+ *    ligados ao conjunto esticam ou encolhem, com a OUTRA extremidade fixa; o que está
+ *    acoplado sem um tubo vertical no caminho sobe ou desce junto, preservando declividades e
+ *    acoplamentos. Sem tubo vertical que absorva, toda a rede conectada se desloca. Recusa
+ *    (`NO_ROOM`) quando um tubo vertical ficaria sem comprimento.
+ *  - Equipamento (bomba, reservatório): só ele é deslocado; os tubos vizinhos se ajustam
+ *    quando o acoplamento permite (ex.: prumada sob o bocal), senão a operação é recusada.
+ */
+export function setElementElevation(
+  project: Project,
+  id: string,
+  elevation: number,
+): Result<Project> {
+  const element = getElement(project, id);
+  if (!element) return fail('ELEMENT_NOT_FOUND', 'Elemento inexistente.');
+  if (!Number.isFinite(elevation)) return fail('INVALID_VALUE', 'Elevação inválida.');
+  const dz = elevation - elementElevation(element);
+  if (Math.abs(dz) < 1e-9) return ok(project);
+  const delta = { x: 0, y: 0, z: dz };
+  return element.kind === 'pump' || element.kind === 'tank'
+    ? translateElements(project, [id], delta)
+    : slideElements(project, [id], delta);
+}
+
+/**
+ * Elementos que mudam de cota junto com `id` ao alterar a elevação dele (ele incluído): o
+ * conjunto acoplado até os tubos verticais, que absorvem a diferença.
+ */
+export function elevationFollowers(project: Project, id: string): string[] {
+  const element = getElement(project, id);
+  if (!element) return [];
+  return element.kind === 'pump' || element.kind === 'tank'
+    ? [id]
+    : rigidSet(project, [id], { x: 0, y: 0, z: 1 });
 }
 
 /**

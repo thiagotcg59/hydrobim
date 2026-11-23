@@ -203,6 +203,10 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
         { command: 'arch.copy', compact: true, label: 'Copiar' },
         { command: 'arch.rotate', compact: true, label: 'Girar' },
         { command: 'arch.mirror', compact: true, label: 'Espelhar' },
+        { command: 'arch.trimCorner', compact: true, label: 'Aparar canto' },
+        { command: 'arch.trimExtend', compact: true, label: 'Estender até' },
+        { command: 'arch.align', compact: true, label: 'Alinhar' },
+        { command: 'arch.split', compact: true, label: 'Dividir' },
         { command: 'arch.editContour', compact: true, label: 'Contorno' },
         { command: 'modify.delete', compact: true },
       ],
@@ -501,6 +505,14 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
       items: [
         { command: 'export.ifc', testId: 'bim-export-ifc' },
         { command: 'export.ids', testId: 'bim-export-ids' },
+      ],
+    },
+    {
+      id: 'ifcModels',
+      label: 'Modelos IFC',
+      items: [
+        { command: 'file.importIfc', testId: 'bim-import-ifc' },
+        { command: 'ifc.showAll', compact: true },
       ],
     },
   ],

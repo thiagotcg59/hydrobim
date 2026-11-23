@@ -1,6 +1,7 @@
 import type { IfcConformity, IfcElementInfo } from '@hydrobim/ifc';
 import { ChevronDown, ChevronRight, Crosshair, Eye, EyeOff, Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { IfcBrowserBranch } from '../ifc/IfcBrowserBranch';
 import { useEditorStore } from '../state/editorStore';
 import { useIfcState } from '../state/ifcModel';
 
@@ -74,6 +75,7 @@ export function BimTree() {
   const classFilter = useEditorStore((s) => s.bimClassFilter);
   const { model, conformity } = useIfcState();
   const [query, setQuery] = useState('');
+  const ifcModelCount = useEditorStore((s) => s.project.ifcModels.length);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const hidden = useMemo(() => new Set(hiddenIds), [hiddenIds]);
   const listRef = useRef<HTMLDivElement>(null);
@@ -309,6 +311,16 @@ export function BimTree() {
           </p>
         ) : (
           renderGroup(tree, 0)
+        )}
+        {ifcModelCount > 0 && (
+          // Modelos IFC importados: consulta e seleção também na aba BIM / IFC.
+          <ul className="tree">
+            <IfcBrowserBranch
+              query={query}
+              searching={query.trim().length > 0}
+              onImport={() => undefined}
+            />
+          </ul>
         )}
       </div>
     </aside>

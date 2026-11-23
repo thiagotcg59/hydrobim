@@ -170,7 +170,7 @@ ArchElement =
 - **Encontros**: extremidades a até 1 mm uma da outra formam canto em bisel; extremidade sobre o corpo de outra parede termina na face dela. Não há dado de encontro no arquivo: mover uma parede refaz os encontros.
 - **Hospedagem**: porta e janela não têm nível nem posição próprios — herdam da parede. O vão tem de caber no trecho de seção completa, dentro da altura e sem sobrepor outro.
 - **Integridade** (`archIntegrityProblem`): conferida ao fim de toda operação e ao abrir o arquivo; uma operação que deixaria a arquitetura inconsistente é recusada sem alteração parcial.
-- **Operações** (`architecture/ops.ts`): `addArchType`, `duplicateArchType`, `updateArchType` (devolve as ocorrências afetadas), `removeArchType` (recusa tipo em uso), `setArchTypeIfcValue`; `addWalls` (traçado contínuo), `addFloor`, `addFloorOpening`, `removeFloorOpening`, `addSpace`, `addRoof` (contorno retangular; recusa `ROOF_BOUNDARY_INVALID` e `ROOF_SLOPE_INVALID`), `addHosted`; `moveWallEndpoint` (leva uma extremidade da parede e mantém as portas e janelas hospedadas no lugar); `updateArchElement`, `renameArchElement`, `setArchElementIfcValue`, `setArchElementProperty`, `deleteArchElements` (a parede leva os hospedados); `moveArchElements` (vão sozinho desliza na parede), `copyArchElements`, `rotateArchElements`, `mirrorArchElements`. `setArchIfcValue` (`@hydrobim/ifc`) confere o valor contra o esquema antes de gravar.
+- **Operações** (`architecture/ops.ts`): `addArchType`, `duplicateArchType`, `updateArchType` (devolve as ocorrências afetadas), `removeArchType` (recusa tipo em uso), `setArchTypeIfcValue`; `addWalls` (traçado contínuo), `addFloor`, `addFloorOpening`, `removeFloorOpening`, `addSpace`, `addRoof` (contorno retangular; recusa `ROOF_BOUNDARY_INVALID` e `ROOF_SLOPE_INVALID`), `addHosted`; `moveWallEndpoint` (leva uma extremidade da parede e mantém as portas e janelas hospedadas no lugar); `trimWallsToCorner`, `trimWallToWall`, `splitWall` (a original mantém o `id`; devolve o da parede nova) e `alignArchElement` (a parede leva os encontros) — ver `docs/ARQUITETURA.md`; `updateArchElement`, `renameArchElement`, `setArchElementIfcValue`, `setArchElementProperty`, `deleteArchElements` (a parede leva os hospedados); `moveArchElements` (vão sozinho desliza na parede), `copyArchElements`, `rotateArchElements`, `mirrorArchElements`. `setArchIfcValue` (`@hydrobim/ifc`) confere o valor contra o esquema antes de gravar.
 - **Telhados** (`architecture/roofs.ts`): `roofBoundaryProblem`, `roofSlopeProblem`, `normalizeRoofBoundary` (o contorno é gravado anti-horário e o índice do lado do beiral acompanha a inversão, inclusive no espelho), `slopeToPercent`/`percentToSlope`, e os apoios à edição do retângulo `rectangleFromThreePoints`, `moveRectangleCorner` e `moveRectangleEdge`. Convenções de cota, beiral e espessura em [ARQUITETURA.md](ARQUITETURA.md).
 - **Quantitativo**: `computeArchQuantities` (por pavimento, categoria e tipo, com NBR 15965 e SINAPI ou "NC"; nos telhados, a área é a inclinada e `projectedArea` traz a projeção horizontal), `computeSpaceSchedule`, `archQuantitiesToCsv`.
 - Excluir um nível com elementos de arquitetura é recusado (`LEVEL_IN_USE`).
@@ -328,7 +328,7 @@ Todas são funções puras `(Project, entrada) → Result<Project | Created>`.
 | `inlineClearancesOf`, `inlineAxisOf` | Cotas de uma peça na linha: de cada porta conectada, o comprimento de tubo (porta a porta) até o próximo elemento que não é tubo ou até a extremidade livre, com o percurso e se ele é reto; eixo de passagem das peças com portas opostas. Derivado, não persistido |
 | `setInlineClearance` | Desliza a peça até que a cota de uma extremidade valha o valor pedido (o tubo do outro lado compensa); recusa percurso não reto (`CLEARANCE_NOT_STRAIGHT`), peça encostada (`NO_PIPE_BETWEEN`) e falta de espaço (`NO_ROOM`) |
 | `slideElements`, `slideAxesOf` | Desliza peças ao longo da linha: o que está acoplado acompanha rigidamente e os tubos paralelos ao deslocamento absorvem a diferença; falha com `NO_ROOM` se um tubo ficaria sem comprimento |
-| `setElementElevation` | Define a cota Z do elemento (`elementElevation`: eixo no início do tubo; origem da conexão; base do reservatório). Em tubo ou conexão, todos os elementos conectados sobem/descem juntos, rigidamente; em bomba ou reservatório, só o equipamento se move e os tubos vizinhos se ajustam quando o acoplamento permite |
+| `setElementElevation` | Define a cota Z do elemento (`elementElevation`: eixo no início do tubo; origem da conexão; base do reservatório). Em tubo ou conexão é um deslizamento vertical (`slideElements`): os tubos verticais ligados ao conjunto esticam ou encolhem, com a outra extremidade fixa, e o que está acoplado sem tubo vertical no caminho sobe/desce junto (sem tubo vertical que absorva, toda a rede conectada); recusa `NO_ROOM` se um tubo vertical ficaria sem comprimento. `elevationFollowers` lista o que muda de cota junto. Em bomba ou reservatório, só o equipamento se move e os tubos vizinhos se ajustam quando o acoplamento permite |
 | `deleteElements`, `disconnect`, `renameElement`, `setElementProperty` | Edição geral |
 | `setElementIfcValue`, `setIfcTypeValue` | Guardam ou removem um valor IFC informado pelo usuário, na ocorrência ou no tipo |
 
@@ -427,3 +427,25 @@ Regras (ver `docs/INFRA.md`, seção Terraplenagem):
 | `terrainExchange` | Estrutura de intercâmbio da superfície (DXF 3D, LandXML, IFC) |
 | `buildProfile` | Perfil longitudinal com cota do terreno e recobrimento |
 | `exportIfc` (`@hydrobim/ifc`) | Arquivo IFC 4.3 |
+
+## Modelos IFC importados (esquema v19)
+
+`Project.ifcModels: IfcImportedModel[]` — objetos de referência lidos de arquivos `.ifc` (ver `docs/IFC_IMPORT.md`). Não são elementos da rede nem da arquitetura: não têm portas, especificação, nível nem edição paramétrica, não entram em `Project.connections`, no quantitativo, na validação nem nas exportações (exceto o próprio arquivo do projeto).
+
+| Campo | Significado |
+| --- | --- |
+| `id`, `name` | Identidade interna do modelo (nova a cada inserção) e nome no projeto |
+| `source` | Arquivo-fonte: `fileName`, `byteLength` e `sha256` do original, `encoding: 'gzip-base64'` e `data` (vazio = fonte não embutida, só na cópia de trabalho do navegador) |
+| `schema`, `lengthUnit`, `unitScale`, `importedAt` | Registro do que o arquivo declara (esquema, unidade de comprimento e quantos metros ela vale) e da data da importação |
+| `placementMode`, `placement` | Como a posição foi definida (`original`, `basePoint`, `offset`, `aligned`) e a transformação do referencial do arquivo para o do projeto |
+| `visible`, `opacity` | Exibição do modelo (opacidade de 0,05 a 1) |
+| `objects[]` | Objetos incluídos: `id` (identidade interna persistente), `expressId` e `globalId` (a entidade no arquivo), `transform` (transformação própria, `null` = no lugar original) e `copy` |
+
+- **`IfcTransform`** = `{ translation: Vec3, rotation }`: giro em torno de Z (radianos) seguido de translação (metros). Rígida e em planta — sem escala nem inclinação.
+- **Posição de um objeto no projeto**: `placement do modelo ∘ transform do objeto ∘ ponto do arquivo` (o arquivo já em metros e Z para cima). Mover o modelo leva junto os componentes já deslocados.
+- **Cópia**: outro registro em `objects`, com `id` novo, o mesmo `expressId`/`globalId` e `copy: true`.
+- **Derivado, nunca gravado**: malhas, arestas, envoltórias, estrutura espacial, propriedades, quantidades, materiais e classificações — tudo relido de `source`.
+- **Integridade ao abrir**: identidades de modelos e objetos únicas no projeto (inclusive em relação à rede e à arquitetura) e no máximo `IFC_IMPORT_LIMITS.maxObjects` objetos por modelo.
+- **Operações** (`packages/core/src/ifcModels.ts`, puras, `Result<T>`): `addIfcModel`, `removeIfcModels`, `removeIfcObjects` (o modelo que fica vazio sai do projeto), `transformIfcModels`, `transformIfcObjects`, `copyIfcObjects`, `setIfcModelDisplay`; auxiliares `ifcMoveTransform`, `ifcRotateTransform`, `ifcAlignTransform`, `composeIfcTransforms`, `stripIfcSources`/`attachIfcSources`.
+- **Visibilidade das vistas**: categoria `ifcModels` em `ViewVisibility.hiddenCategories`.
+- **Migração v18 → v19**: `ifcModels: []`; nada mais muda.

@@ -1,6 +1,7 @@
 import { formatMeters } from '@hydrobim/core';
 import { Check, ChevronUp, Info } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { ARCH_MODIFY_HINTS } from '../arch/archModify';
 import { ARCH_TOOL_HINTS, useArchStore } from '../arch/archStore';
 import { SNAP_TOGGLE_LABELS, SNAP_TOGGLES } from '../editor/planSnaps';
 import { isAnnotationTool, useEditorStore } from '../state/editorStore';
@@ -33,7 +34,7 @@ const ALWAYS_ON = [
 const PLANNED = ['Ponto médio', 'Alinhamento'] as const;
 
 const ARCH_SELECT_HINT =
-  'Arquitetura: clique para selecionar; arraste a alça de uma extremidade de parede ou de um canto de telhado para editá-los; duplo clique em laje, piso, ambiente ou telhado edita o contorno. Mover, Copiar, Girar e Espelhar pedem os pontos na planta.';
+  'Arquitetura: clique para selecionar; arraste a alça de uma extremidade de parede ou de um canto de telhado para editá-los; duplo clique em laje, piso, ambiente ou telhado edita o contorno. Mover, Copiar, Girar e Espelhar pedem os pontos na planta; Aparar, Alinhar e Dividir pedem as paredes e as arestas.';
 const ARCH_TRANSFORM_HINT =
   'Indique os pontos de referência na planta: as capturas valem (Tab alterna as sobrepostas, R fixa a aresta de referência, Shift trava de 45° em 45°). A prévia em verde é o resultado; Esc volta um ponto.';
 const ARCH_CONTOUR_HINT =
@@ -139,10 +140,12 @@ export function ReferenceBar() {
   const archTool = useArchStore((s) => s.tool);
   const archTransform = useArchStore((s) => s.transform !== null);
   const archContour = useArchStore((s) => s.contour !== null);
+  const archModify = useArchStore((s) => s.modify?.kind ?? null);
   const activeLevelOnly = useSnapStore((s) => s.activeLevelOnly);
   // As capturas da arquitetura aparecem no ambiente Arquitetura e durante as operações dela.
   const archSnaps =
-    viewMode !== 'bim' && (architecture || archTool || archTransform || archContour);
+    viewMode !== 'bim' &&
+    (architecture || archTool || archTransform || archContour || archModify !== null);
   const modeling = tool !== 'select' && !isAnnotationTool(tool);
   const steps = GRID_STEPS.includes(gridStep)
     ? GRID_STEPS
@@ -156,13 +159,15 @@ export function ReferenceBar() {
         ? ARCH_CONTOUR_HINT
         : archTransform
           ? ARCH_TRANSFORM_HINT
-          : archTool
-            ? ARCH_TOOL_HINTS[archTool]
-            : viewMode === 'plan' && tool === 'select' && architecture
-              ? ARCH_SELECT_HINT
-              : viewMode === 'plan' && tool === 'select'
-                ? PLAN_SELECT_HINT
-                : ((viewMode === 'plan' ? PLAN_TOOL_HINTS[tool] : undefined) ?? TOOL_HINTS[tool]);
+          : archModify
+            ? ARCH_MODIFY_HINTS[archModify]
+            : archTool
+              ? ARCH_TOOL_HINTS[archTool]
+              : viewMode === 'plan' && tool === 'select' && architecture
+                ? ARCH_SELECT_HINT
+                : viewMode === 'plan' && tool === 'select'
+                  ? PLAN_SELECT_HINT
+                  : ((viewMode === 'plan' ? PLAN_TOOL_HINTS[tool] : undefined) ?? TOOL_HINTS[tool]);
 
   return (
     <div className="refbar" data-testid="reference-bar" role="group" aria-label="Referências">

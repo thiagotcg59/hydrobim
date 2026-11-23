@@ -8,3 +8,4 @@ examples/*.json
 services
 .venv
 *.md
+tests/fixtures

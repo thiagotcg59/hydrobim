@@ -353,11 +353,23 @@ test('DEM em ladrilhos: área desenhada, falha tratada, superfície com procedê
   expect(streets.length).toBeGreaterThan(0);
   expect(streets.length).toBeLessThanOrEqual(36);
   await page.waitForTimeout(400);
+  // Na planta, o mesmo mapa preenche a superfície (recortado pelo contorno), com a atribuição.
+  await page.getByTestId('view-mode-plan').click();
+  await expect(page.getByTestId('terrain-plan-fill')).toHaveAttribute('data-fill', 'map');
+  await expect(page.getByTestId('terrain-plan-map')).toHaveAttribute('data-state', 'ready');
+  expect(
+    await page.locator('[data-testid="terrain-plan-map"] image[data-tile]').count(),
+  ).toBeGreaterThan(0);
+  await expect(page.getByTestId('terrain-plan-attribution')).toContainText('OpenStreetMap');
+  await expect(page.getByTestId('terrain-plan-notice')).toHaveAttribute('data-state', 'ready');
+  await page.getByTestId('view-mode-3d').click();
   // Voltar à cor por altitude tira a imagem e a atribuição.
   await (await ctl(page, 'terrain-color-mode')).selectOption('elevation');
   await expect(drape).toHaveCount(0);
   await page.getByTestId('view-mode-plan').click();
   await expect(page.getByTestId('infra-terrain')).toBeVisible();
+  await expect(page.getByTestId('terrain-plan-fill')).toHaveAttribute('data-fill', 'elevation');
+  await expect(page.getByTestId('terrain-plan-notice')).toHaveCount(0);
 
   // A superfície é dado do projeto: desfazer a remove e refazer a devolve.
   await page.keyboard.press('Control+z');

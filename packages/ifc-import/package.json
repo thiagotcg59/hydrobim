@@ -1,0 +1,18 @@
+{
+  "name": "@hydrobim/ifc-import",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Leitura de arquivos IFC (IFC2X3, IFC4, IFC4X3) com o web-ifc: estrutura, objetos, malhas e propriedades",
+  "exports": {
+    ".": "./src/index.ts",
+    "./reader": "./src/reader.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hydrobim/core": "*",
+    "web-ifc": "0.0.78"
+  }
+}

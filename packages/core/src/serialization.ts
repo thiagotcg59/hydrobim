@@ -1,5 +1,6 @@
 import { archIntegrityProblem } from './architecture/ops';
 import { MIN_PIPE_LENGTH } from './dimensions';
+import { ifcModelsIntegrityProblem } from './ifcModels';
 import { quatNormalize } from './math';
 import { pipeLength } from './ports';
 import { fail, ok, type Result } from './result';
@@ -141,6 +142,13 @@ const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string
   // `roofs` na visibilidade das vistas. Só acrescenta possibilidades: um documento v17 não tem
   // telhados e nada nele muda além da versão.
   17: (doc) => ({ ...doc, schemaVersion: 18 }),
+  // v18 → v19: modelos IFC importados (`ifcModels`: arquivo-fonte, objetos incluídos e
+  // transformações) e a categoria `ifcModels` na visibilidade das vistas. Documentos antigos
+  // não têm modelos importados.
+  18: (doc) => ({ ifcModels: [], ...doc, schemaVersion: 19 }),
+  // v19 → v20: desenho da folha no tipo de porta (`leaf`: frisos), opcional — ausente = folha
+  // lisa. Documentos v19 já são válidos no esquema v20.
+  19: (doc) => ({ ...doc, schemaVersion: 20 }),
 };
 
 export function serializeProject(project: Project): string {
@@ -225,6 +233,9 @@ export function parseProjectDocument(input: unknown): Result<Project> {
       return fail('DUPLICATE_ID', `Projeto inválido: identificador duplicado (${element.id}).`);
     }
   }
+
+  const ifcProblem = ifcModelsIntegrityProblem(project, ids);
+  if (ifcProblem) return fail(ifcProblem.code, `Projeto inválido: ${ifcProblem.message}`);
 
   return ok({
     ...project,

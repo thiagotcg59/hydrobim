@@ -24,7 +24,7 @@ export interface Ray {
 }
 
 export type SnapKind =
-  'port' | 'grid' | 'plane' | 'axis' | 'vertical' | 'angle' | 'pipe' | 'terrain';
+  'port' | 'grid' | 'plane' | 'axis' | 'vertical' | 'angle' | 'pipe' | 'terrain' | 'ifc';
 
 export interface PickAnchor {
   readonly point: Vec3;

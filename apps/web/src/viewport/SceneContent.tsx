@@ -35,6 +35,8 @@ import { toCanonical, toRender } from '../editor/renderOrigin';
 import { formatSegment } from '../editor/segment';
 import { describeSnap } from '../editor/snapLabel';
 import { visibleElementsOf, visibleFreePortsOf } from '../editor/visibility';
+import { IfcModels } from '../ifc/IfcScene';
+import { ifcBoundsOf, ifcSelectionBounds } from '../ifc/ifcStore';
 import {
   getViewDirection,
   getViewFocus,
@@ -503,6 +505,33 @@ function CameraRig() {
           }
         : { min: low, max: high };
     }
+    // Modelos IFC importados: a seleção deles (quando é ela a enquadrada) ou, no enquadramento
+    // do projeto, tudo o que está à mostra.
+    const ifcSelected = viewRequest.selection ? ifcSelectionBounds() : null;
+    const ifc =
+      ifcSelected ??
+      (viewRequest.selection && chosen.length > 0
+        ? null
+        : ifcBoundsOf(project, null, { visibleOnly: true }));
+    if (ifcSelected) bounds = null;
+    if (ifc) {
+      const low = vec3(ifc[0], ifc[1], ifc[2]);
+      const high = vec3(ifc[3], ifc[4], ifc[5]);
+      bounds = bounds
+        ? {
+            min: vec3(
+              Math.min(bounds.min.x, low.x),
+              Math.min(bounds.min.y, low.y),
+              Math.min(bounds.min.z, low.z),
+            ),
+            max: vec3(
+              Math.max(bounds.max.x, high.x),
+              Math.max(bounds.max.y, high.y),
+              Math.max(bounds.max.z, high.z),
+            ),
+          }
+        : { min: low, max: high };
+    }
     // Centro em coordenadas de desenho (a diferença é feita em precisão dupla).
     const drawOrigin = appliedOrigin.current;
     const center = bounds
@@ -671,6 +700,7 @@ export function SceneContent() {
           <group ref={elementsRef}>
             <Elements hoveredId={hoveredId} />
             <ArchElements hiddenCategories={hiddenCategories} />
+            <IfcModels hiddenCategories={hiddenCategories} />
           </group>
         </ModelDisplayContext.Provider>
         {view3d && box && <SectionBox3D viewId={view3d.id} box={box} onPreview={setBoxPreview} />}

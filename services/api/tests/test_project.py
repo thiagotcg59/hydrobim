@@ -21,7 +21,7 @@ def test_round_trip(project_document, manufacturing):
 
 def test_python_attributes_accept_snake_case(project_document):
     project = Project.model_validate(project_document)
-    assert project.schema_version == 18
+    assert project.schema_version == 20
     assert project.elements[0].spec.outer_diameter == 0.025
     assert Project.model_validate(project.model_dump(by_alias=False)) == project
 
@@ -29,7 +29,7 @@ def test_python_attributes_accept_snake_case(project_document):
 @pytest.mark.parametrize(
     ("path", "value"),
     [
-        (("schemaVersion",), 19),
+        (("schemaVersion",), 21),
         (("schemaVersion",), True),
         (("schemaVersion",), "1"),
         (("units", "length"), "mm"),
@@ -91,7 +91,7 @@ def test_nullable_pressure_class_is_required(project_document):
 def test_zod_permits_empty_strings_and_integral_floats(project_document):
     project_document["name"] = ""
     project_document["createdAt"] = "not-an-iso-date"
-    project_document["schemaVersion"] = 18.0
+    project_document["schemaVersion"] = 20.0
     project_document["elements"][0]["meta"]["revision"] = 1.0
     project_document["elements"][0]["spec"]["standard"] = ""
     assert Project.model_validate(project_document).model_dump(by_alias=True) == project_document
@@ -239,7 +239,7 @@ def test_migrates_v11_terrain_as_survey_without_presumed_data(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump()
     assert legacy == before
-    assert migrated["schemaVersion"] == 18
+    assert migrated["schemaVersion"] == 20
     terrain = migrated["terrain"]
     assert terrain["points"] == TERRAIN_V11["points"]
     assert terrain["boundary"] is None
@@ -694,7 +694,7 @@ def test_migrates_v12_adding_empty_pump_families(project_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated == {**project_document, "schemaVersion": 18}
+    assert migrated == {**project_document, "schemaVersion": 20}
 
 
 def _custom_pump_family():
@@ -979,7 +979,7 @@ def test_migrates_v15_adding_empty_architecture_and_arch_cut_height(project_docu
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated["schemaVersion"] == 18
+    assert migrated["schemaVersion"] == 20
     assert migrated["architecture"] == {"types": [], "elements": []}
     plans = [view for view in migrated["views"] if view["kind"] == "plan"]
     assert [view["archCutHeight"] for view in plans] == [1.2, 0.8, 0.1, 0.1]
@@ -999,7 +999,7 @@ def test_migration_keeps_existing_arch_cut_height_and_older_versions_reach_v16(p
     legacy["schemaVersion"] = 14
     del legacy["views"][0]["archCutHeight"]
     migrated = Project.model_validate(legacy)
-    assert migrated.schema_version == 18
+    assert migrated.schema_version == 20
     assert migrated.views[0].arch_cut_height == 1.2
     assert migrated.architecture.types == []
 
@@ -1270,7 +1270,7 @@ def test_migrates_v17_without_changes(arch_document):
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated == {**arch_document, "schemaVersion": 18}
+    assert migrated == {**arch_document, "schemaVersion": 20}
 
 
 # ---------------------------------------------------------------------------
@@ -1312,7 +1312,7 @@ def test_migrates_v16_terrain_and_earthworks_without_presumed_data(project_docum
     before = deepcopy(legacy)
     migrated = Project.model_validate(legacy).model_dump(by_alias=True)
     assert legacy == before
-    assert migrated["schemaVersion"] == 18
+    assert migrated["schemaVersion"] == 20
     assert migrated["terrain"]["id"] == "terreno"
     assert migrated["terrain"]["tag"] == ""
     assert migrated["terrain"]["original"] is None

@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useArchStore } from '../arch/archStore';
+import { IfcBrowserBranch, useIfcSearchCount } from '../ifc/IfcBrowserBranch';
+import { useUiStore } from '../state/uiStore';
 import { archTreeCount, archTreeOf } from '../arch/archTree';
 import { getCommand } from '../commands/commands';
 import { useCommandContext } from '../commands/useCommands';
@@ -141,6 +143,7 @@ export function ProjectBrowser() {
     [project.levels, project.architecture, query],
   );
   const archCount = archTreeCount(archTree);
+  const ifcCount = useIfcSearchCount(query);
   const archTotal = project.architecture.elements.length;
   const pumps = matching.filter((element) => element.kind === 'pump');
   const tanks = matching.filter((element) => element.kind === 'tank');
@@ -319,7 +322,7 @@ export function ProjectBrowser() {
         </label>
         {searching && (
           <span className="browser__results" data-testid="nav-search-count">
-            {matching.length + archCount} elemento(s) encontrado(s)
+            {matching.length + archCount + ifcCount} elemento(s) encontrado(s)
           </span>
         )}
       </div>
@@ -387,6 +390,12 @@ export function ProjectBrowser() {
           </Branch>
 
           {archBranch}
+
+          <IfcBrowserBranch
+            query={query}
+            searching={searching}
+            onImport={() => useUiStore.getState().openDialog('ifcImport')}
+          />
 
           <Branch
             id="systems"
