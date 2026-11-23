@@ -10,6 +10,10 @@ import { ArchModePanel, ArchToolOptions } from './arch/ArchToolOptions';
 import { BimTree } from './bim/BimTree';
 import { IfcLibraryDialog } from './bim/IfcLibraryDialog';
 import { IfcPanel } from './bim/IfcPanel';
+import { IfcImportDialog } from './ifc/IfcImportDialog';
+import { IfcPlacementPanel } from './ifc/IfcPlacementPanel';
+import { IfcProperties } from './ifc/IfcProperties';
+import { useIfcStore } from './ifc/ifcStore';
 import { useKeyboardShortcuts } from './commands/useCommands';
 import { isAnnotationTool, selectIsDirty, useEditorStore } from './state/editorStore';
 import { restoreSession } from './state/projectActions';
@@ -69,10 +73,17 @@ function RightPanel() {
           : null,
   );
   const archSelected = useArchStore((s) => s.selection.length);
-  const selectionSize = useEditorStore((s) => s.selection.length) + archSelected;
+  const ifcSelected = useIfcStore((s) => (s.modelSelection ? 1 : s.selection.length));
+  const ifcPlacing = useIfcStore((s) => s.wizard?.step === 'placing');
+  const selectionSize = useEditorStore((s) => s.selection.length) + archSelected + ifcSelected;
   const tab = useUiStore((s) => s.panelTab);
   const setTab = useUiStore((s) => s.setPanelTab);
-  if (bim) return archSelected > 0 ? <ArchProperties /> : <IfcPanel />;
+  // Importação IFC aguardando a posição: o painel é o do posicionamento até confirmar ou cancelar.
+  if (ifcPlacing) return <IfcPlacementPanel />;
+  if (bim) {
+    if (ifcSelected > 0) return <IfcProperties />;
+    return archSelected > 0 ? <ArchProperties /> : <IfcPanel />;
+  }
   const creating =
     archTool !== null || archMode !== null || (tool !== 'select' && !isAnnotationTool(tool));
   const toolLabel = archTool ? ARCH_TOOL_LABELS[archTool] : (archMode ?? TOOL_LABELS[tool]);
@@ -226,6 +237,7 @@ export function App() {
         <ExportDialog open={dialog === 'export'} onClose={closeDialog('export')} />
         <CommandPalette open={dialog === 'commands'} onClose={closeDialog('commands')} />
         <ProjectOptionsDialog open={dialog === 'options'} onClose={closeDialog('options')} />
+        <IfcImportDialog open={dialog === 'ifcImport'} onClose={closeDialog('ifcImport')} />
         {dialog === 'archCatalog' && (
           <ArchCatalogDialog
             onClose={closeDialog('archCatalog')}

@@ -60,7 +60,8 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ⬜ Perfil de requisitos editável pelo usuário e importação de IDS de terceiros (hoje o perfil é o do registro de propriedades).
 - ⬜ Elementos ainda sem modelagem na rede — medidores (`IfcFlowMeter`), sensores, atuadores, caixas de válvulas: só serão classificados quando existirem como elementos.
 - ⬜ Sólidos paramétricos para conexões (hoje malhas trianguladas); compatibilidade IFC 4.
-- ⬜ Importação IFC.
+- ✅ **Importação IFC** (esquema v19, ADR-050, `docs/IFC_IMPORT.md`): arquivos `.ifc` em IFC2X3, IFC4 e IFC4X3_ADD2 lidos no navegador (web-ifc em Web Worker), com andamento e cancelamento; prévia com esquema, unidades, pavimentos, categorias e relatório; importação do modelo completo ou de objetos escolhidos por árvore, categoria e busca; posicionamento por coordenadas originais, ponto-base, deslocamento e rotação ou alinhamento por referências, com prévia nas vistas; ramo "Modelos IFC" no navegador; seleção, ocultar, isolar, transparência, enquadrar; Modelo 3D, planta, plantas por nível, cortes e elevações; mover, girar, copiar e remover com desfazer/refazer; capturas nos vértices e arestas; propriedades, quantidades, materiais e classificações com a natureza de cada valor; fonte guardada no projeto. Conferido com o IfcOpenShell.
+- ⬜ Importação IFC, pendente: arquivos reais de ferramentas de autoria na base de testes; aplicar a georreferência declarada quando o CRS do arquivo e o do projeto coincidirem; ifcZIP e ifcXML; seleção por janela, menu de contexto, percurso e VR com os importados; mover e girar por arrasto nas vistas; interferência da rede com objetos importados; converter objetos importados em elementos do domínio; incluir os importados na exportação IFC; remoção de linhas ocultas e hachura de seção nas vistas 2D.
 
 ## Fase 4 — MEP avançado 🟡
 
@@ -136,7 +137,7 @@ Viewport 3D, tubos por dois pontos, seleção, propriedades, edição de diâmet
 - ✅ Detecção de interferências entre tubos.
 - ⬜ Demandas, padrões e perdas localizadas no EPANET; importação de resultados.
 - ⬜ Interferências envolvendo conexões e equipamentos; relatórios técnicos.
-- ⬜ Federação com outros modelos BIM.
+- 🟡 Federação com outros modelos BIM: modelos IFC entram como referência no projeto (Fase 3, Importação IFC). ⬜ Vínculo com o arquivo externo (recarregar uma revisão mantendo posição e seleção), comparação de revisões e detecção de interferências com a rede.
 
 ## Arquitetura 🟡
 
@@ -156,7 +157,7 @@ Ver `docs/ARQUITETURA.md` (requisitos adotados do Caderno BIM de SC v3.0, vigên
 - ⬜ Edição interativa, pendente: seleção por janela da arquitetura; ferramentas e capturas de arquitetura nas vistas salvas e no Modelo 3D; alças diretas em lajes, pisos e ambientes (hoje pelo "Editar contorno"); edição do contorno das aberturas de piso; arrastar uma extremidade levando as paredes vizinhas do encontro; arrastar portas e janelas ao longo da parede; cotas temporárias editáveis depois de criado o elemento; deslocamento paralelo com cópia (offset), concordância e chanfro entre paredes; alinhar com giro e com vínculo mantido; junção em X ao aparar.
 - ⬜ Capturas, pendente: tangência e quadrantes; extensão de arestas além das pontas; cruzamento de uma direção travada com um alinhamento; o mesmo motor no traçado da rede hidráulica e nos detalhes 2D das vistas.
 - ⬜ Telhados, pendente: quatro águas (`HIP_ROOF`) e demais tipologias; águas com inclinações diferentes e cumeeira deslocada; beiral diferente por lado; contornos não retangulares (L, T) com rincões e espigões; aberturas (claraboias) e águas-furtadas; calhas, rufos e condutores; estrutura peça a peça (tesouras, terças, caibros, ripas); paredes estendidas até o telhado e empenas fechadas; telhado vinculado às paredes de apoio; telhado por contorno das paredes selecionadas.
-- ⬜ Arquitetura no percurso e na árvore da consulta BIM / IFC; DXF com a arquitetura; importação IFC.
+- ⬜ Arquitetura no percurso e na árvore da consulta BIM / IFC; DXF com a arquitetura; conversão de objetos IFC importados em elementos de arquitetura (a importação como referência está feita — Fase 3).
 - ⬜ `IfcSpaceType`, `IfcZone`, limites de espaço e áreas líquidas de ambientes; detecção do ambiente pelas paredes.
 - ⬜ Camadas da parede desenhadas e cortadas uma a uma; junção em X; paredes curvas ou inclinadas.
 - ⬜ Escadas, rampas, forros, estrutura e mobiliário.

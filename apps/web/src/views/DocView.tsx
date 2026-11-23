@@ -37,6 +37,9 @@ import {
 import { TOOL_LABELS } from '../ui/labels';
 import '../styles/architecture.css';
 import { selectArchElement, useArchSelection } from './archSelection';
+import { IFC_2D_LIMIT, ifcViewEntry, shownIfcObjects } from '../ifc/ifcPlan';
+import { IfcShape, ifcSkippedNotice } from '../ifc/IfcPlanLayer';
+import { useIfcStore } from '../ifc/ifcStore';
 import { ArchViewElement, HatchDefs, SpaceShape } from './ArchShapes';
 import {
   archBoundsOf,
@@ -80,6 +83,7 @@ interface Drag {
   readonly elementId: string | null;
   /** Elemento arquitetônico sob o clique. */
   readonly archId: string | null;
+  readonly ifcId: string | null;
   readonly detailId: string | null;
   readonly grip: string | null;
   /** Ponto de referência do arrasto, nas coordenadas da vista. */
@@ -219,6 +223,33 @@ export function DocView({ view }: { view: ProjectView2d }) {
     () => spaceLabelsOf({ levels, architecture }, archElements, archProjection),
     [archElements, levels, architecture, archProjection],
   );
+  // Modelos IFC importados: arestas e contorno de corte de cada objeto, com os mesmos
+  // referencial e planos de corte da vista. A categoria pode ser ocultada na vista.
+  const { ifcModels } = project;
+  const ifcRevision = useIfcStore((s) => s.revision);
+  const ifcHidden = useIfcStore((s) => s.hidden);
+  const ifcSelection = useIfcStore((s) => s.selection);
+  const ifcModelSelection = useIfcStore((s) => s.modelSelection);
+  const ifcOff = view.visibility.hiddenCategories.includes('ifcModels');
+  const ifcDrawn = useMemo(() => {
+    const shown = ifcOff ? [] : shownIfcObjects({ ifcModels });
+    return {
+      entries: shown.slice(0, IFC_2D_LIMIT).flatMap(({ model, object, source }) => {
+        const entry = ifcViewEntry(
+          model,
+          object,
+          source,
+          projection.key,
+          projection.frame,
+          projection.clip,
+        );
+        return entry ? [{ model, object, entry }] : [];
+      }),
+      skipped: Math.max(0, shown.length - IFC_2D_LIMIT),
+    };
+    // A revisão e os ocultos mudam o que está à mostra.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ifcModels, ifcOff, projection, ifcRevision, ifcHidden]);
   // Rede e arquitetura na mesma ordem de profundidade; no empate, a rede fica por cima.
   const painted = useMemo(
     () =>
@@ -238,12 +269,29 @@ export function DocView({ view }: { view: ProjectView2d }) {
       view,
     );
     const arch = archBoundsOf(archEntries, spaces);
-    if (!network || !arch) return network ?? arch;
-    return {
-      min: { x: Math.min(network.min.x, arch.min.x), y: Math.min(network.min.y, arch.min.y) },
-      max: { x: Math.max(network.max.x, arch.max.x), y: Math.max(network.max.y, arch.max.y) },
-    };
-  }, [drawn, view, archEntries, spaces]);
+    let bounds =
+      !network || !arch
+        ? (network ?? arch)
+        : {
+            min: {
+              x: Math.min(network.min.x, arch.min.x),
+              y: Math.min(network.min.y, arch.min.y),
+            },
+            max: {
+              x: Math.max(network.max.x, arch.max.x),
+              y: Math.max(network.max.y, arch.max.y),
+            },
+          };
+    for (const { entry } of ifcDrawn.entries) {
+      bounds = bounds
+        ? {
+            min: { x: Math.min(bounds.min.x, entry.min.x), y: Math.min(bounds.min.y, entry.min.y) },
+            max: { x: Math.max(bounds.max.x, entry.max.x), y: Math.max(bounds.max.y, entry.max.y) },
+          }
+        : { min: entry.min, max: entry.max };
+    }
+    return bounds;
+  }, [drawn, view, archEntries, spaces, ifcDrawn]);
   const systems = useMemo(
     () => new Map(project.systems.map((system) => [system.id, system])),
     [project.systems],
@@ -429,7 +477,12 @@ export function DocView({ view }: { view: ProjectView2d }) {
         selectArchElement(d.archId, additive);
         return;
       }
+      if (d.ifcId && !d.elementId) {
+        useIfcStore.getState().select(d.ifcId, additive);
+        return;
+      }
       if (!additive) selectArchElement(null);
+      if (!additive) useIfcStore.getState().select(null);
       // Clique fora dos elementos, em uma planta: a superfície do terreno sob o ponto.
       if (!d.elementId && !additive) {
         if (plan && terrainVisible && selectEarthworkAt(toPlan(raw), false)) return;
@@ -497,6 +550,7 @@ export function DocView({ view }: { view: ProjectView2d }) {
       mode,
       elementId: idOf(event.target, 'data-element-id'),
       archId: idOf(event.target, 'data-arch-id'),
+      ifcId: idOf(event.target, 'data-ifc-id'),
       detailId,
       grip: grip ?? cropGrip,
       origin: reference,
@@ -850,6 +904,24 @@ export function DocView({ view }: { view: ProjectView2d }) {
             </g>
           </g>
         )}
+        <g
+          data-layer="ifc-models"
+          data-ifc-skipped={ifcDrawn.skipped || undefined}
+          clipPath={crop ? `url(#${clipId})` : undefined}
+          pointerEvents={tool === 'select' ? undefined : 'none'}
+        >
+          {ifcDrawn.skipped > 0 && <title>{ifcSkippedNotice(ifcDrawn.skipped)}</title>}
+          {ifcDrawn.entries.map(({ model, object, entry }) => (
+            <IfcShape
+              key={object.id}
+              entry={entry}
+              origin={origin}
+              objectId={object.id}
+              selected={ifcModelSelection === model.id || ifcSelection.includes(object.id)}
+              opacity={Math.max(0.25, model.opacity)}
+            />
+          ))}
+        </g>
         <g data-layer="elements" clipPath={crop ? `url(#${clipId})` : undefined}>
           {painted.map((item) =>
             item.kind === 'arch' ? (

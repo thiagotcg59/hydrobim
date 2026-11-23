@@ -11,3 +11,4 @@ export * from './sweep';
 export { mergeMeshes } from './tank';
 export * from './planOcclusion';
 export * from './viewOutline';
+export * from './meshEdges';

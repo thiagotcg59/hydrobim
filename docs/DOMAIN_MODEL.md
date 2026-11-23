@@ -427,3 +427,25 @@ Regras (ver `docs/INFRA.md`, seção Terraplenagem):
 | `terrainExchange` | Estrutura de intercâmbio da superfície (DXF 3D, LandXML, IFC) |
 | `buildProfile` | Perfil longitudinal com cota do terreno e recobrimento |
 | `exportIfc` (`@hydrobim/ifc`) | Arquivo IFC 4.3 |
+
+## Modelos IFC importados (esquema v19)
+
+`Project.ifcModels: IfcImportedModel[]` — objetos de referência lidos de arquivos `.ifc` (ver `docs/IFC_IMPORT.md`). Não são elementos da rede nem da arquitetura: não têm portas, especificação, nível nem edição paramétrica, não entram em `Project.connections`, no quantitativo, na validação nem nas exportações (exceto o próprio arquivo do projeto).
+
+| Campo | Significado |
+| --- | --- |
+| `id`, `name` | Identidade interna do modelo (nova a cada inserção) e nome no projeto |
+| `source` | Arquivo-fonte: `fileName`, `byteLength` e `sha256` do original, `encoding: 'gzip-base64'` e `data` (vazio = fonte não embutida, só na cópia de trabalho do navegador) |
+| `schema`, `lengthUnit`, `unitScale`, `importedAt` | Registro do que o arquivo declara (esquema, unidade de comprimento e quantos metros ela vale) e da data da importação |
+| `placementMode`, `placement` | Como a posição foi definida (`original`, `basePoint`, `offset`, `aligned`) e a transformação do referencial do arquivo para o do projeto |
+| `visible`, `opacity` | Exibição do modelo (opacidade de 0,05 a 1) |
+| `objects[]` | Objetos incluídos: `id` (identidade interna persistente), `expressId` e `globalId` (a entidade no arquivo), `transform` (transformação própria, `null` = no lugar original) e `copy` |
+
+- **`IfcTransform`** = `{ translation: Vec3, rotation }`: giro em torno de Z (radianos) seguido de translação (metros). Rígida e em planta — sem escala nem inclinação.
+- **Posição de um objeto no projeto**: `placement do modelo ∘ transform do objeto ∘ ponto do arquivo` (o arquivo já em metros e Z para cima). Mover o modelo leva junto os componentes já deslocados.
+- **Cópia**: outro registro em `objects`, com `id` novo, o mesmo `expressId`/`globalId` e `copy: true`.
+- **Derivado, nunca gravado**: malhas, arestas, envoltórias, estrutura espacial, propriedades, quantidades, materiais e classificações — tudo relido de `source`.
+- **Integridade ao abrir**: identidades de modelos e objetos únicas no projeto (inclusive em relação à rede e à arquitetura) e no máximo `IFC_IMPORT_LIMITS.maxObjects` objetos por modelo.
+- **Operações** (`packages/core/src/ifcModels.ts`, puras, `Result<T>`): `addIfcModel`, `removeIfcModels`, `removeIfcObjects` (o modelo que fica vazio sai do projeto), `transformIfcModels`, `transformIfcObjects`, `copyIfcObjects`, `setIfcModelDisplay`; auxiliares `ifcMoveTransform`, `ifcRotateTransform`, `ifcAlignTransform`, `composeIfcTransforms`, `stripIfcSources`/`attachIfcSources`.
+- **Visibilidade das vistas**: categoria `ifcModels` em `ViewVisibility.hiddenCategories`.
+- **Migração v18 → v19**: `ifcModels: []`; nada mais muda.

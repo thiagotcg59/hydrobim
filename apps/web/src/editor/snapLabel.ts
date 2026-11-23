@@ -22,6 +22,7 @@ export const SNAP_LABELS: Record<SnapKind, string> = {
   angle: 'Ângulo de catálogo',
   pipe: 'Tê automático no tubo',
   terrain: 'Terreno',
+  ifc: 'Vértice de objeto IFC importado',
 };
 
 export interface SnapTarget {

@@ -316,3 +316,7 @@ Os testes do backend abrem os arquivos IFC de `examples/` (gerados por `npm run 
 - `FlowDirection` das portas é `NOTDEFINED`, exceto nos bocais de reservatório.
 - Não há importação IFC: a "reimportação" dos reservatórios é verificada pelos testes do backend, que reabrem o arquivo com IfcOpenShell e conferem classe, tipo, material, propriedades, portas e a malha tesselada contra o projeto.
 - O arquivo foi validado com `ifcopenshell.validate` e tesselado com `ifcopenshell.geom`; ainda não foi testado em visualizadores e ferramentas de autoria de terceiros.
+
+## Importação (leitura de arquivos de terceiros)
+
+Este documento trata do que o HydroBIM **escreve**. A leitura de arquivos `.ifc` não usa o mapeamento acima: os objetos importados mantêm a entidade, o tipo predefinido, o tipo associado, os conjuntos de propriedades e de quantidades, os materiais e as classificações **como estão no arquivo**, com as unidades e os tipos de valor dele, e não são reclassificados nem convertidos em elementos do domínio. Esquemas lidos: IFC2X3, IFC4 e IFC4X3_ADD2. A exportação IFC 4.3 não inclui os objetos importados. Ver `docs/IFC_IMPORT.md`.

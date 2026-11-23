@@ -67,7 +67,7 @@ def project_document():
 
     return {
         "format": "hydrobim-project",
-        "schemaVersion": 18,
+        "schemaVersion": 20,
         "id": "project-test",
         "name": "Projeto de teste",
         "discipline": "mep",
@@ -91,6 +91,7 @@ def project_document():
         "annotations": [],
         "views": [],
         "architecture": {"types": [], "elements": []},
+        "ifcModels": [],
         "drawingScale": 50,
         "infra": {
             "drawingScale": 1000,

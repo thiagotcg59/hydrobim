@@ -16,6 +16,7 @@ import {
   MOUSE,
   Raycaster,
   Vector2,
+  Vector3,
   type Group,
   type Object3D,
   type OrthographicCamera,
@@ -26,6 +27,7 @@ import { arrowPreferences, contextTargetOf, CONTEXT_PX, nudgeStep } from '../edi
 import { toCanonical } from '../editor/renderOrigin';
 import {
   pickPoint,
+  SNAP_PX,
   pickPort,
   type PickGround,
   type PickResult,
@@ -48,6 +50,7 @@ import {
 import { getActiveClipPlanes } from '../views/clipContext';
 import { pointGridStepOf } from '../state/alignTool';
 import { useArchStore } from '../arch/archStore';
+import { useIfcStore } from '../ifc/ifcStore';
 import { shownTerrain, useEarthworkStore } from '../terrain/earthworkStore';
 import { useTerrainStore } from '../terrain/terrainStore';
 
@@ -101,9 +104,34 @@ function terrainUnderRay(ray: Ray): boolean {
   );
 }
 
+/** O objeto e todos os grupos acima dele estão à mostra? (o raio não confere isso sozinho) */
+function shownInScene(object: Object3D | null): boolean {
+  for (let current = object; current; current = current.parent) {
+    if (!current.visible) return false;
+  }
+  return true;
+}
+
+/** O objeto atingido pertence à prévia do posicionamento de um modelo IFC? */
+function isIfcGhost(object: Object3D | null): boolean {
+  for (let current = object; current; current = current.parent) {
+    if (current.userData.ifcGhost === true) return true;
+  }
+  return false;
+}
+
+/** Objeto IFC importado (ou a prévia dele) sob o cursor. */
+interface IfcHit {
+  /** Identidade interna do objeto; `null` na prévia do posicionamento. */
+  readonly objectId: string | null;
+  /** Vértice capturado ou, longe de um vértice, o ponto da face. */
+  readonly point: Vec3;
+  readonly vertex: boolean;
+}
+
 function elementIdOf(
   object: Object3D | null,
-  key: 'elementId' | 'archId' = 'elementId',
+  key: 'elementId' | 'archId' | 'ifcObjectId' = 'elementId',
 ): string | null {
   let current = object;
   while (current) {
@@ -162,7 +190,13 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     /** Raio do cursor no modelo e o elemento que ele atinge. */
     const cast = (
       event: MouseEvent,
-    ): { ray: Ray; hit: { elementId: string; point: Vec3 } | null; archId: string | null } => {
+      ghost: 'skip' | 'only' = 'skip',
+    ): {
+      ray: Ray;
+      hit: { elementId: string; point: Vec3 } | null;
+      archId: string | null;
+      ifc: IfcHit | null;
+    } => {
       const rect = canvas.getBoundingClientRect();
       pointer.set(
         ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -182,9 +216,15 @@ export function InteractionController({ elementsRef, onHover }: Props) {
       // Com a caixa de corte, o primeiro ponto atingido que ela não esconde.
       const clip = getActiveClipPlanes();
       const hits = group ? raycaster.intersectObject(group, true) : [];
-      const intersection = clip
-        ? hits.find((entry) => clip.every((plane) => plane.distanceToPoint(entry.point) >= 0))
-        : hits[0];
+      // Fica o primeiro ponto atingido que está à mostra: fora do que a caixa de corte esconde
+      // e dos objetos importados ocultos. A prévia do posicionamento de um modelo IFC só é
+      // atingida quando é ela que se quer apontar.
+      const intersection = hits.find(
+        (entry) =>
+          (!clip || clip.every((plane) => plane.distanceToPoint(entry.point) >= 0)) &&
+          shownInScene(entry.object) &&
+          isIfcGhost(entry.object) === (ghost === 'only'),
+      );
       const elementId = intersection ? elementIdOf(intersection.object) : null;
       const hit =
         intersection && elementId
@@ -197,13 +237,44 @@ export function InteractionController({ elementsRef, onHover }: Props) {
             }
           : null;
       const archId = intersection && !elementId ? elementIdOf(intersection.object, 'archId') : null;
-      return { ray, hit, archId };
+      const ifcObjectId =
+        intersection && !elementId ? elementIdOf(intersection.object, 'ifcObjectId') : null;
+      let ifc: IfcHit | null = null;
+      if (intersection && (ifcObjectId || ghost === 'only')) {
+        // Captura no vértice da face atingida que estiver a até SNAP_PX do cursor: a posição
+        // sai da malha lida do arquivo e da matriz do objeto, em dupla precisão.
+        const scale = pixelScale();
+        const tolerance = SNAP_PX * (scale.constant + scale.perDistance * intersection.distance);
+        const mesh = intersection.object as Mesh;
+        const positions = mesh.geometry?.getAttribute('position');
+        let best: Vector3 | null = null;
+        let bestDistance = tolerance;
+        if (positions && intersection.face) {
+          for (const index of [intersection.face.a, intersection.face.b, intersection.face.c]) {
+            const corner = new Vector3()
+              .fromBufferAttribute(positions, index)
+              .applyMatrix4(mesh.matrixWorld);
+            const distance = corner.distanceTo(intersection.point);
+            if (distance <= bestDistance) {
+              best = corner;
+              bestDistance = distance;
+            }
+          }
+        }
+        const at = best ?? intersection.point;
+        ifc = {
+          objectId: ifcObjectId,
+          point: toCanonical(vec3(at.x, at.y, at.z), drawOrigin),
+          vertex: best !== null,
+        };
+      }
+      return { ray, hit, archId, ifc };
     };
 
     const resolve = (
       event: PointerEvent,
     ): { pick: PickResult | null; hit: { elementId: string; point: Vec3 } | null } => {
-      const { ray, hit } = cast(event);
+      const { ray, hit, ifc } = cast(event);
       const state = useEditorStore.getState();
 
       const usesPoints = state.tool !== 'select';
@@ -247,6 +318,11 @@ export function InteractionController({ elementsRef, onHover }: Props) {
           ground: groundOf(state),
         });
         return { pick: shiftPick(state, ray, picked, up), hit };
+      }
+      // Vértice de um objeto IFC importado sob o cursor: referência de modelagem, como um ponto
+      // notável. Só o ponto é capturado — nenhuma conexão hidráulica nasce disso.
+      if (usesPoints && ifc?.vertex && ifc.objectId && !picked?.port) {
+        return { pick: { point: ifc.point, snap: 'ifc', port: null, stacked: 1 }, hit };
       }
       // Saindo da extremidade de um tubo, a direção trava nos ângulos dos joelhos de catálogo.
       const constraint = deflectionConstraintOf(state);
@@ -397,17 +473,54 @@ export function InteractionController({ elementsRef, onHover }: Props) {
     const isAdditive = (event: PointerEvent): boolean =>
       event.ctrlKey || event.metaKey || event.shiftKey;
 
+    /** Posicionamento de um modelo IFC em importação: o clique indica o ponto pedido. */
+    const pickIfcPlacement = (event: PointerEvent): boolean => {
+      const ifcState = useIfcStore.getState();
+      const picking = ifcState.wizard?.step === 'placing' ? ifcState.wizard.picking : null;
+      if (!picking) return false;
+      const fromModel = picking === 'base' || picking === 'source1' || picking === 'source2';
+      const state = useEditorStore.getState();
+      if (fromModel) {
+        const { ifc } = cast(event, 'only');
+        if (ifc) ifcState.pickPoint(ifc.point);
+        else state.notify('info', 'Indique um ponto sobre a prévia do modelo importado.');
+        return true;
+      }
+      // Destino: vértice de objeto importado, ponto de um elemento, porta, grade ou plano.
+      const { ray, hit, ifc } = cast(event);
+      const free = pickPoint({
+        ray,
+        freePorts: visibleFreePortsOf(state.project),
+        pixelScale: pixelScale(),
+        cycle: 0,
+        workPlaneZ: state.workPlaneZ,
+        gridStep: pointGridStepOf(state),
+        anchor: null,
+        vertical: false,
+        ground: groundOf(state),
+      });
+      const point = free?.port ? free.point : (ifc?.point ?? hit?.point ?? free?.point ?? null);
+      if (point) ifcState.pickPoint(point);
+      return true;
+    };
+
     const click = (event: PointerEvent): void => {
+      if (pickIfcPlacement(event)) return;
       const { pick, hit } = resolve(event);
       if (useEditorStore.getState().tool === 'select') {
         const arch = useArchStore.getState();
-        const { archId, ray } = cast(event);
+        const { archId, ray, ifc } = cast(event);
         if (archId) {
           arch.select(archId, isAdditive(event));
           return;
         }
+        if (ifc?.objectId) {
+          useIfcStore.getState().select(ifc.objectId, isAdditive(event));
+          return;
+        }
         if (!isAdditive(event)) {
           arch.select(null);
+          useIfcStore.getState().select(null);
           // Nenhum elemento sob o cursor: a superfície do terreno, quando o raio a atinge, é
           // selecionada como elemento. A rede enterrada continua clicável através dela.
           if (!hit) {

@@ -1,0 +1,278 @@
+/* Modelos IFC importados: árvore, diálogo de importação, posicionamento e propriedades. */
+
+.ifc-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.ifc-line > .tree__row {
+  flex: 1;
+  min-width: 0;
+}
+
+.ifc-line.is-hidden > .tree__row {
+  opacity: 0.5;
+}
+
+.ifc-actions {
+  display: flex;
+  flex: none;
+  gap: 1px;
+  padding-right: 4px;
+  opacity: 0;
+}
+
+.ifc-line:hover .ifc-actions,
+.ifc-line:focus-within .ifc-actions,
+.ifc-actions:has([data-hidden='true']) {
+  opacity: 1;
+}
+
+.ifc-status {
+  font-size: 11px;
+  color: var(--text-muted, #5b6672);
+}
+
+.ifc-status--error,
+.ifc-status--missing {
+  color: #b42318;
+}
+
+/* Diálogo de importação */
+
+.ifc-import {
+  width: min(1040px, 96vw);
+}
+
+.ifc-import__body {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(320px, 1.1fr);
+  gap: 14px;
+  max-height: 68vh;
+  min-height: 380px;
+}
+
+.ifc-import__column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ifc-import__preview {
+  flex: 1;
+  min-height: 220px;
+  border: 1px solid var(--border, #d5dbe3);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f4f6f9;
+}
+
+.ifc-import__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.ifc-import__facts dt {
+  color: var(--text-muted, #5b6672);
+}
+
+.ifc-import__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ifc-import__tree {
+  flex: 1;
+  min-height: 140px;
+  overflow: auto;
+  border: 1px solid var(--border, #d5dbe3);
+  border-radius: 6px;
+  padding: 4px 0;
+}
+
+.ifc-import__tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ifc-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px calc(8px + var(--level, 0) * 14px);
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.ifc-check > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ifc-check--node {
+  font-weight: 600;
+}
+
+.ifc-check small {
+  color: var(--text-muted, #5b6672);
+  flex: none;
+}
+
+.ifc-check small.is-warning {
+  color: #b54708;
+}
+
+.ifc-import__categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  max-height: 84px;
+  overflow: auto;
+  font-size: 12.5px;
+}
+
+.ifc-import__categories label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ifc-import__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ifc-import__toolbar input[type='search'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.ifc-report {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.ifc-report li {
+  padding: 3px 0 3px 18px;
+  position: relative;
+}
+
+.ifc-report li::before {
+  content: 'i';
+  position: absolute;
+  left: 2px;
+  font-weight: 700;
+  color: #1d6fb8;
+}
+
+.ifc-report li[data-severity='warning']::before {
+  content: '!';
+  color: #b54708;
+}
+
+.ifc-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 8px;
+  align-items: stretch;
+}
+
+.ifc-progress progress {
+  width: 100%;
+  height: 10px;
+}
+
+.ifc-error {
+  border-left: 3px solid #b42318;
+  background: #fef3f2;
+  padding: 10px 12px;
+  border-radius: 4px;
+}
+
+/* Painel de posicionamento e propriedades */
+
+.ifc-placement__modes {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.ifc-placement__modes label {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 12.5px;
+}
+
+.ifc-placement__pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  font-size: 12.5px;
+}
+
+.ifc-placement__pick code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ifc-placement__pick .btn.is-active {
+  outline: 2px solid var(--accent, #1d6fb8);
+  font-weight: 600;
+}
+
+.ifc-placement__actions,
+.ifc-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ifc-note {
+  font-size: 12px;
+  color: var(--text-muted, #5b6672);
+  margin: 6px 0;
+}
+
+.ifc-props__value {
+  overflow-wrap: anywhere;
+}
+
+.ifc-opacity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.ifc-opacity input[type='range'] {
+  flex: 1;
+}
+.btn--link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent, #1d6fb8);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}

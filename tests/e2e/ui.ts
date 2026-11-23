@@ -8,7 +8,13 @@ import type { Locator, Page } from '@playwright/test';
 
 export type Task = 'model' | 'document' | 'view' | 'analysis' | 'bim' | 'export' | 'manage';
 
-const MENU = new Set(['action-new', 'action-open', 'action-export', 'file-save']);
+const MENU = new Set([
+  'action-new',
+  'action-open',
+  'action-import-ifc',
+  'action-export',
+  'file-save',
+]);
 
 const TASK_RULES: readonly (readonly [RegExp, Task])[] = [
   [/^tool-(dimension|text|leader|tag)$/, 'document'],
@@ -33,6 +39,7 @@ const TASK_RULES: readonly (readonly [RegExp, Task])[] = [
   ],
   [/^terrain-cmd-/, 'model'],
   [/^analysis-/, 'analysis'],
+  [/^(bim-import-ifc|ifc-show-all-command)$/, 'bim'],
   [/^(action-export-.+|plan-export-(svg|dxf)|export-details)$/, 'export'],
   [/^(manage-.*|layout-(ribbon|reset))$/, 'manage'],
 ];

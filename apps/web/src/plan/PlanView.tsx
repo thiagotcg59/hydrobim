@@ -51,6 +51,9 @@ import { ArchEditLayer, ArchGripLayer } from '../arch/ArchEditLayer';
 import { ArchDraftLayer, ArchPlanLayer } from '../arch/ArchPlanLayer';
 import { ArchLengthEntry } from '../arch/ArchPlanTools';
 import { useArchStore } from '../arch/archStore';
+import { ifcPlanPick, ifcPlanVertexNear } from '../ifc/ifcPlan';
+import { IfcPlanLayer } from '../ifc/IfcPlanLayer';
+import { ifcBoundsOf, ifcSelectionBounds, useIfcStore } from '../ifc/ifcStore';
 import { SNAP_PX, type SnapKind } from '../editor/picking';
 import { formatSegment } from '../editor/segment';
 import { describeSnap } from '../editor/snapLabel';
@@ -146,6 +149,7 @@ interface Drag {
   readonly annotationId: string | null;
   readonly elementId: string | null;
   readonly archId: string | null;
+  readonly ifcId: string | null;
   readonly origin: Point2;
   readonly view: View;
   /** Toque (dedo): tolerância maior para distinguir toque de arrasto e toque longo. */
@@ -233,6 +237,12 @@ function planBounds(project: Project): Bounds | null {
   if (arch) {
     include(arch.min.x, arch.min.y);
     include(arch.max.x, arch.max.y);
+  }
+  // Modelos IFC importados à mostra também são desenho.
+  const ifc = ifcBoundsOf(project, null, { visibleOnly: true });
+  if (ifc) {
+    include(ifc[0], ifc[1]);
+    include(ifc[3], ifc[4]);
   }
   // No Infra, a superfície do terreno faz parte do desenho: enquadrar leva até ela.
   if (project.discipline === 'infra' && project.terrain && project.infra.layers.terrain) {
@@ -350,6 +360,8 @@ export function PlanView() {
   const geoPicker = useEditorStore((s) => s.geoPicker);
   /** Operação do terreno em andamento (área, furo, corte ou consulta): ela recebe os cliques. */
   const terrainMode = useTerrainStore((s) => (infra ? s.mode : null));
+  // Posicionamento de um modelo IFC em importação aguardando um ponto na vista.
+  const ifcPicking = useIfcStore((s) => s.wizard?.step === 'placing' && s.wizard.picking !== null);
   /**
    * Superfície do terreno à mostra na planta: no Infra é uma camada do ambiente (gravada no
    * projeto); no MEP é opção de exibição da sessão, desligada por padrão.
@@ -364,8 +376,13 @@ export function PlanView() {
   const fit = useCallback((width: number, height: number): void => {
     const { project, selection, viewRequest } = useEditorStore.getState();
     // Enquadrar a seleção cai no projeto inteiro se nada selecionado estiver visível.
+    const ifcSelected = viewRequest?.selection ? ifcSelectionBounds() : null;
     const bounds =
-      (viewRequest?.selection ? selectionBounds(project, selection) : null) ?? planBounds(project);
+      (ifcSelected
+        ? { minX: ifcSelected[0], minY: ifcSelected[1], maxX: ifcSelected[3], maxY: ifcSelected[4] }
+        : null) ??
+      (viewRequest?.selection ? selectionBounds(project, selection) : null) ??
+      planBounds(project);
     if (!bounds || width <= 0 || height <= 0) {
       setView({ cx: 0, cy: 0, mpp: 0.01 });
       return;
@@ -587,6 +604,17 @@ export function PlanView() {
       cycle: stackCycle.current,
     });
     if (free.ok && free.value.port) return free;
+    // Vértice de objeto IFC importado: referência de modelagem. Em planta vale o X e o Y do
+    // vértice; a cota continua a do plano de desenho. Nenhuma conexão nasce da captura.
+    const ifcVertex = free.ok ? ifcPlanVertexNear(state.project, raw, SNAP_PX * view.mpp) : null;
+    if (free.ok && ifcVertex) {
+      return ok({
+        point: vec3(ifcVertex.x, ifcVertex.y, free.value.point.z),
+        snap: 'ifc',
+        port: null,
+        stacked: 1,
+      });
+    }
     // Shift: o trecho trava a 0°, 45° ou 90° (do tubo de partida ou dos eixos do projeto).
     // Na medição, o segundo ponto trava de 45° em 45° a partir do primeiro.
     const measuring = state.tool === 'measure' && !state.measure.b ? state.measure.a : null;
@@ -739,6 +767,15 @@ export function PlanView() {
 
   const click = (d: Drag, raw: Point2, additive: boolean): void => {
     const store = useEditorStore.getState();
+    if (ifcPicking) {
+      // Posicionamento de um modelo IFC em importação: o clique indica o ponto pedido.
+      const snapped = snap(raw);
+      const fallback = vec3(snapped.point.x, snapped.point.y, workPlaneZ);
+      useIfcStore
+        .getState()
+        .pickPoint(ifcPlanPick(store.project, raw, SNAP_PX * view.mpp, fallback));
+      return;
+    }
     if (terrainMode) {
       // Vértices do contorno e do corte: o ponto clicado, sem captura de grade ou de portas.
       useTerrainStore.getState().click(terrainPoint(raw).point, SNAP_PX * view.mpp);
@@ -762,8 +799,10 @@ export function PlanView() {
     if (tool === 'select') {
       if (d.annotationId) store.selectAnnotation(d.annotationId);
       else if (d.archId) useArchStore.getState().select(d.archId, additive);
+      else if (d.ifcId && !d.elementId) useIfcStore.getState().select(d.ifcId, additive);
       else {
         if (!additive) useArchStore.getState().select(null);
+        if (!additive) useIfcStore.getState().select(null);
         // Clique fora dos elementos: a superfície do terreno sob o ponto (ou um platô, onde
         // eles são desenhados) é selecionada como qualquer elemento; fora dela, nada fica
         // selecionado.
@@ -949,7 +988,7 @@ export function PlanView() {
         ? 'pan'
         : archGrip !== null || archInsert !== null
           ? 'archGrip'
-          : terrainMode || archBusy
+          : terrainMode || archBusy || ifcPicking
             ? 'click'
             : gripPipe && (grip === 'start' || grip === 'end')
               ? 'grip'
@@ -984,6 +1023,7 @@ export function PlanView() {
       annotationId,
       elementId: idOf(event.target, 'data-element-id'),
       archId: idOf(event.target, 'data-arch-id'),
+      ifcId: idOf(event.target, 'data-ifc-id'),
       origin: toModel(event),
       view,
       touch: event.pointerType === 'touch',
@@ -1223,6 +1263,8 @@ export function PlanView() {
       return;
     }
     if (d.button === 2 && !d.moved) {
+      // Desenho da arquitetura em andamento: o botão direito oferece "Criar a parede".
+      if (useArchStore.getState().openDraftMenu({ x: event.clientX, y: event.clientY })) return;
       openContextMenu(event, raw, d.elementId);
       return;
     }
@@ -1265,8 +1307,6 @@ export function PlanView() {
   const onPointerLeave = (): void => {
     if (drag.current) return;
     lastMove.current = null;
-      // Desenho da arquitetura em andamento: o botão direito oferece "Criar a parede".
-      if (useArchStore.getState().openDraftMenu({ x: event.clientX, y: event.clientY })) return;
     setPointer(null);
     useEditorStore.getState().setCursor(null);
     if (archPointing) useArchStore.getState().clearPointer();
@@ -1580,6 +1620,12 @@ export function PlanView() {
           unit={unit}
           monochrome={theme === 'mono'}
           interactive={tool === 'select' && !archBusy && !sectionTool && !terrainMode}
+        />
+        <IfcPlanLayer
+          origin={origin}
+          interactive={
+            tool === 'select' && !archBusy && !sectionTool && !terrainMode && !ifcPicking
+          }
         />
         <g data-layer-infra="network">
           {drawn

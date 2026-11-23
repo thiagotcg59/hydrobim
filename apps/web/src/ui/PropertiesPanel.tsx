@@ -55,6 +55,8 @@ import {
 } from '../state/editorStore';
 import { ArchProperties } from '../arch/ArchProperties';
 import { useArchStore } from '../arch/archStore';
+import { IfcProperties } from '../ifc/IfcProperties';
+import { hasIfcSelection, useIfcStore } from '../ifc/ifcStore';
 import { EarthworkProperties } from '../terrain/EarthworkProperties';
 import { useEarthworkStore } from '../terrain/earthworkStore';
 import { useUiStore } from '../state/uiStore';
@@ -1219,6 +1221,9 @@ export function PropertiesPanel() {
   const archSelected = useArchStore((s) => s.selection.length > 0);
   // Superfície do terreno ou platô escolhidos (edição do terreno e terraplenagem).
   const earthworkSelected = useEarthworkStore((s) => s.selection !== null);
+  // Objeto ou modelo IFC importado selecionado: painel próprio, sem edição paramétrica.
+  const ifcSelected = useIfcStore(hasIfcSelection);
+  if (ifcSelected) return <IfcProperties />;
   if (archSelected) return <ArchProperties />;
   return earthworkSelected ? <EarthworkProperties /> : <NetworkProperties />;
 }

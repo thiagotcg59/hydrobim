@@ -29,7 +29,8 @@ export type DialogId =
   | 'commands'
   | 'options'
   | 'archCatalog'
-  | 'archQuantities';
+  | 'archQuantities'
+  | 'ifcImport';
 /** `view`: configuração da vista de projeto aberta e do detalhe 2D selecionado. */
 export type PanelTab = 'tool' | 'properties' | 'view';
 export type WorkspaceView = 'plan' | '3d';

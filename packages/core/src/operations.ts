@@ -168,6 +168,7 @@ export function createProject(name: string, discipline: Discipline = 'mep'): Pro
     infra: defaultInfraSettings(),
     views: [],
     architecture: { types: [], elements: [] },
+    ifcModels: [],
   };
 }
 

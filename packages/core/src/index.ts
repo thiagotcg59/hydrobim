@@ -19,6 +19,7 @@ export * from './geo/transform';
 export * from './geo/webMercator';
 export * from './inlineClearance';
 export * from './ids';
+export * from './ifcModels';
 export * from './math';
 export * from './operations';
 export * from './ports';

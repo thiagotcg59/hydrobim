@@ -507,6 +507,14 @@ const RIBBON: Record<TaskId, readonly Group[]> = {
         { command: 'export.ids', testId: 'bim-export-ids' },
       ],
     },
+    {
+      id: 'ifcModels',
+      label: 'Modelos IFC',
+      items: [
+        { command: 'file.importIfc', testId: 'bim-import-ifc' },
+        { command: 'ifc.showAll', compact: true },
+      ],
+    },
   ],
   export: [
     {
