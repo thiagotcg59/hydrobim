@@ -1274,8 +1274,12 @@ export const COMMANDS: readonly Command[] = [
     state: (context) =>
       context.project.elements.length === 0 &&
       !context.project.terrain &&
-      context.project.architecture.elements.length === 0
-        ? off('O projeto ainda não tem elementos nem superfície de terreno.')
+      context.project.architecture.elements.length === 0 &&
+      // Um projeto só com modelos IFC importados também tem o que ver.
+      context.project.ifcModels.length === 0
+        ? off(
+            'O projeto ainda não tem elementos, modelos IFC importados nem superfície de terreno.',
+          )
         : { enabled: true, active: context.vrOpen === true },
     run: () => {
       // O pedido da sessão parte deste clique: os navegadores só a concedem a um gesto do usuário.

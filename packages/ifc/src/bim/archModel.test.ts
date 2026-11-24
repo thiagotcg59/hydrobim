@@ -150,9 +150,11 @@ describe('registro de propriedades da arquitetura', () => {
       const entity = IFC_ENTITIES[family.ifc.entity];
       expect(entity?.typeEntity, family.id).toBe(family.ifc.typeEntity);
       expect(entity?.predefinedTypes, family.id).toContain(family.ifc.predefinedType);
-      expect(family.generic).toBe(true);
-      expect(family.source).toBeNull();
+      // Genérica não tem fonte; produto de fabricante só entra com a fonte citada.
+      if (family.generic) expect(family.source, family.id).toBeNull();
+      else expect(family.source, family.id).toMatch(/p\. \d+/);
     }
+    expect(ARCH_FAMILIES.some((family) => !family.generic)).toBe(true);
   });
 });
 

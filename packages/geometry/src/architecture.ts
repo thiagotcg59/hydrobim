@@ -474,10 +474,94 @@ const block = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: n
     vec3(Math.max(x0, x1), Math.max(y0, y1), Math.max(z0, z1)),
   );
 
-function doorParts(type: DoorType, lo: number, hi: number, facing: 1 | -1): MeshPart[] {
+/** Retângulo na elevação da porta: `x` ao longo da parede (0 = centro do vão), `z` da soleira. */
+export interface DoorRect {
+  readonly x0: number;
+  readonly x1: number;
+  readonly z0: number;
+  readonly z1: number;
+}
+
+/** Porta fechada vista de frente: vão, marco, folhas e frisos (m). */
+export interface DoorElevation {
+  readonly width: number;
+  readonly height: number;
+  /** Largura aparente do marco efetivamente desenhada. */
+  readonly frame: number;
+  readonly leaves: readonly DoorRect[];
+  readonly friezes: readonly DoorRect[];
+}
+
+/** Folga entre as duas folhas da porta de duas folhas (m), de cada lado do eixo. */
+const LEAF_GAP = 0.001;
+
+/**
+ * Elevação da porta fechada, derivada do tipo: é a origem única da malha 3D e da prévia 2D.
+ * `hand` diz de que lado ficam as dobradiças (os frisos verticais contam a partir delas); na
+ * porta de duas folhas as dobradiças são as bordas externas.
+ */
+export function doorElevation(type: DoorType, hand: 'left' | 'right'): DoorElevation {
   const w = type.width / 2;
   const f = Math.min(type.frameWidth, type.width / 4, type.height / 4);
+  const top = type.height - f;
+  // Cada folha: borda das dobradiças e borda oposta.
+  const spans: (readonly [number, number])[] =
+    type.operation === 'doubleSwing'
+      ? [
+          [-w + f, -LEAF_GAP],
+          [w - f, LEAF_GAP],
+        ]
+      : hand === 'left'
+        ? [[-w + f, w - f]]
+        : [[w - f, -w + f]];
+  const leaves = spans.map(([hinge, lock]) => ({
+    x0: Math.min(hinge, lock),
+    x1: Math.max(hinge, lock),
+    z0: 0,
+    z1: top,
+  }));
+  const friezes: DoorRect[] = [];
+  const design = type.leaf;
+  if (design) {
+    for (const [hinge, lock] of spans) {
+      const x0 = Math.min(hinge, lock);
+      const x1 = Math.max(hinge, lock);
+      const half = Math.min(design.friezeWidth, x1 - x0, top) / 2;
+      for (const frieze of design.friezes) {
+        if (frieze.orientation === 'horizontal') {
+          const z = Math.min(Math.max(frieze.position * top, half), top - half);
+          friezes.push({ x0, x1, z0: z - half, z1: z + half });
+        } else {
+          const x = Math.min(
+            Math.max(hinge + (lock - hinge) * frieze.position, x0 + half),
+            x1 - half,
+          );
+          friezes.push({ x0: x - half, x1: x + half, z0: 0, z1: top });
+        }
+      }
+    }
+  }
+  return { width: type.width, height: type.height, frame: f, leaves, friezes };
+}
+
+/**
+ * Saliência com que o friso é desenhado sobre as faces da folha (m). É REPRESENTAÇÃO: marca
+ * o friso com outro acabamento sem subtrair material da folha; a profundidade real do friso
+ * não é dado do tipo.
+ */
+const FRIEZE_RELIEF = 0.001;
+
+function doorParts(
+  type: DoorType,
+  lo: number,
+  hi: number,
+  facing: 1 | -1,
+  hand: 'left' | 'right',
+): MeshPart[] {
+  const w = type.width / 2;
   const h = type.height;
+  const elevation = doorElevation(type, hand);
+  const f = elevation.frame;
   const frame = mergeMeshes([
     block(-w, -w + f, lo, hi, 0, h),
     block(w - f, w, lo, hi, 0, h),
@@ -487,11 +571,19 @@ function doorParts(type: DoorType, lo: number, hi: number, facing: 1 | -1): Mesh
   // Folha fechada: rente à face para a qual abre; correr e pivotante, no meio da espessura.
   const centred = type.operation === 'sliding' || type.operation === 'pivot';
   const y0 = centred ? (lo + hi - t) / 2 : facing === 1 ? hi - t : lo;
-  const leaves =
-    type.operation === 'doubleSwing'
-      ? [block(-w + f, -0.001, y0, y0 + t, 0, h - f), block(0.001, w - f, y0, y0 + t, 0, h - f)]
-      : [block(-w + f, w - f, y0, y0 + t, 0, h - f)];
-  return [part('frame', frame), part('joinery', mergeMeshes(leaves))];
+  const leaves = elevation.leaves.map((leaf) =>
+    block(leaf.x0, leaf.x1, y0, y0 + t, leaf.z0, leaf.z1),
+  );
+  const parts = [part('frame', frame), part('joinery', mergeMeshes(leaves))];
+  if (elevation.friezes.length > 0) {
+    // Os frisos aparecem nas duas faces da folha.
+    const strips = elevation.friezes.flatMap((r) => [
+      block(r.x0, r.x1, y0 - FRIEZE_RELIEF, y0, r.z0, r.z1),
+      block(r.x0, r.x1, y0 + t, y0 + t + FRIEZE_RELIEF, r.z0, r.z1),
+    ]);
+    parts.push(part('frieze', mergeMeshes(strips)));
+  }
+  return parts;
 }
 
 function windowParts(type: WindowType, lo: number, hi: number): MeshPart[] {
@@ -539,7 +631,7 @@ function hostedGeometry(project: Project3, element: HostedElement): ElementGeome
     },
     parts:
       type.category === 'door'
-        ? doorParts(type, lo, hi, element.facing)
+        ? doorParts(type, lo, hi, element.facing, element.hand)
         : windowParts(type, lo, hi),
   };
 }

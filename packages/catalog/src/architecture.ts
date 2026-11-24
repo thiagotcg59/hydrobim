@@ -4,10 +4,12 @@ import {
   type ArchCategory,
   type ArchLayer,
   type ArchTypeInput,
+  type DoorLeafDesign,
   type DoorOperation,
   type RoofShape,
   type WindowOperation,
 } from '@hydrobim/core';
+import { PORMADE_DOOR_FAMILIES } from './doors/pormade';
 
 /**
  * Catálogo de famílias ARQUITETÔNICAS, separado da biblioteca hidráulica.
@@ -15,15 +17,16 @@ import {
  * Três níveis: FAMÍLIA (a tipologia, aqui) → TIPO (a família com dimensões e composição
  * definidas, gravado no projeto por `addArchType`) → OCORRÊNCIA (cada elemento do modelo).
  *
- * Todas as famílias embutidas são MODELOS GENÉRICOS PARAMETRIZÁVEIS: não descrevem produto
+ * As famílias deste arquivo são MODELOS GENÉRICOS PARAMETRIZÁVEIS: não descrevem produto
  * de nenhum fabricante nem transcrevem norma. As dimensões e as camadas de `defaults` são
  * apenas valores iniciais de edição, para que o tipo possa ser criado e ajustado pelo
  * usuário — não são dados de catálogo e não devem ser lidas como medidas padronizadas.
  * Nenhuma família traz resistência ao fogo, desempenho acústico, transmitância térmica nem
  * classificação: esses campos nascem pendentes (ver `docs/ARQUITETURA.md`).
  *
- * Família de produto comercial só entra aqui com `generic: false` e `source` preenchida
- * (catálogo vigente do fabricante, edição, página e URL), como no catálogo hidráulico.
+ * Família de produto comercial só entra com `generic: false` e `source` preenchida
+ * (catálogo do fabricante, edição, página e URL), como no catálogo hidráulico. Elas ficam em
+ * um módulo por categoria e fabricante (`doors/pormade.ts`) e são somadas a `ARCH_FAMILIES`.
  */
 export interface ArchFamily {
   readonly id: string;
@@ -45,7 +48,54 @@ export interface ArchFamily {
   readonly notes: readonly string[];
   /** Valores iniciais do tipo criado a partir da família (editáveis antes e depois). */
   readonly defaults: FamilyDefaults;
+  /**
+   * Produto de fabricante (portas): as medidas e os acabamentos que a fonte oferece. Com ele,
+   * o tipo nasce de uma ESCOLHA (medida, acabamento, núcleo), não de valores digitados.
+   */
+  readonly product?: DoorProduct;
 }
+
+/** Medida de catálogo de uma porta: a folha e o vão correspondente (m). */
+export interface DoorProductSize {
+  readonly id: string;
+  readonly label: string;
+  readonly leafWidth: number;
+  readonly leafHeight: number;
+  /** Vão em que a porta é instalada: vira `width` e `height` do tipo. */
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Acabamento de catálogo e os núcleos que a fonte lista para ele (vazio = não informado). */
+export interface DoorProductFinish {
+  readonly id: string;
+  readonly label: string;
+  readonly cores: readonly string[];
+}
+
+export interface DoorProduct {
+  readonly manufacturer: string;
+  readonly line: string;
+  readonly model: string;
+  readonly sizes: readonly DoorProductSize[];
+  readonly defaultSizeId: string;
+  readonly finishes: readonly DoorProductFinish[];
+  readonly panelThickness: number;
+  /** Desenho da folha (frisos); ausente = folha lisa. */
+  readonly leaf?: DoorLeafDesign;
+}
+
+/** Escolha feita no catálogo para um produto; o que faltar usa o padrão da família. */
+export interface DoorProductChoice {
+  readonly sizeId?: string;
+  readonly finishId?: string;
+  /** Um dos núcleos do acabamento; ausente ou fora da lista = não informado (pendente). */
+  readonly core?: string;
+}
+
+/** Chaves IFC (`Conjunto.Propriedade`) preenchidas pela escolha do catálogo. */
+export const DOOR_FINISH_KEY = 'HydroBIM_Esquadria.Finish';
+export const DOOR_CORE_KEY = 'HydroBIM_Esquadria.Core';
 
 type FamilyDefaults =
   | { readonly layers: readonly Omit<ArchLayer, 'id'>[]; readonly shape?: RoofShape }
@@ -362,6 +412,7 @@ export const ARCH_FAMILIES: readonly ArchFamily[] = [
     0.8,
     0.6,
   ),
+  ...PORMADE_DOOR_FAMILIES,
 ];
 
 export const getArchFamily = (id: string): ArchFamily | undefined =>
@@ -377,8 +428,75 @@ export const listArchFamilies = (category?: ArchCategory): ArchFamily[] =>
  */
 export function archTypeFromFamily(
   family: ArchFamily,
-  name: string = family.name,
+  name?: string,
   overrides: Record<string, unknown> = {},
+): ArchTypeInput {
+  if (family.product) {
+    const type = doorTypeFromProduct(family, {});
+    if (type) return { ...type, ...(name ? { name } : {}), ...overrides } as ArchTypeInput;
+  }
+  return genericTypeFromFamily(family, name ?? family.name, overrides);
+}
+
+/** Medida e acabamento efetivos de uma escolha (os padrões da família onde ela não diz). */
+export function resolveDoorChoice(
+  product: DoorProduct,
+  choice: DoorProductChoice,
+): { size: DoorProductSize; finish: DoorProductFinish; core: string | null } | null {
+  const size = product.sizes.find((entry) => entry.id === (choice.sizeId ?? product.defaultSizeId));
+  const finish = choice.finishId
+    ? product.finishes.find((entry) => entry.id === choice.finishId)
+    : product.finishes[0];
+  if (!size || !finish) return null;
+  const core = choice.core && finish.cores.includes(choice.core) ? choice.core : null;
+  return { size, finish, core };
+}
+
+/**
+ * Tipo de porta a partir de um produto de catálogo: medidas do vão, espessura e desenho da
+ * folha vêm da fonte; fabricante e modelo vão para `manufacturing`; acabamento e núcleo, para
+ * os valores IFC do tipo. O que a fonte não informa (materiais, desempenho, núcleo não
+ * escolhido) fica sem valor. `null` = a família não é produto ou a escolha não existe nela.
+ */
+export function doorTypeFromProduct(
+  family: ArchFamily,
+  choice: DoorProductChoice,
+): ArchTypeInput | null {
+  const { product } = family;
+  if (!product || family.category !== 'door' || !('panelThickness' in family.defaults)) return null;
+  const resolved = resolveDoorChoice(product, choice);
+  if (!resolved) return null;
+  const { size, finish, core } = resolved;
+  return {
+    category: 'door',
+    // O núcleo entra no nome para dois tipos do mesmo modelo não se confundirem.
+    name: `${family.name} — ${size.id} × ${Math.round(size.leafHeight * 100)} cm — ${finish.label}${
+      core ? ` — núcleo ${core.toLocaleLowerCase('pt-BR')}` : ''
+    }`,
+    familyId: family.id,
+    generic: false,
+    source: family.source,
+    manufacturing: { manufacturer: product.manufacturer, model: product.model },
+    classifications: [],
+    ifcPredefinedType: family.ifc.predefinedType,
+    ifc: { [DOOR_FINISH_KEY]: finish.label, ...(core ? { [DOOR_CORE_KEY]: core } : {}) },
+    operation: family.defaults.operation,
+    width: size.width,
+    height: size.height,
+    // Derivado: o que sobra do vão de cada lado da folha (o catálogo não cota o marco).
+    frameWidth: Number(((size.width - size.leafWidth) / 2).toFixed(6)),
+    panelThickness: product.panelThickness,
+    materials: {},
+    ...(product.leaf
+      ? { leaf: { ...product.leaf, friezes: product.leaf.friezes.map((entry) => ({ ...entry })) } }
+      : {}),
+  };
+}
+
+function genericTypeFromFamily(
+  family: ArchFamily,
+  name: string,
+  overrides: Record<string, unknown>,
 ): ArchTypeInput {
   const base = {
     name,

@@ -18,7 +18,7 @@ import { createReservationDemoProject } from '../demo/reservationDemo';
 import { createTankDemoProject } from '../demo/tankDemo';
 import { visibleElementsOf } from '../editor/visibility';
 import { projectToXr, xrToProject, type VrPlacement } from './vrCoordinates';
-import { vrArchInfo, vrElementInfo, vrProjectInfo } from './vrInfo';
+import { vrArchInfo, vrElementInfo, vrIfcInfo, vrProjectInfo } from './vrInfo';
 import {
   IDLE_HAND,
   moveVector,
@@ -347,6 +347,79 @@ describe('propriedades mostradas no painel', () => {
     expect(rows.get('Categoria')).toBe('Arquitetura · Parede');
     expect(rows.has('Nível')).toBe(true);
     expect(vrProjectInfo(project).title).toBe(project.name);
+  });
+});
+
+describe('modelos IFC importados', () => {
+  const base = createDemoProject();
+  const model = {
+    id: 'modelo-1',
+    name: 'Prédio',
+    schema: 'IFC4',
+    objects: [{ id: 'objeto-1', expressId: 42, globalId: '2O2Fr$t4X7Zf8NOew3FLOH' }],
+  };
+  const project = { ...base, ifcModels: [model] } as unknown as Project;
+
+  it('mostra só o que o arquivo informa sobre o objeto', () => {
+    const info = vrIfcInfo(project, 'objeto-1', {
+      entity: 'IfcWall',
+      predefinedType: 'NOTDEFINED',
+      name: 'Parede 01',
+      objectType: null,
+      tag: null,
+      storeyName: 'Térreo',
+      typeName: 'Alvenaria 15',
+    });
+    expect(info?.title).toBe('Parede 01');
+    const rows = new Map(info?.rows);
+    expect(rows.get('Categoria')).toBe('IfcWall');
+    expect(rows.get('Identificação')).toBe('Parede 01');
+    expect(rows.get('Tipo')).toBe('Alvenaria 15');
+    expect(rows.get('Pavimento')).toBe('Térreo');
+    expect(rows.get('GlobalId')).toBe('2O2Fr$t4X7Zf8NOew3FLOH');
+    expect(rows.get('Modelo')).toBe('Prédio');
+    expect(rows.get('Esquema')).toBe('IFC4');
+    // O que o arquivo não traz não aparece.
+    expect(rows.has('Etiqueta')).toBe(false);
+  });
+
+  it('tipo predefinido informado acompanha a classe; sem nome, o título é a classe', () => {
+    const info = vrIfcInfo(project, 'objeto-1', {
+      entity: 'IfcPipeSegment',
+      predefinedType: 'RIGIDSEGMENT',
+      name: null,
+      objectType: null,
+      tag: 'T-01',
+      storeyName: null,
+      typeName: null,
+    });
+    expect(info?.title).toBe('IfcPipeSegment');
+    const rows = new Map(info?.rows);
+    expect(rows.get('Categoria')).toBe('IfcPipeSegment · RIGIDSEGMENT');
+    expect(rows.get('Etiqueta')).toBe('T-01');
+    expect(rows.has('Identificação')).toBe(false);
+  });
+
+  it('arquivo-fonte ainda não carregado: identifica o objeto pelo que o projeto guarda', () => {
+    const rows = new Map(vrIfcInfo(project, 'objeto-1', null)?.rows);
+    expect(rows.get('Categoria')).toBe('Objeto IFC importado');
+    expect(rows.get('Modelo')).toBe('Prédio');
+    expect(vrIfcInfo(project, 'inexistente', null)).toBeNull();
+  });
+
+  it('o ponto de partida fica diante do modelo importado, mesmo sem rede', () => {
+    const empty: Project = { ...base, elements: [], connections: [] };
+    const bounds = { min: vec3(100, 200, 20), max: vec3(120, 230, 29) };
+    const start = vrStartOf(empty, { terrain: null, workPlaneZ: 0, referenceBounds: bounds });
+    expect(start.feet.y).toBeLessThan(200);
+    expect(start.feet.x).toBeCloseTo(110);
+    expect(start.heading).toBeCloseTo(Math.PI / 2);
+    expect(start.focus).toEqual(vec3(110, 215, 24.5));
+    // O plano de trabalho (cota 0) está longe do modelo: o piso virtual fica na base dele.
+    expect(start.virtualElevation).toBe(20);
+    expect(start.feet.z).toBe(20);
+    // Sem a envoltória (modelo oculto), nada há para enquadrar.
+    expect(vrStartOf(empty, { terrain: null, workPlaneZ: 0 }).focus).toBeNull();
   });
 });
 

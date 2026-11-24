@@ -133,10 +133,11 @@ Paredes, lajes, revestimentos de piso, telhados, portas, janelas e ambientes fic
 ArchType =                        // família com dimensões e composição, gravada no projeto
   | { category: 'wall' | 'slab' | 'flooring', ...tipo, layers: ArchLayer[] }      // espessura = soma
   | { category: 'roof', ...tipo, shape: 'shed' | 'gable', layers: ArchLayer[] }   // espessura ⟂ à água
-  | { category: 'door',   ...tipo, operation, width, height, frameWidth, panelThickness, materials }
+  | { category: 'door',   ...tipo, operation, width, height, frameWidth, panelThickness, materials, leaf? }
   | { category: 'window', ...tipo, operation, width, height, sillHeight, panels, frameWidth, materials }
 tipo { id, name, familyId | null, generic, source | null, manufacturing, classifications[], ifcPredefinedType, ifc }
 ArchLayer { id, material, thickness, function, hatch }
+DoorLeafDesign { friezes: { orientation: 'horizontal' | 'vertical', position }[], friezeWidth, schematic }   // v20
 
 ArchElement =
   | { kind: 'wall',     typeId, levelId, start: Point2, end: Point2, locationLine, baseOffset, height }
@@ -161,12 +162,13 @@ ArchElement =
 | `boundary`, `eaveEdge` (telhado) | Retângulo de referência (anti-horário) e o lado dele que é beiral: a água cai para esse lado (uma água) ou a cumeeira é paralela a ele (duas águas) |
 | `offset` (telhado) | Cota de referência em relação ao nível: a da face inferior sobre a linha do beiral do contorno |
 | `slope`, `overhang` (telhado) | Inclinação das águas (rad, de 1 % a 75°) e beiral, na horizontal, para fora do contorno nos quatro lados |
+| `leaf` (tipo de porta) | Desenho da folha, quando o modelo tem frisos; ausente = folha lisa. `position` é fração da folha (0 a 1, exclusivos): no friso horizontal, da base para o topo; no vertical, da borda das dobradiças para a da fechadura (acompanha `hand`). `schematic: true` = a fonte ilustra os frisos sem cotar a posição |
 | `hostId`, `offset` | Parede hospedeira e distância do início dela ao centro do vão |
 | `sillHeight` | Soleira ou peitoril acima da base da parede |
 | `hand`, `facing` | Lado das dobradiças e face para a qual a folha abre (+1 = esquerda da parede) |
 | `height` (ambiente) | Pé-direito; `null` = não informado (sem volume) |
 
-- **Derivados, nunca gravados** (`architecture/`): contorno da parede com os encontros em L e em T (`wallFootprint`), trecho de seção completa (`clear`), vãos (`wallOpenings`), referencial, projeção e cumeeira do telhado (`roofFrame`, `roofFootprint`, `roofRidgeLine`), cotas (`archVerticalRange`), quantidades (`wallQuantities`, `floorQuantities`, `roofQuantities`, `hostedQuantities`, `spaceQuantities`), malhas (`buildArchGeometry`, em `packages/geometry`) e o modelo de informação IFC (`buildArchIfcModel`, em `packages/ifc`).
+- **Derivados, nunca gravados** (`architecture/`): contorno da parede com os encontros em L e em T (`wallFootprint`), trecho de seção completa (`clear`), vãos (`wallOpenings`), referencial, projeção e cumeeira do telhado (`roofFrame`, `roofFootprint`, `roofRidgeLine`), cotas (`archVerticalRange`), quantidades (`wallQuantities`, `floorQuantities`, `roofQuantities`, `hostedQuantities`, `spaceQuantities`), malhas (`buildArchGeometry`, em `packages/geometry`; a elevação da porta com os frisos vem de `doorElevation`) e o modelo de informação IFC (`buildArchIfcModel`, em `packages/ifc`).
 - **Encontros**: extremidades a até 1 mm uma da outra formam canto em bisel; extremidade sobre o corpo de outra parede termina na face dela. Não há dado de encontro no arquivo: mover uma parede refaz os encontros.
 - **Hospedagem**: porta e janela não têm nível nem posição próprios — herdam da parede. O vão tem de caber no trecho de seção completa, dentro da altura e sem sobrepor outro.
 - **Integridade** (`archIntegrityProblem`): conferida ao fim de toda operação e ao abrir o arquivo; uma operação que deixaria a arquitetura inconsistente é recusada sem alteração parcial.

@@ -1,4 +1,11 @@
-import { VIEW_CATEGORIES, viewCategoryOf, type Vec3, type ViewCategory } from '@hydrobim/core';
+import {
+  findIfcObject,
+  VIEW_CATEGORIES,
+  viewCategoryOf,
+  type Project,
+  type Vec3,
+  type ViewCategory,
+} from '@hydrobim/core';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ArrowLeft, CircleHelp, LogOut, RectangleGoggles, X } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -30,6 +37,8 @@ import { useEditorStore } from '../state/editorStore';
 import { shownTerrain, useEarthworkStore } from '../terrain/earthworkStore';
 import { useTerrainStore } from '../terrain/terrainStore';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
+import { IfcModels } from '../ifc/IfcScene';
+import { ifcBoundsOf, ifcSourceOf, useIfcStore } from '../ifc/ifcStore';
 import { ArchElements } from '../viewport/ArchMeshes';
 import { TerrainSurface } from '../viewport/TerrainSurface';
 import { isWebGLAvailable } from '../viewport/Viewport';
@@ -44,7 +53,7 @@ import {
   xrToProject,
   type VrHead,
 } from './vrCoordinates';
-import { vrArchInfo, vrElementInfo, vrProjectInfo } from './vrInfo';
+import { vrArchInfo, vrElementInfo, vrIfcInfo, vrProjectInfo, type VrInfo } from './vrInfo';
 import { follow } from '../walk/walkMotion';
 import {
   IDLE_HAND,
@@ -120,7 +129,20 @@ const VALID_COLOR = '#35d07f';
 const INVALID_COLOR = '#ff5a4f';
 const LASER_COLOR = '#7fd8ef';
 
-type VrSelection = { readonly kind: 'element' | 'arch'; readonly id: string };
+type VrSelection = { readonly kind: 'element' | 'arch' | 'ifc'; readonly id: string };
+
+/** Dados do que foi apontado ou selecionado, lidos do projeto (e, no IFC importado, do arquivo). */
+function infoOf(project: Project, selection: VrSelection): VrInfo | null {
+  if (selection.kind === 'element') return vrElementInfo(project, selection.id);
+  if (selection.kind === 'arch') return vrArchInfo(project, selection.id);
+  const found = findIfcObject(project, selection.id);
+  const source = found ? ifcSourceOf(found.model.source.sha256) : null;
+  return vrIfcInfo(
+    project,
+    selection.id,
+    (found && source?.objects.get(found.object.expressId)) ?? null,
+  );
+}
 
 /** Painel flutuante: um plano com a textura desenhada em canvas. */
 interface PanelObject {
@@ -193,7 +215,7 @@ interface HandRig {
   dispose(): void;
 }
 
-function elementUnder(object: Object3D | null, key: 'archId'): string | null {
+function elementUnder(object: Object3D | null, key: 'archId' | 'ifcObjectId'): string | null {
   let current = object;
   while (current) {
     const id: unknown = current.userData[key];
@@ -254,6 +276,21 @@ function VrScene() {
     () => (terrainShown ? shownTerrain(project, surfaceView) : null),
     [project, surfaceView, terrainShown],
   );
+  // Modelos IFC importados à mostra: entram no ponto de partida e no "Recentrar". A envoltória
+  // depende do arquivo-fonte, que carrega depois do projeto (a revisão muda quando ele chega).
+  const ifcRevision = useIfcStore((s) => s.revision);
+  const ifcBounds = useMemo(() => {
+    const bounds = hidden.has('ifcModels')
+      ? null
+      : ifcBoundsOf(project, null, { visibleOnly: true });
+    return bounds
+      ? {
+          min: { x: bounds[0], y: bounds[1], z: bounds[2] },
+          max: { x: bounds[3], y: bounds[4], z: bounds[5] },
+        }
+      : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, hidden, ifcRevision]);
   const start = useMemo(
     () =>
       vrStartOf(project, {
@@ -261,8 +298,9 @@ function VrScene() {
         exaggeration,
         workPlaneZ: useEditorStore.getState().workPlaneZ,
         hiddenCategories: hidden,
+        referenceBounds: ifcBounds,
       }),
-    [project, terrain, exaggeration, hidden],
+    [project, terrain, exaggeration, hidden, ifcBounds],
   );
   const level = levelIndex === null ? undefined : project.levels[levelIndex];
   const virtualElevation = level?.elevation ?? start.virtualElevation;
@@ -307,6 +345,7 @@ function VrScene() {
       else if (element.kind === 'door') present.add('doors');
       else if (element.kind === 'window') present.add('windows');
     }
+    if (project.ifcModels.length > 0) present.add('ifcModels');
     return VIEW_CATEGORIES.filter((category) => present.has(category));
   }, [project]);
 
@@ -368,10 +407,7 @@ function VrScene() {
 
   const infoSpec = useMemo<PanelSpec | null>(() => {
     if (!selection) return null;
-    const info =
-      selection.kind === 'element'
-        ? vrElementInfo(project, selection.id)
-        : vrArchInfo(project, selection.id);
+    const info = infoOf(project, selection);
     if (!info) return null;
     return {
       title: info.title,
@@ -527,6 +563,7 @@ function VrScene() {
   const yawRef = useRef<Group>(null);
   const shiftRef = useRef<Group>(null);
   const archRef = useRef<Group>(null);
+  const ifcRef = useRef<Group>(null);
   const gridRef = useRef<Group>(null);
   const runtime = useRef({
     placement: placeAt(start.feet, start.heading, PREVIEW_HEAD, 0),
@@ -654,6 +691,7 @@ function VrScene() {
     } else if (id === 'close-info') {
       setSelection(null);
       useEditorStore.getState().select(null);
+      useIfcStore.getState().select(null);
     } else if (id === 'exit') {
       void exitVr();
     }
@@ -712,6 +750,7 @@ function VrScene() {
       const { surfaces: walkable, model: current } = live.current;
       const pickTargets: Object3D[] = [current.root];
       if (archRef.current) pickTargets.push(archRef.current);
+      if (ifcRef.current) pickTargets.push(ifcRef.current);
       const panelMeshes = [panels.menu.mesh, panels.info.mesh].filter((mesh) => mesh.visible);
       let menuHover: string | null = null;
       let infoHover: string | null = null;
@@ -851,8 +890,10 @@ function VrScene() {
           if (hit) {
             const elementId = current.elementIdOf(hit);
             const archId = elementId ? null : elementUnder(hit.object, 'archId');
+            const ifcId = elementId || archId ? null : elementUnder(hit.object, 'ifcObjectId');
             if (elementId) picked = { kind: 'element', id: elementId };
             else if (archId) picked = { kind: 'arch', id: archId };
+            else if (ifcId) picked = { kind: 'ifc', id: ifcId };
           }
         }
         if (hit) {
@@ -871,11 +912,14 @@ function VrScene() {
           if (button) runButton(button.id, head);
           else if (picked) {
             setSelection(picked);
+            // O mesmo objeto fica selecionado no editor (realce e painel de propriedades).
             if (picked.kind === 'element') useEditorStore.getState().select(picked.id);
+            else if (picked.kind === 'ifc') useIfcStore.getState().select(picked.id);
             placePanel(panels.info, tools.direction, 0.9);
           } else if (!hit && live.current.selection) {
             setSelection(null);
             useEditorStore.getState().select(null);
+            useIfcStore.getState().select(null);
           }
         }
       });
@@ -904,11 +948,7 @@ function VrScene() {
       const labelKey = label ? `${label.pick.kind}:${label.pick.id}` : null;
       if (labelKey !== run.hoverKey) {
         run.hoverKey = labelKey;
-        const info = !label
-          ? null
-          : label.pick.kind === 'element'
-            ? vrElementInfo(live.current.project, label.pick.id)
-            : vrArchInfo(live.current.project, label.pick.id);
+        const info = label ? infoOf(live.current.project, label.pick) : null;
         panels.hover.setSpec(
           info
             ? {
@@ -985,6 +1025,10 @@ function VrScene() {
             <TerrainSurface />
             <group ref={archRef}>
               <ArchElements hiddenCategories={hidden} />
+            </group>
+            {/* Modelos IFC importados: as malhas lidas do arquivo, como no Modelo 3D. */}
+            <group ref={ifcRef}>
+              <IfcModels hiddenCategories={hidden} />
             </group>
             {virtualFloor && (
               <group ref={gridRef}>

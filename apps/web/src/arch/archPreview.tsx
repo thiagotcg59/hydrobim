@@ -6,13 +6,20 @@ import {
   type ArchElement,
   type ArchLayer,
   type ArchType,
+  type DoorType,
   type LayeredArchType,
   type Level,
   type Project,
   type Wall,
   type WallType,
 } from '@hydrobim/core';
-import { buildArchGeometry, mapMesh, type MeshPart } from '@hydrobim/geometry';
+import {
+  buildArchGeometry,
+  doorElevation,
+  FINISHES,
+  mapMesh,
+  type MeshPart,
+} from '@hydrobim/geometry';
 import { lazy, Suspense, useId, useMemo } from 'react';
 import { INK, PAPER } from '../plan/planDrawing';
 import { ArchViewElement, hatchFill, HatchDefs } from '../views/ArchShapes';
@@ -433,8 +440,71 @@ const FUNCTION_NOTE: Record<ArchType['category'], string> = {
     'Janela em elevação: marco, folhas e vidro. A parede hospedeira e a representação são ilustrativas.',
 };
 
+const DOOR_ELEVATION_NOTE =
+  'Porta em elevação, fechada: marco, folha e frisos, em escala a partir do tipo. As cores são genéricas';
+
 /** Legenda da prévia 2D: o que é do tipo e o que é só ilustração. */
-export const archPreviewNote = (type: ArchType): string => FUNCTION_NOTE[type.category];
+export const archPreviewNote = (type: ArchType): string =>
+  type.category === 'door' && type.leaf
+    ? `${DOOR_ELEVATION_NOTE}${type.leaf.schematic ? '; a posição dos frisos é esquemática (a fonte não a cota).' : '.'}`
+    : FUNCTION_NOTE[type.category];
+
+/**
+ * Porta com desenho de folha, em elevação: o que distingue o modelo são os frisos, que a
+ * planta não mostra. Desenhada dos mesmos retângulos que geram a malha (`doorElevation`).
+ */
+function DoorElevationDrawing({ type }: { type: DoorType }) {
+  const elevation = doorElevation(type, 'left');
+  const w = elevation.width / 2;
+  const h = elevation.height;
+  const margin = 0.12;
+  const stroke = PAPER.thin * UNIT;
+  return (
+    <svg
+      data-testid="arch-preview-2d"
+      data-preview="door-elevation"
+      data-friezes={elevation.friezes.length}
+      viewBox={`${f(-w - margin)} ${f(-h - margin)} ${f(2 * w + 2 * margin)} ${f(h + 2 * margin)}`}
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label="Porta em elevação, com marco, folha e frisos"
+    >
+      <rect
+        x={-w}
+        y={-h}
+        width={2 * w}
+        height={h}
+        fill={FINISHES.joineryFrame.color}
+        stroke={INK}
+        strokeWidth={stroke}
+      />
+      {elevation.leaves.map((leaf, index) => (
+        <rect
+          key={`folha-${index}`}
+          data-testid="arch-preview-leaf"
+          x={leaf.x0}
+          y={-leaf.z1}
+          width={leaf.x1 - leaf.x0}
+          height={leaf.z1 - leaf.z0}
+          fill={FINISHES.doorPanel.color}
+          stroke={INK}
+          strokeWidth={stroke}
+        />
+      ))}
+      {elevation.friezes.map((frieze, index) => (
+        <rect
+          key={`friso-${index}`}
+          data-testid="arch-preview-frieze"
+          x={frieze.x0}
+          y={-frieze.z1}
+          width={frieze.x1 - frieze.x0}
+          height={frieze.z1 - frieze.z0}
+          fill={FINISHES.doorFrieze.color}
+        />
+      ))}
+    </svg>
+  );
+}
 
 export function ArchPreview2D({ type }: { type: ArchType }) {
   const base = `previa-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
@@ -447,6 +517,7 @@ export function ArchPreview2D({ type }: { type: ArchType }) {
       </p>
     );
   }
+  if (type.category === 'door' && type.leaf) return <DoorElevationDrawing type={type} />;
   if (type.category === 'door' || type.category === 'window') {
     return (
       <EntriesDrawing

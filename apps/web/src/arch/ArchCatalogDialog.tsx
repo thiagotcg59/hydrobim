@@ -1,4 +1,12 @@
-import { archTypeFromFamily, listArchFamilies, type ArchFamily } from '@hydrobim/catalog';
+import {
+  archTypeFromFamily,
+  doorTypeFromProduct,
+  listArchFamilies,
+  resolveDoorChoice,
+  type ArchFamily,
+  type DoorProduct,
+  type DoorProductChoice,
+} from '@hydrobim/catalog';
 import {
   addArchType,
   ARCH_CATEGORIES,
@@ -14,6 +22,7 @@ import { PackagePlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '../state/editorStore';
 import '../styles/architecture.css';
+import { formatDecimal } from '../ui/fields';
 import { useArchStore } from './archStore';
 import {
   archDraftProblem,
@@ -91,6 +100,116 @@ export function catalogGroups(
 const draftFrom = (family: ArchFamily): ArchType =>
   ({ ...archTypeFromFamily(family), id: `rascunho-${family.id}` }) as ArchType;
 
+const cm = (metres: number): string => formatDecimal(metres * 100, 1);
+
+/**
+ * Escolha de um produto de catálogo: medida, acabamento e núcleo — só o que a fonte oferece.
+ * As dimensões do tipo não são digitadas: saem da medida escolhida.
+ */
+function ProductChoice({
+  product,
+  choice,
+  draft,
+  onChange,
+}: {
+  product: DoorProduct;
+  choice: DoorProductChoice;
+  draft: ArchType;
+  onChange: (choice: DoorProductChoice) => void;
+}) {
+  const resolved = resolveDoorChoice(product, choice);
+  if (!resolved || draft.category !== 'door') return null;
+  const { size, finish, core } = resolved;
+  return (
+    <>
+      <div className="archcat__grid">
+        <label className="field">
+          <span className="field__label">Medida da porta</span>
+          <span className="field__control">
+            <select
+              data-testid="arch-product-size"
+              value={size.id}
+              onChange={(event) => onChange({ ...choice, sizeId: event.target.value })}
+            >
+              {product.sizes.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+        <label className="field">
+          <span className="field__label">Acabamento</span>
+          <span className="field__control">
+            <select
+              data-testid="arch-product-finish"
+              value={finish.id}
+              onChange={(event) =>
+                // O núcleo depende do acabamento: a escolha anterior não é levada adiante.
+                onChange({ sizeId: choice.sizeId, finishId: event.target.value })
+              }
+            >
+              {product.finishes.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+        <label className="field">
+          <span className="field__label">Núcleo da folha</span>
+          <span className="field__control">
+            <select
+              data-testid="arch-product-core"
+              value={core ?? ''}
+              disabled={finish.cores.length === 0}
+              title={
+                finish.cores.length === 0
+                  ? 'O catálogo não informa o núcleo deste acabamento: fica pendente'
+                  : undefined
+              }
+              onChange={(event) => onChange({ ...choice, core: event.target.value || undefined })}
+            >
+              <option value="">(não informado)</option>
+              {finish.cores.map((entry) => (
+                <option key={entry} value={entry}>
+                  {entry}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+      </div>
+      <dl className="archcat__ifc" data-testid="arch-product-summary">
+        <dt>Tipo</dt>
+        <dd data-testid="arch-product-name">{draft.name}</dd>
+        <dt>Folha</dt>
+        <dd>
+          {cm(size.leafWidth)} × {cm(size.leafHeight)} cm, espessura{' '}
+          {formatDecimal(product.panelThickness * 1000, 0)} mm
+        </dd>
+        <dt>Vão</dt>
+        <dd data-testid="arch-product-opening">
+          {cm(size.width)} × {cm(size.height)} cm
+        </dd>
+        <dt>Marco (derivado)</dt>
+        <dd>{cm(draft.frameWidth)} cm de cada lado</dd>
+        {product.leaf && (
+          <>
+            <dt>Frisos</dt>
+            <dd data-testid="arch-product-friezes">
+              {product.leaf.friezes.length} de {formatDecimal(product.leaf.friezeWidth * 1000, 0)}{' '}
+              mm{product.leaf.schematic ? ' — posição esquemática' : ''}
+            </dd>
+          </>
+        )}
+      </dl>
+    </>
+  );
+}
+
 function FamilyDetail({
   family,
   onCreated,
@@ -99,11 +218,21 @@ function FamilyDetail({
   onCreated: (typeId: string) => void;
 }) {
   const [draft, setDraft] = useState<ArchType>(() => draftFrom(family));
+  const [choice, setChoice] = useState<DoorProductChoice>({});
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     setDraft(draftFrom(family));
+    setChoice({});
     setError(null);
   }, [family]);
+
+  const choose = (next: DoorProductChoice): void => {
+    const type = doorTypeFromProduct(family, next);
+    if (!type) return;
+    setChoice(next);
+    setDraft({ ...type, id: `rascunho-${family.id}` } as ArchType);
+    setError(null);
+  };
 
   const create = (): void => {
     const store = useEditorStore.getState();
@@ -113,7 +242,12 @@ function FamilyDetail({
       return;
     }
     const { id: _id, name, familyId: _familyId, ...values } = draft;
-    const result = addArchType(store.project, archTypeFromFamily(family, name, values));
+    // Produto: o tipo é exatamente o que o catálogo monta para a escolha, sem valores digitados.
+    const input = family.product
+      ? doorTypeFromProduct(family, choice)
+      : archTypeFromFamily(family, name, values);
+    if (!input) return;
+    const result = addArchType(store.project, input);
     if (!result.ok) {
       setError(result.error.message);
       store.notify('error', result.error.message);
@@ -123,7 +257,7 @@ function FamilyDetail({
     if (
       store.applyOperation(
         { ok: true, value: result.value.project },
-        `Tipo "${name.trim()}" criado a partir da família "${family.name}".`,
+        `Tipo "${input.name.trim()}" criado a partir da família "${family.name}".`,
       )
     ) {
       onCreated(result.value.typeId);
@@ -159,7 +293,9 @@ function FamilyDetail({
       <div className="archcat__body">
         <div className="archcat__form">
           <fieldset data-testid="arch-family-notes">
-            <legend>O que não é dado de catálogo</legend>
+            <legend>
+              {family.generic ? 'O que não é dado de catálogo' : 'Limites e valores derivados'}
+            </legend>
             <ul className="archcat__notes">
               {family.notes.map((note) => (
                 <li key={note}>{note}</li>
@@ -188,17 +324,35 @@ function FamilyDetail({
 
           <fieldset data-testid="arch-create-form">
             <legend>Criar tipo a partir desta família</legend>
-            <p className="archcat__notice" data-testid="arch-create-notice">
-              Os valores abaixo são valores iniciais de edição, não medidas de catálogo: ajuste-os
-              ao que o projeto adota antes de criar o tipo.
-            </p>
-            <ArchTypeParameters
-              draft={draft}
-              onChange={(next) => {
-                setDraft(next);
-                setError(null);
-              }}
-            />
+            {family.product ? (
+              <>
+                <p className="archcat__notice" data-testid="arch-product-notice">
+                  Produto de catálogo: escolha a medida e o acabamento que a fonte oferece. As
+                  dimensões do tipo vêm da medida escolhida; o que o catálogo não informa fica
+                  pendente.
+                </p>
+                <ProductChoice
+                  product={family.product}
+                  choice={choice}
+                  draft={draft}
+                  onChange={choose}
+                />
+              </>
+            ) : (
+              <>
+                <p className="archcat__notice" data-testid="arch-create-notice">
+                  Os valores abaixo são valores iniciais de edição, não medidas de catálogo:
+                  ajuste-os ao que o projeto adota antes de criar o tipo.
+                </p>
+                <ArchTypeParameters
+                  draft={draft}
+                  onChange={(next) => {
+                    setDraft(next);
+                    setError(null);
+                  }}
+                />
+              </>
+            )}
             {error && (
               <p className="archcat__error" role="alert" data-testid="arch-create-error">
                 {error} Nada foi criado.
