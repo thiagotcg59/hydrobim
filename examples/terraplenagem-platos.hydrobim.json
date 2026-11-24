@@ -1,25 +1,25 @@
 {
   "format": "hydrobim-project",
-  "schemaVersion": 18,
-  "id": "d719488a-4b05-44ac-bb4e-5ea08e51854e",
+  "schemaVersion": 20,
+  "id": "a8769e8c-10c6-4700-874c-c2275103e4f4",
   "name": "Terraplenagem — platôs",
   "discipline": "infra",
   "units": {
     "length": "m",
     "angle": "rad"
   },
-  "createdAt": "2026-11-22T17:20:47.505Z",
-  "updatedAt": "2026-11-22T17:20:47.563Z",
+  "createdAt": "2026-11-22T21:46:47.516Z",
+  "updatedAt": "2026-11-22T21:46:47.596Z",
   "systems": [
     {
-      "id": "88fc9ddf-ba03-455c-a766-6aea45b95e60",
+      "id": "a91bdeca-6be1-422d-9f81-67fa076ec1e5",
       "name": "Abastecimento de água",
       "kind": "waterSupply"
     }
   ],
   "levels": [
     {
-      "id": "7e4f1021-73d1-4a7f-81fa-aa157e27fa34",
+      "id": "e35eaa48-3a43-40c3-83ef-7bd4bdcd74d7",
       "name": "Referência",
       "elevation": 0
     }
@@ -30,7 +30,7 @@
   "ifcTypes": {},
   "georeference": null,
   "terrain": {
-    "id": "3055bb44-fc3d-4350-a056-7ae34a99df0a",
+    "id": "b34c39d3-df1a-4035-8b44-04a28ff4c1f7",
     "name": "Terreno sintético de exemplo",
     "tag": "TN-EXEMPLO",
     "points": [
@@ -6637,7 +6637,7 @@
   "earthworks": {
     "platforms": [
       {
-        "id": "0cf6a877-44ed-4868-afca-52d777a01a4a",
+        "id": "641fe1c7-45cd-46f2-9e73-075fb0b10544",
         "name": "Platô A — meia encosta",
         "outline": [
           {
@@ -6662,7 +6662,7 @@
         "fillSlope": 1.5
       },
       {
-        "id": "8dec48af-de56-41c4-964b-5ade82b0dc2c",
+        "id": "24d4715f-5927-4aae-9b8f-1eaddb19992b",
         "name": "Platô B — aterro",
         "outline": [
           {
@@ -6693,9 +6693,9 @@
   },
   "elements": [
     {
-      "id": "0fb3e0ed-6488-491b-8370-97d4c702b4f5",
+      "id": "d597c97c-ba7a-41e7-bad9-a36af81bb083",
       "name": "Adutora — trecho 1",
-      "systemId": "88fc9ddf-ba03-455c-a766-6aea45b95e60",
+      "systemId": "a91bdeca-6be1-422d-9f81-67fa076ec1e5",
       "spec": {
         "specificationId": "pvc-pba-nbr5647-cl15",
         "material": "pvc",
@@ -6714,8 +6714,8 @@
       "properties": {},
       "manufacturing": {},
       "meta": {
-        "createdAt": "2026-11-22T17:20:47.563Z",
-        "updatedAt": "2026-11-22T17:20:47.563Z",
+        "createdAt": "2026-11-22T21:46:47.596Z",
+        "updatedAt": "2026-11-22T21:46:47.596Z",
         "revision": 0
       },
       "kind": "pipe",
@@ -6758,5 +6758,6 @@
   "architecture": {
     "types": [],
     "elements": []
-  }
+  },
+  "ifcModels": []
 }

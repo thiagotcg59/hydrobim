@@ -74,6 +74,8 @@ export const FINISHES = {
   floorFinish: { label: 'Revestimento de piso', color: '#c9b79a', roughness: 0.6, metalness: 0 },
   roofBody: { label: 'Telhado', color: '#b5654a', roughness: 0.8, metalness: 0 },
   doorPanel: { label: 'Folha de porta', color: '#8a6747', roughness: 0.55, metalness: 0 },
+  /** Frisos da folha: só contraste com a folha, não a cor do produto. */
+  doorFrieze: { label: 'Friso de porta', color: '#4a3524', roughness: 0.6, metalness: 0 },
   joineryFrame: { label: 'Marco de esquadria', color: '#eceef0', roughness: 0.45, metalness: 0.1 },
   glazing: { label: 'Vidro', color: '#9cc9df', roughness: 0.08, metalness: 0, opacity: 0.35 },
 } as const satisfies Record<string, SurfaceFinish>;
@@ -104,6 +106,7 @@ export const ROLE_FINISH: Record<Exclude<PartRole, 'body'>, FinishName> = {
   flooring: 'floorFinish',
   roof: 'roofBody',
   joinery: 'doorPanel',
+  frieze: 'doorFrieze',
   frame: 'joineryFrame',
   glass: 'glazing',
 };
@@ -122,6 +125,7 @@ const FIXED_COLOR_ROLES: ReadonlySet<PartRole> = new Set([
   'flooring',
   'roof',
   'joinery',
+  'frieze',
   'frame',
   'glass',
 ]);

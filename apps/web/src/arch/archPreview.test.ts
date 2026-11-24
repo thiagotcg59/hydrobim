@@ -103,6 +103,22 @@ describe('desenhos 2D', () => {
     expect(bands[1]?.layer.hatch).toBe('diagonal');
   });
 
+  it('porta com frisos: a legenda é a da elevação e declara a posição esquemática', () => {
+    const type = typeOf('arq-porta-pormade-frizzatta-fri-002');
+    expect(type.category === 'door' && type.leaf?.friezes).toHaveLength(6);
+    expect(archPreviewNote(type)).toMatch(/elevação.*frisos.*esquemática/);
+    const model = buildArchPreviewModel(type) ?? never();
+    expect(archPreviewParts(model).map((part) => part.role)).toEqual([
+      'wall',
+      'frame',
+      'joinery',
+      'frieze',
+    ]);
+    // Em planta os frisos não aparecem: a folha fechada dá lugar ao símbolo de abertura.
+    const [, door] = archPreviewEntries(model);
+    expect(door?.swings).toHaveLength(1);
+  });
+
   it('a legenda diz o que é ilustrativo', () => {
     expect(archPreviewNote(typeOf('arq-porta-giro-1'))).toMatch(/hospedeira.*ilustrativas/);
     expect(archPreviewNote(typeOf('arq-parede-drywall'))).toMatch(/ilustrativo/);

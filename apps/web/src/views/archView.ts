@@ -335,7 +335,10 @@ export function buildArchViewEntry(
   const crossed = Boolean(band && range && range.base < band.cut && range.top > band.cut);
   const symbol = element.kind === 'door' && band !== null;
   const drawn: ElementGeometry = symbol
-    ? { ...geometry, parts: geometry.parts.filter((part) => part.role !== 'joinery') }
+    ? {
+        ...geometry,
+        parts: geometry.parts.filter((part) => part.role !== 'joinery' && part.role !== 'frieze'),
+      }
     : geometry;
 
   const outline = viewOutline(drawn, frame, clip);
