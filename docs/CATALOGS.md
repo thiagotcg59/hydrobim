@@ -283,7 +283,32 @@ Também é registrado o peso (kg, com ±5 % segundo o manual). A coluna GD²/4 (
 
 ## Famílias arquitetônicas
 
-A biblioteca de arquitetura (`packages/catalog/src/architecture.ts`) é separada da hidráulica. Todas as famílias embutidas são **modelos genéricos parametrizáveis**: não descrevem produto de fabricante nem transcrevem norma, e por isso não têm `source`. As dimensões e camadas de cada família são apenas valores iniciais de edição — o usuário as define ao criar o tipo —, e nenhum dado de desempenho (fogo, acústica, térmica), classificação ou peso é embutido. A regra 12 continua valendo: uma família de produto comercial só entra com `generic: false` e a fonte completa (catálogo vigente do fabricante, edição, página e URL), e o núcleo recusa um tipo não genérico sem fonte. Detalhes em [ARQUITETURA.md](ARQUITETURA.md).
+A biblioteca de arquitetura (`packages/catalog/src/architecture.ts`) é separada da hidráulica. As famílias desse arquivo são **modelos genéricos parametrizáveis**: não descrevem produto de fabricante nem transcrevem norma, e por isso não têm `source`. As dimensões e camadas de cada família são apenas valores iniciais de edição — o usuário as define ao criar o tipo —, e nenhum dado de desempenho (fogo, acústica, térmica), classificação ou peso é embutido. A regra 12 continua valendo: uma família de produto comercial só entra com `generic: false` e a fonte completa (catálogo vigente do fabricante, edição, página e URL), e o núcleo recusa um tipo não genérico sem fonte. Detalhes em [ARQUITETURA.md](ARQUITETURA.md).
+
+### Produtos de fabricante: portas Pormade (linhas Lisa e Frizzatta)
+
+Produtos comerciais ficam em um módulo por categoria e fabricante — `packages/catalog/src/doors/pormade.ts` — e são somados a `ARCH_FAMILIES`. Cada família é um **modelo** com a lista de medidas e acabamentos que a fonte oferece (`product`); o tipo do projeto nasce de uma escolha (`doorTypeFromProduct`), não de valores digitados. Janelas, pisos e outros fabricantes entram do mesmo jeito, cada um no seu módulo.
+
+**Fonte:** Pormade Portas, "Catálogo de Produtos" (PDF `catalogo_pormade_portas_2017`, 28 p., fornecido pelo responsável; as páginas não trazem número de edição legível — o ano é o do nome do arquivo), p. 7, 8 e 26; <https://www.pormade.com.br>.
+
+| Dado | Valor | Origem |
+| --- | --- | --- |
+| Modelos | Lisa; Frizzatta FRI 001, 002, 003 e 004 (porta de abrir, uma folha) | p. 7 e 8 |
+| Porta → vão | 60 → 68, 70 → 78, 80 → 88, 90 → 98 cm de largura; 210 → 215 cm de altura | p. 26, "Porta de abrir — medidas padrão do vão" |
+| Espessura da folha | 35 mm | p. 26, "Dimensões" |
+| Largura dos frisos (Frizzatta) | 16 mm | p. 26, "Dimensões" |
+| Acabamentos | Verniz, Primer, Branco; na Frizzatta, também verniz com frisos claros | p. 7 e 8 |
+| Núcleo | Sarrafeado ou sólido (Verniz e Primer) | p. 26, "Núcleo — linhas Frizzatta, Lisa e Primer" |
+
+**Não é dado transcrito:**
+
+- **Posição dos frisos** — a ilustração da p. 7 mostra quantos são e em que direção, mas não os cota. O tipo guarda a posição como fração da folha com `schematic: true`: igualmente espaçados nos FRI 002, 003 e 004; frações estimadas da figura no FRI 001. O editor e a exportação dizem que é esquemático.
+- **Friso curvo do FRI 003** — não é representado (só os seis horizontais), e a família o declara.
+- **Largura do marco (4 cm)** — derivada: (largura do vão − largura da porta) / 2. Com isso a folha do modelo tem 2,11 m de altura (vão − marco), contra 2,10 m do catálogo.
+- **Núcleo do acabamento Branco** — o quadro de núcleos lista "Frizzatta, Lisa e Primer" de um lado e "Madeirado e Branco" do outro, sem dizer qual vale para uma Frizzatta ou Lisa branca: fica pendente.
+- **Materiais, ferragens, batente, guarnições, desempenho e peso** — não modelados nem preenchidos. A cor no 3D é genérica.
+
+**Fora deste piloto:** Lisa com visor, com bandeira e modulares (duas folhas), linhas Veneziana, Madeirada e Boutique, kits de correr, batentes, guarnições e rodapés. O catálogo consultado é de 2017: confira a linha vigente do fabricante antes de especificar.
 
 ## Editar famílias
 

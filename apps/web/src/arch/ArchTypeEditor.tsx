@@ -576,6 +576,14 @@ export function ArchTypeParameters({
               />
             </Labeled>
           </div>
+          {draft.leaf && (
+            <p className="muted" data-testid="arch-door-leaf">
+              Desenho da folha: {draft.leaf.friezes.length} friso(s) de{' '}
+              {formatDecimal(draft.leaf.friezeWidth * 1000, 0)} mm, vindo(s) do catálogo
+              {draft.leaf.schematic ? ' — posição esquemática, não cotada pela fonte' : ''}. Não é
+              editável aqui.
+            </p>
+          )}
         </fieldset>
       )}
       {draft.category === 'window' && (

@@ -569,6 +569,30 @@ Verificação: `apps/web/src/editor/planSnaps.test.ts`, `apps/web/src/arch/archE
 
 Verificação: `packages/core/src/architecture/wallModify.test.ts`, `apps/web/src/arch/archModify.test.ts` e `tests/e2e/architectureEdit.spec.ts` ("aparar para canto, alinhar levando o canto e dividir").
 
+## ADR-049 — Catálogo de produtos de arquitetura: família com medidas da fonte, tipo criado por escolha e frisos paramétricos (esquema v20)
+
+**Data:** 2026-11-22.
+
+**Contexto.** O catálogo de arquitetura só tinha famílias genéricas. O responsável pediu um catálogo de portas a partir do catálogo da Pormade, leve o bastante para repetir o processo com janelas, pisos e outros fabricantes.
+
+**Decisão.**
+
+- **Reaproveitar família › tipo › ocorrência** (ADR-044) em vez de criar outra biblioteca. A família de produto (`generic: false`, com `source`) ganha `product`: um registro por **modelo**, com a lista de medidas e de acabamentos da fonte — não um item por combinação.
+- **O tipo nasce de uma escolha** (`doorTypeFromProduct`): medida, acabamento e núcleo. As dimensões não são digitadas. O tipo é **cópia** gravada no projeto, com `familyId`, `source` e `manufacturing` como referência: o arquivo abre sem o catálogo e não muda se o catálogo mudar. Esses campos já existiam; não foi preciso campo novo para a referência.
+- **Frisos paramétricos** (`DoorType.leaf`, opcional — o único acréscimo ao esquema): frisos retos por orientação e fração da folha, com a largura e a marca `schematic`. Fração, e não cota, porque a fonte não cota a posição e o mesmo desenho vale para as quatro larguras. `doorElevation` é a origem única da malha 3D e da prévia 2D.
+- **Sem imagens nem malhas importadas.** A prévia é desenhada dos parâmetros; nenhuma foto do fabricante entra no repositório.
+- **Um módulo por categoria e fabricante** (`packages/catalog/src/doors/pormade.ts`), sem contrato comum entre categorias: janelas e pisos definem o seu `product` quando chegarem.
+- **IFC:** fabricante e modelo em `Pset_ManufacturerTypeInformation`; acabamento, núcleo e frisos em `HydroBIM_Esquadria` (`Finish`, `Core`, `FriezeCount`, `FriezeWidth`), porque o IFC 4.3 não os padroniza. O que a fonte não traz fica pendente.
+- **Sem dependências novas.**
+
+**Alternativas descartadas.** Um tipo pronto por combinação modelo × medida × acabamento (multiplica registros sem informação nova); malha glTF por modelo (pesa e depende de arquivos do fabricante); guardar só a referência ao catálogo no projeto (o arquivo passaria a depender da versão do catálogo); subtrair o friso da folha por operação booleana (a profundidade do friso não é dado da fonte).
+
+**Carga sob demanda.** Os dados ficam em TypeScript no pacote e entram no pacote inicial do editor. Com um registro por modelo, as cinco famílias somam poucos kB; separar em módulo carregado ao abrir o catálogo fica para quando o volume justificar.
+
+**Consequências e limites.** Só portas de abrir de uma folha das linhas Lisa e Frizzatta. Posição dos frisos esquemática; friso curvo do FRI 003 não representado; marco derivado (a folha do modelo fica 1 cm mais alta que a do catálogo); cor do 3D genérica. A fonte é um catálogo de 2017 fornecido em PDF, sem número de edição legível. Documentos v19 migram só com a troca da versão.
+
+Verificação: `packages/catalog/src/doors/pormade.test.ts`, `packages/core/src/architecture/doorLeaf.test.ts`, `packages/geometry/src/doorElevation.test.ts`, `packages/ifc/src/bim/archDoorProduct.test.ts`, `services/api/tests/test_door_leaf.py` e `tests/e2e/architectureViews.spec.ts` ("catálogo de portas Pormade").
+
 ## ADR-050 — Importação IFC: objetos de referência lidos com o web-ifc, com a fonte guardada no projeto (esquema v19)
 
 **Contexto.** O editor só exportava IFC. Para trabalhar junto de modelos de outras disciplinas (arquitetura, estrutura, outras instalações) é preciso abrir arquivos `.ifc`, ver o conteúdo, escolher o que importar, posicionar, consultar propriedades e salvar o projeto com esses objetos — no navegador e na publicação estática do GitHub Pages, sem backend.

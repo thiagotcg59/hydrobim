@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { installFakeXr, type FakeXrHandle } from './fakeXr';
 import { ctl, openTask } from './ui';
@@ -288,5 +289,69 @@ test('dispositivo sem piso rastreado: a sessão abre com o piso estimado', async
   await expect(page.getByTestId('vr-status')).toContainText('piso estimado');
   await page.getByTestId('vr-close').click();
   await expect(page.getByTestId('viewport-canvas')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('projeto novo só com um IFC importado: entra em VR e consulta um objeto do arquivo', async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  const errors = trackErrors(page);
+  await page.addInitScript(installFakeXr);
+  await openEditor(page);
+  await (await ctl(page, 'action-new')).click();
+  await expect(page.getByTestId('element-count')).toHaveText('0');
+
+  // Projeto vazio: nada para ver, e o comando diz o motivo.
+  await openTask(page, 'view');
+  await expect(page.getByTestId('view-vr')).toBeDisabled();
+
+  // Arquivo › Importar IFC, no lugar original do arquivo.
+  await (await ctl(page, 'action-import-ifc')).click();
+  const dialog = page.getByTestId('ifc-import-dialog');
+  await page
+    .getByTestId('ifc-import-file')
+    .setInputFiles(resolve(process.cwd(), 'tests/fixtures/ifc-import/predio-ifc4-mm.ifc'));
+  // A primeira leitura da sessão compila o leitor IFC (WebAssembly) no Web Worker: com o
+  // servidor de desenvolvimento frio isso passa de 30 s.
+  await expect(dialog).toHaveAttribute('data-step', 'preview', { timeout: 120_000 });
+  await page.getByTestId('ifc-import-next').click();
+  await page.getByTestId('ifc-placement-confirm').click();
+  await expect(page.getByTestId('nav-ifc-model')).toHaveAttribute('data-status', 'ready');
+
+  // Sem rede, sem arquitetura e sem terreno — só o modelo importado: o VR fica disponível.
+  await openTask(page, 'view');
+  await expect(page.getByTestId('view-vr')).toBeEnabled();
+  await page.getByTestId('view-vr').click();
+  await expect(view(page)).toHaveAttribute('data-phase', 'presenting');
+  await expect(view(page)).toHaveAttribute('data-x', /\d/);
+
+  // O usuário começa diante do prédio importado: o raio do controle encontra um objeto dele.
+  let hovered = '';
+  search: for (const pitch of [0.1, 0, 0.2, -0.1, 0.3, 0.45]) {
+    for (const yaw of [0, 0.15, -0.15, 0.3, -0.3, 0.5, -0.5]) {
+      await page.evaluate(
+        ([p, y]) => {
+          const xr = (window as unknown as { __fakeXr: FakeXrHandle }).__fakeXr;
+          const hand = xr.hands[1];
+          if (!hand) return;
+          hand.pitch = p ?? 0;
+          hand.yaw = y ?? 0;
+        },
+        [pitch, yaw],
+      );
+      await page.waitForTimeout(150);
+      hovered = (await view(page).getAttribute('data-hovered')) ?? '';
+      if (hovered) break search;
+    }
+  }
+  expect(hovered).not.toBe('');
+  await device(page, (xr) => xr.press(1));
+  await expect(view(page)).toHaveAttribute('data-selected', hovered);
+
+  // De volta ao editor, o objeto consultado é o do modelo importado, selecionado.
+  await page.getByTestId('vr-close').click();
+  await expect(page.getByTestId('viewport-canvas')).toBeVisible();
+  await expect(page.getByTestId('ifc-properties')).toHaveAttribute('data-ifc-id', hovered);
   expect(errors).toEqual([]);
 });

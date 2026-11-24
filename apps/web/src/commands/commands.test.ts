@@ -275,8 +275,23 @@ describe('realidade virtual', () => {
   it('"Entrar em VR" exige um projeto com algo para ver, e diz o motivo', () => {
     expect(stateOf('view.vr')).toMatchObject({ enabled: false });
     expect(stateOf('view.vr').reason).toContain('elementos');
+    expect(stateOf('view.vr').reason).toContain('IFC');
     drawBend();
     expect(stateOf('view.vr')).toMatchObject({ enabled: true, active: false });
+  });
+
+  it('projeto só com um modelo IFC importado também pode ser visto em VR', () => {
+    expect(stateOf('view.vr').enabled).toBe(false);
+    const context = commandContext();
+    const { project } = context;
+    // Só a contagem de modelos importa para a disponibilidade.
+    const model = { id: 'modelo' } as (typeof project.ifcModels)[number];
+    expect(
+      commandState(getCommand('view.vr'), {
+        ...context,
+        project: { ...project, ifcModels: [model] },
+      }),
+    ).toMatchObject({ enabled: true, active: false });
   });
 
   it('abre a vista de VR sem alterar o projeto nem o histórico; navegador sem WebXR é informado', async () => {

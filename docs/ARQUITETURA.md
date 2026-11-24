@@ -169,12 +169,14 @@ A referência é uma reta em planta — na interface, uma aresta de qualquer ele
 
 ## Catálogo
 
-Dezoito famílias embutidas, todas **modelos genéricos parametrizáveis** (`generic: true`, sem fonte): paredes de alvenaria cerâmica, de blocos de concreto e de drywall; laje de concreto; pisos cerâmico/porcelanato, vinílico e laminado; telhados de uma água e de duas águas; portas de giro de uma e duas folhas, de correr e pivotante; janelas fixa, de correr, de abrir, basculante e maxim-ar.
+Dezoito famílias genéricas embutidas, **modelos genéricos parametrizáveis** (`generic: true`, sem fonte): paredes de alvenaria cerâmica, de blocos de concreto e de drywall; laje de concreto; pisos cerâmico/porcelanato, vinílico e laminado; telhados de uma água e de duas águas; portas de giro de uma e duas folhas, de correr e pivotante; janelas fixa, de correr, de abrir, basculante e maxim-ar.
 
-- As dimensões e camadas das famílias são **valores iniciais de edição**, não medidas de catálogo nem de norma; o usuário as define ao criar o tipo.
-- Nenhuma família traz resistência ao fogo, desempenho acústico, transmitância térmica, classificação ou peso: são campos pendentes.
+- As dimensões e camadas das famílias genéricas são **valores iniciais de edição**, não medidas de catálogo nem de norma; o usuário as define ao criar o tipo.
+- Nenhuma família (genérica ou de fabricante) traz resistência ao fogo, desempenho acústico, transmitância térmica, classificação ou peso: são campos pendentes.
 - Telhados: a família dá a tipologia e duas camadas iniciais (cobertura e estrutura de apoio), só para reservar a espessura. A estrutura (tesouras, terças, caibros, ripas) não é modelada peça a peça, e a inclinação mínima de cada telha é dado do produto adotado — nada disso é presumido.
-- Produto comercial: `generic: false` exige `source` (catálogo vigente do fabricante, edição, página e URL); o núcleo recusa sem ela. Não há produto comercial embutido.
+- Produto comercial: `generic: false` exige `source` (catálogo vigente do fabricante, edição, página e URL); o núcleo recusa sem ela.
+- **Portas Pormade** (linhas Lisa e Frizzatta FRI 001 a 004): cinco famílias de produto, com fonte e páginas. No catálogo, a família de produto não tem campos de dimensão: escolhe-se a **medida** (60, 70, 80 ou 90 × 210 cm, com o vão correspondente), o **acabamento** e o **núcleo**, e o tipo nasce com o vão, a espessura da folha, o fabricante, o modelo e o desenho dos frisos. A prévia 2D é a porta em elevação. O que é transcrito, derivado ou esquemático está em [CATALOGS.md](CATALOGS.md#produtos-de-fabricante-portas-pormade-linhas-lisa-e-frizzatta).
+- **Frisos**: aparecem no modelo 3D, nas elevações e no IFC como parte própria da porta (1 mm de saliência nas duas faces — representação, sem subtrair material da folha); em planta a porta continua pelo símbolo de abertura. O desenho da folha não é editável no editor de tipos.
 
 ## Quantitativos
 

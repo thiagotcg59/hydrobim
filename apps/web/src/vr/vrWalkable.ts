@@ -210,11 +210,13 @@ export function vrStartOf(
     exaggeration?: number;
     workPlaneZ: number;
     hiddenCategories?: ReadonlySet<ViewCategory>;
+    /** Envoltória do que não é rede nem arquitetura (modelos IFC importados), no projeto. */
+    referenceBounds?: { min: Vec3; max: Vec3 } | null;
   },
 ): VrStart {
   let bounds = computeBounds(visibleElementsOf(project));
-  const arch = computeArchBounds(project);
-  if (arch) {
+  for (const arch of [computeArchBounds(project), options.referenceBounds ?? null]) {
+    if (!arch) continue;
     bounds = bounds
       ? {
           min: {

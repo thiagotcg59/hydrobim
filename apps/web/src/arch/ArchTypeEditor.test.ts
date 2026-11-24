@@ -158,7 +158,15 @@ describe('lista do catálogo', () => {
   it('filtra por categoria e busca sem acentos', () => {
     const doors = catalogGroups(families, demo.architecture, '', 'door');
     expect(doors).toHaveLength(1);
-    expect(doors[0]?.families).toHaveLength(4);
+    // Quatro genéricas e as cinco portas Pormade (Lisa e Frizzatta FRI 001 a 004).
+    expect(doors[0]?.families).toHaveLength(9);
+    const pormade = catalogGroups(families, demo.architecture, 'pormade frizzatta', null);
+    expect(pormade.flatMap((group) => group.families.map((entry) => entry.family.id))).toEqual([
+      'arq-porta-pormade-frizzatta-fri-001',
+      'arq-porta-pormade-frizzatta-fri-002',
+      'arq-porta-pormade-frizzatta-fri-003',
+      'arq-porta-pormade-frizzatta-fri-004',
+    ]);
     const found = catalogGroups(families, demo.architecture, 'ceramica', null);
     expect(found.flatMap((group) => group.families.map((entry) => entry.family.id)).sort()).toEqual(
       ['arq-parede-alvenaria-ceramica', 'arq-piso-ceramica-porcelanato'],

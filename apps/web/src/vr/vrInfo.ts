@@ -4,6 +4,7 @@ import {
   archLevelIdOf,
   archTypeOf,
   archVerticalRange,
+  findIfcObject,
   formatMeters,
   getElement,
   pipeLength,
@@ -88,6 +89,50 @@ export function vrArchInfo(project: Project, elementId: string): VrInfo | null {
   return { title: element.name, rows };
 }
 
+/** O que o arquivo IFC informa sobre um objeto (lido da fonte carregada; `null` = não carregada). */
+export interface VrIfcSummary {
+  readonly entity: string;
+  readonly predefinedType: string | null;
+  readonly name: string | null;
+  readonly objectType: string | null;
+  readonly tag: string | null;
+  readonly storeyName: string | null;
+  readonly typeName: string | null;
+}
+
+/**
+ * Propriedades de um objeto IFC importado, pelo `id` dele no projeto. Só o que o arquivo traz:
+ * o que ele não informa não aparece (nada é preenchido).
+ */
+export function vrIfcInfo(
+  project: Project,
+  objectId: string,
+  summary: VrIfcSummary | null,
+): VrInfo | null {
+  const found = findIfcObject(project, objectId);
+  if (!found) return null;
+  const { model, object } = found;
+  const rows: [string, string][] = [];
+  if (summary) {
+    const predefined =
+      summary.predefinedType && summary.predefinedType !== 'NOTDEFINED'
+        ? ` · ${summary.predefinedType}`
+        : '';
+    rows.push(['Categoria', `${summary.entity}${predefined}`]);
+    if (summary.name) rows.push(['Identificação', summary.name]);
+    const type = summary.typeName ?? summary.objectType;
+    if (type) rows.push(['Tipo', type]);
+    if (summary.storeyName) rows.push(['Pavimento', summary.storeyName]);
+    if (summary.tag) rows.push(['Etiqueta', summary.tag]);
+  } else {
+    rows.push(['Categoria', 'Objeto IFC importado']);
+  }
+  if (object.globalId) rows.push(['GlobalId', object.globalId]);
+  rows.push(['Modelo', model.name]);
+  rows.push(['Esquema', model.schema]);
+  return { title: summary?.name ?? summary?.entity ?? model.name, rows };
+}
+
 /** Resumo do projeto, para o menu da sessão. */
 export function vrProjectInfo(project: Project): VrInfo {
   const rows: [string, string][] = [
@@ -98,6 +143,9 @@ export function vrProjectInfo(project: Project): VrInfo {
   ];
   if (project.architecture.elements.length > 0) {
     rows.push(['Elementos de arquitetura', String(project.architecture.elements.length)]);
+  }
+  if (project.ifcModels.length > 0) {
+    rows.push(['Modelos IFC importados', String(project.ifcModels.length)]);
   }
   rows.push(['Terreno', project.terrain ? 'Superfície gerada' : 'Sem superfície']);
   return { title: project.name, rows };

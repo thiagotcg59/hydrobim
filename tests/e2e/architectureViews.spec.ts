@@ -204,7 +204,7 @@ test('catálogo de arquitetura: buscar, filtrar, criar, editar, recusar, duplica
   await expect(dialog).toBeVisible();
   const families = dialog.getByTestId('arch-family-item');
   const types = dialog.getByTestId('arch-type-item');
-  await expect(families).toHaveCount(18);
+  await expect(families).toHaveCount(23);
   await expect(types).toHaveCount(9);
 
   // Busca e filtro por categoria.
@@ -213,7 +213,7 @@ test('catálogo de arquitetura: buscar, filtrar, criar, editar, recusar, duplica
   await expect(types).toHaveCount(1);
   await dialog.getByTestId('arch-catalog-search').fill('');
   await dialog.getByTestId('arch-catalog-filter-door').click();
-  await expect(families).toHaveCount(4);
+  await expect(families).toHaveCount(9);
   await expect(types).toHaveCount(2);
 
   // Família: selo de genérica, o que não é dado de catálogo e o enquadramento IFC.
@@ -310,6 +310,89 @@ test('catálogo de arquitetura: buscar, filtrar, criar, editar, recusar, duplica
   await expect(editor.getByTestId('arch-type-predefined')).toHaveValue('SOLIDWALL');
   await editor.getByTestId('arch-type-use').click();
   await expect(dialog).toHaveCount(0);
+
+  expect(errors).toEqual([]);
+});
+
+test('catálogo de portas Pormade: escolher medida e acabamento e criar o tipo', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await openBuilding(page);
+  await openTask(page, 'model');
+  await page.getByTestId('arch-catalog').click();
+  const dialog = page.getByTestId('arch-catalog-dialog');
+  const families = dialog.getByTestId('arch-family-item');
+  const types = dialog.getByTestId('arch-type-item');
+
+  // A busca alcança o fabricante e a linha.
+  await dialog.getByTestId('arch-catalog-search').fill('pormade');
+  await expect(families).toHaveCount(5);
+  await dialog.getByTestId('arch-catalog-search').fill('frizzatta');
+  await expect(families).toHaveCount(4);
+
+  // Família de produto: selo de fabricante, fonte com as páginas e o que é esquemático.
+  await dialog.locator('[data-family-id="arq-porta-pormade-frizzatta-fri-004"]').click();
+  const family = dialog.getByTestId('arch-family-detail');
+  await expect(family.getByTestId('arch-family-product')).toHaveText('Produto de fabricante');
+  await expect(family.getByTestId('arch-family-source')).toContainText('p. 7 e 26');
+  await expect(family.getByTestId('arch-family-notes')).toContainText(
+    'posição deles é esquemática',
+  );
+  // As dimensões não são digitadas: não há campos de largura nem de nome.
+  await expect(family.getByTestId('arch-type-width')).toHaveCount(0);
+  await expect(family.getByTestId('arch-product-notice')).toBeVisible();
+
+  // Padrão da família: 80 × 210 em verniz; a prévia é a elevação com os quatro frisos.
+  await expect(family.getByTestId('arch-product-size')).toHaveValue('80');
+  await expect(family.getByTestId('arch-product-opening')).toHaveText('88 × 215 cm');
+  await expect(family.getByTestId('arch-preview-2d')).toHaveAttribute(
+    'data-preview',
+    'door-elevation',
+  );
+  await expect(family.getByTestId('arch-preview-frieze')).toHaveCount(4);
+  await expect(family.getByTestId('arch-preview-note')).toContainText('esquemática');
+  await expect(family.getByTestId('family-preview-canvas')).toBeVisible({ timeout: 30_000 });
+
+  // Branco: o catálogo não informa o núcleo, e a escolha fica bloqueada.
+  await family.getByTestId('arch-product-finish').selectOption('branco');
+  await expect(family.getByTestId('arch-product-core')).toBeDisabled();
+  // Verniz, 90 cm, núcleo sólido.
+  await family.getByTestId('arch-product-finish').selectOption('verniz');
+  await family.getByTestId('arch-product-size').selectOption('90');
+  await family.getByTestId('arch-product-core').selectOption('Sólido');
+  await expect(family.getByTestId('arch-product-opening')).toHaveText('98 × 215 cm');
+  await expect(family.getByTestId('arch-product-name')).toHaveText(
+    'Pormade Frizzatta FRI 004 — 90 × 210 cm — Verniz — núcleo sólido',
+  );
+  await page.screenshot({ path: 'test-results/arquitetura-04-catalogo-pormade.png' });
+
+  await family.getByTestId('arch-create-type').click();
+  const editor = dialog.getByTestId('arch-type-editor');
+  await expect(editor).toBeVisible();
+  await expect(types).toHaveCount(1);
+  await expect(dialog.getByTestId('arch-type-product-badge')).toBeVisible();
+  await expect(editor.getByTestId('arch-type-width')).toHaveValue('0,98');
+  await expect(editor.getByTestId('arch-type-manufacturer')).toHaveValue('Pormade');
+  await expect(editor.getByTestId('arch-type-model')).toHaveValue('Frizzatta FRI 004');
+  await expect(editor.getByTestId('arch-type-source')).toHaveValue(/Catálogo de Produtos/);
+  await expect(editor.getByTestId('arch-door-leaf')).toContainText('4 friso(s) de 16 mm');
+
+  // Propriedades IFC do tipo: acabamento e núcleo vindos da escolha; frisos derivados.
+  const row = (key: string): Locator =>
+    editor.locator(`[data-testid="arch-ifc-row"][data-key="${key}"]`);
+  await expect(row('HydroBIM_Esquadria.Finish').locator('input')).toHaveValue('Verniz');
+  await expect(row('HydroBIM_Esquadria.Core').locator('input')).toHaveValue('Sólido');
+  await expect(row('HydroBIM_Esquadria.FriezeCount')).toContainText('4');
+  await expect(row('Pset_DoorCommon.FireRating')).toHaveAttribute('data-origin', 'pending');
+
+  // Criar de novo a mesma escolha é recusado pelo núcleo (nome já usado).
+  await dialog.getByTestId('arch-crumb-family').click();
+  await family.getByTestId('arch-product-size').selectOption('90');
+  await family.getByTestId('arch-product-core').selectOption('Sólido');
+  await family.getByTestId('arch-create-type').click();
+  await expect(family.getByTestId('arch-create-error')).toContainText('Já existe um tipo');
+  await expect(types).toHaveCount(1);
 
   expect(errors).toEqual([]);
 });
