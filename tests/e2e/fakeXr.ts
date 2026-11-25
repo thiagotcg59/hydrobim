@@ -265,10 +265,16 @@ export function installFakeXr(options: FakeXrOptions = {}): void {
     configurable: true,
     value: {
       isSessionSupported: (mode: string) => Promise.resolve(mode === 'immersive-vr'),
-      requestSession: (mode: string) =>
-        mode === 'immersive-vr'
+      requestSession: (mode: string) => {
+        // Como no navegador real: sem a ativação de um gesto ainda válida, o pedido é recusado.
+        const activation = (navigator as { userActivation?: { isActive: boolean } }).userActivation;
+        if (activation && !activation.isActive) {
+          return Promise.reject(new DOMException('sem gesto do usuário', 'SecurityError'));
+        }
+        return mode === 'immersive-vr'
           ? Promise.resolve(createSession())
-          : Promise.reject(new DOMException('modo não suportado', 'NotSupportedError')),
+          : Promise.reject(new DOMException('modo não suportado', 'NotSupportedError'));
+      },
       addEventListener: () => undefined,
       removeEventListener: () => undefined,
     },

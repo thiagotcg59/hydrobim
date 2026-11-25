@@ -18,7 +18,7 @@ import { DocView } from '../views/DocView';
 import { VIEW_ICONS } from '../views/viewIcons';
 import { openView2dOf, useViewStore } from '../views/viewStore';
 import { Viewport } from '../viewport/Viewport';
-import { useVrStore } from '../vr/vrStore';
+import { checkVrSupport, useVrStore } from '../vr/vrStore';
 import { VRView } from '../vr/VRView';
 import { WalkView } from '../walk/WalkView';
 import { CommandButton } from './CommandButton';
@@ -223,6 +223,12 @@ export function Workspace({ ready }: { ready: boolean }) {
   const active: WorkspaceView = viewMode === 'plan' ? 'plan' : '3d';
   const mounted = (pane: WorkspaceView): boolean => split || active === pane;
   const sideBySide = split && !maximized;
+
+  // O suporte a VR é consultado já na abertura: no clique de "Entrar em VR" o pedido da sessão
+  // tem de sair de imediato (a ativação do gesto expira), sem esperar por esta resposta.
+  useEffect(() => {
+    void checkVrSupport();
+  }, []);
 
   // A vista combinada abre com a isométrica técnica; depois disso a navegação é do usuário.
   const opened = useRef(false);

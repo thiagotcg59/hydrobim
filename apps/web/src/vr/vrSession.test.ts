@@ -163,13 +163,43 @@ describe('entrada e saída pela store', () => {
     openVr();
   });
 
-  it('navegador incompatível: mensagem clara e o editor segue (nenhuma sessão é pedida)', async () => {
+  it('navegador incompatível já consultado: mensagem clara e nenhuma sessão é pedida', async () => {
     const xr = fakeXr({ supported: false });
+    await checkVrSupport({ xr, isSecureContext: true });
     await enterVr({ xr, isSecureContext: true });
     const state = useVrStore.getState();
     expect(state.phase).toBe('idle');
     expect(state.message).toContain('Nenhum dispositivo');
     expect(xr.requests).toHaveLength(0);
+  });
+
+  it('navegador incompatível ainda não consultado: o pedido recusado vira a mensagem de incompatibilidade', async () => {
+    const xr = fakeXr({
+      supported: false,
+      deny: new DOMException('sem aparelho', 'NotSupportedError'),
+    });
+    await enterVr({ xr, isSecureContext: true });
+    const state = useVrStore.getState();
+    expect(state.phase).toBe('idle');
+    expect(state.support).toMatchObject({ reason: 'no-vr' });
+    expect(state.message).toContain('Nenhum dispositivo');
+  });
+
+  it('página sem HTTPS: nenhuma sessão é pedida', async () => {
+    const xr = fakeXr();
+    await enterVr({ xr, isSecureContext: false });
+    expect(useVrStore.getState().message).toContain('HTTPS');
+    expect(xr.requests).toHaveLength(0);
+  });
+
+  it('pede a sessão dentro do clique, antes de qualquer espera (a ativação do gesto expira)', async () => {
+    // Com um IFC grande a cena leva segundos para montar depois do clique; se o pedido
+    // esperasse a consulta de suporte, chegaria ao navegador com a ativação vencida.
+    const xr = fakeXr();
+    const entering = enterVr({ xr, isSecureContext: true });
+    expect(xr.requests).toHaveLength(1);
+    await entering;
+    expect(useVrStore.getState().support).toEqual({ state: 'supported' });
   });
 
   it('sem WebXR: `checkVrSupport` guarda o motivo', async () => {

@@ -113,29 +113,55 @@ async function bind(session: XrSessionLike, attach: VrAttach): Promise<void> {
   }
 }
 
+/** O pedido falhou: separa o navegador incompatível (sem aparelho, sem WebXR) da recusa. */
+async function explainFailure(env: VrEnvironment, error: unknown): Promise<void> {
+  const support = await checkVrSupport(env);
+  useVrStore.setState(
+    support.state === 'unsupported'
+      ? { phase: 'idle', message: support.message }
+      : { phase: 'error', message: sessionErrorMessage(error) },
+  );
+}
+
 /**
  * Entra na realidade virtual. Tem de ser chamada a partir de um clique: os navegadores só
  * concedem a sessão imersiva em resposta a um gesto do usuário. Navegador incompatível ou
  * pedido recusado deixam a mensagem em `message` e o editor segue funcionando.
+ *
+ * O pedido da sessão sai **antes de qualquer espera**, ainda dentro do clique. A ativação do
+ * gesto vale por poucos segundos, e o mesmo clique manda montar a cena: com um modelo pesado
+ * (um IFC importado, em um headset autônomo) a montagem ocupa a página por mais tempo do que
+ * isso — consultar o suporte primeiro fazia o pedido chegar vencido e ser recusado.
  */
 export async function enterVr(env: VrEnvironment = browserVrEnvironment()): Promise<void> {
-  const { phase } = useVrStore.getState();
+  const { phase, support: known } = useVrStore.getState();
   if (phase === 'requesting' || phase === 'presenting') return;
   useVrStore.setState({ phase: 'requesting', message: null });
-  const support = await checkVrSupport(env);
-  if (support.state === 'unsupported' || !env.xr) {
+  // Incompatibilidade já conhecida (consultada na abertura do editor): nada é pedido.
+  if (known?.state === 'unsupported' || env.isSecureContext === false || !env.xr) {
+    const support = await checkVrSupport(env);
     useVrStore.setState({
       phase: 'idle',
       message: support.state === 'unsupported' ? support.message : null,
     });
     return;
   }
+  let request: Promise<XrSessionLike>;
+  try {
+    request = requestVrSession(env.xr);
+  } catch (error) {
+    await explainFailure(env, error);
+    return;
+  }
   let session: XrSessionLike;
   try {
-    session = await requestVrSession(env.xr);
+    session = await request;
   } catch (error) {
-    useVrStore.setState({ phase: 'error', message: sessionErrorMessage(error) });
+    await explainFailure(env, error);
     return;
+  }
+  if (useVrStore.getState().support?.state !== 'supported') {
+    useVrStore.setState({ support: { state: 'supported' } });
   }
   session.addEventListener(
     'end',
